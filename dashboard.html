@@ -10,7 +10,7 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0f172a;
+      background: #0f272a;
       color: #f1f5f9;
       min-height: 100vh;
     }
@@ -113,11 +113,12 @@
     }
 
     .camera-box video,
-    .camera-box canvas {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-    }
+.camera-box canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+}
 
     /* Rep counter overlay */
     .rep-overlay {
@@ -379,23 +380,316 @@
     }
 
     .empty-state p { font-size: 1rem; }
+
+    /* ── AUTH SCREENS ── */
+#loginScreen, #signupScreen {
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 400px;
+  background: #1e293b;
+  border-radius: 20px;
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-box h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #3b82f6;
+  text-align: center;
+  letter-spacing: -1px;
+}
+
+.auth-subtitle {
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  margin-top: -8px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.auth-field input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.auth-field input:focus {
+  border-color: #3b82f6;
+}
+
+.auth-field input::placeholder {
+  color: #475569;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 14px;
+  background: #3b82f6;
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+
+.auth-btn:hover {
+  background: #2563eb;
+}
+
+.auth-switch {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.auth-switch span {
+  color: #3b82f6;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.auth-switch span:hover {
+  text-decoration: underline;
+}
+
+.auth-error {
+  background: #450a0a;
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.role-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.role-toggle-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 2px solid #334155;
+  background: #0f172a;
+  color: #64748b;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.role-toggle-btn.active {
+  border-color: #3b82f6;
+  background: #1e3a5f;
+  color: #f1f5f9;
+}
+/* ── CLINIC CODE ── */
+.clinic-code-box {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.clinic-code-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.clinic-code {
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: #3b82f6;
+  letter-spacing: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.clinic-code-hint {
+  font-size: 0.75rem;
+  color: #475569;
+  margin-top: 6px;
+}
+
+/* ── CONNECT SCREEN ── */
+.connect-desc {
+  font-size: 0.88rem;
+  color: #64748b;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.auth-success {
+  background: #052e16;
+  border: 1px solid #22c55e;
+  color: #86efac;
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+/* ── CONNECTED PATIENT TAG ── */
+.patient-connected {
+  font-size: 0.72rem;
+  color: #22c55e;
+  margin-top: 2px;
+}
+
+/* ── EMPTY PATIENT STATE ── */
+.no-patients {
+  text-align: center;
+  padding: 24px 16px;
+  color: #475569;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  border: 1px dashed #334155;
+  border-radius: 10px;
+  margin-top: 8px;
+}
   </style>
 </head>
 <body>
 
   <!-- ── LOGIN SCREEN ── -->
-  <div id="loginScreen" class="screen active">
+<div id="loginScreen" class="screen active">
+  <div class="auth-box">
     <h1>PhalanX</h1>
-    <p>Who are you today?</p>
-    <button class="role-btn" onclick="login('patient')">
-      I am a Patient
-      <span>Complete your home exercise program</span>
-    </button>
-    <button class="role-btn" onclick="login('therapist')">
-      I am a Therapist
-      <span>Monitor patients and assign protocols</span>
+    <p class="auth-subtitle">Sign in to continue</p>
+
+    <!-- Error message -->
+    <div id="loginError" class="auth-error" style="display:none"></div>
+
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" />
+    </div>
+
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" />
+    </div>
+
+    <button class="auth-btn" onclick="handleLogin()">Sign In</button>
+
+    <p class="auth-switch">
+      Don't have an account?
+      <span onclick="showScreen('signupScreen')">Create one</span>
+    </p>
+  </div>
+</div>
+
+<!-- ── SIGN UP SCREEN ── -->
+<div id="signupScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Create your account</p>
+
+    <!-- Error message -->
+    <div id="signupError" class="auth-error" style="display:none"></div>
+
+    <div class="auth-field">
+      <label>Full Name</label>
+      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" />
+    </div>
+
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" />
+    </div>
+
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="signupPassword" placeholder="Min. 6 characters" />
+    </div>
+
+    <div class="auth-field">
+      <label>I am a</label>
+      <div class="role-toggle">
+        <button id="rolePatientBtn" class="role-toggle-btn active"
+                onclick="selectRole('patient')">Patient</button>
+        <button id="roleTherapistBtn" class="role-toggle-btn"
+                onclick="selectRole('therapist')">Therapist</button>
+      </div>
+    </div>
+
+    <button class="auth-btn" onclick="handleSignup()">Create Account</button>
+
+    <p class="auth-switch">
+      Already have an account?
+      <span onclick="showScreen('loginScreen')">Sign in</span>
+    </p>
+  </div>
+</div>
+<!-- ── CONNECT TO THERAPIST SCREEN ── -->
+<div id="connectScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Connect to your therapist</p>
+
+    <div id="connectError" class="auth-error" style="display:none"></div>
+    <div id="connectSuccess" class="auth-success" style="display:none"></div>
+
+    <p class="connect-desc">
+      Ask your therapist for their 6-digit clinic code and enter it below.
+      This links your sessions to their dashboard.
+    </p>
+
+    <div class="auth-field">
+      <label>Clinic Code</label>
+      <input
+        type="text"
+        id="clinicCodeInput"
+        placeholder="e.g. 482910"
+        maxlength="6"
+        style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;"
+      />
+    </div>
+
+    <button class="auth-btn" onclick="handleConnect()">Connect</button>
+    <button class="auth-btn"
+            onclick="skipConnect()"
+            style="background:#1e293b; color:#94a3b8; margin-top:-8px;">
+      Skip for now
     </button>
   </div>
+</div>
 
   <!-- ── PATIENT SCREEN ── -->
   <div id="patientScreen" class="screen">
@@ -455,7 +749,13 @@
   <!-- ── THERAPIST SCREEN ── -->
   <div id="therapistScreen" class="screen">
     <div class="sidebar">
-      <h2>PhalanX</h2>
+  <h2>PhalanX</h2>
+
+  <div class="clinic-code-box">
+    <p class="clinic-code-label">Your Clinic Code</p>
+    <div class="clinic-code" id="therapistCode">------</div>
+    <p class="clinic-code-hint">Share this with your patients</p>
+  </div>
 
       <div class="patient-item" onclick="selectPatient(0, this)">
         <div class="patient-name">Maria Gonzalez</div>
@@ -491,25 +791,402 @@
 
     // ── ROLE / NAVIGATION ──────────────────────────────────────────
 
-    let currentRole = null;
+    // ── AUTH SYSTEM ───────────────────────────────────────────────────
 
-    function login(role) {
-      currentRole = role;
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      if (role === 'patient') {
-        document.getElementById('patientScreen').classList.add('active');
-        startCamera();
-      } else {
-        document.getElementById('therapistScreen').classList.add('active');
+let currentRole = null;
+let currentUser = null;
+let selectedRole = 'patient';
+
+// Demo accounts
+const demoAccounts = [
+  { name: "Dr. Sarah Chen", email: "sarah.chen@mayoclinic.org", password: "demo123", role: "therapist" },
+  { name: "James Park",     email: "james.park@gmail.com",      password: "demo123", role: "patient"   }
+];
+
+function getAccounts() {
+  const stored = localStorage.getItem('phalanx_accounts');
+  const saved  = stored ? JSON.parse(stored) : [];
+  return [...demoAccounts, ...saved];
+}
+
+function saveAccount(account) {
+  const stored = localStorage.getItem('phalanx_accounts');
+  const saved  = stored ? JSON.parse(stored) : [];
+  saved.push(account);
+  localStorage.setItem('phalanx_accounts', JSON.stringify(saved));
+}
+
+// ── CLINIC CODES ─────────────────────────────────────────────────
+
+function generateCode() {
+  // Deterministic 6-digit code based on therapist email
+  // Same email always produces same code
+  let hash = 0;
+  for (let i = 0; i < currentUser.email.length; i++) {
+    hash = ((hash << 5) - hash) + currentUser.email.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(Math.abs(hash) % 900000 + 100000);
+}
+
+function getConnections() {
+  const stored = localStorage.getItem('phalanx_connections');
+  return stored ? JSON.parse(stored) : {};
+  // Structure: { "therapistEmail": ["patientEmail1", "patientEmail2"] }
+}
+
+function saveConnection(therapistEmail, patientEmail) {
+  const connections = getConnections();
+  if (!connections[therapistEmail]) connections[therapistEmail] = [];
+  if (!connections[therapistEmail].includes(patientEmail)) {
+    connections[therapistEmail].push(patientEmail);
+  }
+  localStorage.setItem('phalanx_connections', JSON.stringify(connections));
+}
+
+function getTherapistForCode(code) {
+  // Find which therapist account matches this code
+  const accounts = getAccounts();
+  const therapists = accounts.filter(a => a.role === 'therapist');
+  const saved = JSON.parse(localStorage.getItem('phalanx_accounts') || '[]');
+  const allTherapists = [...therapists, ...saved.filter(a => a.role === 'therapist')];
+
+  // Check all unique therapists
+  const seen = new Set();
+  for (const t of getAccounts().filter(a => a.role === 'therapist')) {
+    if (seen.has(t.email)) continue;
+    seen.add(t.email);
+    const tCode = generateCodeForEmail(t.email);
+    if (tCode === code) return t;
+  }
+  return null;
+}
+
+function generateCodeForEmail(email) {
+  let hash = 0;
+  for (let i = 0; i < email.length; i++) {
+    hash = ((hash << 5) - hash) + email.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(Math.abs(hash) % 900000 + 100000);
+}
+
+function getConnectedPatients(therapistEmail) {
+  const connections = getConnections();
+  const patientEmails = connections[therapistEmail] || [];
+  const accounts = getAccounts();
+  return patientEmails.map(email => accounts.find(a => a.email === email)).filter(Boolean);
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────
+
+function showScreen(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+}
+
+function selectRole(role) {
+  selectedRole = role;
+  document.getElementById('rolePatientBtn').classList.toggle('active',    role === 'patient');
+  document.getElementById('roleTherapistBtn').classList.toggle('active', role === 'therapist');
+}
+
+function showError(id, msg)  { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+function hideError(id)       { document.getElementById(id).style.display = 'none'; }
+
+// ── LOGIN ─────────────────────────────────────────────────────────
+
+function handleLogin() {
+  hideError('loginError');
+  const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+
+  if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
+
+  const match = getAccounts().find(a => a.email.toLowerCase() === email && a.password === password);
+  if (!match) { showError('loginError', 'Incorrect email or password. Try again.'); return; }
+
+  currentUser = match;
+  currentRole = match.role;
+  loginSuccess();
+}
+
+// ── SIGN UP ───────────────────────────────────────────────────────
+
+function handleSignup() {
+  hideError('signupError');
+  const name     = document.getElementById('signupName').value.trim();
+  const email    = document.getElementById('signupEmail').value.trim().toLowerCase();
+  const password = document.getElementById('signupPassword').value;
+
+  if (!name || !email || !password) { showError('signupError', 'Please fill in all fields.'); return; }
+  if (password.length < 6)          { showError('signupError', 'Password must be at least 6 characters.'); return; }
+  if (getAccounts().find(a => a.email.toLowerCase() === email)) {
+    showError('signupError', 'An account with that email already exists.'); return;
+  }
+
+  const newAccount = { name, email, password, role: selectedRole };
+  saveAccount(newAccount);
+  currentUser = newAccount;
+  currentRole = selectedRole;
+  loginSuccess();
+}
+
+// ── CONNECT TO THERAPIST ──────────────────────────────────────────
+
+function handleConnect() {
+  hideError('connectError');
+  const code = document.getElementById('clinicCodeInput').value.trim();
+
+  if (code.length !== 6 || isNaN(code)) {
+    showError('connectError', 'Please enter a valid 6-digit clinic code.');
+    return;
+  }
+
+  const therapist = getTherapistForCode(code);
+  if (!therapist) {
+    showError('connectError', 'No therapist found with that code. Double-check with your therapist.');
+    return;
+  }
+
+  saveConnection(therapist.email, currentUser.email);
+
+  // Show success briefly then go to patient screen
+  const successEl = document.getElementById('connectSuccess');
+  successEl.textContent = `✓ Connected to ${therapist.name}! Loading your exercises...`;
+  successEl.style.display = 'block';
+
+  setTimeout(() => {
+    showScreen('patientScreen');
+    startCamera();
+  }, 1800);
+}
+
+function skipConnect() {
+  showScreen('patientScreen');
+  startCamera();
+}
+
+// ── LOGIN SUCCESS ─────────────────────────────────────────────────
+
+function loginSuccess() {
+  if (currentRole === 'therapist') {
+    showScreen('therapistScreen');
+    // Display this therapist's unique clinic code
+    document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
+    // Load their real connected patients
+    loadConnectedPatients();
+  } else {
+    // Check if patient is already connected to a therapist
+    const connections = getConnections();
+    const alreadyConnected = Object.values(connections).some(list => list.includes(currentUser.email));
+    if (alreadyConnected) {
+      showScreen('patientScreen');
+      startCamera();
+    } else {
+      // First time — prompt them to enter a clinic code
+      showScreen('connectScreen');
+    }
+  }
+}
+
+// ── LOAD REAL PATIENTS INTO THERAPIST SIDEBAR ─────────────────────
+
+function loadConnectedPatients() {
+  const patients = getConnectedPatients(currentUser.email);
+  const sidebar  = document.querySelector('.sidebar');
+
+  // Remove any existing patient items
+  document.querySelectorAll('.patient-item').forEach(el => el.remove());
+
+  // Remove old no-patients message if present
+  const existing = document.getElementById('noPatientsMsg');
+  if (existing) existing.remove();
+
+  if (patients.length === 0) {
+    const msg = document.createElement('div');
+    msg.id = 'noPatientsMsg';
+    msg.className = 'no-patients';
+    msg.innerHTML = `No patients connected yet.<br/>Share your clinic code above<br/>with your patients to get started.`;
+    // Insert before sidebar footer
+    document.querySelector('.sidebar-footer').before(msg);
+    return;
+  }
+
+  patients.forEach((patient, index) => {
+    const item = document.createElement('div');
+    item.className = 'patient-item';
+    const sessions   = getPatientSessions(patient.email);
+    const compliance = calcCompliance(sessions);
+    const statusColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+    const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
+
+    item.innerHTML = `
+    <div class="patient-name">${patient.name}</div>
+    <div class="patient-connected" style="color:${statusColor}">
+        ● ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
+    </div>
+`;
+    item.onclick = () => {
+      document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      showRealPatient(patient);
+    };
+    document.querySelector('.sidebar-footer').before(item);
+  });
+}
+
+function getPatientSessions(patientEmail) {
+  const key = `phalanx_sessions_${patientEmail}`;
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function calcCompliance(sessions) {
+  if (sessions.length === 0) return 0;
+  // Count unique days with sessions in the last 7 days
+  const now = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const recentDays = new Set(
+    sessions
+      .filter(s => new Date(s.date) > sevenDaysAgo)
+      .map(s => new Date(s.date).toDateString())
+  );
+  return Math.round((recentDays.size / 7) * 100);
+}
+
+function showRealPatient(patient) {
+  const sessions = getPatientSessions(patient.email);
+  const panel = document.getElementById('mainPanel');
+
+  if (sessions.length === 0) {
+    panel.innerHTML = `
+      <h3>${patient.name}</h3>
+      <p class="subtitle">Connected Patient</p>
+      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
+        No session data yet. Data will appear here once
+        ${patient.name.split(' ')[0]} completes their first session.
+      </div>
+    `;
+    return;
+  }
+
+  // Calculate stats from real data
+  const compliance = calcCompliance(sessions);
+  const avgROM     = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
+  const avgPain    = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
+  const totalReps  = sessions.reduce((s, x) => s + (x.reps || 0), 0);
+
+  // Build chart data — last 8 sessions
+  const recent   = sessions.slice(-8);
+  const romData  = recent.map(s => s.rom  || 0);
+  const painData = recent.map(s => s.pain || 0);
+  const labels   = recent.map(s => {
+    const d = new Date(s.date);
+    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  });
+
+  // Compliance color
+  const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+
+  panel.innerHTML = `
+    <h3>${patient.name}</h3>
+    <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" style="color:${complianceColor}">${compliance}%</div>
+        <div class="stat-label">7-Day Compliance</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${avgROM}°</div>
+        <div class="stat-label">Avg Range of Motion</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${avgPain}</div>
+        <div class="stat-label">Avg Pain Rating</div>
+      </div>
+    </div>
+
+    <div class="stats-row" style="margin-top:-8px;">
+      <div class="stat-card" style="grid-column: span 3;">
+        <div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div>
+        <div class="stat-label">Total Reps Completed All Time</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h4>Range of Motion Over Time (degrees)</h4>
+      <canvas id="romChart" height="100"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <h4>Pain Rating Over Time (1–10)</h4>
+      <canvas id="painChart" height="100"></canvas>
+    </div>
+  `;
+
+  // Draw ROM chart
+  new Chart(document.getElementById('romChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'ROM (°)',
+        data: romData,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        borderWidth: 2,
+        pointBackgroundColor: '#3b82f6',
+        pointRadius: 4,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 }
       }
     }
+  });
 
-    function logout() {
-      currentRole = null;
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.getElementById('loginScreen').classList.add('active');
-      if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  // Draw Pain chart
+  new Chart(document.getElementById('painChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Pain',
+        data: painData,
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239,68,68,0.1)',
+        borderWidth: 2,
+        pointBackgroundColor: '#ef4444',
+        pointRadius: 4,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 }
+      }
     }
+  });
+}
+
+// ── LOGOUT ────────────────────────────────────────────────────────
+
+function logout() {
+  currentUser = null;
+  currentRole = null;
+  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  showScreen('loginScreen');
+}
 
 
     // ── PATIENT — REP COUNTER ──────────────────────────────────────
@@ -517,6 +1194,8 @@
     const TARGET_REPS = 10;
     let repCount = 0;
     let fingerState = 'unknown'; // 'extended' or 'flexed'
+    let lastROM = 0;
+    let maxROMThisSession = 0;
 
     function getMiddleFingerAngle(landmarks) {
       // Use middle finger MCP (9), PIP (10), tip (12) to estimate flex angle
@@ -535,17 +1214,23 @@
     }
 
     function updateRepCount(landmarks) {
-      const angle = getMiddleFingerAngle(landmarks);
+        const angle = getMiddleFingerAngle(landmarks);
 
-      // Below 60° = flexed (fist), above 140° = extended (open hand)
-      if (angle < 60 && fingerState !== 'flexed') {
-        fingerState = 'flexed';
-      } else if (angle > 140 && fingerState === 'flexed') {
-        fingerState = 'extended';
-        repCount++;
-        updateRepUI();
-      }
-    }
+        // Track maximum ROM reached this session
+        if (angle > maxROMThisSession) {
+            maxROMThisSession = angle;
+            lastROM = Math.round(angle);
+        }
+
+        // Below 60° = flexed (fist), above 140° = extended (open hand)
+        if (angle < 60 && fingerState !== 'flexed') {
+            fingerState = 'flexed';
+        } else if (angle > 140 && fingerState === 'flexed') {
+            fingerState = 'extended';
+            repCount++;
+            updateRepUI();
+        }
+}
 
     function updateRepUI() {
       document.getElementById('repDisplay').textContent = repCount;
@@ -559,12 +1244,41 @@
       }
     }
 
-    function resetSession() {
-      repCount = 0;
-      fingerState = 'unknown';
-      document.getElementById('congratsOverlay').classList.remove('show');
-      updateRepUI();
-    }
+    function saveSession() {
+  const painValue = parseInt(document.getElementById('painSliderCongrats').value);
+  const session = {
+    date: new Date().toISOString(),
+    reps: repCount,
+    pain: painValue,
+    rom: lastROM,
+    therapistEmail: getConnectedTherapist()
+  };
+
+  const key = `phalanx_sessions_${currentUser.email}`;
+  const stored = localStorage.getItem(key);
+  const sessions = stored ? JSON.parse(stored) : [];
+  sessions.push(session);
+  localStorage.setItem(key, JSON.stringify(sessions));
+}
+
+function getConnectedTherapist() {
+  const connections = getConnections();
+  for (const [therapistEmail, patients] of Object.entries(connections)) {
+    if (patients.includes(currentUser.email)) return therapistEmail;
+  }
+  return null;
+}
+
+function resetSession() {
+  // Save before resetting
+  if (repCount >= TARGET_REPS) saveSession();
+
+  repCount = 0;
+  fingerState = 'unknown';
+  lastROM = 0;
+  document.getElementById('congratsOverlay').classList.remove('show');
+  updateRepUI();
+}
 
     // Pain slider on congrats screen
     document.getElementById('painSliderCongrats').addEventListener('input', function() {
