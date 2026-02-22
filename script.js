@@ -8,15 +8,56 @@ const statusText   = document.getElementById('status-text');
 const handCount    = document.getElementById('hand-count');
 const cameraWrap   = document.getElementById('cameraWrap');
 const landmarkGrid = document.getElementById('landmark-grid');
+const viewToggle   = document.getElementById('viewToggle');
+
+// ─── View mode ────────────────────────────────────────────────────────────────
+// 'focus' = single selected finger | 'all' = all five fingers
+let viewMode = 'focus';
+
+viewToggle.addEventListener('click', () => {
+  if (viewMode === 'focus') {
+    viewMode = 'all';
+    viewToggle.textContent = 'FOCUS MODE';
+    viewToggle.classList.add('active');
+    document.getElementById('focus-mode').classList.add('hidden');
+    document.getElementById('all-mode').classList.remove('hidden');
+  } else {
+    viewMode = 'focus';
+    viewToggle.textContent = 'ALL FINGERS';
+    viewToggle.classList.remove('active');
+    document.getElementById('focus-mode').classList.remove('hidden');
+    document.getElementById('all-mode').classList.add('hidden');
+  }
+  clearBuffers();
+});
+
+// ─── Per-landmark stability tracking ─────────────────────────────────────────
+const LANDMARK_PREV = {};
+
+const FINGER_THRESHOLDS = {
+  thumb:  0.05,
+  index:  0.05,
+  middle: 0.018,
+  ring:   0.018,
+  pinky:  0.05,
+};
+
+function landmarkJumped(index, lm, threshold) {
+  const prev = LANDMARK_PREV[index];
+  if (!prev) {
+    LANDMARK_PREV[index] = { x: lm.x, y: lm.y };
+    return false;
+  }
+  const dx   = lm.x - prev.x;
+  const dy   = lm.y - prev.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  LANDMARK_PREV[index] = { x: lm.x, y: lm.y };
+  return dist > threshold;
+}
 
 // ─── Finger joint definitions ─────────────────────────────────────────────────
-// MCP (α) = Wrist  → MCP → PIP
-// PIP (β) = MCP   → PIP → DIP
-// DIP (γ) = PIP   → DIP → Tip
-
 const FINGERS = {
   thumb: {
-    cardId: 'card-thumb',
     joints: {
       mcp: { a: 0,  b: 2,  c: 3,  id: 'thumb-mcp', type: 'mcp' },
       pip: { a: 2,  b: 3,  c: 4,  id: 'thumb-pip', type: 'pip' },
@@ -24,7 +65,6 @@ const FINGERS = {
     }
   },
   index: {
-    cardId: 'card-index',
     joints: {
       mcp: { a: 0,  b: 5,  c: 6,  id: 'index-mcp', type: 'mcp' },
       pip: { a: 5,  b: 6,  c: 7,  id: 'index-pip', type: 'pip' },
@@ -32,7 +72,6 @@ const FINGERS = {
     }
   },
   middle: {
-    cardId: 'card-middle',
     joints: {
       mcp: { a: 0,  b: 9,  c: 10, id: 'middle-mcp', type: 'mcp' },
       pip: { a: 9,  b: 10, c: 11, id: 'middle-pip', type: 'pip' },
@@ -40,7 +79,6 @@ const FINGERS = {
     }
   },
   ring: {
-    cardId: 'card-ring',
     joints: {
       mcp: { a: 0,  b: 13, c: 14, id: 'ring-mcp', type: 'mcp' },
       pip: { a: 13, b: 14, c: 15, id: 'ring-pip', type: 'pip' },
@@ -48,7 +86,6 @@ const FINGERS = {
     }
   },
   pinky: {
-    cardId: 'card-pinky',
     joints: {
       mcp: { a: 0,  b: 17, c: 18, id: 'pinky-mcp', type: 'mcp' },
       pip: { a: 17, b: 18, c: 19, id: 'pinky-pip', type: 'pip' },
@@ -57,22 +94,16 @@ const FINGERS = {
   },
 };
 
-// ─── Clinical range remapping ─────────────────────────────────────────────────
-// Problem: our raw geometric angles underread at full curl compared to what a
-// real goniometer would measure. This is because MediaPipe's z-depth is
-// estimated rather than true 3D, causing foreshortening at extreme angles.
-//
-// Solution: linear remap from observed raw range → clinical target range.
-//
-// Observed at full extension: ~0-5° (good, keep as 0)
-// Observed at full curl:
-//   MCP: ~105°  →  clinical max: 110°
-//   PIP: ~75°   →  clinical max: 115°
-//   DIP: ~50°   →  clinical max: 70°
-//
-// Formula: clinical = (raw / rawMax) * clinicalMax
-// Then clamp to [0, clinicalMax] to prevent out-of-range readings.
+// Which landmark indices belong to each finger (for canvas drawing)
+const FINGER_LANDMARKS = {
+  thumb:  [0, 1, 2, 3, 4],
+  index:  [0, 5, 6, 7, 8],
+  middle: [0, 9, 10, 11, 12],
+  ring:   [0, 13, 14, 15, 16],
+  pinky:  [0, 17, 18, 19, 20],
+};
 
+// ─── Clinical range remapping ─────────────────────────────────────────────────
 const JOINT_RANGES = {
   mcp: { rawMax: 105, clinicalMax: 110 },
   pip: { rawMax: 75,  clinicalMax: 115 },
@@ -98,14 +129,17 @@ const LANDMARK_NAMES = [
 const TIP_INDICES = new Set([4, 8, 12, 16, 20]);
 
 // ─── Smoothing buffer ─────────────────────────────────────────────────────────
-const SMOOTH_FRAMES = 20;
+const SMOOTH_FRAMES = 8;
 const angleBuffers  = {};
 
-function getSmoothedAngle(id, newAngle) {
+function getSmoothedAngle(id, newAngle, confident = true) {
   if (!angleBuffers[id]) angleBuffers[id] = [];
   const buf = angleBuffers[id];
-  buf.push(newAngle);
-  if (buf.length > SMOOTH_FRAMES) buf.shift();
+  if (confident) {
+    buf.push(newAngle);
+    if (buf.length > SMOOTH_FRAMES) buf.shift();
+  }
+  if (buf.length === 0) return newAngle;
   return Math.round(buf.reduce((sum, v) => sum + v, 0) / buf.length);
 }
 
@@ -113,61 +147,39 @@ function clearBuffers() {
   for (const key of Object.keys(angleBuffers)) angleBuffers[key] = [];
 }
 
-// ─── Dorsum plane calculation ─────────────────────────────────────────────────
+// ─── Dorsum plane ─────────────────────────────────────────────────────────────
 function getDorsumNormal(landmarks) {
   const wrist    = landmarks[0];
   const indexMCP = landmarks[5];
   const pinkyMCP = landmarks[17];
-
-  const e1 = {
-    x: indexMCP.x - wrist.x,
-    y: indexMCP.y - wrist.y,
-    z: (indexMCP.z || 0) - (wrist.z || 0),
-  };
-  const e2 = {
-    x: pinkyMCP.x - wrist.x,
-    y: pinkyMCP.y - wrist.y,
-    z: (pinkyMCP.z || 0) - (wrist.z || 0),
-  };
-
+  const e1 = { x: indexMCP.x - wrist.x, y: indexMCP.y - wrist.y, z: (indexMCP.z||0) - (wrist.z||0) };
+  const e2 = { x: pinkyMCP.x - wrist.x, y: pinkyMCP.y - wrist.y, z: (pinkyMCP.z||0) - (wrist.z||0) };
   const normal = {
     x: e1.y * e2.z - e1.z * e2.y,
     y: e1.z * e2.x - e1.x * e2.z,
     z: e1.x * e2.y - e1.y * e2.x,
   };
-
   const mag = Math.sqrt(normal.x ** 2 + normal.y ** 2 + normal.z ** 2);
   if (mag === 0) return { x: 0, y: 0, z: 1 };
   return { x: normal.x / mag, y: normal.y / mag, z: normal.z / mag };
 }
 
-// ─── Project vector onto dorsum plane ────────────────────────────────────────
 function projectOntoPlane(vec, normal) {
-  const dot = vec.x * normal.x + vec.y * normal.y + vec.z * normal.z;
-  return {
-    x: vec.x - dot * normal.x,
-    y: vec.y - dot * normal.y,
-    z: vec.z - dot * normal.z,
-  };
+  const d = vec.x * normal.x + vec.y * normal.y + vec.z * normal.z;
+  return { x: vec.x - d * normal.x, y: vec.y - d * normal.y, z: vec.z - d * normal.z };
 }
 
-// ─── Dorsum-referenced angle (clinical: 0° = straight) ───────────────────────
 function getDorsumAngle(a, b, c, normal) {
-  const vecBA = { x: a.x - b.x, y: a.y - b.y, z: (a.z||0) - (b.z||0) };
-  const vecBC = { x: c.x - b.x, y: c.y - b.y, z: (c.z||0) - (b.z||0) };
-
+  const vecBA  = { x: a.x - b.x, y: a.y - b.y, z: (a.z||0) - (b.z||0) };
+  const vecBC  = { x: c.x - b.x, y: c.y - b.y, z: (c.z||0) - (b.z||0) };
   const projBA = projectOntoPlane(vecBA, normal);
   const projBC = projectOntoPlane(vecBC, normal);
-
-  const dot   = projBA.x * projBC.x + projBA.y * projBC.y + projBA.z * projBC.z;
-  const magBA = Math.sqrt(projBA.x ** 2 + projBA.y ** 2 + projBA.z ** 2);
-  const magBC = Math.sqrt(projBC.x ** 2 + projBC.y ** 2 + projBC.z ** 2);
-
+  const dot    = projBA.x * projBC.x + projBA.y * projBC.y + projBA.z * projBC.z;
+  const magBA  = Math.sqrt(projBA.x ** 2 + projBA.y ** 2 + projBA.z ** 2);
+  const magBC  = Math.sqrt(projBC.x ** 2 + projBC.y ** 2 + projBC.z ** 2);
   if (magBA === 0 || magBC === 0) return 0;
-
   const cosAngle = Math.max(-1, Math.min(1, dot / (magBA * magBC)));
-  const rawDeg   = Math.round(Math.acos(cosAngle) * (180 / Math.PI));
-  return 180 - rawDeg;
+  return 180 - Math.round(Math.acos(cosAngle) * (180 / Math.PI));
 }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -177,20 +189,144 @@ function setStatus(msg, state = 'idle') {
   dot.className = 'dot' + (state === 'active' ? ' active' : state === 'error' ? ' error' : '');
 }
 
-// ─── Update all finger cards ──────────────────────────────────────────────────
-function updateFingerCards(landmarks, normal) {
-  for (const [name, finger] of Object.entries(FINGERS)) {
-    const card = document.getElementById(finger.cardId);
+// ─── Selected finger state (focus mode) ──────────────────────────────────────
+let selectedFinger = 'index';
+
+const FINGER_JOINT_LABELS = {
+  thumb:  { mcp: 'MCP', pip: 'IP',  dip: null },
+  index:  { mcp: 'MCP', pip: 'PIP', dip: 'DIP' },
+  middle: { mcp: 'MCP', pip: 'PIP', dip: 'DIP' },
+  ring:   { mcp: 'MCP', pip: 'PIP', dip: 'DIP' },
+  pinky:  { mcp: 'MCP', pip: 'PIP', dip: 'DIP' },
+};
+
+const FINGER_JOINT_LONG = {
+  thumb:  'Metacarpophalangeal · Interphalangeal',
+  index:  'Metacarpophalangeal · Proximal · Distal',
+  middle: 'Metacarpophalangeal · Proximal · Distal',
+  ring:   'Metacarpophalangeal · Proximal · Distal',
+  pinky:  'Metacarpophalangeal · Proximal · Distal',
+};
+
+function applyFingerSelection(fingerName) {
+  selectedFinger = fingerName;
+  document.getElementById('focus-name').textContent =
+    fingerName.charAt(0).toUpperCase() + fingerName.slice(1);
+  document.getElementById('focus-sub').textContent = FINGER_JOINT_LONG[fingerName];
+  const dipRow = document.getElementById('focus-row-dip');
+  const labels = FINGER_JOINT_LABELS[fingerName];
+  dipRow.style.display = labels.dip ? 'flex' : 'none';
+  document.querySelector('#focus-row-pip .focus-label').textContent = labels.pip;
+  ['mcp', 'pip', 'dip'].forEach(k => {
+    const el  = document.getElementById(`focus-${k}`);
+    const bar = document.getElementById(`focus-bar-${k}`);
+    if (el)  el.textContent = '—';
+    if (bar) bar.style.width = '0%';
+  });
+}
+
+document.querySelectorAll('.finger-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.finger-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFingerSelection(btn.dataset.finger);
+  });
+});
+
+// ─── Helper: compute + smooth one joint, return degree value ─────────────────
+function computeJoint(joint, landmarks, normal, threshold) {
+  const aJumped  = landmarkJumped(joint.a, landmarks[joint.a], threshold);
+  const bJumped  = landmarkJumped(joint.b, landmarks[joint.b], threshold);
+  const cJumped  = landmarkJumped(joint.c, landmarks[joint.c], threshold);
+  const confident = !aJumped && !bJumped && !cJumped;
+  const raw      = getDorsumAngle(landmarks[joint.a], landmarks[joint.b], landmarks[joint.c], normal);
+  const clinical = remapToClinical(raw, joint.type);
+  return getSmoothedAngle(joint.id, clinical, confident);
+}
+
+// ─── Update focus mode card ───────────────────────────────────────────────────
+function updateFocusCard(landmarks, normal) {
+  const finger    = FINGERS[selectedFinger];
+  const card      = document.getElementById('focus-card');
+  const threshold = FINGER_THRESHOLDS[selectedFinger];
+  card.classList.add('detected');
+
+  for (const key of ['mcp', 'pip', 'dip']) {
+    const joint = finger.joints[key];
+    const valEl = document.getElementById(`focus-${key}`);
+    const barEl = document.getElementById(`focus-bar-${key}`);
+    const rowEl = document.getElementById(`focus-row-${key}`);
+    if (!joint) { rowEl.style.display = 'none'; continue; }
+    rowEl.style.display = 'flex';
+    const smoothed = computeJoint(joint, landmarks, normal, threshold);
+    valEl.textContent  = smoothed + '°';
+    const pct = Math.min(100, (smoothed / (JOINT_RANGES[key]?.clinicalMax || 1)) * 100);
+    barEl.style.width  = pct + '%';
+  }
+}
+
+// ─── Update all mode cards ────────────────────────────────────────────────────
+function updateAllCards(landmarks, normal) {
+  for (const [fingerName, finger] of Object.entries(FINGERS)) {
+    const card      = document.getElementById(`all-card-${fingerName}`);
+    const threshold = FINGER_THRESHOLDS[fingerName];
     card.classList.add('detected');
 
-    for (const [jointName, joint] of Object.entries(finger.joints)) {
+    for (const key of ['mcp', 'pip', 'dip']) {
+      const joint = finger.joints[key];
       if (!joint) continue;
-      const el       = document.getElementById(joint.id);
-      const raw      = getDorsumAngle(landmarks[joint.a], landmarks[joint.b], landmarks[joint.c], normal);
-      const clinical = remapToClinical(raw, joint.type);
-      const smoothed = getSmoothedAngle(joint.id, clinical);
-      el.textContent = smoothed + '°';
+      const valEl = document.getElementById(`all-${fingerName}-${key}`);
+      const barEl = document.getElementById(`all-bar-${fingerName}-${key}`);
+      if (!valEl || !barEl) continue;
+      const smoothed    = computeJoint(joint, landmarks, normal, threshold);
+      valEl.textContent = smoothed + '°';
+      const pct = Math.min(100, (smoothed / (JOINT_RANGES[key]?.clinicalMax || 1)) * 100);
+      barEl.style.width = pct + '%';
     }
+  }
+}
+
+// ─── Draw landmarks on canvas ─────────────────────────────────────────────────
+function drawLandmarksOnCanvas(landmarks) {
+  if (viewMode === 'all') {
+    // All mode: draw all 21 points and all connectors
+    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
+      color: 'rgba(0, 229, 192, 0.45)',
+      lineWidth: 2,
+    });
+    landmarks.forEach((lm, i) => {
+      const x = lm.x * canvas.width;
+      const y = lm.y * canvas.height;
+      ctx.beginPath();
+      ctx.arc(x, y, TIP_INDICES.has(i) ? 7 : 4, 0, Math.PI * 2);
+      ctx.fillStyle   = TIP_INDICES.has(i) ? '#00e5c0' : 'rgba(0,229,192,0.7)';
+      ctx.shadowBlur  = TIP_INDICES.has(i) ? 14 : 5;
+      ctx.shadowColor = '#00e5c0';
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+    });
+  } else {
+    // Focus mode: draw only the selected finger's landmarks
+    const activeLandmarkSet = new Set(FINGER_LANDMARKS[selectedFinger]);
+    const filteredLandmarks = landmarks.map((lm, i) =>
+      activeLandmarkSet.has(i) ? lm : { x: -1, y: -1, z: 0, visibility: 0 }
+    );
+    drawConnectors(ctx, filteredLandmarks, HAND_CONNECTIONS, {
+      color: 'rgba(0, 229, 192, 0.3)',
+      lineWidth: 1,
+    });
+    FINGER_LANDMARKS[selectedFinger].forEach(i => {
+      const lm = landmarks[i];
+      const x  = lm.x * canvas.width;
+      const y  = lm.y * canvas.height;
+      ctx.beginPath();
+      ctx.arc(x, y, TIP_INDICES.has(i) ? 7 : 5, 0, Math.PI * 2);
+      ctx.fillStyle   = TIP_INDICES.has(i) ? '#00e5c0' : 'rgba(0,229,192,0.6)';
+      ctx.shadowBlur  = TIP_INDICES.has(i) ? 14 : 6;
+      ctx.shadowColor = '#00e5c0';
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+    });
   }
 }
 
@@ -207,13 +343,23 @@ function updateLandmarkGrid(landmarks) {
 
 // ─── Clear UI when no hands ───────────────────────────────────────────────────
 function clearUI() {
-  for (const finger of Object.values(FINGERS)) {
-    const card = document.getElementById(finger.cardId);
-    card.classList.remove('detected');
-    for (const joint of Object.values(finger.joints)) {
-      if (!joint) continue;
-      const el = document.getElementById(joint.id);
-      if (el) el.textContent = '—';
+  // Focus card
+  document.getElementById('focus-card').classList.remove('detected');
+  ['mcp', 'pip', 'dip'].forEach(k => {
+    const el  = document.getElementById(`focus-${k}`);
+    const bar = document.getElementById(`focus-bar-${k}`);
+    if (el)  el.textContent = '—';
+    if (bar) bar.style.width = '0%';
+  });
+  // All cards
+  for (const fingerName of Object.keys(FINGERS)) {
+    const card = document.getElementById(`all-card-${fingerName}`);
+    if (card) card.classList.remove('detected');
+    for (const key of ['mcp', 'pip', 'dip']) {
+      const valEl = document.getElementById(`all-${fingerName}-${key}`);
+      const barEl = document.getElementById(`all-bar-${fingerName}-${key}`);
+      if (valEl) valEl.textContent = '—';
+      if (barEl) barEl.style.width = '0%';
     }
   }
   clearBuffers();
@@ -237,33 +383,16 @@ function onResults(results) {
     cameraWrap.classList.add('scanning');
 
     for (const landmarks of results.multiHandLandmarks) {
-      drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
-        color: 'rgba(0, 229, 192, 0.5)',
-        lineWidth: 2,
-      });
-
-      drawLandmarks(ctx, landmarks, {
-        color: '#00e5c0',
-        fillColor: 'rgba(0, 229, 192, 0.3)',
-        lineWidth: 1,
-        radius: 4,
-      });
-
-      TIP_INDICES.forEach(i => {
-        const lm = landmarks[i];
-        const x  = lm.x * canvas.width;
-        const y  = lm.y * canvas.height;
-        ctx.beginPath();
-        ctx.arc(x, y, 7, 0, Math.PI * 2);
-        ctx.fillStyle   = '#00e5c0';
-        ctx.shadowBlur  = 12;
-        ctx.shadowColor = '#00e5c0';
-        ctx.fill();
-        ctx.shadowBlur  = 0;
-      });
-
       const normal = getDorsumNormal(landmarks);
-      updateFingerCards(landmarks, normal);
+
+      drawLandmarksOnCanvas(landmarks);
+
+      if (viewMode === 'focus') {
+        updateFocusCard(landmarks, normal);
+      } else {
+        updateAllCards(landmarks, normal);
+      }
+
       updateLandmarkGrid(landmarks);
     }
   } else {
@@ -293,7 +422,6 @@ async function init() {
   });
 
   hands.onResults(onResults);
-
   overlayMsg.textContent = 'REQUESTING CAMERA...';
 
   try {
@@ -311,9 +439,7 @@ async function init() {
     };
 
     const camera = new Camera(video, {
-      onFrame: async () => {
-        await hands.send({ image: video });
-      },
+      onFrame: async () => { await hands.send({ image: video }); },
       width: 640,
       height: 480,
     });

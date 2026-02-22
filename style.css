@@ -83,6 +83,9 @@ main {
   gap: 20px;
 }
 
+.hidden { display: none !important; }
+
+/* ── Camera ───────────────────────────────────────────────────────────────── */
 .camera-wrap {
   position: relative;
   width: 100%;
@@ -168,6 +171,7 @@ main {
   100% { top: 100%; }
 }
 
+/* ── Status bar ───────────────────────────────────────────────────────────── */
 .status-bar {
   display: flex;
   align-items: center;
@@ -212,32 +216,195 @@ main {
   font-size: 0.65rem;
 }
 
-/* ── Finger cards ─────────────────────────────────────────────────────────── */
-.info-grid {
+/* ── View toggle button ───────────────────────────────────────────────────── */
+.view-toggle {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.view-toggle:hover {
+  border-color: var(--accent-glow);
+  color: var(--text);
+}
+
+.view-toggle.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Finger selector tabs ─────────────────────────────────────────────────── */
+.finger-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.finger-tab {
+  flex: 1;
+  padding: 10px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.finger-tab:hover {
+  border-color: var(--accent-glow);
+  color: var(--text);
+  background: rgba(255,255,255,0.03);
+}
+
+.finger-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(0, 229, 192, 0.15);
+}
+
+/* ── Focus card ───────────────────────────────────────────────────────────── */
+.finger-focus-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 28px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.finger-focus-card.detected {
+  border-color: var(--accent-glow);
+  background: var(--accent-dim);
+}
+
+.focus-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.focus-finger-name {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.focus-finger-sub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.focus-joint-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.focus-joint-label-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.focus-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+.finger-focus-card.detected .focus-label { color: var(--accent); }
+
+.focus-label-full {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.6rem;
+  color: var(--muted);
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.focus-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.focus-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), rgba(0,229,192,0.6));
+  border-radius: 4px;
+  transition: width 0.08s ease-out;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.focus-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  width: 68px;
+  text-align: right;
+  flex-shrink: 0;
+  letter-spacing: -0.02em;
+}
+
+.finger-focus-card.detected .focus-val { color: var(--accent); }
+
+/* ── All mode grid ────────────────────────────────────────────────────────── */
+.all-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 12px;
 }
 
-.finger-card {
+.all-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 12px 10px;
+  padding: 14px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.2s;
-  /* Fixed height so cards never resize when numbers change */
-  min-height: 110px;
+  gap: 8px;
+  transition: border-color 0.2s, background 0.2s;
+  min-height: 130px;
 }
 
-.finger-card.detected {
+.all-card.detected {
   border-color: var(--accent-glow);
   background: var(--accent-dim);
 }
 
-.finger-name {
+.all-finger-name {
   font-family: 'Space Mono', monospace;
   font-size: 0.58rem;
   color: var(--muted);
@@ -247,49 +414,56 @@ main {
   white-space: nowrap;
 }
 
-.finger-card.detected .finger-name { color: var(--accent); }
+.all-card.detected .all-finger-name { color: var(--accent); }
 
-/* ── Joint rows ───────────────────────────────────────────────────────────── */
-.joint-row {
+.all-joint-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 3px 0;
-  border-bottom: 1px solid var(--border);
-  /* Prevent any wrapping — row stays on one line always */
-  white-space: nowrap;
-  overflow: hidden;
+  gap: 6px;
 }
 
-.joint-row:last-child {
-  border-bottom: none;
-}
-
-.joint-row.dimmed {
-  opacity: 0.3;
-}
-
-.joint-label {
+.all-label {
   font-family: 'Space Mono', monospace;
-  font-size: 0.55rem;
+  font-size: 0.52rem;
   color: var(--muted);
-  letter-spacing: 0.06em;
-  /* Fixed width so label never shifts the value column */
-  width: 26px;
+  letter-spacing: 0.05em;
+  width: 24px;
   flex-shrink: 0;
 }
 
-.finger-card.detected .joint-label { color: var(--accent); }
+.all-card.detected .all-label { color: var(--accent); }
 
-.joint-val {
+.all-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.all-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.08s ease-out;
+}
+
+.all-val {
   font-family: 'Space Mono', monospace;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text);
-  /* Fixed width wide enough for "180°" — the largest possible value */
-  width: 36px;
+  width: 34px;
   text-align: right;
   flex-shrink: 0;
-  /* Monospace + fixed width = number never shifts layout */
+}
+
+.all-card.detected .all-val { color: var(--accent); }
+
+.all-joint-row--empty .all-label,
+.all-joint-row--empty .all-val {
+  opacity: 0.25;
 }
 
 /* ── Debug panel ──────────────────────────────────────────────────────────── */
