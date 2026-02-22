@@ -98,7 +98,7 @@ const LANDMARK_NAMES = [
 const TIP_INDICES = new Set([4, 8, 12, 16, 20]);
 
 // ─── Smoothing buffer ─────────────────────────────────────────────────────────
-const SMOOTH_FRAMES = 8;
+const SMOOTH_FRAMES = 20;
 const angleBuffers  = {};
 
 function getSmoothedAngle(id, newAngle) {
