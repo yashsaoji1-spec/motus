@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PhalanX Dashboard</title>
+  <!-- Chart.js for the therapist ROM graph -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f272a;
+      color: #f1f5f9;
+      min-height: 100vh;
+    }
+
+    /* ── SCREENS ── */
+    .screen { display: none; }
+    .screen.active { display: flex; }
+
+    /* ── LOGIN SCREEN ── */
+    #loginScreen {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 16px;
+    }
+
+    #loginScreen h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      color: #3b82f6;
+      letter-spacing: -1px;
+    }
+
+    #loginScreen p {
+      color: #94a3b8;
+      font-size: 1rem;
+      margin-bottom: 24px;
+    }
+
+    .role-btn {
+      width: 280px;
+      padding: 20px;
+      border: 2px solid #1e293b;
+      border-radius: 16px;
+      background: #1e293b;
+      color: #f1f5f9;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .role-btn:hover {
+      border-color: #3b82f6;
+      background: #1e3a5f;
+    }
+
+    .role-btn span {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    /* ── PATIENT SCREEN ── */
+    #patientScreen {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      gap: 20px;
+    }
+
+    .patient-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    .patient-header h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #3b82f6;
+    }
+
+    .logout-btn {
+      background: none;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .camera-box {
+      position: relative;
+      width: 640px;
+      height: 480px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #000;
+      border: 2px solid #1e293b;
+    }
+
+    .camera-box video,
+.camera-box canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+}
+
+    /* Rep counter overlay */
+    .rep-overlay {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      border-radius: 14px;
+      padding: 12px 28px;
+      text-align: center;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+
+    .rep-number {
+      font-size: 3.5rem;
+      font-weight: 900;
+      color: #22c55e;
+      line-height: 1;
+    }
+
+    .rep-label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Progress bar */
+    .progress-section {
+      width: 640px;
+    }
+
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 12px;
+      background: #1e293b;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #22c55e);
+      border-radius: 99px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    /* Congrats overlay */
+    #congratsOverlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      border-radius: 16px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      gap: 12px;
+    }
+
+    #congratsOverlay.show {
+      display: flex;
+    }
+
+    #congratsOverlay h2 {
+      font-size: 2.5rem;
+      color: #22c55e;
+      font-weight: 900;
+    }
+
+    #congratsOverlay p {
+      color: #94a3b8;
+      font-size: 1rem;
+    }
+
+    .reset-btn {
+      margin-top: 8px;
+      padding: 12px 28px;
+      background: #22c55e;
+      color: #000;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    /* Pain slider */
+    .pain-section {
+      width: 640px;
+      background: #1e293b;
+      border-radius: 14px;
+      padding: 16px 20px;
+    }
+
+    .pain-section label {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .pain-section label strong {
+      color: #f1f5f9;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #3b82f6;
+    }
+
+    .pain-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #475569;
+      margin-top: 4px;
+    }
+
+    /* ── THERAPIST SCREEN ── */
+    #therapistScreen {
+      flex-direction: row;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: #0f172a;
+      border-right: 1px solid #1e293b;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .sidebar h2 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #3b82f6;
+      margin-bottom: 12px;
+      padding-left: 8px;
+    }
+
+    .patient-item {
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: 1px solid transparent;
+    }
+
+    .patient-item:hover { background: #1e293b; }
+
+    .patient-item.selected {
+      background: #1e3a5f;
+      border-color: #3b82f6;
+    }
+
+    .patient-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .patient-status {
+      font-size: 0.75rem;
+      margin-top: 3px;
+    }
+
+    .status-good { color: #22c55e; }
+    .status-warn { color: #f59e0b; }
+    .status-bad  { color: #ef4444; }
+
+    .sidebar-footer {
+      margin-top: auto;
+    }
+
+    .main-panel {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+    }
+
+    .main-panel h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .main-panel .subtitle {
+      color: #64748b;
+      font-size: 0.9rem;
+      margin-bottom: 28px;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+
+    .stat-card .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #3b82f6;
+    }
+
+    .stat-card .stat-label {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chart-card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .chart-card h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 60vh;
+      color: #334155;
+      gap: 8px;
+    }
+
+    .empty-state p { font-size: 1rem; }
+
+    /* ── AUTH SCREENS ── */
+#loginScreen, #signupScreen {
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 400px;
+  background: #1e293b;
+  border-radius: 20px;
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-box h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #3b82f6;
+  text-align: center;
+  letter-spacing: -1px;
+}
+
+.auth-subtitle {
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  margin-top: -8px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.auth-field input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.auth-field input:focus {
+  border-color: #3b82f6;
+}
+
+.auth-field input::placeholder {
+  color: #475569;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 14px;
+  background: #3b82f6;
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+
+.auth-btn:hover {
+  background: #2563eb;
+}
+
+.auth-switch {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.auth-switch span {
+  color: #3b82f6;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.auth-switch span:hover {
+  text-decoration: underline;
+}
+
+.auth-error {
+  background: #450a0a;
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.role-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.role-toggle-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 2px solid #334155;
+  background: #0f172a;
+  color: #64748b;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.role-toggle-btn.active {
+  border-color: #3b82f6;
+  background: #1e3a5f;
+  color: #f1f5f9;
+}
+/* ── CLINIC CODE ── */
+.clinic-code-box {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.clinic-code-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.clinic-code {
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: #3b82f6;
+  letter-spacing: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.clinic-code-hint {
+  font-size: 0.75rem;
+  color: #475569;
+  margin-top: 6px;
+}
+
+/* ── CONNECT SCREEN ── */
+.connect-desc {
+  font-size: 0.88rem;
+  color: #64748b;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.auth-success {
+  background: #052e16;
+  border: 1px solid #22c55e;
+  color: #86efac;
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+/* ── CONNECTED PATIENT TAG ── */
+.patient-connected {
+  font-size: 0.72rem;
+  color: #22c55e;
+  margin-top: 2px;
+}
+
+/* ── EMPTY PATIENT STATE ── */
+.no-patients {
+  text-align: center;
+  padding: 24px 16px;
+  color: #475569;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  border: 1px dashed #334155;
+  border-radius: 10px;
+  margin-top: 8px;
+}
+  </style>
+</head>
+<body>
+
+  <!-- ── LOGIN SCREEN ── -->
+<div id="loginScreen" class="screen active">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Sign in to continue</p>
+
+    <!-- Error message -->
+    <div id="loginError" class="auth-error" style="display:none"></div>
+
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" />
+    </div>
+
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" />
+    </div>
+
+    <button class="auth-btn" onclick="handleLogin()">Sign In</button>
+
+    <p class="auth-switch">
+      Don't have an account?
+      <span onclick="showScreen('signupScreen')">Create one</span>
+    </p>
+  </div>
+</div>
+
+<!-- ── SIGN UP SCREEN ── -->
+<div id="signupScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Create your account</p>
+
+    <!-- Error message -->
+    <div id="signupError" class="auth-error" style="display:none"></div>
+
+    <div class="auth-field">
+      <label>Full Name</label>
+      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" />
+    </div>
+
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" />
+    </div>
+
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="signupPassword" placeholder="Min. 6 characters" />
+    </div>
+
+    <div class="auth-field">
+      <label>I am a</label>
+      <div class="role-toggle">
+        <button id="rolePatientBtn" class="role-toggle-btn active"
+                onclick="selectRole('patient')">Patient</button>
+        <button id="roleTherapistBtn" class="role-toggle-btn"
+                onclick="selectRole('therapist')">Therapist</button>
+      </div>
+    </div>
+
+    <button class="auth-btn" onclick="handleSignup()">Create Account</button>
+
+    <p class="auth-switch">
+      Already have an account?
+      <span onclick="showScreen('loginScreen')">Sign in</span>
+    </p>
+  </div>
+</div>
+<!-- ── CONNECT TO THERAPIST SCREEN ── -->
+<div id="connectScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Connect to your therapist</p>
+
+    <div id="connectError" class="auth-error" style="display:none"></div>
+    <div id="connectSuccess" class="auth-success" style="display:none"></div>
+
+    <p class="connect-desc">
+      Ask your therapist for their 6-digit clinic code and enter it below.
+      This links your sessions to their dashboard.
+    </p>
+
+    <div class="auth-field">
+      <label>Clinic Code</label>
+      <input
+        type="text"
+        id="clinicCodeInput"
+        placeholder="e.g. 482910"
+        maxlength="6"
+        style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;"
+      />
+    </div>
+
+    <button class="auth-btn" onclick="handleConnect()">Connect</button>
+    <button class="auth-btn"
+            onclick="skipConnect()"
+            style="background:#1e293b; color:#94a3b8; margin-top:-8px;">
+      Skip for now
+    </button>
+  </div>
+</div>
+
+  <!-- ── PATIENT SCREEN ── -->
+  <div id="patientScreen" class="screen">
+    <div class="patient-header">
+      <h2>PhalanX</h2>
+      <button class="logout-btn" onclick="logout()">Switch User</button>
+    </div>
+
+    <div class="camera-box">
+      <video id="patientVideo" autoplay playsinline></video>
+      <canvas id="patientCanvas" width="640" height="480"></canvas>
+
+      <!-- Rep counter overlay on top of camera -->
+      <div class="rep-overlay">
+        <div class="rep-number" id="repDisplay">0</div>
+        <div class="rep-label">Reps</div>
+      </div>
+
+      <!-- Congrats overlay -->
+      <div id="congratsOverlay">
+        <h2>🎉 Great work!</h2>
+        <p>You completed your set of <strong id="targetDisplay">10</strong> reps</p>
+        <p style="font-size:0.85rem; color:#475569;">How much pain are you in right now?</p>
+        <input type="range" min="1" max="10" value="5" id="painSliderCongrats"
+               style="width:220px; margin-top:4px;" />
+        <p id="painValueCongrats" style="font-size:0.85rem; color:#94a3b8;">5 / 10</p>
+        <button class="reset-btn" onclick="resetSession()">Start Next Set</button>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-section">
+      <div class="progress-info">
+        <span>Progress</span>
+        <span id="progressText">0 / 10 reps</span>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Pain rating -->
+    <div class="pain-section">
+      <label>
+        <strong>Current Pain Level</strong> — rate as you exercise
+      </label>
+      <input type="range" min="1" max="10" value="1" id="painSlider"
+             oninput="document.getElementById('painValue').textContent = this.value + ' / 10'" />
+      <div class="pain-scale">
+        <span>1 — No pain</span>
+        <span id="painValue">1 / 10</span>
+        <span>10 — Severe</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── THERAPIST SCREEN ── -->
+  <div id="therapistScreen" class="screen">
+    <div class="sidebar">
+  <h2>PhalanX</h2>
+
+  <div class="clinic-code-box">
+    <p class="clinic-code-label">Your Clinic Code</p>
+    <div class="clinic-code" id="therapistCode">------</div>
+    <p class="clinic-code-hint">Share this with your patients</p>
+  </div>
+
+      <div class="patient-item" onclick="selectPatient(0, this)">
+        <div class="patient-name">Maria Gonzalez</div>
+        <div class="patient-status status-good">● On track — 92% compliance</div>
+      </div>
+      <div class="patient-item" onclick="selectPatient(1, this)">
+        <div class="patient-name">James Park</div>
+        <div class="patient-status status-warn">● At risk — 61% compliance</div>
+      </div>
+      <div class="patient-item" onclick="selectPatient(2, this)">
+        <div class="patient-name">Linda Torres</div>
+        <div class="patient-status status-bad">● Non-compliant — 28% compliance</div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="logout-btn" onclick="logout()" style="width:100%">Switch User</button>
+      </div>
+    </div>
+
+    <div class="main-panel" id="mainPanel">
+      <div class="empty-state">
+        <p>← Select a patient to view their progress</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MediaPipe scripts (for patient camera) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+  <script>
+
+    // ── ROLE / NAVIGATION ──────────────────────────────────────────
+
+    // ── AUTH SYSTEM ───────────────────────────────────────────────────
+
+let currentRole = null;
+let currentUser = null;
+let selectedRole = 'patient';
+
+// Demo accounts
+const demoAccounts = [
+  { name: "Dr. Sarah Chen", email: "sarah.chen@mayoclinic.org", password: "demo123", role: "therapist" },
+  { name: "James Park",     email: "james.park@gmail.com",      password: "demo123", role: "patient"   }
+];
+
+function getAccounts() {
+  const stored = localStorage.getItem('phalanx_accounts');
+  const saved  = stored ? JSON.parse(stored) : [];
+  return [...demoAccounts, ...saved];
+}
+
+function saveAccount(account) {
+  const stored = localStorage.getItem('phalanx_accounts');
+  const saved  = stored ? JSON.parse(stored) : [];
+  saved.push(account);
+  localStorage.setItem('phalanx_accounts', JSON.stringify(saved));
+}
+
+// ── CLINIC CODES ─────────────────────────────────────────────────
+
+function generateCode() {
+  // Deterministic 6-digit code based on therapist email
+  // Same email always produces same code
+  let hash = 0;
+  for (let i = 0; i < currentUser.email.length; i++) {
+    hash = ((hash << 5) - hash) + currentUser.email.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(Math.abs(hash) % 900000 + 100000);
+}
+
+function getConnections() {
+  const stored = localStorage.getItem('phalanx_connections');
+  return stored ? JSON.parse(stored) : {};
+  // Structure: { "therapistEmail": ["patientEmail1", "patientEmail2"] }
+}
+
+function saveConnection(therapistEmail, patientEmail) {
+  const connections = getConnections();
+  if (!connections[therapistEmail]) connections[therapistEmail] = [];
+  if (!connections[therapistEmail].includes(patientEmail)) {
+    connections[therapistEmail].push(patientEmail);
+  }
+  localStorage.setItem('phalanx_connections', JSON.stringify(connections));
+}
+
+function getTherapistForCode(code) {
+  // Find which therapist account matches this code
+  const accounts = getAccounts();
+  const therapists = accounts.filter(a => a.role === 'therapist');
+  const saved = JSON.parse(localStorage.getItem('phalanx_accounts') || '[]');
+  const allTherapists = [...therapists, ...saved.filter(a => a.role === 'therapist')];
+
+  // Check all unique therapists
+  const seen = new Set();
+  for (const t of getAccounts().filter(a => a.role === 'therapist')) {
+    if (seen.has(t.email)) continue;
+    seen.add(t.email);
+    const tCode = generateCodeForEmail(t.email);
+    if (tCode === code) return t;
+  }
+  return null;
+}
+
+function generateCodeForEmail(email) {
+  let hash = 0;
+  for (let i = 0; i < email.length; i++) {
+    hash = ((hash << 5) - hash) + email.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(Math.abs(hash) % 900000 + 100000);
+}
+
+function getConnectedPatients(therapistEmail) {
+  const connections = getConnections();
+  const patientEmails = connections[therapistEmail] || [];
+  const accounts = getAccounts();
+  return patientEmails.map(email => accounts.find(a => a.email === email)).filter(Boolean);
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────
+
+function showScreen(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+}
+
+function selectRole(role) {
+  selectedRole = role;
+  document.getElementById('rolePatientBtn').classList.toggle('active',    role === 'patient');
+  document.getElementById('roleTherapistBtn').classList.toggle('active', role === 'therapist');
+}
+
+function showError(id, msg)  { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+function hideError(id)       { document.getElementById(id).style.display = 'none'; }
+
+// ── LOGIN ─────────────────────────────────────────────────────────
+
+function handleLogin() {
+  hideError('loginError');
+  const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+
+  if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
+
+  const match = getAccounts().find(a => a.email.toLowerCase() === email && a.password === password);
+  if (!match) { showError('loginError', 'Incorrect email or password. Try again.'); return; }
+
+  currentUser = match;
+  currentRole = match.role;
+  loginSuccess();
+}
+
+// ── SIGN UP ───────────────────────────────────────────────────────
+
+function handleSignup() {
+  hideError('signupError');
+  const name     = document.getElementById('signupName').value.trim();
+  const email    = document.getElementById('signupEmail').value.trim().toLowerCase();
+  const password = document.getElementById('signupPassword').value;
+
+  if (!name || !email || !password) { showError('signupError', 'Please fill in all fields.'); return; }
+  if (password.length < 6)          { showError('signupError', 'Password must be at least 6 characters.'); return; }
+  if (getAccounts().find(a => a.email.toLowerCase() === email)) {
+    showError('signupError', 'An account with that email already exists.'); return;
+  }
+
+  const newAccount = { name, email, password, role: selectedRole };
+  saveAccount(newAccount);
+  currentUser = newAccount;
+  currentRole = selectedRole;
+  loginSuccess();
+}
+
+// ── CONNECT TO THERAPIST ──────────────────────────────────────────
+
+function handleConnect() {
+  hideError('connectError');
+  const code = document.getElementById('clinicCodeInput').value.trim();
+
+  if (code.length !== 6 || isNaN(code)) {
+    showError('connectError', 'Please enter a valid 6-digit clinic code.');
+    return;
+  }
+
+  const therapist = getTherapistForCode(code);
+  if (!therapist) {
+    showError('connectError', 'No therapist found with that code. Double-check with your therapist.');
+    return;
+  }
+
+  saveConnection(therapist.email, currentUser.email);
+
+  // Show success briefly then go to patient screen
+  const successEl = document.getElementById('connectSuccess');
+  successEl.textContent = `✓ Connected to ${therapist.name}! Loading your exercises...`;
+  successEl.style.display = 'block';
+
+  setTimeout(() => {
+    showScreen('patientScreen');
+    startCamera();
+  }, 1800);
+}
+
+function skipConnect() {
+  showScreen('patientScreen');
+  startCamera();
+}
+
+// ── LOGIN SUCCESS ─────────────────────────────────────────────────
+
+function loginSuccess() {
+  if (currentRole === 'therapist') {
+    showScreen('therapistScreen');
+    // Display this therapist's unique clinic code
+    document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
+    // Load their real connected patients
+    loadConnectedPatients();
+  } else {
+    // Check if patient is already connected to a therapist
+    const connections = getConnections();
+    const alreadyConnected = Object.values(connections).some(list => list.includes(currentUser.email));
+    if (alreadyConnected) {
+      showScreen('patientScreen');
+      startCamera();
+    } else {
+      // First time — prompt them to enter a clinic code
+      showScreen('connectScreen');
+    }
+  }
+}
+
+// ── LOAD REAL PATIENTS INTO THERAPIST SIDEBAR ─────────────────────
+
+function loadConnectedPatients() {
+  const patients = getConnectedPatients(currentUser.email);
+  const sidebar  = document.querySelector('.sidebar');
+
+  // Remove any existing patient items
+  document.querySelectorAll('.patient-item').forEach(el => el.remove());
+
+  // Remove old no-patients message if present
+  const existing = document.getElementById('noPatientsMsg');
+  if (existing) existing.remove();
+
+  if (patients.length === 0) {
+    const msg = document.createElement('div');
+    msg.id = 'noPatientsMsg';
+    msg.className = 'no-patients';
+    msg.innerHTML = `No patients connected yet.<br/>Share your clinic code above<br/>with your patients to get started.`;
+    // Insert before sidebar footer
+    document.querySelector('.sidebar-footer').before(msg);
+    return;
+  }
+
+  patients.forEach((patient, index) => {
+    const item = document.createElement('div');
+    item.className = 'patient-item';
+    const sessions   = getPatientSessions(patient.email);
+    const compliance = calcCompliance(sessions);
+    const statusColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+    const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
+
+    item.innerHTML = `
+    <div class="patient-name">${patient.name}</div>
+    <div class="patient-connected" style="color:${statusColor}">
+        ● ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
+    </div>
+`;
+    item.onclick = () => {
+      document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      showRealPatient(patient);
+    };
+    document.querySelector('.sidebar-footer').before(item);
+  });
+}
+
+function getPatientSessions(patientEmail) {
+  const key = `phalanx_sessions_${patientEmail}`;
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function calcCompliance(sessions) {
+  if (sessions.length === 0) return 0;
+  // Count unique days with sessions in the last 7 days
+  const now = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const recentDays = new Set(
+    sessions
+      .filter(s => new Date(s.date) > sevenDaysAgo)
+      .map(s => new Date(s.date).toDateString())
+  );
+  return Math.round((recentDays.size / 7) * 100);
+}
+
+function showRealPatient(patient) {
+  const sessions = getPatientSessions(patient.email);
+  const panel = document.getElementById('mainPanel');
+
+  if (sessions.length === 0) {
+    panel.innerHTML = `
+      <h3>${patient.name}</h3>
+      <p class="subtitle">Connected Patient</p>
+      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
+        No session data yet. Data will appear here once
+        ${patient.name.split(' ')[0]} completes their first session.
+      </div>
+    `;
+    return;
+  }
+
+  // Calculate stats from real data
+  const compliance = calcCompliance(sessions);
+  const avgROM     = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
+  const avgPain    = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
+  const totalReps  = sessions.reduce((s, x) => s + (x.reps || 0), 0);
+
+  // Build chart data — last 8 sessions
+  const recent   = sessions.slice(-8);
+  const romData  = recent.map(s => s.rom  || 0);
+  const painData = recent.map(s => s.pain || 0);
+  const labels   = recent.map(s => {
+    const d = new Date(s.date);
+    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  });
+
+  // Compliance color
+  const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+
+  panel.innerHTML = `
+    <h3>${patient.name}</h3>
+    <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" style="color:${complianceColor}">${compliance}%</div>
+        <div class="stat-label">7-Day Compliance</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${avgROM}°</div>
+        <div class="stat-label">Avg Range of Motion</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${avgPain}</div>
+        <div class="stat-label">Avg Pain Rating</div>
+      </div>
+    </div>
+
+    <div class="stats-row" style="margin-top:-8px;">
+      <div class="stat-card" style="grid-column: span 3;">
+        <div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div>
+        <div class="stat-label">Total Reps Completed All Time</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h4>Range of Motion Over Time (degrees)</h4>
+      <canvas id="romChart" height="100"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <h4>Pain Rating Over Time (1–10)</h4>
+      <canvas id="painChart" height="100"></canvas>
+    </div>
+  `;
+
+  // Draw ROM chart
+  new Chart(document.getElementById('romChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'ROM (°)',
+        data: romData,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        borderWidth: 2,
+        pointBackgroundColor: '#3b82f6',
+        pointRadius: 4,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 }
+      }
+    }
+  });
+
+  // Draw Pain chart
+  new Chart(document.getElementById('painChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Pain',
+        data: painData,
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239,68,68,0.1)',
+        borderWidth: 2,
+        pointBackgroundColor: '#ef4444',
+        pointRadius: 4,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 }
+      }
+    }
+  });
+}
+
+// ── LOGOUT ────────────────────────────────────────────────────────
+
+function logout() {
+  currentUser = null;
+  currentRole = null;
+  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  showScreen('loginScreen');
+}
+
+
+    // ── PATIENT — REP COUNTER ──────────────────────────────────────
+
+    const TARGET_REPS = 10;
+    let repCount = 0;
+    let fingerState = 'unknown'; // 'extended' or 'flexed'
+    let lastROM = 0;
+    let maxROMThisSession = 0;
+
+    function getMiddleFingerAngle(landmarks) {
+      // Use middle finger MCP (9), PIP (10), tip (12) to estimate flex angle
+      const mcp = landmarks[9];
+      const pip = landmarks[10];
+      const tip = landmarks[12];
+
+      const v1 = { x: mcp.x - pip.x, y: mcp.y - pip.y };
+      const v2 = { x: tip.x - pip.x, y: tip.y - pip.y };
+
+      const dot = v1.x * v2.x + v1.y * v2.y;
+      const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
+      const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
+      const cosAngle = dot / (mag1 * mag2);
+      return Math.acos(Math.max(-1, Math.min(1, cosAngle))) * (180 / Math.PI);
+    }
+
+    function updateRepCount(landmarks) {
+        const angle = getMiddleFingerAngle(landmarks);
+
+        // Track maximum ROM reached this session
+        if (angle > maxROMThisSession) {
+            maxROMThisSession = angle;
+            lastROM = Math.round(angle);
+        }
+
+        // Below 60° = flexed (fist), above 140° = extended (open hand)
+        if (angle < 60 && fingerState !== 'flexed') {
+            fingerState = 'flexed';
+        } else if (angle > 140 && fingerState === 'flexed') {
+            fingerState = 'extended';
+            repCount++;
+            updateRepUI();
+        }
+}
+
+    function updateRepUI() {
+      document.getElementById('repDisplay').textContent = repCount;
+      document.getElementById('progressText').textContent = `${repCount} / ${TARGET_REPS} reps`;
+      const pct = Math.min((repCount / TARGET_REPS) * 100, 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+
+      if (repCount >= TARGET_REPS) {
+        document.getElementById('targetDisplay').textContent = TARGET_REPS;
+        document.getElementById('congratsOverlay').classList.add('show');
+      }
+    }
+
+    function saveSession() {
+  const painValue = parseInt(document.getElementById('painSliderCongrats').value);
+  const session = {
+    date: new Date().toISOString(),
+    reps: repCount,
+    pain: painValue,
+    rom: lastROM,
+    therapistEmail: getConnectedTherapist()
+  };
+
+  const key = `phalanx_sessions_${currentUser.email}`;
+  const stored = localStorage.getItem(key);
+  const sessions = stored ? JSON.parse(stored) : [];
+  sessions.push(session);
+  localStorage.setItem(key, JSON.stringify(sessions));
+}
+
+function getConnectedTherapist() {
+  const connections = getConnections();
+  for (const [therapistEmail, patients] of Object.entries(connections)) {
+    if (patients.includes(currentUser.email)) return therapistEmail;
+  }
+  return null;
+}
+
+function resetSession() {
+  // Save before resetting
+  if (repCount >= TARGET_REPS) saveSession();
+
+  repCount = 0;
+  fingerState = 'unknown';
+  lastROM = 0;
+  document.getElementById('congratsOverlay').classList.remove('show');
+  updateRepUI();
+}
+
+    // Pain slider on congrats screen
+    document.getElementById('painSliderCongrats').addEventListener('input', function() {
+      document.getElementById('painValueCongrats').textContent = this.value + ' / 10';
+    });
+
+
+    // ── PATIENT — MEDIAPIPE CAMERA ─────────────────────────────────
+
+    let mpCamera = null;
+
+    function startCamera() {
+      const video  = document.getElementById('patientVideo');
+      const canvas = document.getElementById('patientCanvas');
+      const ctx    = canvas.getContext('2d');
+
+      const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.7,
+        minTrackingConfidence: 0.5
+      });
+
+      hands.onResults((results) => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+        if (results.multiHandLandmarks) {
+          for (const landmarks of results.multiHandLandmarks) {
+            drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+            drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 4 });
+            updateRepCount(landmarks);
+          }
+        }
+      });
+
+      mpCamera = new Camera(video, {
+        onFrame: async () => { await hands.send({ image: video }); },
+        width: 640,
+        height: 480
+      });
+
+      mpCamera.start();
+    }
+
+
+    // ── THERAPIST — PATIENT DATA (mock) ───────────────────────────
+
+    const patientData = [
+      {
+        name: "Maria Gonzalez",
+        condition: "Post-surgery — right hand flexor tendon repair",
+        compliance: 92,
+        avgROM: 74,
+        avgPain: 2.8,
+        romHistory: [38, 45, 52, 58, 63, 67, 71, 74],
+        sessions: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
+      },
+      {
+        name: "James Park",
+        condition: "Stroke rehabilitation — left hand weakness",
+        compliance: 61,
+        avgROM: 51,
+        avgPain: 4.1,
+        romHistory: [22, 28, 30, 29, 35, 38, 44, 51],
+        sessions: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
+      },
+      {
+        name: "Linda Torres",
+        condition: "Rheumatoid arthritis — bilateral hand stiffness",
+        compliance: 28,
+        avgROM: 33,
+        avgPain: 6.9,
+        romHistory: [20, 24, 21, 25, 22, 27, 29, 33],
+        sessions: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
+      }
+    ];
+
+    let romChart = null;
+
+    function selectPatient(index, el) {
+      // Highlight selected
+      document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
+      el.classList.add('selected');
+
+      const p = patientData[index];
+      const panel = document.getElementById('mainPanel');
+
+      panel.innerHTML = `cl
+        <h3>${p.name}</h3>
+        <p class="subtitle">${p.condition}</p>
+
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-value">${p.compliance}%</div>
+            <div class="stat-label">Compliance Rate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${p.avgROM}°</div>
+            <div class="stat-label">Avg Range of Motion</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${p.avgPain}</div>
+            <div class="stat-label">Avg Pain Rating</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h4>Range of Motion Over Time (degrees)</h4>
+          <canvas id="romChart" height="100"></canvas>
+        </div>
+      `;
+
+      // Draw the ROM chart
+      const ctx = document.getElementById('romChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: p.sessions,
+          datasets: [{
+            label: 'ROM (°)',
+            data: p.romHistory,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.1)',
+            borderWidth: 2,
+            pointBackgroundColor: '#3b82f6',
+            pointRadius: 4,
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+            y: {
+              ticks: { color: '#64748b' },
+              grid: { color: '#1e293b' },
+              min: 0, max: 100
+            }
+          }
+        }
+      });
+    }
+
+  </script>
+</body>
+</html>
+```
+
+---
