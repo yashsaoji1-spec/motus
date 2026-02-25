@@ -3,198 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PhalanX — Hand Tracker</title>
+  <title>phalanX — Hand Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
   <header>
-    <div class="logo">Phalanx<span>.dev</span></div>
+    <div class="logo">phalanX<span>.dev</span></div>
     <div class="phase-tag">Phase 3 — Joint Angles</div>
+    <div class="spacer"></div>
+    <div class="status-pill">
+      <div class="dot" id="dot"></div>
+      <span id="status-text">Initializing...</span>
+      <span id="hand-count">0 hands</span>
+    </div>
   </header>
 
   <main>
 
-    <div class="camera-wrap" id="cameraWrap">
-      <div class="scan-line"></div>
-      <video id="video" playsinline autoplay muted></video>
-      <canvas id="canvas"></canvas>
-      <div class="overlay" id="overlay">
-        <div class="spinner"></div>
-        <div class="overlay-text" id="overlay-msg">LOADING MEDIAPIPE...</div>
+    <!-- LEFT: Camera -->
+    <div class="camera-col">
+      <div class="camera-wrap" id="cameraWrap">
+        <div class="scan-line"></div>
+        <video id="video" playsinline autoplay muted></video>
+        <canvas id="canvas"></canvas>
+        <div class="overlay" id="overlay">
+          <div class="spinner"></div>
+          <div class="overlay-text" id="overlay-msg">LOADING MEDIAPIPE...</div>
+        </div>
       </div>
     </div>
 
-    <div class="status-bar">
-      <div class="dot" id="dot"></div>
-      <span id="status-text">Initializing camera...</span>
-      <div class="spacer"></div>
-      <span id="hand-count">0 hands detected</span>
-      <button class="view-toggle" id="viewToggle">ALL FINGERS</button>
-    </div>
+    <!-- RIGHT: Controls + Readouts -->
+    <div class="right-col">
 
-    <!-- ── FOCUS MODE ─────────────────────────────────────────────────────── -->
-    <div id="focus-mode">
-
-      <div class="finger-tabs">
-        <button class="finger-tab active" data-finger="index">Index</button>
-        <button class="finger-tab" data-finger="middle">Middle</button>
-        <button class="finger-tab" data-finger="ring">Ring</button>
-        <button class="finger-tab" data-finger="pinky">Pinky</button>
-        <button class="finger-tab" data-finger="thumb">Thumb</button>
-      </div>
-
-      <div class="finger-focus-card" id="focus-card">
-        <div class="focus-header">
-          <div class="focus-finger-name" id="focus-name">Index</div>
-          <div class="focus-finger-sub" id="focus-sub">Metacarpophalangeal · Proximal · Distal</div>
+      <!-- Toggle grid -->
+      <div class="toggle-panel">
+        <div class="toggle-header">
+          <span class="panel-title">JOINTS</span>
+          <button class="all-btn" id="allBtn">ALL</button>
+          <button class="all-btn" id="noneBtn">NONE</button>
         </div>
 
-        <div class="focus-joint-row" id="focus-row-mcp">
-          <div class="focus-joint-label-col">
-            <span class="focus-label">MCP</span>
-            <span class="focus-label-full">Metacarpophalangeal</span>
-          </div>
-          <div class="focus-bar-wrap">
-            <div class="focus-bar" id="focus-bar-mcp"></div>
-          </div>
-          <span class="focus-val" id="focus-mcp">—</span>
-        </div>
+        <div class="joint-grid">
+          <!-- Header row -->
+          <div class="grid-corner"></div>
+          <div class="grid-finger-label">THB</div>
+          <div class="grid-finger-label">IDX</div>
+          <div class="grid-finger-label">MID</div>
+          <div class="grid-finger-label">RNG</div>
+          <div class="grid-finger-label">PNK</div>
 
-        <div class="focus-joint-row" id="focus-row-pip">
-          <div class="focus-joint-label-col">
-            <span class="focus-label">PIP</span>
-            <span class="focus-label-full">Proximal Interphalangeal</span>
-          </div>
-          <div class="focus-bar-wrap">
-            <div class="focus-bar" id="focus-bar-pip"></div>
-          </div>
-          <span class="focus-val" id="focus-pip">—</span>
-        </div>
+          <!-- MCP row -->
+          <div class="grid-joint-label">MCP</div>
+          <div class="grid-cell" data-finger="thumb"  data-joint="mcp"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="index"  data-joint="mcp"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="middle" data-joint="mcp"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="ring"   data-joint="mcp"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="pinky"  data-joint="mcp"><div class="cell-inner active"></div></div>
 
-        <div class="focus-joint-row" id="focus-row-dip">
-          <div class="focus-joint-label-col">
-            <span class="focus-label">DIP</span>
-            <span class="focus-label-full">Distal Interphalangeal</span>
-          </div>
-          <div class="focus-bar-wrap">
-            <div class="focus-bar" id="focus-bar-dip"></div>
-          </div>
-          <span class="focus-val" id="focus-dip">—</span>
+          <!-- PIP row -->
+          <div class="grid-joint-label">PIP</div>
+          <div class="grid-cell" data-finger="thumb"  data-joint="pip"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="index"  data-joint="pip"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="middle" data-joint="pip"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="ring"   data-joint="pip"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="pinky"  data-joint="pip"><div class="cell-inner active"></div></div>
+
+          <!-- DIP row -->
+          <div class="grid-joint-label">DIP</div>
+          <div class="grid-cell" data-finger="thumb"  data-joint="dip"><div class="cell-inner"></div></div>
+          <div class="grid-cell" data-finger="index"  data-joint="dip"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="middle" data-joint="dip"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="ring"   data-joint="dip"><div class="cell-inner active"></div></div>
+          <div class="grid-cell" data-finger="pinky"  data-joint="dip"><div class="cell-inner active"></div></div>
         </div>
       </div>
 
-    </div>
-
-    <!-- ── ALL MODE ───────────────────────────────────────────────────────── -->
-    <div id="all-mode" class="hidden">
-      <div class="all-grid">
-
-        <div class="all-card" id="all-card-thumb">
-          <div class="all-finger-name">Thumb</div>
-          <div class="all-joint-row">
-            <span class="all-label">MCP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-thumb-mcp"></div></div>
-            <span class="all-val" id="all-thumb-mcp">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">IP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-thumb-pip"></div></div>
-            <span class="all-val" id="all-thumb-pip">—</span>
-          </div>
-          <div class="all-joint-row all-joint-row--empty">
-            <span class="all-label" style="opacity:0.3">DIP</span>
-            <div class="all-bar-wrap"></div>
-            <span class="all-val" style="opacity:0.3">N/A</span>
-          </div>
-        </div>
-
-        <div class="all-card" id="all-card-index">
-          <div class="all-finger-name">Index</div>
-          <div class="all-joint-row">
-            <span class="all-label">MCP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-index-mcp"></div></div>
-            <span class="all-val" id="all-index-mcp">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">PIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-index-pip"></div></div>
-            <span class="all-val" id="all-index-pip">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">DIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-index-dip"></div></div>
-            <span class="all-val" id="all-index-dip">—</span>
-          </div>
-        </div>
-
-        <div class="all-card" id="all-card-middle">
-          <div class="all-finger-name">Middle</div>
-          <div class="all-joint-row">
-            <span class="all-label">MCP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-middle-mcp"></div></div>
-            <span class="all-val" id="all-middle-mcp">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">PIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-middle-pip"></div></div>
-            <span class="all-val" id="all-middle-pip">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">DIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-middle-dip"></div></div>
-            <span class="all-val" id="all-middle-dip">—</span>
-          </div>
-        </div>
-
-        <div class="all-card" id="all-card-ring">
-          <div class="all-finger-name">Ring</div>
-          <div class="all-joint-row">
-            <span class="all-label">MCP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-ring-mcp"></div></div>
-            <span class="all-val" id="all-ring-mcp">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">PIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-ring-pip"></div></div>
-            <span class="all-val" id="all-ring-pip">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">DIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-ring-dip"></div></div>
-            <span class="all-val" id="all-ring-dip">—</span>
-          </div>
-        </div>
-
-        <div class="all-card" id="all-card-pinky">
-          <div class="all-finger-name">Pinky</div>
-          <div class="all-joint-row">
-            <span class="all-label">MCP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-pinky-mcp"></div></div>
-            <span class="all-val" id="all-pinky-mcp">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">PIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-pinky-pip"></div></div>
-            <span class="all-val" id="all-pinky-pip">—</span>
-          </div>
-          <div class="all-joint-row">
-            <span class="all-label">DIP</span>
-            <div class="all-bar-wrap"><div class="all-bar" id="all-bar-pinky-dip"></div></div>
-            <span class="all-val" id="all-pinky-dip">—</span>
-          </div>
-        </div>
-
+      <!-- Readout list -->
+      <div class="readout-panel" id="readoutPanel">
+        <!-- Populated by JS -->
       </div>
-    </div>
 
-    <!-- Raw landmark debug -->
-    <div class="debug-panel">
-      <div class="debug-title">Raw Landmarks — All 21 Joints (x, y)</div>
-      <div class="landmark-grid" id="landmark-grid">
-        <div class="landmark-item">Waiting for hand...</div>
-      </div>
     </div>
 
   </main>
