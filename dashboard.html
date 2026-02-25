@@ -2,805 +2,506 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PhalanX Dashboard</title>
-  <!-- Chart.js for the therapist ROM graph -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤚</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0f272a;
-      color: #f1f5f9;
-      min-height: 100vh;
-    }
-
-    /* ── SCREENS ── */
+    body { font-family: 'DM Sans', -apple-system, sans-serif; background: #0f172a; color: #f1f5f9; min-height: 100vh; }
     .screen { display: none; }
     .screen.active { display: flex; }
 
-    /* ── LOGIN SCREEN ── */
-    #loginScreen {
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      gap: 16px;
-    }
+    /* AUTH */
+    #loginScreen, #signupScreen, #forgotScreen, #connectScreen { align-items: center; justify-content: center; min-height: 100vh; }
+    .auth-box { width: 100%; max-width: 400px; background: #1e293b; border-radius: 20px; padding: 40px 36px; display: flex; flex-direction: column; gap: 16px; }
+    .auth-box h1 { font-size: 2.2rem; font-weight: 800; color: #3b82f6; text-align: center; letter-spacing: -1px; }
+    .auth-subtitle { text-align: center; color: #64748b; font-size: 0.9rem; margin-top: -8px; }
+    .auth-field { display: flex; flex-direction: column; gap: 6px; }
+    .auth-field label { font-size: 0.82rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .auth-field input { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px 14px; color: #f1f5f9; font-size: 0.95rem; outline: none; transition: border-color 0.2s; font-family: inherit; }
+    .auth-field input:focus { border-color: #3b82f6; }
+    .auth-field input::placeholder { color: #475569; }
+    .auth-btn { width: 100%; padding: 14px; background: #3b82f6; color: white; font-size: 1rem; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; margin-top: 4px; transition: background 0.2s; font-family: inherit; }
+    .auth-btn:hover { background: #2563eb; }
+    .auth-switch { text-align: center; font-size: 0.85rem; color: #64748b; }
+    .auth-switch span { color: #3b82f6; cursor: pointer; font-weight: 600; }
+    .auth-switch span:hover { text-decoration: underline; }
+    .auth-error { background: #450a0a; border: 1px solid #ef4444; color: #fca5a5; font-size: 0.85rem; padding: 10px 14px; border-radius: 8px; }
+    .auth-success { background: #052e16; border: 1px solid #22c55e; color: #86efac; font-size: 0.85rem; padding: 10px 14px; border-radius: 8px; }
+    .role-toggle { display: flex; gap: 8px; }
+    .role-toggle-btn { flex: 1; padding: 10px; border-radius: 8px; border: 2px solid #334155; background: #0f172a; color: #64748b; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.9rem; transition: all 0.2s; }
+    .role-toggle-btn.active { border-color: #3b82f6; background: #1e3a5f; color: #f1f5f9; }
+    .connect-desc { font-size: 0.88rem; color: #64748b; line-height: 1.6; text-align: center; }
 
-    #loginScreen h1 {
-      font-size: 3rem;
-      font-weight: 800;
-      color: #3b82f6;
-      letter-spacing: -1px;
-    }
+    /* CLINIC CODE */
+    .clinic-code-box { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 14px; text-align: center; margin-bottom: 8px; }
+    .clinic-code-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .clinic-code { font-size: 1.9rem; font-weight: 900; color: #3b82f6; letter-spacing: 8px; }
+    .clinic-code-hint { font-size: 0.75rem; color: #475569; margin-top: 6px; }
 
-    #loginScreen p {
-      color: #94a3b8;
-      font-size: 1rem;
-      margin-bottom: 24px;
-    }
+    /* PATIENT HOME */
+    #patientScreen { flex-direction: column; align-items: center; min-height: 100vh; padding: 28px 24px; gap: 12px; background: #0f172a; }
+    .patient-greeting { font-size: 0.72rem; font-weight: 600; color: #4a6280; text-transform: uppercase; letter-spacing: 2px; align-self: flex-start; width: 100%; max-width: 420px; }
+    .patient-display-name { font-size: 1.6rem; font-weight: 700; color: #e8f0fe; letter-spacing: -0.5px; align-self: flex-start; width: 100%; max-width: 420px; margin-bottom: 4px; }
+    .protocol-strip { width: 100%; max-width: 420px; padding: 14px 18px; background: #111b2a; border: 1px solid #1a2940; border-left: 3px solid #00c9b1; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .protocol-strip-label { font-size: 0.65rem; font-weight: 600; color: #00c9b1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
+    .protocol-strip-exercise { font-size: 0.95rem; font-weight: 600; color: #e8f0fe; }
+    .protocol-strip-meta { font-size: 0.75rem; color: #4a6280; margin-top: 2px; }
+    .protocol-strip-sets { font-family: 'DM Mono', monospace; font-size: 1.4rem; font-weight: 500; color: #2d7ff9; line-height: 1; text-align: right; }
+    .protocol-strip-sets-label { font-size: 0.65rem; color: #4a6280; text-transform: uppercase; letter-spacing: 1px; text-align: right; }
+    .scan-btn-wrapper { width: 100%; max-width: 420px; }
+    .scan-btn { width: 100%; padding: 0; background: none; border: none; cursor: pointer; border-radius: 20px; }
+    .scan-btn-inner { width: 100%; padding: 32px 24px; background: linear-gradient(135deg, #1a3a6e 0%, #0d2548 50%, #0a1e3d 100%); border: 1px solid rgba(45,127,249,0.3); border-radius: 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; transition: all 0.25s; position: relative; overflow: hidden; }
+    .scan-btn-inner::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(45,127,249,0.15), transparent); opacity: 0; transition: opacity 0.25s; }
+    .scan-btn:hover .scan-btn-inner::before { opacity: 1; }
+    .scan-btn:hover .scan-btn-inner { border-color: rgba(45,127,249,0.6); transform: translateY(-2px); }
+    .scan-btn-badge { position: absolute; top: 14px; right: 14px; background: #2d7ff9; color: white; font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .scan-icon { position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; }
+    .scan-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(45,127,249,0.4); animation: pulseRing 2.5s ease-in-out infinite; }
+    .scan-ring:nth-child(2) { animation-delay: 0.8s; }
+    .scan-ring:nth-child(3) { animation-delay: 1.6s; }
+    @keyframes pulseRing { 0% { transform: scale(0.85); opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
+    .scan-hand-icon { font-size: 2.6rem; position: relative; z-index: 1; filter: drop-shadow(0 0 12px rgba(45,127,249,0.5)); }
+    .scan-btn-title { font-size: 1.3rem; font-weight: 700; color: #e8f0fe; letter-spacing: -0.3px; }
+    .scan-btn-sub { font-size: 0.8rem; color: #4a7aaa; margin-top: -8px; }
+    .secondary-grid { width: 100%; max-width: 420px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .home-btn { padding: 18px 16px; background: #111b2a; border: 1px solid #1a2940; border-radius: 14px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; transition: all 0.2s; text-align: left; font-family: inherit; }
+    .home-btn:hover { border-color: #2a3f5f; background: #131f30; transform: translateY(-1px); }
+    .home-btn-icon { font-size: 1.4rem; line-height: 1; }
+    .home-btn-label { font-size: 0.88rem; font-weight: 600; color: #e8f0fe; line-height: 1.3; }
+    .home-btn-sub { font-size: 0.72rem; color: #4a6280; margin-top: -6px; }
+    .home-btn-wide { width: 100%; max-width: 420px; padding: 16px 18px; background: #111b2a; border: 1px solid #1a2940; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 14px; transition: all 0.2s; font-family: inherit; }
+    .home-btn-wide:hover { border-color: #2a3f5f; background: #131f30; }
+    .home-btn-wide-text { flex: 1; text-align: left; }
+    .home-btn-arrow { color: #4a6280; font-size: 1rem; margin-left: auto; }
 
-    .role-btn {
-      width: 280px;
-      padding: 20px;
-      border: 2px solid #1e293b;
-      border-radius: 16px;
-      background: #1e293b;
-      color: #f1f5f9;
-      font-size: 1.1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      text-align: left;
-    }
+    /* CAMERA SCREEN */
+    #cameraScreen { flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; gap: 20px; }
+    .patient-header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 640px; }
+    .patient-header h2 { font-size: 1.4rem; font-weight: 700; color: #3b82f6; }
+    .logout-btn { background: none; border: 1px solid #334155; color: #94a3b8; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-family: inherit; }
+    .camera-box { position: relative; width: 640px; height: 480px; border-radius: 16px; overflow: hidden; background: #000; border: 2px solid #1e293b; }
+    .camera-box video, .camera-box canvas { position: absolute; width: 100%; height: 100%; transform: scaleX(-1); }
+    .rep-overlay { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); border-radius: 14px; padding: 12px 28px; text-align: center; z-index: 10; backdrop-filter: blur(4px); }
+    .rep-number { font-size: 3.5rem; font-weight: 900; color: #22c55e; line-height: 1; }
+    .rep-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+    #congratsOverlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); border-radius: 16px; flex-direction: column; align-items: center; justify-content: center; z-index: 20; gap: 12px; }
+    #congratsOverlay.show { display: flex; }
+    #congratsOverlay h2 { font-size: 2.5rem; color: #22c55e; font-weight: 900; }
+    #congratsOverlay p { color: #94a3b8; font-size: 1rem; }
+    .reset-btn { margin-top: 8px; padding: 12px 28px; background: #22c55e; color: #000; font-weight: 700; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; font-family: inherit; }
+    .progress-section { width: 640px; }
+    .progress-info { display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b; margin-bottom: 8px; }
+    .progress-bar-track { width: 100%; height: 12px; background: #1e293b; border-radius: 99px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #22c55e); border-radius: 99px; transition: width 0.4s ease; width: 0%; }
+    .pain-section { width: 640px; background: #1e293b; border-radius: 14px; padding: 16px 20px; }
+    .pain-section label { font-size: 0.9rem; color: #94a3b8; display: block; margin-bottom: 10px; }
+    .pain-section label strong { color: #f1f5f9; }
+    input[type="range"] { width: 100%; accent-color: #3b82f6; }
+    .pain-scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: #475569; margin-top: 4px; }
+    .assigned-protocol { width: 640px; background: #1e293b; border-radius: 14px; padding: 16px 20px; border-left: 4px solid #3b82f6; }
+    .protocol-title { font-size: 0.75rem; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; }
+    .protocol-exercise-name { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-top: 4px; }
+    .protocol-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+    .protocol-meta-item { font-size: 0.82rem; color: #64748b; }
+    .protocol-meta-item strong { color: #94a3b8; }
+    .protocol-patient-notes { font-size: 0.82rem; color: #475569; font-style: italic; margin-top: 6px; line-height: 1.5; }
+    .set-tracker { display: flex; gap: 6px; margin-bottom: 10px; }
+    .set-dot { flex: 1; height: 6px; border-radius: 99px; background: #1e293b; transition: background 0.3s; }
+    .set-dot.complete { background: #22c55e; }
+    .set-dot.active { background: #3b82f6; }
 
-    .role-btn:hover {
-      border-color: #3b82f6;
-      background: #1e3a5f;
-    }
-
-    .role-btn span {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: 400;
-      color: #64748b;
-      margin-top: 4px;
-    }
-
-    /* ── PATIENT SCREEN ── */
-    #patientScreen {
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 24px;
-      gap: 20px;
-    }
-
-    .patient-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      width: 100%;
-      max-width: 640px;
-    }
-
-    .patient-header h2 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: #3b82f6;
-    }
-
-    .logout-btn {
-      background: none;
-      border: 1px solid #334155;
-      color: #94a3b8;
-      padding: 6px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.85rem;
-    }
-
-    .camera-box {
-      position: relative;
-      width: 640px;
-      height: 480px;
-      border-radius: 16px;
-      overflow: hidden;
-      background: #000;
-      border: 2px solid #1e293b;
-    }
-
-    .camera-box video,
-.camera-box canvas {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  transform: scaleX(-1);
-}
-
-    /* Rep counter overlay */
-    .rep-overlay {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.7);
-      border-radius: 14px;
-      padding: 12px 28px;
-      text-align: center;
-      z-index: 10;
-      backdrop-filter: blur(4px);
-    }
-
-    .rep-number {
-      font-size: 3.5rem;
-      font-weight: 900;
-      color: #22c55e;
-      line-height: 1;
-    }
-
-    .rep-label {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    /* Progress bar */
-    .progress-section {
-      width: 640px;
-    }
-
-    .progress-info {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.85rem;
-      color: #64748b;
-      margin-bottom: 8px;
-    }
-
-    .progress-bar-track {
-      width: 100%;
-      height: 12px;
-      background: #1e293b;
-      border-radius: 99px;
-      overflow: hidden;
-    }
-
-    .progress-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #3b82f6, #22c55e);
-      border-radius: 99px;
-      transition: width 0.4s ease;
-      width: 0%;
-    }
-
-    /* Congrats overlay */
-    #congratsOverlay {
-      display: none;
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.85);
-      border-radius: 16px;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 20;
-      gap: 12px;
-    }
-
-    #congratsOverlay.show {
-      display: flex;
-    }
-
-    #congratsOverlay h2 {
-      font-size: 2.5rem;
-      color: #22c55e;
-      font-weight: 900;
-    }
-
-    #congratsOverlay p {
-      color: #94a3b8;
-      font-size: 1rem;
-    }
-
-    .reset-btn {
-      margin-top: 8px;
-      padding: 12px 28px;
-      background: #22c55e;
-      color: #000;
-      font-weight: 700;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-
-    /* Pain slider */
-    .pain-section {
-      width: 640px;
-      background: #1e293b;
-      border-radius: 14px;
-      padding: 16px 20px;
-    }
-
-    .pain-section label {
-      font-size: 0.9rem;
-      color: #94a3b8;
-      display: block;
-      margin-bottom: 10px;
-    }
-
-    .pain-section label strong {
-      color: #f1f5f9;
-    }
-
-    input[type="range"] {
-      width: 100%;
-      accent-color: #3b82f6;
-    }
-
-    .pain-scale {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: #475569;
-      margin-top: 4px;
-    }
-
-    /* ── THERAPIST SCREEN ── */
-    #therapistScreen {
-      flex-direction: row;
-      min-height: 100vh;
-    }
-
-    .sidebar {
-      width: 260px;
-      background: #0f172a;
-      border-right: 1px solid #1e293b;
-      padding: 24px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .sidebar h2 {
-      font-size: 1.3rem;
-      font-weight: 800;
-      color: #3b82f6;
-      margin-bottom: 12px;
-      padding-left: 8px;
-    }
-
-    .patient-item {
-      padding: 12px 14px;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: background 0.15s;
-      border: 1px solid transparent;
-    }
-
+    /* THERAPIST */
+    #therapistScreen { flex-direction: row; min-height: 100vh; }
+    .sidebar { width: 260px; background: #0f172a; border-right: 1px solid #1e293b; padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+    .sidebar h2 { font-size: 1.3rem; font-weight: 800; color: #3b82f6; margin-bottom: 12px; padding-left: 8px; }
+    .patient-item { padding: 12px 14px; border-radius: 10px; cursor: pointer; transition: background 0.15s; border: 1px solid transparent; }
     .patient-item:hover { background: #1e293b; }
+    .patient-item.selected { background: #1e3a5f; border-color: #3b82f6; }
+    .patient-name { font-weight: 600; font-size: 0.95rem; }
+    .patient-connected { font-size: 0.72rem; color: #22c55e; margin-top: 2px; }
+    .no-patients { text-align: center; padding: 24px 16px; color: #475569; font-size: 0.85rem; line-height: 1.6; border: 1px dashed #334155; border-radius: 10px; margin-top: 8px; }
+    .sidebar-footer { margin-top: auto; }
+    .main-panel { flex: 1; padding: 32px; overflow-y: auto; }
+    .main-panel h3 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+    .main-panel .subtitle { color: #64748b; font-size: 0.9rem; margin-bottom: 28px; }
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: #1e293b; border-radius: 12px; padding: 18px 20px; }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 800; color: #3b82f6; }
+    .stat-card .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .chart-card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .chart-card h4 { font-size: 0.95rem; font-weight: 600; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; color: #334155; gap: 8px; }
 
-    .patient-item.selected {
-      background: #1e3a5f;
-      border-color: #3b82f6;
+    /* PROTOCOL CARD */
+    .protocol-card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .protocol-card h4 { font-size: 0.85rem; font-weight: 700; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .protocol-form { display: flex; flex-direction: column; gap: 14px; }
+    .protocol-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .protocol-field { display: flex; flex-direction: column; gap: 6px; }
+    .protocol-field label { font-size: 0.78rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .protocol-field input, .protocol-field select, .protocol-field textarea { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; color: #f1f5f9; font-size: 0.9rem; font-family: inherit; outline: none; transition: border-color 0.2s; resize: vertical; }
+    .protocol-field input:focus, .protocol-field select:focus, .protocol-field textarea:focus { border-color: #3b82f6; }
+    .protocol-btn { padding: 12px; background: #3b82f6; color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.95rem; transition: background 0.2s; }
+    .protocol-btn:hover { background: #2563eb; }
+    .protocol-existing { margin-top: 20px; padding-top: 16px; border-top: 1px solid #334155; }
+    .protocol-existing-label { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .protocol-existing-detail { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .protocol-tag { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-size: 0.82rem; color: #94a3b8; }
+    .protocol-tag strong { color: #f1f5f9; }
+    .protocol-notes-display { margin-top: 10px; font-size: 0.85rem; color: #64748b; font-style: italic; line-height: 1.5; }
+
+    /* SESSION HISTORY */
+    .session-history-card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .session-history-card h4 { font-size: 0.85rem; font-weight: 700; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .session-history-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+    .session-history-list::-webkit-scrollbar { width: 4px; }
+    .session-history-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+    .session-history-row { display: grid; grid-template-columns: 1.8fr 1fr 1fr 1fr; gap: 8px; padding: 10px 14px; background: #0f172a; border-radius: 8px; border: 1px solid #1e293b; align-items: center; }
+    .session-history-row.header-row { background: #0a101e; margin-bottom: 4px; }
+    .session-history-row.header-row span { font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
+    .session-date { font-size: 0.82rem; color: #64748b; }
+    .session-stat { font-size: 0.9rem; font-weight: 700; text-align: center; }
+    .session-pain-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+
+    /* JOINT SELECTOR */
+    .joint-selector-panel { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .joint-selector-panel h4 { font-size: 0.85rem; font-weight: 700; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .joint-selector-body { display: grid; grid-template-columns: 1fr 260px; gap: 20px; align-items: start; }
+    .hand-svg-wrapper { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .hand-svg-wrapper svg { width: 200px; height: 260px; }
+    .finger-legend { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: #64748b; font-weight: 500; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .joint-dot { cursor: pointer; }
+    .joint-dot circle { transition: all 0.15s; }
+    .joint-dot:hover circle { filter: drop-shadow(0 0 6px #2d7ff9); }
+    .joint-dot.selected circle { fill: #2d7ff9 !important; filter: drop-shadow(0 0 8px #2d7ff9); }
+    .joint-dot.selected text { fill: white !important; font-weight: 700; }
+    .joint-right-panel { display: flex; flex-direction: column; gap: 12px; }
+    .joint-info-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 14px; min-height: 90px; display: flex; flex-direction: column; justify-content: center; }
+    .joint-info-empty-text { font-size: 0.8rem; color: #334155; text-align: center; line-height: 1.6; }
+    .joint-info-finger-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3px; }
+    .joint-info-joint-name { font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+    .joint-info-desc-text { font-size: 0.78rem; color: #64748b; line-height: 1.5; margin-bottom: 8px; }
+    .landmark-tag { font-family: 'DM Mono', monospace; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; background: rgba(45,127,249,0.1); border: 1px solid rgba(45,127,249,0.2); color: #2d7ff9; display: inline-block; }
+    .finger-quick-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .finger-quick-btn { padding: 6px 12px; border-radius: 99px; border: 1px solid #1e293b; background: transparent; color: #64748b; font-family: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .finger-quick-btn:hover { border-color: #3b82f6; color: #f1f5f9; }
+    .finger-quick-btn.fq-active { background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #3b82f6; }
+    .selected-joints-list { display: flex; flex-direction: column; gap: 5px; max-height: 160px; overflow-y: auto; }
+    .selected-joint-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: #0f172a; border-radius: 7px; border: 1px solid #1e293b; font-size: 0.78rem; }
+    .selected-joint-item-left { display: flex; align-items: center; gap: 8px; }
+    .selected-joint-color { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .selected-joint-name { font-weight: 600; color: #f1f5f9; }
+    .selected-joint-finger { color: #64748b; font-size: 0.7rem; }
+    .selected-joint-lm { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #64748b; background: #1e293b; padding: 2px 6px; border-radius: 4px; }
+    .joint-clear-btn { width: 100%; padding: 9px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; color: #64748b; font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .joint-clear-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* MODAL */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+    .modal-box { background: #1e293b; border-radius: 16px; padding: 32px; width: 340px; text-align: center; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; }
+    .modal-box h3 { font-size: 1.2rem; font-weight: 700; color: #f1f5f9; }
+    .modal-box p { font-size: 0.9rem; color: #64748b; line-height: 1.5; }
+    .modal-buttons { display: flex; gap: 10px; margin-top: 8px; }
+    .modal-cancel { flex: 1; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #94a3b8; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.9rem; }
+    .modal-confirm { flex: 1; padding: 12px; background: #ef4444; border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 0.9rem; }
+    .modal-confirm:hover { background: #dc2626; }
+
+    /* PROGRESS SCREEN */
+    #progressScreen { flex-direction: column; min-height: 100vh; background: #0f172a; }
+    .progress-session-card { background: #1e293b; border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .progress-session-date { font-size: 0.82rem; color: #64748b; margin-bottom: 4px; }
+    .progress-session-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .progress-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .progress-stat-value { font-size: 1.2rem; font-weight: 800; color: #3b82f6; }
+    .progress-stat-label { font-size: 0.7rem; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
+    .no-progress-msg { text-align: center; color: #334155; padding: 60px 20px; font-size: 0.95rem; line-height: 1.8; }
+
+    /* MOBILE */
+    @media (max-width: 700px) {
+      #cameraScreen { padding: 12px; gap: 12px; justify-content: flex-start; padding-top: 16px; }
+      .camera-box { width: 100%; height: auto; aspect-ratio: 4/3; }
+      .camera-box video, .camera-box canvas { width: 100%; height: 100%; }
+      .progress-section, .pain-section, .assigned-protocol { width: 100%; }
+      .auth-box { margin: 16px; padding: 28px 20px; }
+      #therapistScreen { flex-direction: column; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #1e293b; padding: 16px; max-height: 280px; overflow-y: auto; }
+      .main-panel { padding: 16px; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .protocol-row { grid-template-columns: 1fr; }
+      .joint-selector-body { grid-template-columns: 1fr; }
+      .modal-box { width: calc(100% - 32px); }
     }
-
-    .patient-name {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-
-    .patient-status {
-      font-size: 0.75rem;
-      margin-top: 3px;
-    }
-
-    .status-good { color: #22c55e; }
-    .status-warn { color: #f59e0b; }
-    .status-bad  { color: #ef4444; }
-
-    .sidebar-footer {
-      margin-top: auto;
-    }
-
-    .main-panel {
-      flex: 1;
-      padding: 32px;
-      overflow-y: auto;
-    }
-
-    .main-panel h3 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .main-panel .subtitle {
-      color: #64748b;
-      font-size: 0.9rem;
-      margin-bottom: 28px;
-    }
-
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 28px;
-    }
-
-    .stat-card {
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 18px 20px;
-    }
-
-    .stat-card .stat-value {
-      font-size: 2rem;
-      font-weight: 800;
-      color: #3b82f6;
-    }
-
-    .stat-card .stat-label {
-      font-size: 0.8rem;
-      color: #64748b;
-      margin-top: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .chart-card {
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .chart-card h4 {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #94a3b8;
-      margin-bottom: 16px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 60vh;
-      color: #334155;
-      gap: 8px;
-    }
-
-    .empty-state p { font-size: 1rem; }
-
-    /* ── AUTH SCREENS ── */
-#loginScreen, #signupScreen {
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-}
-
-.auth-box {
-  width: 100%;
-  max-width: 400px;
-  background: #1e293b;
-  border-radius: 20px;
-  padding: 40px 36px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.auth-box h1 {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: #3b82f6;
-  text-align: center;
-  letter-spacing: -1px;
-}
-
-.auth-subtitle {
-  text-align: center;
-  color: #64748b;
-  font-size: 0.9rem;
-  margin-top: -8px;
-}
-
-.auth-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.auth-field label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.auth-field input {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 10px;
-  padding: 12px 14px;
-  color: #f1f5f9;
-  font-size: 0.95rem;
-  outline: none;
-  transition: border-color 0.2s;
-  font-family: inherit;
-}
-
-.auth-field input:focus {
-  border-color: #3b82f6;
-}
-
-.auth-field input::placeholder {
-  color: #475569;
-}
-
-.auth-btn {
-  width: 100%;
-  padding: 14px;
-  background: #3b82f6;
-  color: white;
-  font-size: 1rem;
-  font-weight: 700;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  margin-top: 4px;
-  transition: background 0.2s;
-  font-family: inherit;
-}
-
-.auth-btn:hover {
-  background: #2563eb;
-}
-
-.auth-switch {
-  text-align: center;
-  font-size: 0.85rem;
-  color: #64748b;
-}
-
-.auth-switch span {
-  color: #3b82f6;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.auth-switch span:hover {
-  text-decoration: underline;
-}
-
-.auth-error {
-  background: #450a0a;
-  border: 1px solid #ef4444;
-  color: #fca5a5;
-  font-size: 0.85rem;
-  padding: 10px 14px;
-  border-radius: 8px;
-}
-
-.role-toggle {
-  display: flex;
-  gap: 8px;
-}
-
-.role-toggle-btn {
-  flex: 1;
-  padding: 10px;
-  border-radius: 8px;
-  border: 2px solid #334155;
-  background: #0f172a;
-  color: #64748b;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.role-toggle-btn.active {
-  border-color: #3b82f6;
-  background: #1e3a5f;
-  color: #f1f5f9;
-}
-/* ── CLINIC CODE ── */
-.clinic-code-box {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 14px;
-  text-align: center;
-  margin-bottom: 8px;
-}
-
-.clinic-code-label {
-  font-size: 0.75rem;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 6px;
-}
-
-.clinic-code {
-  font-size: 1.9rem;
-  font-weight: 900;
-  color: #3b82f6;
-  letter-spacing: 8px;
-  font-variant-numeric: tabular-nums;
-}
-
-.clinic-code-hint {
-  font-size: 0.75rem;
-  color: #475569;
-  margin-top: 6px;
-}
-
-/* ── CONNECT SCREEN ── */
-.connect-desc {
-  font-size: 0.88rem;
-  color: #64748b;
-  line-height: 1.6;
-  text-align: center;
-}
-
-.auth-success {
-  background: #052e16;
-  border: 1px solid #22c55e;
-  color: #86efac;
-  font-size: 0.85rem;
-  padding: 10px 14px;
-  border-radius: 8px;
-}
-
-/* ── CONNECTED PATIENT TAG ── */
-.patient-connected {
-  font-size: 0.72rem;
-  color: #22c55e;
-  margin-top: 2px;
-}
-
-/* ── EMPTY PATIENT STATE ── */
-.no-patients {
-  text-align: center;
-  padding: 24px 16px;
-  color: #475569;
-  font-size: 0.85rem;
-  line-height: 1.6;
-  border: 1px dashed #334155;
-  border-radius: 10px;
-  margin-top: 8px;
-}
   </style>
 </head>
 <body>
-
-  <!-- ── LOGIN SCREEN ── -->
+<!-- LOGIN -->
 <div id="loginScreen" class="screen active">
   <div class="auth-box">
     <h1>PhalanX</h1>
     <p class="auth-subtitle">Sign in to continue</p>
-
-    <!-- Error message -->
     <div id="loginError" class="auth-error" style="display:none"></div>
-
     <div class="auth-field">
       <label>Email</label>
-      <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" />
-    </div>
-
+      <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleLogin()" />    </div>
     <div class="auth-field">
       <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" />
-    </div>
-
+      <input type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()" />    </div>
     <button class="auth-btn" onclick="handleLogin()">Sign In</button>
-
-    <p class="auth-switch">
-      Don't have an account?
-      <span onclick="showScreen('signupScreen')">Create one</span>
-    </p>
+    <p class="auth-switch">Don't have an account? <span onclick="showScreen('signupScreen')">Create one</span></p>
+    <p class="auth-switch" style="margin-top:-8px;"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
   </div>
 </div>
 
-<!-- ── SIGN UP SCREEN ── -->
+<!-- SIGN UP -->
 <div id="signupScreen" class="screen">
   <div class="auth-box">
     <h1>PhalanX</h1>
     <p class="auth-subtitle">Create your account</p>
-
-    <!-- Error message -->
     <div id="signupError" class="auth-error" style="display:none"></div>
-
     <div class="auth-field">
       <label>Full Name</label>
-      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" />
-    </div>
-
+      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" onkeydown="if(event.key==='Enter') handleSignup()" />    </div>
     <div class="auth-field">
       <label>Email</label>
-      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" />
-    </div>
-
+      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleSignup()" />    </div>
     <div class="auth-field">
       <label>Password</label>
-      <input type="password" id="signupPassword" placeholder="Min. 6 characters" />
-    </div>
-
+      <input type="password" id="signupPassword" placeholder="Min. 6 characters" onkeydown="if(event.key==='Enter') handleSignup()" />    </div>
     <div class="auth-field">
       <label>I am a</label>
       <div class="role-toggle">
-        <button id="rolePatientBtn" class="role-toggle-btn active"
-                onclick="selectRole('patient')">Patient</button>
-        <button id="roleTherapistBtn" class="role-toggle-btn"
-                onclick="selectRole('therapist')">Therapist</button>
+        <button id="rolePatientBtn" class="role-toggle-btn active" onclick="selectRole('patient')">Patient</button>
+        <button id="roleTherapistBtn" class="role-toggle-btn" onclick="selectRole('therapist')">Therapist</button>
       </div>
     </div>
-
     <button class="auth-btn" onclick="handleSignup()">Create Account</button>
-
-    <p class="auth-switch">
-      Already have an account?
-      <span onclick="showScreen('loginScreen')">Sign in</span>
-    </p>
+    <p class="auth-switch">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
   </div>
 </div>
-<!-- ── CONNECT TO THERAPIST SCREEN ── -->
+
+<!-- FORGOT PASSWORD -->
+<div id="forgotScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Reset your password</p>
+    <div id="forgotError" class="auth-error" style="display:none"></div>
+    <div id="forgotSuccess" class="auth-success" style="display:none"></div>
+    <div class="auth-field">
+      <label>Enter your email</label>
+      <input type="email" id="forgotEmail" placeholder="you@mayoclinic.org" />
+    </div>
+    <div class="auth-field" id="newPasswordField" style="display:none">
+      <label>New Password</label>
+      <input type="password" id="forgotNewPassword" placeholder="Min. 6 characters" />
+    </div>
+    <button class="auth-btn" id="forgotBtn" onclick="handleForgot()">Find Account</button>
+    <p class="auth-switch">Remembered it? <span onclick="showScreen('loginScreen')">Back to sign in</span></p>
+  </div>
+</div>
+
+<!-- CONNECT TO THERAPIST -->
 <div id="connectScreen" class="screen">
   <div class="auth-box">
     <h1>PhalanX</h1>
     <p class="auth-subtitle">Connect to your therapist</p>
-
     <div id="connectError" class="auth-error" style="display:none"></div>
     <div id="connectSuccess" class="auth-success" style="display:none"></div>
-
-    <p class="connect-desc">
-      Ask your therapist for their 6-digit clinic code and enter it below.
-      This links your sessions to their dashboard.
-    </p>
-
+    <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
     <div class="auth-field">
       <label>Clinic Code</label>
-      <input
-        type="text"
-        id="clinicCodeInput"
-        placeholder="e.g. 482910"
-        maxlength="6"
-        style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;"
-      />
+      <input type="text" id="clinicCodeInput" placeholder="e.g. 482910" maxlength="6"
+             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;" />
     </div>
-
     <button class="auth-btn" onclick="handleConnect()">Connect</button>
-    <button class="auth-btn"
-            onclick="skipConnect()"
-            style="background:#1e293b; color:#94a3b8; margin-top:-8px;">
-      Skip for now
-    </button>
+    <button class="auth-btn" onclick="skipConnect()" style="background:#1e293b; color:#94a3b8; margin-top:-8px;">Skip for now</button>
   </div>
 </div>
 
-  <!-- ── PATIENT SCREEN ── -->
-  <div id="patientScreen" class="screen">
-    <div class="patient-header">
-      <h2>PhalanX</h2>
-      <button class="logout-btn" onclick="logout()">Switch User</button>
+<!-- PATIENT HOME -->
+<div id="patientScreen" class="screen">
+  <div class="patient-greeting" id="patientGreeting">Good morning</div>
+  <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
+
+  <div class="protocol-strip" id="patientProtocolStrip" style="display:none;">
+    <div>
+      <div class="protocol-strip-label">Today's Protocol</div>
+      <div class="protocol-strip-exercise" id="protocolStripExercise">—</div>
+      <div class="protocol-strip-meta" id="protocolStripMeta">—</div>
     </div>
-
-    <div class="camera-box">
-      <video id="patientVideo" autoplay playsinline></video>
-      <canvas id="patientCanvas" width="640" height="480"></canvas>
-
-      <!-- Rep counter overlay on top of camera -->
-      <div class="rep-overlay">
-        <div class="rep-number" id="repDisplay">0</div>
-        <div class="rep-label">Reps</div>
-      </div>
-
-      <!-- Congrats overlay -->
-      <div id="congratsOverlay">
-        <h2>🎉 Great work!</h2>
-        <p>You completed your set of <strong id="targetDisplay">10</strong> reps</p>
-        <p style="font-size:0.85rem; color:#475569;">How much pain are you in right now?</p>
-        <input type="range" min="1" max="10" value="5" id="painSliderCongrats"
-               style="width:220px; margin-top:4px;" />
-        <p id="painValueCongrats" style="font-size:0.85rem; color:#94a3b8;">5 / 10</p>
-        <button class="reset-btn" onclick="resetSession()">Start Next Set</button>
-      </div>
-    </div>
-
-    <!-- Progress bar -->
-    <div class="progress-section">
-      <div class="progress-info">
-        <span>Progress</span>
-        <span id="progressText">0 / 10 reps</span>
-      </div>
-      <div class="progress-bar-track">
-        <div class="progress-bar-fill" id="progressFill"></div>
-      </div>
-    </div>
-
-    <!-- Pain rating -->
-    <div class="pain-section">
-      <label>
-        <strong>Current Pain Level</strong> — rate as you exercise
-      </label>
-      <input type="range" min="1" max="10" value="1" id="painSlider"
-             oninput="document.getElementById('painValue').textContent = this.value + ' / 10'" />
-      <div class="pain-scale">
-        <span>1 — No pain</span>
-        <span id="painValue">1 / 10</span>
-        <span>10 — Severe</span>
-      </div>
+    <div>
+      <div class="protocol-strip-sets" id="protocolStripSets">3</div>
+      <div class="protocol-strip-sets-label">Sets Today</div>
     </div>
   </div>
 
-  <!-- ── THERAPIST SCREEN ── -->
-  <div id="therapistScreen" class="screen">
-    <div class="sidebar">
-  <h2>PhalanX</h2>
-
-  <div class="clinic-code-box">
-    <p class="clinic-code-label">Your Clinic Code</p>
-    <div class="clinic-code" id="therapistCode">------</div>
-    <p class="clinic-code-hint">Share this with your patients</p>
+  <div class="scan-btn-wrapper">
+    <button class="scan-btn" onclick="startScanSession()">
+      <div class="scan-btn-inner">
+        <span class="scan-btn-badge">Start Session</span>
+        <div class="scan-icon">
+          <div class="scan-ring"></div>
+          <div class="scan-ring"></div>
+          <div class="scan-ring"></div>
+          <span class="scan-hand-icon">🤚</span>
+        </div>
+        <div class="scan-btn-title">Scan My Hand</div>
+        <div class="scan-btn-sub">Camera tracks your finger movement in real time</div>
+      </div>
+    </button>
   </div>
 
-      <div class="patient-item" onclick="selectPatient(0, this)">
-        <div class="patient-name">Maria Gonzalez</div>
-        <div class="patient-status status-good">● On track — 92% compliance</div>
+  <div class="secondary-grid">
+    <button class="home-btn" onclick="showProgressScreen()">
+      <span class="home-btn-icon">📈</span>
+      <div>
+        <div class="home-btn-label">Track My Progress</div>
+        <div class="home-btn-sub">Sessions, ROM & pain history</div>
       </div>
-      <div class="patient-item" onclick="selectPatient(1, this)">
-        <div class="patient-name">James Park</div>
-        <div class="patient-status status-warn">● At risk — 61% compliance</div>
+    </button>
+    <button class="home-btn" onclick="alert('Messaging coming soon')">
+      <span class="home-btn-icon">💬</span>
+      <div>
+        <div class="home-btn-label">Contact My Therapist</div>
+        <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
       </div>
-      <div class="patient-item" onclick="selectPatient(2, this)">
-        <div class="patient-name">Linda Torres</div>
-        <div class="patient-status status-bad">● Non-compliant — 28% compliance</div>
-      </div>
+    </button>
+  </div>
 
-      <div class="sidebar-footer">
-        <button class="logout-btn" onclick="logout()" style="width:100%">Switch User</button>
-      </div>
+  <button class="home-btn-wide" onclick="alert('Exercise guides coming soon')">
+    <span class="home-btn-icon" style="font-size:1.3rem;">📋</span>
+    <div class="home-btn-wide-text">
+      <div class="home-btn-label">My Exercises</div>
+      <div class="home-btn-sub">View your assigned protocol</div>
     </div>
+    <span class="home-btn-arrow">›</span>
+  </button>
 
-    <div class="main-panel" id="mainPanel">
-      <div class="empty-state">
-        <p>← Select a patient to view their progress</p>
-      </div>
+  <button class="home-btn-wide" onclick="requestLogout()">
+    <span class="home-btn-icon" style="font-size:1.3rem;">🔄</span>
+    <div class="home-btn-wide-text">
+      <div class="home-btn-label">Switch User</div>
+      <div class="home-btn-sub">Sign out of PhalanX</div>
+    </div>
+    <span class="home-btn-arrow">›</span>
+  </button>
+</div>
+
+<!-- CAMERA SCREEN -->
+<div id="cameraScreen" class="screen">
+  <div class="patient-header">
+    <h2>PhalanX</h2>
+    <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+  </div>
+
+  <div class="assigned-protocol" id="assignedProtocol" style="display:none;">
+    <div id="assignedProtocolInner"></div>
+  </div>
+
+  <div class="camera-box">
+    <video id="patientVideo" autoplay playsinline></video>
+    <canvas id="patientCanvas" width="640" height="480"></canvas>
+    <div class="rep-overlay">
+      <div class="rep-number" id="repDisplay">0</div>
+      <div class="rep-label">Reps</div>
+    </div>
+    <div id="congratsOverlay">
+      <h2>🎉 Great work!</h2>
+      <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
+      <p style="font-size:0.9rem; color:#f1f5f9; margin-top:4px;"><strong id="targetDisplay">10</strong> reps completed</p>
+      <p id="allSetsComplete" style="display:none; color:#22c55e; font-weight:700; font-size:1rem;">🏆 All sets complete for today!</p>
+      <p style="font-size:0.85rem; color:#475569;">How much pain are you in right now?</p>
+      <input type="range" min="1" max="10" value="5" id="painSliderCongrats" style="width:220px; margin-top:4px;" />
+      <p id="painValueCongrats" style="font-size:0.85rem; color:#94a3b8;">5 / 10</p>
+      <button class="reset-btn" id="nextSetBtn" onclick="advanceSet()">Start Next Set</button>
     </div>
   </div>
 
-  <!-- MediaPipe scripts (for patient camera) -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <div class="progress-section">
+    <div class="set-tracker" id="setTracker"></div>
+    <div class="progress-info">
+      <span id="setLabel">Set 1</span>
+      <span id="progressText">0 / 10 reps</span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+  </div>
 
-  <script>
+  <div class="pain-section">
+    <label><strong>Current Pain Level</strong> — rate as you exercise</label>
+    <input type="range" min="1" max="10" value="1" id="painSlider"
+           oninput="document.getElementById('painValue').textContent = this.value + ' / 10'" />
+    <div class="pain-scale">
+      <span>1 — No pain</span>
+      <span id="painValue">1 / 10</span>
+      <span>10 — Severe</span>
+    </div>
+  </div>
+</div>
 
-    // ── ROLE / NAVIGATION ──────────────────────────────────────────
+<!-- THERAPIST SCREEN -->
+<div id="therapistScreen" class="screen">
+  <div class="sidebar">
+    <h2>PhalanX</h2>
+    <div class="clinic-code-box">
+      <p class="clinic-code-label">Your Clinic Code</p>
+      <div class="clinic-code" id="therapistCode">------</div>
+      <p class="clinic-code-hint">Share this with your patients</p>
+    </div>
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="requestLogout()" style="width:100%">Switch User</button>
+    </div>
+  </div>
+  <div class="main-panel" id="mainPanel">
+    <div class="empty-state">
+      <p>← Select a patient to view their progress</p>
+    </div>
+  </div>
+</div>
 
-    // ── AUTH SYSTEM ───────────────────────────────────────────────────
+<!-- PROGRESS SCREEN -->
+<div id="progressScreen" class="screen">
+  <div style="max-width:700px; margin:0 auto; padding:32px 24px; width:100%;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px;">
+      <h2 style="color:#3b82f6; font-size:1.5rem; font-weight:800;">My Progress</h2>
+      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+    </div>
+    <div id="progressContent"></div>
+  </div>
+</div>
+
+<!-- LOGOUT MODAL -->
+<div id="logoutModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>Are you sure?</h3>
+    <p id="logoutWarning">You will be signed out of PhalanX.</p>
+    <div class="modal-buttons">
+      <button class="modal-cancel" onclick="closeLogoutModal()">Cancel</button>
+      <button class="modal-confirm" onclick="confirmLogout()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<script>
+  // ── AUTH & STATE ──────────────────────────────────────────────────
 
 let currentRole = null;
 let currentUser = null;
 let selectedRole = 'patient';
 
-// Demo accounts
 const demoAccounts = [
   { name: "Dr. Sarah Chen", email: "sarah.chen@mayoclinic.org", password: "demo123", role: "therapist" },
-  { name: "James Park",     email: "james.park@gmail.com",      password: "demo123", role: "patient"   }
+  { name: "James Park",     email: "james.park@gmail.com",      password: "demo123", role: "patient" }
 ];
 
 function getAccounts() {
@@ -816,14 +517,10 @@ function saveAccount(account) {
   localStorage.setItem('phalanx_accounts', JSON.stringify(saved));
 }
 
-// ── CLINIC CODES ─────────────────────────────────────────────────
-
-function generateCode() {
-  // Deterministic 6-digit code based on therapist email
-  // Same email always produces same code
+function generateCodeForEmail(email) {
   let hash = 0;
-  for (let i = 0; i < currentUser.email.length; i++) {
-    hash = ((hash << 5) - hash) + currentUser.email.charCodeAt(i);
+  for (let i = 0; i < email.length; i++) {
+    hash = ((hash << 5) - hash) + email.charCodeAt(i);
     hash |= 0;
   }
   return String(Math.abs(hash) % 900000 + 100000);
@@ -832,7 +529,6 @@ function generateCode() {
 function getConnections() {
   const stored = localStorage.getItem('phalanx_connections');
   return stored ? JSON.parse(stored) : {};
-  // Structure: { "therapistEmail": ["patientEmail1", "patientEmail2"] }
 }
 
 function saveConnection(therapistEmail, patientEmail) {
@@ -845,44 +541,46 @@ function saveConnection(therapistEmail, patientEmail) {
 }
 
 function getTherapistForCode(code) {
-  // Find which therapist account matches this code
-  const accounts = getAccounts();
-  const therapists = accounts.filter(a => a.role === 'therapist');
-  const saved = JSON.parse(localStorage.getItem('phalanx_accounts') || '[]');
-  const allTherapists = [...therapists, ...saved.filter(a => a.role === 'therapist')];
-
-  // Check all unique therapists
   const seen = new Set();
   for (const t of getAccounts().filter(a => a.role === 'therapist')) {
     if (seen.has(t.email)) continue;
     seen.add(t.email);
-    const tCode = generateCodeForEmail(t.email);
-    if (tCode === code) return t;
+    if (generateCodeForEmail(t.email) === code) return t;
   }
   return null;
 }
 
-function generateCodeForEmail(email) {
-  let hash = 0;
-  for (let i = 0; i < email.length; i++) {
-    hash = ((hash << 5) - hash) + email.charCodeAt(i);
-    hash |= 0;
-  }
-  return String(Math.abs(hash) % 900000 + 100000);
-}
-
 function getConnectedPatients(therapistEmail) {
-  const connections = getConnections();
+  const connections   = getConnections();
   const patientEmails = connections[therapistEmail] || [];
-  const accounts = getAccounts();
-  return patientEmails.map(email => accounts.find(a => a.email === email)).filter(Boolean);
+  return patientEmails.map(email => getAccounts().find(a => a.email === email)).filter(Boolean);
 }
 
-// ── NAVIGATION ───────────────────────────────────────────────────
+function getConnectedTherapist() {
+  const connections = getConnections();
+  for (const [therapistEmail, patients] of Object.entries(connections)) {
+    if (patients.includes(currentUser.email)) return therapistEmail;
+  }
+  return null;
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────
+
+const screenTitles = {
+  loginScreen:     'PhalanX — Sign In',
+  signupScreen:    'PhalanX — Create Account',
+  forgotScreen:    'PhalanX — Reset Password',
+  connectScreen:   'PhalanX — Connect to Therapist',
+  patientScreen:   'PhalanX — Home',
+  cameraScreen:    'PhalanX — Session',
+  therapistScreen: 'PhalanX — Therapist Dashboard',
+  progressScreen:  'PhalanX — My Progress',
+};
 
 function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(screenId).classList.add('active');
+  if (screenTitles[screenId]) document.title = screenTitles[screenId];
 }
 
 function selectRole(role) {
@@ -891,8 +589,8 @@ function selectRole(role) {
   document.getElementById('roleTherapistBtn').classList.toggle('active', role === 'therapist');
 }
 
-function showError(id, msg)  { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
-function hideError(id)       { document.getElementById(id).style.display = 'none'; }
+function showError(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
+function hideError(id)      { document.getElementById(id).style.display = 'none'; }
 
 // ── LOGIN ─────────────────────────────────────────────────────────
 
@@ -900,12 +598,9 @@ function handleLogin() {
   hideError('loginError');
   const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
-
   if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
-
   const match = getAccounts().find(a => a.email.toLowerCase() === email && a.password === password);
   if (!match) { showError('loginError', 'Incorrect email or password. Try again.'); return; }
-
   currentUser = match;
   currentRole = match.role;
   loginSuccess();
@@ -918,13 +613,9 @@ function handleSignup() {
   const name     = document.getElementById('signupName').value.trim();
   const email    = document.getElementById('signupEmail').value.trim().toLowerCase();
   const password = document.getElementById('signupPassword').value;
-
   if (!name || !email || !password) { showError('signupError', 'Please fill in all fields.'); return; }
-  if (password.length < 6)          { showError('signupError', 'Password must be at least 6 characters.'); return; }
-  if (getAccounts().find(a => a.email.toLowerCase() === email)) {
-    showError('signupError', 'An account with that email already exists.'); return;
-  }
-
+  if (password.length < 6) { showError('signupError', 'Password must be at least 6 characters.'); return; }
+  if (getAccounts().find(a => a.email.toLowerCase() === email)) { showError('signupError', 'An account with that email already exists.'); return; }
   const newAccount = { name, email, password, role: selectedRole };
   saveAccount(newAccount);
   currentUser = newAccount;
@@ -932,39 +623,72 @@ function handleSignup() {
   loginSuccess();
 }
 
-// ── CONNECT TO THERAPIST ──────────────────────────────────────────
+// ── FORGOT PASSWORD ───────────────────────────────────────────────
+
+let forgotStep = 1;
+
+function handleForgot() {
+  if (forgotStep === 1) {
+    const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
+    if (!email) { showError('forgotError', 'Please enter your email.'); return; }
+    const match = getAccounts().find(a => a.email.toLowerCase() === email);
+    if (!match) { showError('forgotError', 'No account found with that email.'); return; }
+    if (demoAccounts.map(a => a.email.toLowerCase()).includes(email)) {
+      showError('forgotError', 'Demo accounts cannot be changed. Try creating your own account.'); return;
+    }
+    hideError('forgotError');
+    document.getElementById('newPasswordField').style.display = 'flex';
+    document.getElementById('forgotBtn').textContent = 'Reset Password';
+    document.getElementById('forgotEmail').disabled  = true;
+    forgotStep = 2;
+  } else {
+    const email       = document.getElementById('forgotEmail').value.trim().toLowerCase();
+    const newPassword = document.getElementById('forgotNewPassword').value;
+    if (newPassword.length < 6) { showError('forgotError', 'Password must be at least 6 characters.'); return; }
+    const stored = localStorage.getItem('phalanx_accounts');
+    const saved  = stored ? JSON.parse(stored) : [];
+    const idx    = saved.findIndex(a => a.email.toLowerCase() === email);
+    if (idx !== -1) { saved[idx].password = newPassword; localStorage.setItem('phalanx_accounts', JSON.stringify(saved)); }
+    hideError('forgotError');
+    const successEl = document.getElementById('forgotSuccess');
+    successEl.textContent = '✓ Password reset! You can now sign in.';
+    successEl.style.display = 'block';
+    setTimeout(() => {
+      forgotStep = 1;
+      document.getElementById('forgotEmail').disabled    = false;
+      document.getElementById('forgotEmail').value       = '';
+      document.getElementById('forgotNewPassword').value = '';
+      document.getElementById('newPasswordField').style.display = 'none';
+      document.getElementById('forgotBtn').textContent   = 'Find Account';
+      successEl.style.display = 'none';
+      showScreen('loginScreen');
+    }, 2000);
+  }
+}
+
+// ── CONNECT ───────────────────────────────────────────────────────
 
 function handleConnect() {
   hideError('connectError');
   const code = document.getElementById('clinicCodeInput').value.trim();
-
-  if (code.length !== 6 || isNaN(code)) {
-    showError('connectError', 'Please enter a valid 6-digit clinic code.');
-    return;
-  }
-
+  if (code.length !== 6 || isNaN(code)) { showError('connectError', 'Please enter a valid 6-digit clinic code.'); return; }
   const therapist = getTherapistForCode(code);
-  if (!therapist) {
-    showError('connectError', 'No therapist found with that code. Double-check with your therapist.');
-    return;
-  }
-
+  if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   saveConnection(therapist.email, currentUser.email);
-
-  // Show success briefly then go to patient screen
   const successEl = document.getElementById('connectSuccess');
   successEl.textContent = `✓ Connected to ${therapist.name}! Loading your exercises...`;
   successEl.style.display = 'block';
-
   setTimeout(() => {
     showScreen('patientScreen');
-    startCamera();
+    updatePatientHomeScreen();
+    initSetTracker();
   }, 1800);
 }
 
 function skipConnect() {
   showScreen('patientScreen');
-  startCamera();
+  updatePatientHomeScreen();
+  initSetTracker();
 }
 
 // ── LOGIN SUCCESS ─────────────────────────────────────────────────
@@ -972,211 +696,19 @@ function skipConnect() {
 function loginSuccess() {
   if (currentRole === 'therapist') {
     showScreen('therapistScreen');
-    // Display this therapist's unique clinic code
     document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
-    // Load their real connected patients
     loadConnectedPatients();
   } else {
-    // Check if patient is already connected to a therapist
-    const connections = getConnections();
+    const connections      = getConnections();
     const alreadyConnected = Object.values(connections).some(list => list.includes(currentUser.email));
     if (alreadyConnected) {
       showScreen('patientScreen');
-      startCamera();
+      updatePatientHomeScreen();
+      initSetTracker();
     } else {
-      // First time — prompt them to enter a clinic code
       showScreen('connectScreen');
     }
   }
-}
-
-// ── LOAD REAL PATIENTS INTO THERAPIST SIDEBAR ─────────────────────
-
-function loadConnectedPatients() {
-  const patients = getConnectedPatients(currentUser.email);
-  const sidebar  = document.querySelector('.sidebar');
-
-  // Remove any existing patient items
-  document.querySelectorAll('.patient-item').forEach(el => el.remove());
-
-  // Remove old no-patients message if present
-  const existing = document.getElementById('noPatientsMsg');
-  if (existing) existing.remove();
-
-  if (patients.length === 0) {
-    const msg = document.createElement('div');
-    msg.id = 'noPatientsMsg';
-    msg.className = 'no-patients';
-    msg.innerHTML = `No patients connected yet.<br/>Share your clinic code above<br/>with your patients to get started.`;
-    // Insert before sidebar footer
-    document.querySelector('.sidebar-footer').before(msg);
-    return;
-  }
-
-  patients.forEach((patient, index) => {
-    const item = document.createElement('div');
-    item.className = 'patient-item';
-    const sessions   = getPatientSessions(patient.email);
-    const compliance = calcCompliance(sessions);
-    const statusColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
-    const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
-
-    item.innerHTML = `
-    <div class="patient-name">${patient.name}</div>
-    <div class="patient-connected" style="color:${statusColor}">
-        ● ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
-    </div>
-`;
-    item.onclick = () => {
-      document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
-      item.classList.add('selected');
-      showRealPatient(patient);
-    };
-    document.querySelector('.sidebar-footer').before(item);
-  });
-}
-
-function getPatientSessions(patientEmail) {
-  const key = `phalanx_sessions_${patientEmail}`;
-  const stored = localStorage.getItem(key);
-  return stored ? JSON.parse(stored) : [];
-}
-
-function calcCompliance(sessions) {
-  if (sessions.length === 0) return 0;
-  // Count unique days with sessions in the last 7 days
-  const now = new Date();
-  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-  const recentDays = new Set(
-    sessions
-      .filter(s => new Date(s.date) > sevenDaysAgo)
-      .map(s => new Date(s.date).toDateString())
-  );
-  return Math.round((recentDays.size / 7) * 100);
-}
-
-function showRealPatient(patient) {
-  const sessions = getPatientSessions(patient.email);
-  const panel = document.getElementById('mainPanel');
-
-  if (sessions.length === 0) {
-    panel.innerHTML = `
-      <h3>${patient.name}</h3>
-      <p class="subtitle">Connected Patient</p>
-      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
-        No session data yet. Data will appear here once
-        ${patient.name.split(' ')[0]} completes their first session.
-      </div>
-    `;
-    return;
-  }
-
-  // Calculate stats from real data
-  const compliance = calcCompliance(sessions);
-  const avgROM     = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
-  const avgPain    = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
-  const totalReps  = sessions.reduce((s, x) => s + (x.reps || 0), 0);
-
-  // Build chart data — last 8 sessions
-  const recent   = sessions.slice(-8);
-  const romData  = recent.map(s => s.rom  || 0);
-  const painData = recent.map(s => s.pain || 0);
-  const labels   = recent.map(s => {
-    const d = new Date(s.date);
-    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-  });
-
-  // Compliance color
-  const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
-
-  panel.innerHTML = `
-    <h3>${patient.name}</h3>
-    <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
-
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-value" style="color:${complianceColor}">${compliance}%</div>
-        <div class="stat-label">7-Day Compliance</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${avgROM}°</div>
-        <div class="stat-label">Avg Range of Motion</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${avgPain}</div>
-        <div class="stat-label">Avg Pain Rating</div>
-      </div>
-    </div>
-
-    <div class="stats-row" style="margin-top:-8px;">
-      <div class="stat-card" style="grid-column: span 3;">
-        <div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div>
-        <div class="stat-label">Total Reps Completed All Time</div>
-      </div>
-    </div>
-
-    <div class="chart-card">
-      <h4>Range of Motion Over Time (degrees)</h4>
-      <canvas id="romChart" height="100"></canvas>
-    </div>
-
-    <div class="chart-card">
-      <h4>Pain Rating Over Time (1–10)</h4>
-      <canvas id="painChart" height="100"></canvas>
-    </div>
-  `;
-
-  // Draw ROM chart
-  new Chart(document.getElementById('romChart').getContext('2d'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'ROM (°)',
-        data: romData,
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.1)',
-        borderWidth: 2,
-        pointBackgroundColor: '#3b82f6',
-        pointRadius: 4,
-        tension: 0.4,
-        fill: true
-      }]
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
-        y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 }
-      }
-    }
-  });
-
-  // Draw Pain chart
-  new Chart(document.getElementById('painChart').getContext('2d'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Pain',
-        data: painData,
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239,68,68,0.1)',
-        borderWidth: 2,
-        pointBackgroundColor: '#ef4444',
-        pointRadius: 4,
-        tension: 0.4,
-        fill: true
-      }]
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
-        y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 }
-      }
-    }
-  });
 }
 
 // ── LOGOUT ────────────────────────────────────────────────────────
@@ -1188,245 +720,743 @@ function logout() {
   showScreen('loginScreen');
 }
 
-
-    // ── PATIENT — REP COUNTER ──────────────────────────────────────
-
-    const TARGET_REPS = 10;
-    let repCount = 0;
-    let fingerState = 'unknown'; // 'extended' or 'flexed'
-    let lastROM = 0;
-    let maxROMThisSession = 0;
-
-    function getMiddleFingerAngle(landmarks) {
-      // Use middle finger MCP (9), PIP (10), tip (12) to estimate flex angle
-      const mcp = landmarks[9];
-      const pip = landmarks[10];
-      const tip = landmarks[12];
-
-      const v1 = { x: mcp.x - pip.x, y: mcp.y - pip.y };
-      const v2 = { x: tip.x - pip.x, y: tip.y - pip.y };
-
-      const dot = v1.x * v2.x + v1.y * v2.y;
-      const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
-      const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
-      const cosAngle = dot / (mag1 * mag2);
-      return Math.acos(Math.max(-1, Math.min(1, cosAngle))) * (180 / Math.PI);
-    }
-
-    function updateRepCount(landmarks) {
-        const angle = getMiddleFingerAngle(landmarks);
-
-        // Track maximum ROM reached this session
-        if (angle > maxROMThisSession) {
-            maxROMThisSession = angle;
-            lastROM = Math.round(angle);
-        }
-
-        // Below 60° = flexed (fist), above 140° = extended (open hand)
-        if (angle < 60 && fingerState !== 'flexed') {
-            fingerState = 'flexed';
-        } else if (angle > 140 && fingerState === 'flexed') {
-            fingerState = 'extended';
-            repCount++;
-            updateRepUI();
-        }
+function requestLogout() {
+  document.getElementById('logoutWarning').textContent = repCount > 0
+    ? `You have ${repCount} unsaved reps. Leaving now will lose this set's data.`
+    : 'You will be signed out of PhalanX.';
+  document.getElementById('logoutModal').style.display = 'flex';
 }
 
-    function updateRepUI() {
-      document.getElementById('repDisplay').textContent = repCount;
-      document.getElementById('progressText').textContent = `${repCount} / ${TARGET_REPS} reps`;
-      const pct = Math.min((repCount / TARGET_REPS) * 100, 100);
-      document.getElementById('progressFill').style.width = pct + '%';
+function closeLogoutModal() { document.getElementById('logoutModal').style.display = 'none'; }
+function confirmLogout()    { closeLogoutModal(); logout(); }
 
-      if (repCount >= TARGET_REPS) {
-        document.getElementById('targetDisplay').textContent = TARGET_REPS;
-        document.getElementById('congratsOverlay').classList.add('show');
-      }
+// ── PATIENT HOME ──────────────────────────────────────────────────
+
+function updatePatientHomeScreen() {
+  if (!currentUser) return;
+  const hour     = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('patientGreeting').textContent    = greeting;
+  document.getElementById('patientDisplayName').textContent = currentUser.name;
+
+  const protocol = getExistingProtocol(currentUser.email);
+  const strip    = document.getElementById('patientProtocolStrip');
+  if (protocol && strip) {
+    strip.style.display = 'flex';
+    document.getElementById('protocolStripExercise').textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
+    document.getElementById('protocolStripMeta').textContent     = 'Assigned by ' + protocol.assignedBy;
+    document.getElementById('protocolStripSets').textContent     = protocol.sets || 3;
+  }
+
+  const therapistEmail = getConnectedTherapist();
+  if (therapistEmail) {
+    const therapist = getAccounts().find(a => a.email === therapistEmail);
+    if (therapist) document.getElementById('therapistContactName').textContent = 'Message ' + therapist.name;
+  }
+}
+
+function startScanSession() {
+  showScreen('cameraScreen');
+  loadPatientProtocol();
+  initSetTracker();
+  if (!mpCamera) startCamera();
+}
+
+// ── PROTOCOL SYSTEM ───────────────────────────────────────────────
+
+const exerciseLabels = {
+  full_fist:              'Full Fist',
+  hook_fist:              'Hook Fist',
+  tabletop_position:      'Tabletop Position',
+  index_flexion:          'Index Finger Flexion',
+  middle_flexion:         'Middle Finger Flexion',
+  ring_flexion:           'Ring Finger Flexion',
+  pinky_flexion:          'Pinky Flexion',
+  thumb_flexion:          'Thumb Flexion',
+  thumb_index_opposition: 'Thumb to Index Opposition',
+  thumb_opposition:       'Thumb Opposition',
+  finger_flexion:         'Finger Flexion',
+  finger_extension:       'Finger Extension',
+  grip_squeeze:           'Grip Squeeze',
+  finger_abduction:       'Finger Abduction'
+};
+
+const frequencyLabels = {
+  daily:       'Daily',
+  twice_daily: 'Twice Daily',
+  every_other: 'Every Other Day',
+  three_week:  '3x Per Week'
+};
+
+function getExistingProtocol(patientEmail) {
+  const stored = localStorage.getItem(`phalanx_protocol_${patientEmail}`);
+  return stored ? JSON.parse(stored) : null;
+}
+
+function assignProtocol(patientEmail) {
+  const protocol = {
+    exerciseType: document.getElementById('exerciseType').value,
+    reps:         parseInt(document.getElementById('protocolReps').value),
+    sets:         parseInt(document.getElementById('protocolSets').value),
+    frequency:    document.getElementById('protocolFrequency').value,
+    notes:        document.getElementById('protocolNotes').value.trim(),
+    assignedBy:   currentUser.name,
+    assignedAt:   new Date().toISOString()
+  };
+  if (isNaN(protocol.reps) || protocol.reps < 1) { alert('Please enter a valid rep count.'); return; }
+  if (isNaN(protocol.sets) || protocol.sets < 1) { alert('Please enter a valid set count.'); return; }
+  localStorage.setItem(`phalanx_protocol_${patientEmail}`, JSON.stringify(protocol));
+  const successEl = document.getElementById('protocolSuccess');
+  if (successEl) { successEl.style.display = 'block'; setTimeout(() => { successEl.style.display = 'none'; }, 3000); }
+}
+
+function formatProtocol(p) {
+  return `
+    <div class="protocol-existing-detail">
+      <div class="protocol-tag"><strong>Exercise:</strong> ${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
+      <div class="protocol-tag"><strong>Reps:</strong> ${p.reps} per set</div>
+      <div class="protocol-tag"><strong>Sets:</strong> ${p.sets} per session</div>
+      <div class="protocol-tag"><strong>Frequency:</strong> ${frequencyLabels[p.frequency] || p.frequency}</div>
+    </div>
+    ${p.notes ? `<p class="protocol-notes-display">"${p.notes}"</p>` : ''}
+    <p style="font-size:0.75rem; color:#334155; margin-top:8px;">Assigned by ${p.assignedBy}</p>`;
+}
+
+function loadPatientProtocol() {
+  if (!currentUser) return;
+  const protocol  = getExistingProtocol(currentUser.email);
+  const container = document.getElementById('assignedProtocol');
+  const inner     = document.getElementById('assignedProtocolInner');
+  if (!container || !inner) return;
+  if (!protocol) { container.style.display = 'none'; return; }
+  TARGET_REPS = protocol.reps;
+  totalSets   = protocol.sets || 3;
+  container.style.display = 'block';
+  inner.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span class="protocol-title">Your Assigned Protocol</span>
+      <span style="font-size:0.75rem; color:#475569;">from ${protocol.assignedBy}</span>
+    </div>
+    <div class="protocol-exercise-name">${exerciseLabels[protocol.exerciseType] || protocol.exerciseType}</div>
+    <div class="protocol-meta">
+      <span class="protocol-meta-item"><strong>Reps:</strong> ${protocol.reps}</span>
+      <span class="protocol-meta-item"><strong>Sets:</strong> ${protocol.sets}</span>
+      <span class="protocol-meta-item"><strong>Frequency:</strong> ${frequencyLabels[protocol.frequency] || protocol.frequency}</span>
+    </div>
+    ${protocol.notes ? `<p class="protocol-patient-notes">"${protocol.notes}"</p>` : ''}`;
+}
+
+// ── THERAPIST PANEL ───────────────────────────────────────────────
+
+function loadConnectedPatients() {
+  document.querySelectorAll('.patient-item').forEach(el => el.remove());
+  const existing = document.getElementById('noPatientsMsg');
+  if (existing) existing.remove();
+  const patients = getConnectedPatients(currentUser.email);
+  if (patients.length === 0) {
+    const msg = document.createElement('div');
+    msg.id = 'noPatientsMsg';
+    msg.className = 'no-patients';
+    msg.innerHTML = `No patients connected yet.<br/>Share your clinic code above<br/>with your patients to get started.`;
+    document.querySelector('.sidebar-footer').before(msg);
+    return;
+  }
+  patients.forEach(patient => {
+    const item      = document.createElement('div');
+    item.className  = 'patient-item';
+    const sessions  = getPatientSessions(patient.email);
+    const compliance = calcCompliance(sessions);
+    const statusColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+    const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
+    item.innerHTML = `
+      <div class="patient-name">${patient.name}</div>
+      <div class="patient-connected" style="color:${statusColor}">
+        ● ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
+      </div>`;
+    item.onclick = () => {
+      document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      showRealPatient(patient);
+    };
+    document.querySelector('.sidebar-footer').before(item);
+  });
+}
+
+function getPatientSessions(patientEmail) {
+  const stored = localStorage.getItem(`phalanx_sessions_${patientEmail}`);
+  return stored ? JSON.parse(stored) : [];
+}
+
+function calcCompliance(sessions) {
+  if (sessions.length === 0) return 0;
+  const now          = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const recentDays   = new Set(
+    sessions.filter(s => new Date(s.date) > sevenDaysAgo).map(s => new Date(s.date).toDateString())
+  );
+  return Math.round((recentDays.size / 7) * 100);
+}
+
+function showRealPatient(patient) {
+  const sessions = getPatientSessions(patient.email);
+  const panel    = document.getElementById('mainPanel');
+
+  if (sessions.length === 0) {
+    panel.innerHTML = `
+      <h3>${patient.name}</h3>
+      <p class="subtitle">Connected Patient</p>
+      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
+        No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
+      </div>
+      ${buildJointSelector(patient.email)}
+      ${buildSessionHistory(patient.email)}
+      ${buildProtocolForm(patient.email)}`;
+    return;
+  }
+
+  const compliance      = calcCompliance(sessions);
+  const avgROM          = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
+  const avgPain         = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
+  const totalReps       = sessions.reduce((s, x) => s + (x.reps || 0), 0);
+  const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+  const recent          = sessions.slice(-8);
+  const romData         = recent.map(s => s.rom  || 0);
+  const painData        = recent.map(s => s.pain || 0);
+  const labels          = recent.map(s => {
+    const d = new Date(s.date);
+    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  });
+
+  panel.innerHTML = `
+    <h3>${patient.name}</h3>
+    <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-value" style="color:${complianceColor}">${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
+      <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
+      <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain Rating</div></div>
+    </div>
+    <div class="stats-row" style="margin-top:-8px;">
+      <div class="stat-card" style="grid-column:span 3;"><div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
+    </div>
+    <div class="chart-card"><h4>Range of Motion Over Time (degrees)</h4><canvas id="romChart" height="100"></canvas></div>
+    <div class="chart-card"><h4>Pain Rating Over Time (1–10)</h4><canvas id="painChart" height="100"></canvas></div>
+    ${buildJointSelector(patient.email)}
+    ${buildSessionHistory(patient.email)}
+    ${buildProtocolForm(patient.email)}`;
+
+  new Chart(document.getElementById('romChart').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: romData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 } } }
+  });
+  new Chart(document.getElementById('painChart').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 4, tension: 0.4, fill: true }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 } } }
+  });
+}
+
+function buildSessionHistory(patientEmail) {
+  const sessions = getPatientSessions(patientEmail);
+  if (sessions.length === 0) {
+    return `<div class="session-history-card"><h4>Session History</h4><div style="color:#334155; font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
+  }
+  const rows = [...sessions].reverse().map(s => {
+    const d         = new Date(s.date);
+    const dateStr   = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr   = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const pain      = s.pain || 0;
+    const rom       = s.rom  || 0;
+    const painColor = pain <= 3 ? '#22c55e' : pain <= 6 ? '#f59e0b' : '#ef4444';
+    const romColor  = rom  >= 120 ? '#22c55e' : rom >= 80 ? '#f59e0b' : '#94a3b8';
+    return `
+      <div class="session-history-row">
+        <div class="session-date">
+          <div style="color:#94a3b8; font-weight:600;">${dateStr}</div>
+          <div style="font-size:0.72rem; color:#475569;">${timeStr}</div>
+        </div>
+        <div class="session-stat" style="color:#3b82f6;">${s.reps || 0} reps</div>
+        <div class="session-stat" style="color:${romColor};">${rom}°</div>
+        <div class="session-stat">
+          <span class="session-pain-dot" style="background:${painColor}"></span>
+          <span style="color:${painColor}">${pain}/10</span>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="session-history-card">
+      <h4>Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}</h4>
+      <div class="session-history-list">
+        <div class="session-history-row header-row">
+          <span>Date & Time</span><span style="text-align:center">Reps</span>
+          <span style="text-align:center">ROM</span><span style="text-align:center">Pain</span>
+        </div>
+        ${rows}
+      </div>
+    </div>`;
+}
+
+function buildProtocolForm(patientEmail) {
+  const existing = getExistingProtocol(patientEmail);
+  return `
+    <div class="protocol-card">
+      <h4>Assign Exercise Protocol</h4>
+      <div class="protocol-form">
+        <div class="protocol-field">
+          <label>Exercise Type</label>
+          <select id="exerciseType">
+            <optgroup label="Full Hand">
+              <option value="full_fist">Full Fist</option>
+              <option value="hook_fist">Hook Fist</option>
+              <option value="tabletop_position">Tabletop Position</option>
+            </optgroup>
+            <optgroup label="Individual Fingers">
+              <option value="index_flexion">Index Finger Flexion</option>
+              <option value="middle_flexion">Middle Finger Flexion</option>
+              <option value="ring_flexion">Ring Finger Flexion</option>
+              <option value="pinky_flexion">Pinky Flexion</option>
+              <option value="thumb_flexion">Thumb Flexion</option>
+            </optgroup>
+            <optgroup label="Opposition">
+              <option value="thumb_index_opposition">Thumb to Index Opposition</option>
+              <option value="thumb_opposition">Thumb Opposition</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="protocol-row">
+          <div class="protocol-field">
+            <label>Reps per Set</label>
+            <input type="number" id="protocolReps" value="${existing?.reps || 10}" min="1" max="50" />
+          </div>
+          <div class="protocol-field">
+            <label>Sets per Session</label>
+            <input type="number" id="protocolSets" value="${existing?.sets || 3}" min="1" max="10" />
+          </div>
+          <div class="protocol-field">
+            <label>Frequency</label>
+            <select id="protocolFrequency">
+              <option value="daily">Daily</option>
+              <option value="twice_daily">Twice Daily</option>
+              <option value="every_other">Every Other Day</option>
+              <option value="three_week">3x Per Week</option>
+            </select>
+          </div>
+        </div>
+        <div class="protocol-field">
+          <label>Notes for Patient</label>
+          <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="3">${existing?.notes || ''}</textarea>
+        </div>
+        <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Assign Protocol</button>
+        <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">✓ Protocol assigned successfully</div>
+      </div>
+      ${existing ? `<div class="protocol-existing"><p class="protocol-existing-label">Current Protocol</p>${formatProtocol(existing)}</div>` : ''}
+    </div>`;
+}
+// ── REP COUNTER ───────────────────────────────────────────────────
+
+let TARGET_REPS = 10;
+let repCount    = 0;
+let fingerState = 'unknown';
+let lastROM     = 0;
+let maxROMThisSession = 0;
+let sessionPaused = false;
+
+function getMiddleFingerAngle(landmarks) {
+  const mcp = landmarks[9];
+  const pip = landmarks[10];
+  const tip = landmarks[12];
+  const v1  = { x: mcp.x - pip.x, y: mcp.y - pip.y };
+  const v2  = { x: tip.x - pip.x, y: tip.y - pip.y };
+  const dot = v1.x * v2.x + v1.y * v2.y;
+  const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
+  const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
+  return Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * (180 / Math.PI);
+}
+
+function updateRepCount(landmarks) {
+  if (sessionPaused) return;
+  const angle = getMiddleFingerAngle(landmarks);
+  if (angle > maxROMThisSession) { maxROMThisSession = angle; lastROM = Math.round(angle); }
+  if (angle < 60 && fingerState !== 'flexed') {
+    fingerState = 'flexed';
+  } else if (angle > 140 && fingerState === 'flexed') {
+    fingerState = 'extended';
+    repCount++;
+    updateRepUI();
+  }
+}
+
+function updateRepUI() {
+  document.getElementById('repDisplay').textContent    = repCount;
+  document.getElementById('progressText').textContent  = `${repCount} / ${TARGET_REPS} reps`;
+  const pct = Math.min((repCount / TARGET_REPS) * 100, 100);
+  document.getElementById('progressFill').style.width  = pct + '%';
+  if (repCount >= TARGET_REPS) {
+    document.getElementById('targetDisplay').textContent      = TARGET_REPS;
+    document.getElementById('currentSetDisplay').textContent  = currentSet;
+    document.getElementById('totalSetsDisplay').textContent   = totalSets;
+    if (currentSet >= totalSets) {
+      document.getElementById('allSetsComplete').style.display = 'block';
+      document.getElementById('nextSetBtn').textContent = '🏆 Finish Session';
     }
+    document.getElementById('congratsOverlay').classList.add('show');
+    sessionPaused = true;
+  }
+}
 
-    function saveSession() {
-  const painValue = parseInt(document.getElementById('painSliderCongrats').value);
+function saveSession() {
   const session = {
-    date: new Date().toISOString(),
-    reps: repCount,
-    pain: painValue,
-    rom: lastROM,
+    date:           new Date().toISOString(),
+    reps:           repCount,
+    pain:           parseInt(document.getElementById('painSliderCongrats').value),
+    rom:            lastROM,
     therapistEmail: getConnectedTherapist()
   };
-
-  const key = `phalanx_sessions_${currentUser.email}`;
-  const stored = localStorage.getItem(key);
+  const key      = `phalanx_sessions_${currentUser.email}`;
+  const stored   = localStorage.getItem(key);
   const sessions = stored ? JSON.parse(stored) : [];
   sessions.push(session);
   localStorage.setItem(key, JSON.stringify(sessions));
 }
 
-function getConnectedTherapist() {
-  const connections = getConnections();
-  for (const [therapistEmail, patients] of Object.entries(connections)) {
-    if (patients.includes(currentUser.email)) return therapistEmail;
+document.getElementById('painSliderCongrats').addEventListener('input', function() {
+  document.getElementById('painValueCongrats').textContent = this.value + ' / 10';
+});
+
+// ── SET TRACKING ──────────────────────────────────────────────────
+
+let currentSet   = 1;
+let totalSets    = 3;
+let setsComplete = 0;
+
+function initSetTracker() {
+  if (currentUser) {
+    const protocol = getExistingProtocol(currentUser.email);
+    if (protocol) { totalSets = protocol.sets || 3; TARGET_REPS = protocol.reps || 10; }
   }
-  return null;
-}
-
-function resetSession() {
-  // Save before resetting
-  if (repCount >= TARGET_REPS) saveSession();
-
-  repCount = 0;
-  fingerState = 'unknown';
-  lastROM = 0;
-  document.getElementById('congratsOverlay').classList.remove('show');
+  currentSet   = 1;
+  setsComplete = 0;
+  repCount     = 0;
+  fingerState  = 'unknown';
+  lastROM      = 0;
+  maxROMThisSession = 0;
+  sessionPaused = false;
+  renderSetDots();
   updateRepUI();
 }
 
-    // Pain slider on congrats screen
-    document.getElementById('painSliderCongrats').addEventListener('input', function() {
-      document.getElementById('painValueCongrats').textContent = this.value + ' / 10';
-    });
+function renderSetDots() {
+  const tracker = document.getElementById('setTracker');
+  if (!tracker) return;
+  tracker.innerHTML = '';
+  for (let i = 1; i <= totalSets; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'set-dot';
+    if (i < currentSet)    dot.classList.add('complete');
+    if (i === currentSet)  dot.classList.add('active');
+    tracker.appendChild(dot);
+  }
+  const label = document.getElementById('setLabel');
+  if (label) label.textContent = `Set ${currentSet} of ${totalSets}`;
+}
 
+function advanceSet() {
+  sessionPaused = false;
+  if (repCount >= TARGET_REPS) saveSession();
+  setsComplete++;
+  if (setsComplete >= totalSets) {
+    // All sets done — reset everything for a fresh session
+    initSetTracker();
+    document.getElementById('congratsOverlay').classList.remove('show');
+    document.getElementById('allSetsComplete').style.display = 'none';
+    document.getElementById('nextSetBtn').textContent = 'Start Next Set';
+    return;
+  }
+  currentSet++;
+  repCount    = 0;
+  fingerState = 'unknown';
+  lastROM     = 0;
+  maxROMThisSession = 0;
+  document.getElementById('congratsOverlay').classList.remove('show');
+  document.getElementById('allSetsComplete').style.display = 'none';
+  document.getElementById('nextSetBtn').textContent = 'Start Next Set';
+  renderSetDots();
+  updateRepUI();
+}
 
-    // ── PATIENT — MEDIAPIPE CAMERA ─────────────────────────────────
+// ── CAMERA ────────────────────────────────────────────────────────
 
-    let mpCamera = null;
+let mpCamera = null;
 
-    function startCamera() {
-      const video  = document.getElementById('patientVideo');
-      const canvas = document.getElementById('patientCanvas');
-      const ctx    = canvas.getContext('2d');
-
-      const hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-      });
-
-      hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.5
-      });
-
-      hands.onResults((results) => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-        if (results.multiHandLandmarks) {
-          for (const landmarks of results.multiHandLandmarks) {
-            drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
-            drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 4 });
-            updateRepCount(landmarks);
-          }
-        }
-      });
-
-      mpCamera = new Camera(video, {
-        onFrame: async () => { await hands.send({ image: video }); },
-        width: 640,
-        height: 480
-      });
-
-      mpCamera.start();
-    }
-
-
-    // ── THERAPIST — PATIENT DATA (mock) ───────────────────────────
-
-    const patientData = [
-      {
-        name: "Maria Gonzalez",
-        condition: "Post-surgery — right hand flexor tendon repair",
-        compliance: 92,
-        avgROM: 74,
-        avgPain: 2.8,
-        romHistory: [38, 45, 52, 58, 63, 67, 71, 74],
-        sessions: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
-      },
-      {
-        name: "James Park",
-        condition: "Stroke rehabilitation — left hand weakness",
-        compliance: 61,
-        avgROM: 51,
-        avgPain: 4.1,
-        romHistory: [22, 28, 30, 29, 35, 38, 44, 51],
-        sessions: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
-      },
-      {
-        name: "Linda Torres",
-        condition: "Rheumatoid arthritis — bilateral hand stiffness",
-        compliance: 28,
-        avgROM: 33,
-        avgPain: 6.9,
-        romHistory: [20, 24, 21, 25, 22, 27, 29, 33],
-        sessions: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
+function startCamera() {
+  if (mpCamera) return;
+  const video  = document.getElementById('patientVideo');
+  const canvas = document.getElementById('patientCanvas');
+  const ctx    = canvas.getContext('2d');
+  const hands  = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
+  hands.onResults(results => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    if (results.multiHandLandmarks) {
+      for (const landmarks of results.multiHandLandmarks) {
+        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+        drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 4 });
+        updateRepCount(landmarks);
       }
-    ];
-
-    let romChart = null;
-
-    function selectPatient(index, el) {
-      // Highlight selected
-      document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
-      el.classList.add('selected');
-
-      const p = patientData[index];
-      const panel = document.getElementById('mainPanel');
-
-      panel.innerHTML = `
-        <h3>${p.name}</h3>
-        <p class="subtitle">${p.condition}</p>
-
-        <div class="stats-row">
-          <div class="stat-card">
-            <div class="stat-value">${p.compliance}%</div>
-            <div class="stat-label">Compliance Rate</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${p.avgROM}°</div>
-            <div class="stat-label">Avg Range of Motion</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${p.avgPain}</div>
-            <div class="stat-label">Avg Pain Rating</div>
-          </div>
-        </div>
-
-        <div class="chart-card">
-          <h4>Range of Motion Over Time (degrees)</h4>
-          <canvas id="romChart" height="100"></canvas>
-        </div>
-      `;
-
-      // Draw the ROM chart
-      const ctx = document.getElementById('romChart').getContext('2d');
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: p.sessions,
-          datasets: [{
-            label: 'ROM (°)',
-            data: p.romHistory,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.1)',
-            borderWidth: 2,
-            pointBackgroundColor: '#3b82f6',
-            pointRadius: 4,
-            tension: 0.4,
-            fill: true
-          }]
-        },
-        options: {
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
-            y: {
-              ticks: { color: '#64748b' },
-              grid: { color: '#1e293b' },
-              min: 0, max: 100
-            }
-          }
-        }
-      });
     }
+  });
+  mpCamera = new Camera(video, {
+    onFrame: async () => { await hands.send({ image: video }); },
+    width: 640, height: 480
+  });
+  mpCamera.start();
+}
 
-  </script>
+// ── PROGRESS SCREEN ───────────────────────────────────────────────
+
+function showProgressScreen() {
+  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  showScreen('progressScreen');
+  renderProgressScreen();
+}
+
+function renderProgressScreen() {
+  const sessions = currentUser ? getPatientSessions(currentUser.email) : [];
+  const content  = document.getElementById('progressContent');
+  if (sessions.length === 0) {
+    content.innerHTML = `<div class="no-progress-msg">No sessions recorded yet.<br/>Complete a set of reps to see your progress here.</div>`;
+    return;
+  }
+  const totalReps = sessions.reduce((s, x) => s + (x.reps || 0), 0);
+  const avgROM    = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
+  const recent    = sessions.slice(-10);
+  const romData   = recent.map(s => s.rom || 0);
+  const labels    = recent.map(s => { const d = new Date(s.date); return `${d.getMonth()+1}/${d.getDate()}`; });
+  const historyHTML = [...sessions].reverse().map(s => {
+    const d       = new Date(s.date);
+    const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="progress-session-card">
+        <div><div class="progress-session-date">${dateStr}</div></div>
+        <div class="progress-session-stats">
+          <div class="progress-stat"><div class="progress-stat-value">${s.reps || 0}</div><div class="progress-stat-label">Reps</div></div>
+          <div class="progress-stat"><div class="progress-stat-value">${s.rom || 0}°</div><div class="progress-stat-label">ROM</div></div>
+          <div class="progress-stat"><div class="progress-stat-value" style="color:#ef4444">${s.pain || 0}</div><div class="progress-stat-label">Pain</div></div>
+        </div>
+      </div>`;
+  }).join('');
+  content.innerHTML = `
+    <div class="stats-row" style="margin-bottom:24px;">
+      <div class="stat-card"><div class="stat-value">${sessions.length}</div><div class="stat-label">Total Sessions</div></div>
+      <div class="stat-card"><div class="stat-value">${totalReps}</div><div class="stat-label">Total Reps</div></div>
+      <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg ROM</div></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:24px;">
+      <h4>Range of Motion Over Time</h4>
+      <canvas id="patientRomChart" height="100"></canvas>
+    </div>
+    <p style="font-size:0.8rem; color:#475569; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Session History</p>
+    ${historyHTML}`;
+  new Chart(document.getElementById('patientRomChart').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: romData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 } } }
+  });
+}
+
+// ── JOINT SELECTOR ────────────────────────────────────────────────
+
+const fingerColors = { Thumb: '#f5a623', Index: '#2d7ff9', Middle: '#00c9b1', Ring: '#a78bfa', Pinky: '#f04b4b' };
+let selectedJoints = new Set();
+
+function buildJointSelector(patientEmail) {
+  return `
+    <div class="joint-selector-panel">
+      <h4>Joint Tracking — Select Which Joints to Monitor</h4>
+      <div class="joint-selector-body">
+        <div class="hand-svg-wrapper">
+          <svg viewBox="0 0 280 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 80 220 Q 60 240 65 280 Q 70 310 100 320 Q 140 330 180 320 Q 210 310 215 280 Q 220 240 200 220 Z" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+            <path d="M 80 220 Q 55 200 45 175 Q 38 155 50 140 Q 62 128 75 138 Q 82 145 85 165 L 90 200" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+            <path d="M 105 215 Q 100 185 98 160 Q 96 135 98 115 Q 100 95 110 90 Q 120 85 128 92 Q 136 100 133 120 Q 130 145 128 170 Q 126 195 125 215" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+            <path d="M 130 213 Q 128 180 127 152 Q 126 124 128 100 Q 130 78 140 73 Q 150 68 158 76 Q 166 85 163 108 Q 160 135 158 162 Q 156 188 155 213" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+            <path d="M 157 213 Q 158 182 160 158 Q 162 132 165 110 Q 168 90 177 87 Q 187 84 194 93 Q 200 103 196 125 Q 192 148 189 172 Q 186 196 184 213" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+            <path d="M 184 215 Q 188 192 191 172 Q 194 150 198 132 Q 202 115 210 112 Q 218 109 223 118 Q 228 128 224 148 Q 220 168 216 190 Q 212 208 208 218" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+            <g class="joint-dot" data-joint="thumb-mcp" data-finger="Thumb" data-name="MCP Joint" data-lm="2" data-desc="Thumb base knuckle" onclick="toggleJoint(this)">
+              <circle cx="68" cy="168" r="7" fill="#1a2940" stroke="#f5a623" stroke-width="2"/>
+              <text x="68" y="172" text-anchor="middle" fill="#f5a623" font-size="7" font-family="monospace">M</text>
+            </g>
+            <g class="joint-dot" data-joint="thumb-tip" data-finger="Thumb" data-name="Tip" data-lm="4" data-desc="Thumb fingertip" onclick="toggleJoint(this)">
+              <circle cx="50" cy="138" r="7" fill="#1a2940" stroke="#f5a623" stroke-width="2"/>
+              <text x="50" y="142" text-anchor="middle" fill="#f5a623" font-size="7" font-family="monospace">T</text>
+            </g>
+            <g class="joint-dot" data-joint="index-mcp" data-finger="Index" data-name="MCP Joint" data-lm="5" data-desc="Index base knuckle" onclick="toggleJoint(this)">
+              <circle cx="115" cy="210" r="7" fill="#1a2940" stroke="#2d7ff9" stroke-width="2"/>
+              <text x="115" y="214" text-anchor="middle" fill="#2d7ff9" font-size="7" font-family="monospace">M</text>
+            </g>
+            <g class="joint-dot" data-joint="index-pip" data-finger="Index" data-name="PIP Joint" data-lm="6" data-desc="Index middle joint — primary flex measurement" onclick="toggleJoint(this)">
+              <circle cx="112" cy="158" r="7" fill="#1a2940" stroke="#2d7ff9" stroke-width="2"/>
+              <text x="112" y="162" text-anchor="middle" fill="#2d7ff9" font-size="7" font-family="monospace">P</text>
+            </g>
+            <g class="joint-dot" data-joint="index-tip" data-finger="Index" data-name="Tip" data-lm="8" data-desc="Index fingertip" onclick="toggleJoint(this)">
+              <circle cx="110" cy="100" r="7" fill="#1a2940" stroke="#2d7ff9" stroke-width="2"/>
+              <text x="110" y="104" text-anchor="middle" fill="#2d7ff9" font-size="7" font-family="monospace">T</text>
+            </g>
+            <g class="joint-dot" data-joint="middle-mcp" data-finger="Middle" data-name="MCP Joint" data-lm="9" data-desc="Middle finger base knuckle" onclick="toggleJoint(this)">
+              <circle cx="141" cy="210" r="7" fill="#1a2940" stroke="#00c9b1" stroke-width="2"/>
+              <text x="141" y="214" text-anchor="middle" fill="#00c9b1" font-size="7" font-family="monospace">M</text>
+            </g>
+            <g class="joint-dot" data-joint="middle-pip" data-finger="Middle" data-name="PIP Joint" data-lm="10" data-desc="Middle finger PIP — used for current rep counting" onclick="toggleJoint(this)">
+              <circle cx="142" cy="152" r="7" fill="#1a2940" stroke="#00c9b1" stroke-width="2"/>
+              <text x="142" y="156" text-anchor="middle" fill="#00c9b1" font-size="7" font-family="monospace">P</text>
+            </g>
+            <g class="joint-dot" data-joint="middle-tip" data-finger="Middle" data-name="Tip" data-lm="12" data-desc="Middle fingertip" onclick="toggleJoint(this)">
+              <circle cx="143" cy="88" r="7" fill="#1a2940" stroke="#00c9b1" stroke-width="2"/>
+              <text x="143" y="92" text-anchor="middle" fill="#00c9b1" font-size="7" font-family="monospace">T</text>
+            </g>
+            <g class="joint-dot" data-joint="ring-mcp" data-finger="Ring" data-name="MCP Joint" data-lm="13" data-desc="Ring finger base knuckle" onclick="toggleJoint(this)">
+              <circle cx="170" cy="210" r="7" fill="#1a2940" stroke="#a78bfa" stroke-width="2"/>
+              <text x="170" y="214" text-anchor="middle" fill="#a78bfa" font-size="7" font-family="monospace">M</text>
+            </g>
+            <g class="joint-dot" data-joint="ring-pip" data-finger="Ring" data-name="PIP Joint" data-lm="14" data-desc="Ring finger middle joint — commonly stiff in arthritis" onclick="toggleJoint(this)">
+              <circle cx="175" cy="152" r="7" fill="#1a2940" stroke="#a78bfa" stroke-width="2"/>
+              <text x="175" y="156" text-anchor="middle" fill="#a78bfa" font-size="7" font-family="monospace">P</text>
+            </g>
+            <g class="joint-dot" data-joint="ring-tip" data-finger="Ring" data-name="Tip" data-lm="16" data-desc="Ring fingertip" onclick="toggleJoint(this)">
+              <circle cx="178" cy="94" r="7" fill="#1a2940" stroke="#a78bfa" stroke-width="2"/>
+              <text x="178" y="98" text-anchor="middle" fill="#a78bfa" font-size="7" font-family="monospace">T</text>
+            </g>
+            <g class="joint-dot" data-joint="pinky-mcp" data-finger="Pinky" data-name="MCP Joint" data-lm="17" data-desc="Pinky base knuckle" onclick="toggleJoint(this)">
+              <circle cx="196" cy="212" r="7" fill="#1a2940" stroke="#f04b4b" stroke-width="2"/>
+              <text x="196" y="216" text-anchor="middle" fill="#f04b4b" font-size="7" font-family="monospace">M</text>
+            </g>
+            <g class="joint-dot" data-joint="pinky-pip" data-finger="Pinky" data-name="PIP Joint" data-lm="18" data-desc="Pinky middle joint" onclick="toggleJoint(this)">
+              <circle cx="206" cy="162" r="7" fill="#1a2940" stroke="#f04b4b" stroke-width="2"/>
+              <text x="206" y="166" text-anchor="middle" fill="#f04b4b" font-size="7" font-family="monospace">P</text>
+            </g>
+            <g class="joint-dot" data-joint="pinky-tip" data-finger="Pinky" data-name="Tip" data-lm="20" data-desc="Pinky fingertip" onclick="toggleJoint(this)">
+              <circle cx="214" cy="118" r="7" fill="#1a2940" stroke="#f04b4b" stroke-width="2"/>
+              <text x="214" y="122" text-anchor="middle" fill="#f04b4b" font-size="7" font-family="monospace">T</text>
+            </g>
+          </svg>
+          <div class="finger-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#f5a623"></div>Thumb</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#2d7ff9"></div>Index</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#00c9b1"></div>Middle</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>Ring</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#f04b4b"></div>Pinky</div>
+          </div>
+          <div style="font-size:0.68rem; color:#334155; font-family:monospace;">M=MCP · P=PIP · T=Tip</div>
+        </div>
+        <div class="joint-right-panel">
+          <div class="joint-info-box">
+            <div class="joint-info-empty-text" id="jointInfoEmpty">← Tap a joint to see details</div>
+            <div id="jointInfoContent" style="display:none;">
+              <div class="joint-info-finger-label" id="jointInfoFinger"></div>
+              <div class="joint-info-joint-name" id="jointInfoName"></div>
+              <div class="joint-info-desc-text" id="jointInfoDesc"></div>
+              <span class="landmark-tag" id="jointInfoLm"></span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Quick Select</div>
+            <div class="finger-quick-btns">
+              <button class="finger-quick-btn" onclick="quickSelectFinger('Thumb', this)">Thumb</button>
+              <button class="finger-quick-btn" onclick="quickSelectFinger('Index', this)">Index</button>
+              <button class="finger-quick-btn" onclick="quickSelectFinger('Middle', this)">Middle</button>
+              <button class="finger-quick-btn" onclick="quickSelectFinger('Ring', this)">Ring</button>
+              <button class="finger-quick-btn" onclick="quickSelectFinger('Pinky', this)">Pinky</button>
+              <button class="finger-quick-btn" onclick="quickSelectAll(this)">All</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">
+              Tracking (<span id="jointCount">0</span>)
+            </div>
+            <div class="selected-joints-list" id="selectedJointsList">
+              <div style="color:#334155; font-size:0.78rem; text-align:center; padding:12px;">None selected</div>
+            </div>
+          </div>
+          <button class="joint-clear-btn" onclick="clearAllJoints()">Clear All</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleJoint(el) {
+  const joint  = el.dataset.joint;
+  const finger = el.dataset.finger;
+  const color  = fingerColors[finger];
+  document.getElementById('jointInfoEmpty').style.display   = 'none';
+  document.getElementById('jointInfoContent').style.display = 'block';
+  document.getElementById('jointInfoFinger').textContent    = finger + ' Finger';
+  document.getElementById('jointInfoFinger').style.color    = color;
+  document.getElementById('jointInfoName').textContent      = el.dataset.name;
+  document.getElementById('jointInfoDesc').textContent      = el.dataset.desc;
+  document.getElementById('jointInfoLm').textContent        = 'Landmark [' + el.dataset.lm + ']';
+  if (selectedJoints.has(joint)) { selectedJoints.delete(joint); el.classList.remove('selected'); }
+  else                           { selectedJoints.add(joint);    el.classList.add('selected');    }
+  renderSelectedJoints();
+}
+
+function quickSelectFinger(finger, btn) {
+  const joints      = document.querySelectorAll(`[data-finger="${finger}"]`);
+  const allSelected = [...joints].every(j => selectedJoints.has(j.dataset.joint));
+  joints.forEach(j => {
+    if (allSelected) { selectedJoints.delete(j.dataset.joint); j.classList.remove('selected'); }
+    else             { selectedJoints.add(j.dataset.joint);    j.classList.add('selected');    }
+  });
+  btn.classList.toggle('fq-active', !allSelected);
+  renderSelectedJoints();
+}
+
+function quickSelectAll(btn) {
+  const all         = document.querySelectorAll('.joint-dot');
+  const allSelected = [...all].every(j => selectedJoints.has(j.dataset.joint));
+  all.forEach(j => {
+    if (allSelected) { selectedJoints.delete(j.dataset.joint); j.classList.remove('selected'); }
+    else             { selectedJoints.add(j.dataset.joint);    j.classList.add('selected');    }
+  });
+  document.querySelectorAll('.finger-quick-btn').forEach(b => b.classList.toggle('fq-active', !allSelected));
+  renderSelectedJoints();
+}
+
+function clearAllJoints() {
+  selectedJoints.clear();
+  document.querySelectorAll('.joint-dot').forEach(j => j.classList.remove('selected'));
+  document.querySelectorAll('.finger-quick-btn').forEach(b => b.classList.remove('fq-active'));
+  renderSelectedJoints();
+}
+
+function renderSelectedJoints() {
+  const list    = document.getElementById('selectedJointsList');
+  const countEl = document.getElementById('jointCount');
+  if (!list) return;
+  if (countEl) countEl.textContent = selectedJoints.size;
+  if (selectedJoints.size === 0) {
+    list.innerHTML = `<div style="color:#334155; font-size:0.78rem; text-align:center; padding:12px;">None selected</div>`;
+    return;
+  }
+  list.innerHTML = [...selectedJoints].map(jointId => {
+    const el     = document.querySelector(`[data-joint="${jointId}"]`);
+    if (!el) return '';
+    const finger = el.dataset.finger;
+    const color  = fingerColors[finger];
+    return `
+      <div class="selected-joint-item">
+        <div class="selected-joint-item-left">
+          <div class="selected-joint-color" style="background:${color}"></div>
+          <div>
+            <div class="selected-joint-name">${el.dataset.name}</div>
+            <div class="selected-joint-finger">${finger}</div>
+          </div>
+        </div>
+        <span class="selected-joint-lm">LM ${el.dataset.lm}</span>
+      </div>`;
+  }).join('');
+}
+
+</script>
 </body>
 </html>
