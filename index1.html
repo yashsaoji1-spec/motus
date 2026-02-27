@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhalanX</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤚</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="style1.css"/>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     LOGIN
+═══════════════════════════════════════════════════════ -->
+<div id="loginScreen" class="screen active">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Sign in to continue</p>
+    <div id="loginError" class="auth-error" style="display:none"></div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleLogin()" />
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()" />
+    </div>
+    <button class="auth-btn" onclick="handleLogin()">Sign In</button>
+    <p class="auth-switch">Don't have an account? <span onclick="showScreen('signupScreen')">Create one</span></p>
+    <p class="auth-switch" style="margin-top:-8px;"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SIGN UP
+═══════════════════════════════════════════════════════ -->
+<div id="signupScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Create your account</p>
+    <div id="signupError" class="auth-error" style="display:none"></div>
+    <div class="auth-field">
+      <label>Full Name</label>
+      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" onkeydown="if(event.key==='Enter') handleSignup()" />
+    </div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleSignup()" />
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="signupPassword" placeholder="Min. 6 characters" onkeydown="if(event.key==='Enter') handleSignup()" />
+    </div>
+    <div class="auth-field">
+      <label>I am a</label>
+      <div class="role-toggle">
+        <button id="rolePatientBtn" class="role-toggle-btn active" onclick="selectRole('patient')">Patient</button>
+        <button id="roleTherapistBtn" class="role-toggle-btn" onclick="selectRole('therapist')">Therapist</button>
+      </div>
+    </div>
+    <button class="auth-btn" onclick="handleSignup()">Create Account</button>
+    <p class="auth-switch">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     FORGOT PASSWORD
+═══════════════════════════════════════════════════════ -->
+<div id="forgotScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Reset your password</p>
+    <div id="forgotError" class="auth-error" style="display:none"></div>
+    <div id="forgotSuccess" class="auth-success" style="display:none"></div>
+    <div class="auth-field">
+      <label>Enter your email</label>
+      <input type="email" id="forgotEmail" placeholder="you@mayoclinic.org" />
+    </div>
+    <div class="auth-field" id="newPasswordField" style="display:none">
+      <label>New Password</label>
+      <input type="password" id="forgotNewPassword" placeholder="Min. 6 characters" />
+    </div>
+    <button class="auth-btn" id="forgotBtn" onclick="handleForgot()">Find Account</button>
+    <p class="auth-switch">Remembered it? <span onclick="showScreen('loginScreen')">Back to sign in</span></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     CONNECT TO THERAPIST
+═══════════════════════════════════════════════════════ -->
+<div id="connectScreen" class="screen">
+  <div class="auth-box">
+    <h1>PhalanX</h1>
+    <p class="auth-subtitle">Connect to your therapist</p>
+    <div id="connectError" class="auth-error" style="display:none"></div>
+    <div id="connectSuccess" class="auth-success" style="display:none"></div>
+    <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
+    <div class="auth-field">
+      <label>Clinic Code</label>
+      <input type="text" id="clinicCodeInput" placeholder="e.g. 482910" maxlength="6"
+             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;" />
+    </div>
+    <button class="auth-btn" onclick="handleConnect()">Connect</button>
+    <button class="auth-btn" onclick="skipConnect()" style="background:#1e293b; color:#94a3b8; margin-top:-8px;">Skip for now</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     PATIENT HOME
+═══════════════════════════════════════════════════════ -->
+<div id="patientScreen" class="screen">
+  <div class="patient-greeting" id="patientGreeting">Good morning</div>
+  <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
+
+  <div class="protocol-strip" id="patientProtocolStrip" style="display:none;">
+    <div>
+      <div class="protocol-strip-label">Today's Protocol</div>
+      <div class="protocol-strip-exercise" id="protocolStripExercise">—</div>
+      <div class="protocol-strip-meta" id="protocolStripMeta">—</div>
+    </div>
+    <div>
+      <div class="protocol-strip-sets" id="protocolStripSets">3</div>
+      <div class="protocol-strip-sets-label">Sets Today</div>
+    </div>
+  </div>
+
+  <div class="scan-btn-wrapper">
+    <button class="scan-btn" onclick="startScanSession()">
+      <div class="scan-btn-inner">
+        <span class="scan-btn-badge">Start Session</span>
+        <div class="scan-icon">
+          <div class="scan-ring"></div>
+          <div class="scan-ring"></div>
+          <div class="scan-ring"></div>
+          <span class="scan-hand-icon">🤚</span>
+        </div>
+        <div class="scan-btn-title">Scan My Hand</div>
+        <div class="scan-btn-sub">Camera tracks your finger movement in real time</div>
+      </div>
+    </button>
+  </div>
+
+  <div class="streak-badge" id="streakBadge" style="display:none;">
+    <span class="streak-flame">🔥</span>
+    <div>
+      <div class="streak-count" id="streakCount">0</div>
+      <div class="streak-text" id="streakLabel">day streak — keep it up!</div>
+    </div>
+    <div class="streak-best" id="streakBest"></div>
+  </div>
+
+  <div class="secondary-grid">
+    <button class="home-btn" onclick="showProgressScreen()">
+      <span class="home-btn-icon">📈</span>
+      <div>
+        <div class="home-btn-label">Track My Progress</div>
+        <div class="home-btn-sub">Sessions, ROM & pain history</div>
+      </div>
+    </button>
+    <button class="home-btn" onclick="alert('Messaging coming soon')">
+      <span class="home-btn-icon">💬</span>
+      <div>
+        <div class="home-btn-label">Contact My Therapist</div>
+        <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
+      </div>
+    </button>
+  </div>
+
+  <!-- Calibration button -->
+
+  <button class="home-btn-wide" onclick="alert('Exercise guides coming soon')">
+    <span class="home-btn-icon" style="font-size:1.3rem;">📋</span>
+    <div class="home-btn-wide-text">
+      <div class="home-btn-label">My Exercises</div>
+      <div class="home-btn-sub">View your assigned protocol</div>
+    </div>
+    <span class="home-btn-arrow">›</span>
+  </button>
+
+  <button class="home-btn-wide" onclick="requestLogout()">
+    <span class="home-btn-icon" style="font-size:1.3rem;">🔄</span>
+    <div class="home-btn-wide-text">
+      <div class="home-btn-label">Switch User</div>
+      <div class="home-btn-sub">Sign out of PhalanX</div>
+    </div>
+    <span class="home-btn-arrow">›</span>
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     CAMERA SCREEN  (patient session)
+═══════════════════════════════════════════════════════ -->
+<div id="cameraScreen" class="screen">
+  <div class="patient-header">
+    <h2>PhalanX</h2>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button id="soundToggleBtn" class="logout-btn" onclick="toggleSound()" style="font-size:0.85rem;">🔊 Sound On</button>
+      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+    </div>
+  </div>
+
+  <div class="assigned-protocol" id="assignedProtocol" style="display:none;">
+    <div id="assignedProtocolInner"></div>
+  </div>
+
+  <div class="camera-box">
+    <video id="patientVideo" autoplay playsinline></video>
+    <canvas id="patientCanvas" width="640" height="480"></canvas>
+    <div class="rep-overlay">
+      <div class="rep-number" id="repDisplay">0</div>
+      <div class="rep-label">Reps</div>
+    </div>
+    <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
+    <div id="congratsOverlay">
+      <h2>🎉 Great work!</h2>
+      <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
+      <p style="font-size:0.9rem; color:#f1f5f9; margin-top:4px;"><strong id="targetDisplay">10</strong> reps completed</p>
+      <p id="allSetsComplete" style="display:none; color:#22c55e; font-weight:700; font-size:1rem;">🏆 All sets complete for today!</p>
+      <p style="font-size:0.85rem; color:#475569;">How much pain are you in right now?</p>
+      <input type="range" min="1" max="10" value="5" id="painSliderCongrats" style="width:220px; margin-top:4px;" />
+      <p id="painValueCongrats" style="font-size:0.85rem; color:#94a3b8;">5 / 10</p>
+      <button class="reset-btn" id="nextSetBtn" onclick="advanceSet()">Start Next Set</button>
+    </div>
+    <!-- Rest Timer -->
+    <div id="restTimerOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.88); border-radius:16px; flex-direction:column; align-items:center; justify-content:center; z-index:20; gap:10px;">
+      <p style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:2px;">Rest Period</p>
+      <div id="restTimerCount" style="font-size:5.5rem; font-weight:900; color:#3b82f6; line-height:1; font-family:'DM Mono',monospace;">30</div>
+      <p style="color:#475569; font-size:0.88rem;">Next set starts automatically</p>
+      <div id="restTimerBar" style="width:220px; height:6px; background:#1e293b; border-radius:99px; overflow:hidden; margin-top:4px;">
+        <div id="restTimerFill" style="height:100%; background:#3b82f6; border-radius:99px; width:100%; transition:width 1s linear;"></div>
+      </div>
+      <button class="reset-btn" style="background:#3b82f6; margin-top:12px;" onclick="skipRest()">Skip Rest →</button>
+    </div>
+  </div>
+
+  <div class="progress-section">
+    <div class="set-tracker" id="setTracker"></div>
+    <div class="progress-info">
+      <span id="setLabel">Set 1</span>
+      <span id="progressText">0 / 10 reps</span>
+    </div>
+    <div id="repDots" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <div class="pain-section">
+    <label><strong>Current Pain Level</strong> — rate as you exercise</label>
+    <input type="range" min="1" max="10" value="1" id="painSlider"
+           oninput="document.getElementById('painValue').textContent = this.value + ' / 10'" />
+    <div class="pain-scale">
+      <span>1 — No pain</span>
+      <span id="painValue">1 / 10</span>
+      <span>10 — Severe</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     THERAPIST SCREEN
+═══════════════════════════════════════════════════════ -->
+<div id="therapistScreen" class="screen">
+  <div class="sidebar">
+    <h2>PhalanX</h2>
+    <div class="clinic-code-box">
+      <p class="clinic-code-label">Your Clinic Code</p>
+      <div class="clinic-code" id="therapistCode">------</div>
+      <p class="clinic-code-hint">Share this with your patients</p>
+    </div>
+    <!-- Calibration button in therapist sidebar -->
+    <button class="calib-launch-btn" onclick="startCalibration()">
+      <span class="calib-icon">🔬</span>
+      Joint Angle Calibration
+    </button>
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="requestLogout()" style="width:100%">Switch User</button>
+    </div>
+  </div>
+  <div class="main-panel" id="mainPanel">
+    <div class="empty-state">
+      <p>← Select a patient to view their progress</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     PROGRESS SCREEN
+═══════════════════════════════════════════════════════ -->
+<div id="progressScreen" class="screen">
+  <div style="max-width:700px; margin:0 auto; padding:32px 24px; width:100%;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px;">
+      <h2 style="color:#3b82f6; font-size:1.5rem; font-weight:800;">My Progress</h2>
+      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+    </div>
+    <div id="progressContent"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     CALIBRATION SCREEN  (merged from index.html)
+═══════════════════════════════════════════════════════ -->
+<div id="calibrationScreen" class="screen">
+
+  <header class="calib-header">
+    <div class="calib-logo">phalanX<span>.dev</span></div>
+    <div class="calib-phase-tag">Calibration — Joint Angles</div>
+    <div class="calib-spacer"></div>
+    <div class="calib-status-pill">
+      <div class="dot" id="calibDot"></div>
+      <span id="calibStatusText">Initializing...</span>
+      <span id="calibHandCount">0 hands</span>
+    </div>
+    <button class="calib-back-btn" onclick="showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen')">← Back</button>
+  </header>
+
+  <div class="calib-main">
+
+    <!-- LEFT: Camera -->
+    <div class="calib-camera-col">
+      <div class="calib-camera-wrap" id="calibCameraWrap">
+        <div class="calib-scan-line"></div>
+        <video id="calibVideo" playsinline autoplay muted></video>
+        <canvas id="calibCanvas"></canvas>
+        <div class="calib-overlay" id="calibOverlay">
+          <div class="calib-spinner"></div>
+          <div class="calib-overlay-text" id="calibOverlayMsg">LOADING MEDIAPIPE...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Controls + Readouts -->
+    <div class="calib-right-col">
+
+      <!-- Toggle grid -->
+      <div class="calib-toggle-panel">
+        <div class="calib-toggle-header">
+          <span class="calib-panel-title">JOINTS</span>
+          <button class="calib-all-btn" id="calibAllBtn">ALL</button>
+          <button class="calib-all-btn" id="calibNoneBtn">NONE</button>
+        </div>
+
+        <div class="calib-joint-grid">
+          <!-- Header row -->
+          <div class="grid-corner"></div>
+          <div class="grid-finger-label">THB</div>
+          <div class="grid-finger-label">IDX</div>
+          <div class="grid-finger-label">MID</div>
+          <div class="grid-finger-label">RNG</div>
+          <div class="grid-finger-label">PNK</div>
+
+          <!-- MCP row -->
+          <div class="grid-joint-label">MCP</div>
+          <div class="calib-grid-cell" data-finger="thumb"  data-joint="mcp"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="index"  data-joint="mcp"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="middle" data-joint="mcp"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="ring"   data-joint="mcp"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="pinky"  data-joint="mcp"><div class="calib-cell-inner active"></div></div>
+
+          <!-- PIP row -->
+          <div class="grid-joint-label">PIP</div>
+          <div class="calib-grid-cell" data-finger="thumb"  data-joint="pip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="index"  data-joint="pip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="middle" data-joint="pip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="ring"   data-joint="pip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="pinky"  data-joint="pip"><div class="calib-cell-inner active"></div></div>
+
+          <!-- DIP row -->
+          <div class="grid-joint-label">DIP</div>
+          <div class="calib-grid-cell" data-finger="thumb"  data-joint="dip"><div class="calib-cell-inner"></div></div>
+          <div class="calib-grid-cell" data-finger="index"  data-joint="dip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="middle" data-joint="dip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="ring"   data-joint="dip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="pinky"  data-joint="dip"><div class="calib-cell-inner active"></div></div>
+        </div>
+      </div>
+
+      <!-- Readout list -->
+      <div class="calib-readout-panel" id="calibReadoutPanel">
+        <!-- Populated by JS -->
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="calib-footer">PhalanX — Built with MediaPipe by Google (Apache 2.0)</footer>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SESSION SUMMARY OVERLAY
+═══════════════════════════════════════════════════════ -->
+<div id="sessionSummaryOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:200; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:24px;">
+  <div style="text-align:center;">
+    <div style="font-size:3rem; margin-bottom:8px;">🏆</div>
+    <h2 style="font-size:1.8rem; font-weight:900; color:#22c55e; letter-spacing:-0.5px;">Session Complete!</h2>
+    <p style="color:#475569; font-size:0.9rem; margin-top:6px;">Great work today. Here's how you did:</p>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; width:100%; max-width:360px;">
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summaryTotalReps" style="font-size:2.2rem; font-weight:900; color:#3b82f6;">0</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Total Reps</div>
+    </div>
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summarySets" style="font-size:2.2rem; font-weight:900; color:#22c55e;">0</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Sets Done</div>
+    </div>
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summaryMaxROM" style="font-size:2.2rem; font-weight:900; color:#00c9b1;">0°</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max ROM</div>
+    </div>
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summaryAvgPain" style="font-size:2.2rem; font-weight:900; color:#f59e0b;">0</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Avg Pain</div>
+    </div>
+  </div>
+  <div style="width:100%; max-width:360px; background:#1e293b; border-radius:14px; padding:16px 20px; border-left:3px solid #22c55e;">
+    <div id="summaryMessage" style="font-size:0.9rem; color:#94a3b8; line-height:1.6;"></div>
+  </div>
+  <button class="reset-btn" style="width:100%; max-width:360px; padding:16px; font-size:1rem;" onclick="dismissSummary()">Back to Home</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     LOGOUT MODAL
+═══════════════════════════════════════════════════════ -->
+<div id="logoutModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>Are you sure?</h3>
+    <p id="logoutWarning">You will be signed out of PhalanX.</p>
+    <div class="modal-buttons">
+      <button class="modal-cancel" onclick="closeLogoutModal()">Cancel</button>
+      <button class="modal-confirm" onclick="confirmLogout()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<!-- PhalanX -->
+<script src="script1.js"></script>
+
+</body>
+</html>

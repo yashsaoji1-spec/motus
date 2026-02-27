@@ -1,610 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PhalanX Dashboard</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤚</text></svg>">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'DM Sans', -apple-system, sans-serif; background: #0f172a; color: #f1f5f9; min-height: 100vh; }
-    .screen { display: none; }
-    .screen.active { display: flex; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   PhalanX — Merged Script
+   Combines: dashboard.html inline JS + script.js (calibration tracker)
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-    /* AUTH */
-    #loginScreen, #signupScreen, #forgotScreen, #connectScreen { align-items: center; justify-content: center; min-height: 100vh; }
-    .auth-box { width: 100%; max-width: 400px; background: #1e293b; border-radius: 20px; padding: 40px 36px; display: flex; flex-direction: column; gap: 16px; }
-    .auth-box h1 { font-size: 2.2rem; font-weight: 800; color: #3b82f6; text-align: center; letter-spacing: -1px; }
-    .auth-subtitle { text-align: center; color: #64748b; font-size: 0.9rem; margin-top: -8px; }
-    .auth-field { display: flex; flex-direction: column; gap: 6px; }
-    .auth-field label { font-size: 0.82rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-    .auth-field input { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px 14px; color: #f1f5f9; font-size: 0.95rem; outline: none; transition: border-color 0.2s; font-family: inherit; }
-    .auth-field input:focus { border-color: #3b82f6; }
-    .auth-field input::placeholder { color: #475569; }
-    .auth-btn { width: 100%; padding: 14px; background: #3b82f6; color: white; font-size: 1rem; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; margin-top: 4px; transition: background 0.2s; font-family: inherit; }
-    .auth-btn:hover { background: #2563eb; }
-    .auth-switch { text-align: center; font-size: 0.85rem; color: #64748b; }
-    .auth-switch span { color: #3b82f6; cursor: pointer; font-weight: 600; }
-    .auth-switch span:hover { text-decoration: underline; }
-    .auth-error { background: #450a0a; border: 1px solid #ef4444; color: #fca5a5; font-size: 0.85rem; padding: 10px 14px; border-radius: 8px; }
-    .auth-success { background: #052e16; border: 1px solid #22c55e; color: #86efac; font-size: 0.85rem; padding: 10px 14px; border-radius: 8px; }
-    .role-toggle { display: flex; gap: 8px; }
-    .role-toggle-btn { flex: 1; padding: 10px; border-radius: 8px; border: 2px solid #334155; background: #0f172a; color: #64748b; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.9rem; transition: all 0.2s; }
-    .role-toggle-btn.active { border-color: #3b82f6; background: #1e3a5f; color: #f1f5f9; }
-    .connect-desc { font-size: 0.88rem; color: #64748b; line-height: 1.6; text-align: center; }
-
-    /* CLINIC CODE */
-    .clinic-code-box { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 14px; text-align: center; margin-bottom: 8px; }
-    .clinic-code-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .clinic-code { font-size: 1.9rem; font-weight: 900; color: #3b82f6; letter-spacing: 8px; }
-    .clinic-code-hint { font-size: 0.75rem; color: #475569; margin-top: 6px; }
-
-    /* PATIENT HOME */
-    #patientScreen { flex-direction: column; align-items: center; min-height: 100vh; padding: 28px 24px; gap: 12px; background: #0f172a; }
-    .patient-greeting { font-size: 0.72rem; font-weight: 600; color: #4a6280; text-transform: uppercase; letter-spacing: 2px; align-self: flex-start; width: 100%; max-width: 420px; }
-    .patient-display-name { font-size: 1.6rem; font-weight: 700; color: #e8f0fe; letter-spacing: -0.5px; align-self: flex-start; width: 100%; max-width: 420px; margin-bottom: 4px; }
-    .protocol-strip { width: 100%; max-width: 420px; padding: 14px 18px; background: #111b2a; border: 1px solid #1a2940; border-left: 3px solid #00c9b1; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
-    .protocol-strip-label { font-size: 0.65rem; font-weight: 600; color: #00c9b1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
-    .protocol-strip-exercise { font-size: 0.95rem; font-weight: 600; color: #e8f0fe; }
-    .protocol-strip-meta { font-size: 0.75rem; color: #4a6280; margin-top: 2px; }
-    .protocol-strip-sets { font-family: 'DM Mono', monospace; font-size: 1.4rem; font-weight: 500; color: #2d7ff9; line-height: 1; text-align: right; }
-    .protocol-strip-sets-label { font-size: 0.65rem; color: #4a6280; text-transform: uppercase; letter-spacing: 1px; text-align: right; }
-    .scan-btn-wrapper { width: 100%; max-width: 420px; }
-    .scan-btn { width: 100%; padding: 0; background: none; border: none; cursor: pointer; border-radius: 20px; }
-    .scan-btn-inner { width: 100%; padding: 32px 24px; background: linear-gradient(135deg, #1a3a6e 0%, #0d2548 50%, #0a1e3d 100%); border: 1px solid rgba(45,127,249,0.3); border-radius: 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; transition: all 0.25s; position: relative; overflow: hidden; }
-    .scan-btn-inner::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(45,127,249,0.15), transparent); opacity: 0; transition: opacity 0.25s; }
-    .scan-btn:hover .scan-btn-inner::before { opacity: 1; }
-    .scan-btn:hover .scan-btn-inner { border-color: rgba(45,127,249,0.6); transform: translateY(-2px); }
-    .scan-btn-badge { position: absolute; top: 14px; right: 14px; background: #2d7ff9; color: white; font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .scan-icon { position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; }
-    .scan-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(45,127,249,0.4); animation: pulseRing 2.5s ease-in-out infinite; }
-    .scan-ring:nth-child(2) { animation-delay: 0.8s; }
-    .scan-ring:nth-child(3) { animation-delay: 1.6s; }
-    @keyframes pulseRing { 0% { transform: scale(0.85); opacity: 0.8; } 100% { transform: scale(1.4); opacity: 0; } }
-    .scan-hand-icon { font-size: 2.6rem; position: relative; z-index: 1; filter: drop-shadow(0 0 12px rgba(45,127,249,0.5)); }
-    .scan-btn-title { font-size: 1.3rem; font-weight: 700; color: #e8f0fe; letter-spacing: -0.3px; }
-    .scan-btn-sub { font-size: 0.8rem; color: #4a7aaa; margin-top: -8px; }
-    .secondary-grid { width: 100%; max-width: 420px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .home-btn { padding: 18px 16px; background: #111b2a; border: 1px solid #1a2940; border-radius: 14px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; transition: all 0.2s; text-align: left; font-family: inherit; }
-    .home-btn:hover { border-color: #2a3f5f; background: #131f30; transform: translateY(-1px); }
-    .home-btn-icon { font-size: 1.4rem; line-height: 1; }
-    .home-btn-label { font-size: 0.88rem; font-weight: 600; color: #e8f0fe; line-height: 1.3; }
-    .home-btn-sub { font-size: 0.72rem; color: #4a6280; margin-top: -6px; }
-    .home-btn-wide { width: 100%; max-width: 420px; padding: 16px 18px; background: #111b2a; border: 1px solid #1a2940; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 14px; transition: all 0.2s; font-family: inherit; }
-    .home-btn-wide:hover { border-color: #2a3f5f; background: #131f30; }
-    .home-btn-wide-text { flex: 1; text-align: left; }
-    .home-btn-arrow { color: #4a6280; font-size: 1rem; margin-left: auto; }
-
-    /* CAMERA SCREEN */
-    #cameraScreen { flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; gap: 20px; }
-    .patient-header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 640px; }
-    .patient-header h2 { font-size: 1.4rem; font-weight: 700; color: #3b82f6; }
-    .logout-btn { background: none; border: 1px solid #334155; color: #94a3b8; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-family: inherit; }
-    .camera-box { position: relative; width: 640px; height: 480px; border-radius: 16px; overflow: hidden; background: #000; border: 2px solid #1e293b; }
-    .camera-box video, .camera-box canvas { position: absolute; width: 100%; height: 100%; transform: scaleX(-1); }
-    .rep-overlay { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); border-radius: 14px; padding: 12px 28px; text-align: center; z-index: 10; backdrop-filter: blur(4px); }
-    .rep-number { font-size: 3.5rem; font-weight: 900; color: #22c55e; line-height: 1; }
-    .rep-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
-    #congratsOverlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); border-radius: 16px; flex-direction: column; align-items: center; justify-content: center; z-index: 20; gap: 12px; }
-    #congratsOverlay.show { display: flex; }
-    #congratsOverlay h2 { font-size: 2.5rem; color: #22c55e; font-weight: 900; }
-    #congratsOverlay p { color: #94a3b8; font-size: 1rem; }
-    .reset-btn { margin-top: 8px; padding: 12px 28px; background: #22c55e; color: #000; font-weight: 700; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; font-family: inherit; }
-    .progress-section { width: 640px; }
-    .progress-info { display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b; margin-bottom: 8px; }
-    .progress-bar-track { width: 100%; height: 12px; background: #1e293b; border-radius: 99px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #22c55e); border-radius: 99px; transition: width 0.4s ease; width: 0%; }
-    .pain-section { width: 640px; background: #1e293b; border-radius: 14px; padding: 16px 20px; }
-    .pain-section label { font-size: 0.9rem; color: #94a3b8; display: block; margin-bottom: 10px; }
-    .pain-section label strong { color: #f1f5f9; }
-    input[type="range"] { width: 100%; accent-color: #3b82f6; }
-    .pain-scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: #475569; margin-top: 4px; }
-    .assigned-protocol { width: 640px; background: #1e293b; border-radius: 14px; padding: 16px 20px; border-left: 4px solid #3b82f6; }
-    .protocol-title { font-size: 0.75rem; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; }
-    .protocol-exercise-name { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-top: 4px; }
-    .protocol-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
-    .protocol-meta-item { font-size: 0.82rem; color: #64748b; }
-    .protocol-meta-item strong { color: #94a3b8; }
-    .protocol-patient-notes { font-size: 0.82rem; color: #475569; font-style: italic; margin-top: 6px; line-height: 1.5; }
-    .set-tracker { display: flex; gap: 6px; margin-bottom: 10px; }
-    .set-dot { flex: 1; height: 6px; border-radius: 99px; background: #1e293b; transition: background 0.3s; }
-    .set-dot.complete { background: #22c55e; }
-    .set-dot.active { background: #3b82f6; }
-
-    /* THERAPIST */
-    #therapistScreen { flex-direction: row; min-height: 100vh; }
-    .sidebar { width: 260px; background: #0f172a; border-right: 1px solid #1e293b; padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
-    .sidebar h2 { font-size: 1.3rem; font-weight: 800; color: #3b82f6; margin-bottom: 12px; padding-left: 8px; }
-    .patient-item { padding: 12px 14px; border-radius: 10px; cursor: pointer; transition: background 0.15s; border: 1px solid transparent; }
-    .patient-item:hover { background: #1e293b; }
-    .patient-item.selected { background: #1e3a5f; border-color: #3b82f6; }
-    .patient-name { font-weight: 600; font-size: 0.95rem; }
-    .patient-connected { font-size: 0.72rem; color: #22c55e; margin-top: 2px; }
-    .no-patients { text-align: center; padding: 24px 16px; color: #475569; font-size: 0.85rem; line-height: 1.6; border: 1px dashed #334155; border-radius: 10px; margin-top: 8px; }
-    .sidebar-footer { margin-top: auto; }
-    .main-panel { flex: 1; padding: 32px; overflow-y: auto; }
-    .main-panel h3 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
-    .main-panel .subtitle { color: #64748b; font-size: 0.9rem; margin-bottom: 28px; }
-    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
-    .stat-card { background: #1e293b; border-radius: 12px; padding: 18px 20px; }
-    .stat-card .stat-value { font-size: 2rem; font-weight: 800; color: #3b82f6; }
-    .stat-card .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .chart-card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-    .chart-card h4 { font-size: 0.95rem; font-weight: 600; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; color: #334155; gap: 8px; }
-
-    /* PROTOCOL CARD */
-    .protocol-card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-    .protocol-card h4 { font-size: 0.85rem; font-weight: 700; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .protocol-form { display: flex; flex-direction: column; gap: 14px; }
-    .protocol-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .protocol-field { display: flex; flex-direction: column; gap: 6px; }
-    .protocol-field label { font-size: 0.78rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    .protocol-field input, .protocol-field select, .protocol-field textarea { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; color: #f1f5f9; font-size: 0.9rem; font-family: inherit; outline: none; transition: border-color 0.2s; resize: vertical; }
-    .protocol-field input:focus, .protocol-field select:focus, .protocol-field textarea:focus { border-color: #3b82f6; }
-    .protocol-btn { padding: 12px; background: #3b82f6; color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.95rem; transition: background 0.2s; }
-    .protocol-btn:hover { background: #2563eb; }
-    .protocol-existing { margin-top: 20px; padding-top: 16px; border-top: 1px solid #334155; }
-    .protocol-existing-label { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
-    .protocol-existing-detail { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .protocol-tag { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-size: 0.82rem; color: #94a3b8; }
-    .protocol-tag strong { color: #f1f5f9; }
-    .protocol-notes-display { margin-top: 10px; font-size: 0.85rem; color: #64748b; font-style: italic; line-height: 1.5; }
-
-    /* SESSION HISTORY */
-    .session-history-card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-    .session-history-card h4 { font-size: 0.85rem; font-weight: 700; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .session-history-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
-    .session-history-list::-webkit-scrollbar { width: 4px; }
-    .session-history-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
-    .session-history-row { display: grid; grid-template-columns: 1.8fr 1fr 1fr 1fr; gap: 8px; padding: 10px 14px; background: #0f172a; border-radius: 8px; border: 1px solid #1e293b; align-items: center; }
-    .session-history-row.header-row { background: #0a101e; margin-bottom: 4px; }
-    .session-history-row.header-row span { font-size: 0.68rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
-    .session-date { font-size: 0.82rem; color: #64748b; }
-    .session-stat { font-size: 0.9rem; font-weight: 700; text-align: center; }
-    .session-pain-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
-
-    /* JOINT SELECTOR */
-    .joint-selector-panel { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-    .joint-selector-panel h4 { font-size: 0.85rem; font-weight: 700; color: #94a3b8; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .joint-selector-body { display: grid; grid-template-columns: 1fr 260px; gap: 20px; align-items: start; }
-    .hand-svg-wrapper { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-    .hand-svg-wrapper svg { width: 200px; height: 260px; }
-    .finger-legend { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: #64748b; font-weight: 500; }
-    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .joint-dot { cursor: pointer; }
-    .joint-dot circle { transition: all 0.15s; }
-    .joint-dot:hover circle { filter: drop-shadow(0 0 6px #2d7ff9); }
-    .joint-dot.selected circle { fill: #2d7ff9 !important; filter: drop-shadow(0 0 8px #2d7ff9); }
-    .joint-dot.selected text { fill: white !important; font-weight: 700; }
-    .joint-right-panel { display: flex; flex-direction: column; gap: 12px; }
-    .joint-info-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 14px; min-height: 90px; display: flex; flex-direction: column; justify-content: center; }
-    .joint-info-empty-text { font-size: 0.8rem; color: #334155; text-align: center; line-height: 1.6; }
-    .joint-info-finger-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3px; }
-    .joint-info-joint-name { font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
-    .joint-info-desc-text { font-size: 0.78rem; color: #64748b; line-height: 1.5; margin-bottom: 8px; }
-    .landmark-tag { font-family: 'DM Mono', monospace; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; background: rgba(45,127,249,0.1); border: 1px solid rgba(45,127,249,0.2); color: #2d7ff9; display: inline-block; }
-    .finger-quick-btns { display: flex; flex-wrap: wrap; gap: 6px; }
-    .finger-quick-btn { padding: 6px 12px; border-radius: 99px; border: 1px solid #1e293b; background: transparent; color: #64748b; font-family: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-    .finger-quick-btn:hover { border-color: #3b82f6; color: #f1f5f9; }
-    .finger-quick-btn.fq-active { background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #3b82f6; }
-    .selected-joints-list { display: flex; flex-direction: column; gap: 5px; max-height: 160px; overflow-y: auto; }
-    .selected-joint-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: #0f172a; border-radius: 7px; border: 1px solid #1e293b; font-size: 0.78rem; }
-    .selected-joint-item-left { display: flex; align-items: center; gap: 8px; }
-    .selected-joint-color { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .selected-joint-name { font-weight: 600; color: #f1f5f9; }
-    .selected-joint-finger { color: #64748b; font-size: 0.7rem; }
-    .selected-joint-lm { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #64748b; background: #1e293b; padding: 2px 6px; border-radius: 4px; }
-    .joint-clear-btn { width: 100%; padding: 9px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; color: #64748b; font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-    .joint-clear-btn:hover { border-color: #ef4444; color: #ef4444; }
-
-    /* MODAL */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-    .modal-box { background: #1e293b; border-radius: 16px; padding: 32px; width: 340px; text-align: center; display: flex; flex-direction: column; gap: 12px; border: 1px solid #334155; }
-    .modal-box h3 { font-size: 1.2rem; font-weight: 700; color: #f1f5f9; }
-    .modal-box p { font-size: 0.9rem; color: #64748b; line-height: 1.5; }
-    .modal-buttons { display: flex; gap: 10px; margin-top: 8px; }
-    .modal-cancel { flex: 1; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #94a3b8; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.9rem; }
-    .modal-confirm { flex: 1; padding: 12px; background: #ef4444; border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 0.9rem; }
-    .modal-confirm:hover { background: #dc2626; }
-
-    /* PROGRESS SCREEN */
-    #progressScreen { flex-direction: column; min-height: 100vh; background: #0f172a; }
-    .progress-session-card { background: #1e293b; border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-    .progress-session-date { font-size: 0.82rem; color: #64748b; margin-bottom: 4px; }
-    .progress-session-stats { display: flex; gap: 16px; flex-wrap: wrap; }
-    .progress-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-    .progress-stat-value { font-size: 1.2rem; font-weight: 800; color: #3b82f6; }
-    .progress-stat-label { font-size: 0.7rem; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
-    .no-progress-msg { text-align: center; color: #334155; padding: 60px 20px; font-size: 0.95rem; line-height: 1.8; }
-
-    /* MOBILE */
-    @media (max-width: 700px) {
-      #cameraScreen { padding: 12px; gap: 12px; justify-content: flex-start; padding-top: 16px; }
-      .camera-box { width: 100%; height: auto; aspect-ratio: 4/3; }
-      .camera-box video, .camera-box canvas { width: 100%; height: 100%; }
-      .progress-section, .pain-section, .assigned-protocol { width: 100%; }
-      .auth-box { margin: 16px; padding: 28px 20px; }
-      #therapistScreen { flex-direction: column; }
-      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #1e293b; padding: 16px; max-height: 280px; overflow-y: auto; }
-      .main-panel { padding: 16px; }
-      .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-      .protocol-row { grid-template-columns: 1fr; }
-      .joint-selector-body { grid-template-columns: 1fr; }
-      .modal-box { width: calc(100% - 32px); }
-    }
-
-.rep-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #1e293b;
-  border: 1.5px solid #334155;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-.rep-dot.done {
-  background: #22c55e;
-  border-color: #22c55e;
-  transform: scale(1.1);
-}
-.rep-dot.active-rep {
-  border-color: #3b82f6;
-  background: #1e3a5f;
-}
-
-.speed-warning {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(245, 158, 11, 0.95);
-  color: #000;
-  font-size: 0.82rem;
-  font-weight: 700;
-  padding: 8px 18px;
-  border-radius: 99px;
-  z-index: 15;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.2s;
-  pointer-events: none;
-}
-.speed-warning.show { opacity: 1; }
-
-.streak-badge {
-  width: 100%;
-  max-width: 420px;
-  padding: 12px 18px;
-  background: #111b2a;
-  border: 1px solid #1a2940;
-  border-left: 3px solid #f59e0b;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.streak-flame { font-size: 1.4rem; line-height: 1; }
-.streak-count { font-size: 1.3rem; font-weight: 900; color: #f59e0b; font-family: 'DM Mono', monospace; }
-.streak-text  { font-size: 0.78rem; color: #4a6280; margin-top: 1px; }
-.streak-best  { margin-left: auto; font-size: 0.72rem; color: #334155; text-align: right; }
-
-  </style>
-</head>
-<body>
-<!-- LOGIN -->
-<div id="loginScreen" class="screen active">
-  <div class="auth-box">
-    <h1>PhalanX</h1>
-    <p class="auth-subtitle">Sign in to continue</p>
-    <div id="loginError" class="auth-error" style="display:none"></div>
-    <div class="auth-field">
-      <label>Email</label>
-      <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleLogin()" />    </div>
-    <div class="auth-field">
-      <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()" />    </div>
-    <button class="auth-btn" onclick="handleLogin()">Sign In</button>
-    <p class="auth-switch">Don't have an account? <span onclick="showScreen('signupScreen')">Create one</span></p>
-    <p class="auth-switch" style="margin-top:-8px;"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
-  </div>
-</div>
-
-<!-- SIGN UP -->
-<div id="signupScreen" class="screen">
-  <div class="auth-box">
-    <h1>PhalanX</h1>
-    <p class="auth-subtitle">Create your account</p>
-    <div id="signupError" class="auth-error" style="display:none"></div>
-    <div class="auth-field">
-      <label>Full Name</label>
-      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" onkeydown="if(event.key==='Enter') handleSignup()" />    </div>
-    <div class="auth-field">
-      <label>Email</label>
-      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleSignup()" />    </div>
-    <div class="auth-field">
-      <label>Password</label>
-      <input type="password" id="signupPassword" placeholder="Min. 6 characters" onkeydown="if(event.key==='Enter') handleSignup()" />    </div>
-    <div class="auth-field">
-      <label>I am a</label>
-      <div class="role-toggle">
-        <button id="rolePatientBtn" class="role-toggle-btn active" onclick="selectRole('patient')">Patient</button>
-        <button id="roleTherapistBtn" class="role-toggle-btn" onclick="selectRole('therapist')">Therapist</button>
-      </div>
-    </div>
-    <button class="auth-btn" onclick="handleSignup()">Create Account</button>
-    <p class="auth-switch">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
-  </div>
-</div>
-
-<!-- FORGOT PASSWORD -->
-<div id="forgotScreen" class="screen">
-  <div class="auth-box">
-    <h1>PhalanX</h1>
-    <p class="auth-subtitle">Reset your password</p>
-    <div id="forgotError" class="auth-error" style="display:none"></div>
-    <div id="forgotSuccess" class="auth-success" style="display:none"></div>
-    <div class="auth-field">
-      <label>Enter your email</label>
-      <input type="email" id="forgotEmail" placeholder="you@mayoclinic.org" />
-    </div>
-    <div class="auth-field" id="newPasswordField" style="display:none">
-      <label>New Password</label>
-      <input type="password" id="forgotNewPassword" placeholder="Min. 6 characters" />
-    </div>
-    <button class="auth-btn" id="forgotBtn" onclick="handleForgot()">Find Account</button>
-    <p class="auth-switch">Remembered it? <span onclick="showScreen('loginScreen')">Back to sign in</span></p>
-  </div>
-</div>
-
-<!-- CONNECT TO THERAPIST -->
-<div id="connectScreen" class="screen">
-  <div class="auth-box">
-    <h1>PhalanX</h1>
-    <p class="auth-subtitle">Connect to your therapist</p>
-    <div id="connectError" class="auth-error" style="display:none"></div>
-    <div id="connectSuccess" class="auth-success" style="display:none"></div>
-    <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
-    <div class="auth-field">
-      <label>Clinic Code</label>
-      <input type="text" id="clinicCodeInput" placeholder="e.g. 482910" maxlength="6"
-             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;" />
-    </div>
-    <button class="auth-btn" onclick="handleConnect()">Connect</button>
-    <button class="auth-btn" onclick="skipConnect()" style="background:#1e293b; color:#94a3b8; margin-top:-8px;">Skip for now</button>
-  </div>
-</div>
-
-<!-- PATIENT HOME -->
-<div id="patientScreen" class="screen">
-  <div class="patient-greeting" id="patientGreeting">Good morning</div>
-  <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
-
-  <div class="protocol-strip" id="patientProtocolStrip" style="display:none;">
-    <div>
-      <div class="protocol-strip-label">Today's Protocol</div>
-      <div class="protocol-strip-exercise" id="protocolStripExercise">—</div>
-      <div class="protocol-strip-meta" id="protocolStripMeta">—</div>
-    </div>
-    <div>
-      <div class="protocol-strip-sets" id="protocolStripSets">3</div>
-      <div class="protocol-strip-sets-label">Sets Today</div>
-    </div>
-  </div>
-
-  <div class="scan-btn-wrapper">
-    <button class="scan-btn" onclick="startScanSession()">
-      <div class="scan-btn-inner">
-        <span class="scan-btn-badge">Start Session</span>
-        <div class="scan-icon">
-          <div class="scan-ring"></div>
-          <div class="scan-ring"></div>
-          <div class="scan-ring"></div>
-          <span class="scan-hand-icon">🤚</span>
-        </div>
-        <div class="scan-btn-title">Scan My Hand</div>
-        <div class="scan-btn-sub">Camera tracks your finger movement in real time</div>
-      </div>
-    </button>
-  </div>
-
-  <div class="streak-badge" id="streakBadge" style="display:none;">
-  <span class="streak-flame">🔥</span>
-  <div>
-    <div class="streak-count" id="streakCount">0</div>
-    <div class="streak-text" id="streakLabel">day streak — keep it up!</div>
-  </div>
-  <div class="streak-best" id="streakBest"></div>
-</div>
-
-  <div class="secondary-grid">
-    <button class="home-btn" onclick="showProgressScreen()">
-      <span class="home-btn-icon">📈</span>
-      <div>
-        <div class="home-btn-label">Track My Progress</div>
-        <div class="home-btn-sub">Sessions, ROM & pain history</div>
-      </div>
-    </button>
-    <button class="home-btn" onclick="alert('Messaging coming soon')">
-      <span class="home-btn-icon">💬</span>
-      <div>
-        <div class="home-btn-label">Contact My Therapist</div>
-        <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
-      </div>
-    </button>
-  </div>
-
-  <button class="home-btn-wide" onclick="alert('Exercise guides coming soon')">
-    <span class="home-btn-icon" style="font-size:1.3rem;">📋</span>
-    <div class="home-btn-wide-text">
-      <div class="home-btn-label">My Exercises</div>
-      <div class="home-btn-sub">View your assigned protocol</div>
-    </div>
-    <span class="home-btn-arrow">›</span>
-  </button>
-
-  <button class="home-btn-wide" onclick="requestLogout()">
-    <span class="home-btn-icon" style="font-size:1.3rem;">🔄</span>
-    <div class="home-btn-wide-text">
-      <div class="home-btn-label">Switch User</div>
-      <div class="home-btn-sub">Sign out of PhalanX</div>
-    </div>
-    <span class="home-btn-arrow">›</span>
-  </button>
-</div>
-
-<!-- CAMERA SCREEN -->
-<div id="cameraScreen" class="screen">
-  <div class="patient-header">
-    <h2>PhalanX</h2>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <button id="soundToggleBtn" class="logout-btn" onclick="toggleSound()" style="font-size:0.85rem;">🔊 Sound On</button>
-      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
-    </div>
-  </div>
-
-  <div class="assigned-protocol" id="assignedProtocol" style="display:none;">
-    <div id="assignedProtocolInner"></div>
-  </div>
-
-  <div class="camera-box">
-    <video id="patientVideo" autoplay playsinline></video>
-    <canvas id="patientCanvas" width="640" height="480"></canvas>
-    <div class="rep-overlay">
-      <div class="rep-number" id="repDisplay">0</div>
-      <div class="rep-label">Reps</div>
-    </div>
-    <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
-    <div id="congratsOverlay">
-      <h2>🎉 Great work!</h2>
-      <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
-      <p style="font-size:0.9rem; color:#f1f5f9; margin-top:4px;"><strong id="targetDisplay">10</strong> reps completed</p>
-      <p id="allSetsComplete" style="display:none; color:#22c55e; font-weight:700; font-size:1rem;">🏆 All sets complete for today!</p>
-      <p style="font-size:0.85rem; color:#475569;">How much pain are you in right now?</p>
-      <input type="range" min="1" max="10" value="5" id="painSliderCongrats" style="width:220px; margin-top:4px;" />
-      <p id="painValueCongrats" style="font-size:0.85rem; color:#94a3b8;">5 / 10</p>
-      <button class="reset-btn" id="nextSetBtn" onclick="advanceSet()">Start Next Set</button>
-    </div>
-    <!-- Rest Timer -->
-    <div id="restTimerOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.88); border-radius:16px; flex-direction:column; align-items:center; justify-content:center; z-index:20; gap:10px;">
-      <p style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:2px;">Rest Period</p>
-      <div id="restTimerCount" style="font-size:5.5rem; font-weight:900; color:#3b82f6; line-height:1; font-family:'DM Mono',monospace;">30</div>
-      <p style="color:#475569; font-size:0.88rem;">Next set starts automatically</p>
-      <div id="restTimerBar" style="width:220px; height:6px; background:#1e293b; border-radius:99px; overflow:hidden; margin-top:4px;">
-        <div id="restTimerFill" style="height:100%; background:#3b82f6; border-radius:99px; width:100%; transition:width 1s linear;"></div>
-      </div>
-      <button class="reset-btn" style="background:#3b82f6; margin-top:12px;" onclick="skipRest()">Skip Rest →</button>
-    </div>
-  </div>
-
-  <div class="progress-section">
-    <div class="set-tracker" id="setTracker"></div>
-    <div class="progress-info">
-      <span id="setLabel">Set 1</span>
-      <span id="progressText">0 / 10 reps</span>
-    </div>
-    <div id="repDots" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
-    <div class="progress-bar-track">
-      <div class="progress-bar-fill" id="progressFill"></div>
-    </div>
-  </div>
-
-  <div class="pain-section">
-    <label><strong>Current Pain Level</strong> — rate as you exercise</label>
-    <input type="range" min="1" max="10" value="1" id="painSlider"
-           oninput="document.getElementById('painValue').textContent = this.value + ' / 10'" />
-    <div class="pain-scale">
-      <span>1 — No pain</span>
-      <span id="painValue">1 / 10</span>
-      <span>10 — Severe</span>
-    </div>
-  </div>
-</div>
-
-<!-- THERAPIST SCREEN -->
-<div id="therapistScreen" class="screen">
-  <div class="sidebar">
-    <h2>PhalanX</h2>
-    <div class="clinic-code-box">
-      <p class="clinic-code-label">Your Clinic Code</p>
-      <div class="clinic-code" id="therapistCode">------</div>
-      <p class="clinic-code-hint">Share this with your patients</p>
-    </div>
-    <div class="sidebar-footer">
-      <button class="logout-btn" onclick="requestLogout()" style="width:100%">Switch User</button>
-    </div>
-  </div>
-  <div class="main-panel" id="mainPanel">
-    <div class="empty-state">
-      <p>← Select a patient to view their progress</p>
-    </div>
-  </div>
-</div>
-
-<!-- PROGRESS SCREEN -->
-<div id="progressScreen" class="screen">
-  <div style="max-width:700px; margin:0 auto; padding:32px 24px; width:100%;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px;">
-      <h2 style="color:#3b82f6; font-size:1.5rem; font-weight:800;">My Progress</h2>
-      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
-    </div>
-    <div id="progressContent"></div>
-  </div>
-</div>
-
-<!-- SESSION SUMMARY -->
-<div id="sessionSummaryOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:200; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:24px;">
-  <div style="text-align:center;">
-    <div style="font-size:3rem; margin-bottom:8px;">🏆</div>
-    <h2 style="font-size:1.8rem; font-weight:900; color:#22c55e; letter-spacing:-0.5px;">Session Complete!</h2>
-    <p style="color:#475569; font-size:0.9rem; margin-top:6px;">Great work today. Here's how you did:</p>
-  </div>
-  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; width:100%; max-width:360px;">
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summaryTotalReps" style="font-size:2.2rem; font-weight:900; color:#3b82f6;">0</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Total Reps</div>
-    </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summarySets" style="font-size:2.2rem; font-weight:900; color:#22c55e;">0</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Sets Done</div>
-    </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summaryMaxROM" style="font-size:2.2rem; font-weight:900; color:#00c9b1;">0°</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max ROM</div>
-    </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summaryAvgPain" style="font-size:2.2rem; font-weight:900; color:#f59e0b;">0</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Avg Pain</div>
-    </div>
-  </div>
-  <div style="width:100%; max-width:360px; background:#1e293b; border-radius:14px; padding:16px 20px; border-left:3px solid #22c55e;">
-    <div id="summaryMessage" style="font-size:0.9rem; color:#94a3b8; line-height:1.6;"></div>
-  </div>
-  <button class="reset-btn" style="width:100%; max-width:360px; padding:16px; font-size:1rem;" onclick="dismissSummary()">Back to Home</button>
-</div>
-
-<!-- LOGOUT MODAL -->
-<div id="logoutModal" class="modal-overlay" style="display:none">
-  <div class="modal-box">
-    <h3>Are you sure?</h3>
-    <p id="logoutWarning">You will be signed out of PhalanX.</p>
-    <div class="modal-buttons">
-      <button class="modal-cancel" onclick="closeLogoutModal()">Cancel</button>
-      <button class="modal-confirm" onclick="confirmLogout()">Sign Out</button>
-    </div>
-  </div>
-</div>
-
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-
-<script>
-  // ── AUTH & STATE ──────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 1: AUTH & STATE  (from dashboard)
+   ══════════════════════════════════════════════════════════════════════════ */
 
 let currentRole = null;
 let currentUser = null;
@@ -675,23 +76,32 @@ function getConnectedTherapist() {
   return null;
 }
 
-// ── NAVIGATION ────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 2: NAVIGATION
+   ══════════════════════════════════════════════════════════════════════════ */
 
 const screenTitles = {
-  loginScreen:     'PhalanX — Sign In',
-  signupScreen:    'PhalanX — Create Account',
-  forgotScreen:    'PhalanX — Reset Password',
-  connectScreen:   'PhalanX — Connect to Therapist',
-  patientScreen:   'PhalanX — Home',
-  cameraScreen:    'PhalanX — Session',
-  therapistScreen: 'PhalanX — Therapist Dashboard',
-  progressScreen:  'PhalanX — My Progress',
+  loginScreen:        'PhalanX — Sign In',
+  signupScreen:       'PhalanX — Create Account',
+  forgotScreen:       'PhalanX — Reset Password',
+  connectScreen:      'PhalanX — Connect to Therapist',
+  patientScreen:      'PhalanX — Home',
+  cameraScreen:       'PhalanX — Session',
+  therapistScreen:    'PhalanX — Therapist Dashboard',
+  progressScreen:     'PhalanX — My Progress',
+  calibrationScreen:  'PhalanX — Calibration',
 };
 
 function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(screenId).classList.add('active');
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
+
+  // Stop calibration camera when leaving calibration screen
+  if (screenId !== 'calibrationScreen' && calibMpCamera) {
+    calibMpCamera.stop();
+    calibMpCamera = null;
+  }
 }
 
 function selectRole(role) {
@@ -703,7 +113,9 @@ function selectRole(role) {
 function showError(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
 function hideError(id)      { document.getElementById(id).style.display = 'none'; }
 
-// ── LOGIN ─────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 3: LOGIN / SIGNUP / FORGOT
+   ══════════════════════════════════════════════════════════════════════════ */
 
 function handleLogin() {
   hideError('loginError');
@@ -716,8 +128,6 @@ function handleLogin() {
   currentRole = match.role;
   loginSuccess();
 }
-
-// ── SIGN UP ───────────────────────────────────────────────────────
 
 function handleSignup() {
   hideError('signupError');
@@ -733,8 +143,6 @@ function handleSignup() {
   currentRole = selectedRole;
   loginSuccess();
 }
-
-// ── FORGOT PASSWORD ───────────────────────────────────────────────
 
 let forgotStep = 1;
 
@@ -777,7 +185,9 @@ function handleForgot() {
   }
 }
 
-// ── CONNECT ───────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 4: CONNECT
+   ══════════════════════════════════════════════════════════════════════════ */
 
 function handleConnect() {
   hideError('connectError');
@@ -802,7 +212,9 @@ function skipConnect() {
   initSetTracker();
 }
 
-// ── LOGIN SUCCESS ─────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 5: LOGIN SUCCESS / LOGOUT
+   ══════════════════════════════════════════════════════════════════════════ */
 
 function loginSuccess() {
   if (currentRole === 'therapist') {
@@ -822,12 +234,11 @@ function loginSuccess() {
   }
 }
 
-// ── LOGOUT ────────────────────────────────────────────────────────
-
 function logout() {
   currentUser = null;
   currentRole = null;
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
   showScreen('loginScreen');
 }
 
@@ -841,7 +252,9 @@ function requestLogout() {
 function closeLogoutModal() { document.getElementById('logoutModal').style.display = 'none'; }
 function confirmLogout()    { closeLogoutModal(); logout(); }
 
-// ── PATIENT HOME ──────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 6: PATIENT HOME
+   ══════════════════════════════════════════════════════════════════════════ */
 
 function updatePatientHomeScreen() {
   if (!currentUser) return;
@@ -864,9 +277,8 @@ function updatePatientHomeScreen() {
     const therapist = getAccounts().find(a => a.email === therapistEmail);
     if (therapist) document.getElementById('therapistContactName').textContent = 'Message ' + therapist.name;
   }
-}
 
-// Streak
+  // Streak
   const sessions  = getPatientSessions(currentUser.email);
   const streak    = calcStreak(sessions);
   const badgeEl   = document.getElementById('streakBadge');
@@ -881,6 +293,7 @@ function updatePatientHomeScreen() {
   } else if (badgeEl) {
     badgeEl.style.display = 'none';
   }
+}
 
 function calcStreak(sessions) {
   if (sessions.length === 0) return { current: 0, best: 0 };
@@ -893,7 +306,6 @@ function calcStreak(sessions) {
   const today     = new Date().toDateString();
   const yesterday = new Date(Date.now() - 86400000).toDateString();
 
-  // Current streak — must include today or yesterday to be active
   if (days[0] === today || days[0] === yesterday) {
     current = 1;
     for (let i = 1; i < days.length; i++) {
@@ -902,15 +314,12 @@ function calcStreak(sessions) {
       else break;
     }
   }
-
-  // Best streak ever
   for (let i = 1; i < days.length; i++) {
     const diff = (new Date(days[i-1]) - new Date(days[i])) / 86400000;
     if (diff === 1) { temp++; if (temp > best) best = temp; }
     else temp = 1;
   }
   best = Math.max(best, current);
-
   return { current, best };
 }
 
@@ -922,7 +331,9 @@ function startScanSession() {
   if (!mpCamera) startCamera();
 }
 
-// ── PROTOCOL SYSTEM ───────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 7: PROTOCOL SYSTEM
+   ══════════════════════════════════════════════════════════════════════════ */
 
 const exerciseLabels = {
   full_fist:              'Full Fist',
@@ -1006,7 +417,9 @@ function loadPatientProtocol() {
     ${protocol.notes ? `<p class="protocol-patient-notes">"${protocol.notes}"</p>` : ''}`;
 }
 
-// ── THERAPIST PANEL ───────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 8: THERAPIST PANEL
+   ══════════════════════════════════════════════════════════════════════════ */
 
 function loadConnectedPatients() {
   document.querySelectorAll('.patient-item').forEach(el => el.remove());
@@ -1212,7 +625,10 @@ function buildProtocolForm(patientEmail) {
       ${existing ? `<div class="protocol-existing"><p class="protocol-existing-label">Current Protocol</p>${formatProtocol(existing)}</div>` : ''}
     </div>`;
 }
-// ── REP COUNTER ───────────────────────────────────────────────────
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 9: REP COUNTER  (patient session camera)
+   ══════════════════════════════════════════════════════════════════════════ */
 
 let TARGET_REPS = 10;
 let repCount    = 0;
@@ -1230,18 +646,18 @@ let soundEnabled = localStorage.getItem('phalanx_sound') !== 'false';
 function playRepSound() {
   if (!soundEnabled) return;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = ctx.createOscillator();
-    const gainNode   = ctx.createGain();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode   = audioCtx.createGain();
     oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
+    gainNode.connect(audioCtx.destination);
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.08);
-    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.12);
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.08);
+    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + 0.12);
   } catch(e) {}
 }
 
@@ -1260,7 +676,6 @@ function toggleSound() {
   localStorage.setItem('phalanx_sound', soundEnabled);
   document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
 }
-
 
 function getMiddleFingerAngle(landmarks) {
   const mcp = landmarks[9];
@@ -1284,9 +699,7 @@ function updateRepCount(landmarks) {
     fingerState = 'extended';
     repCount++;
     const now = Date.now();
-    if (lastRepTime !== null && (now - lastRepTime) < 1000) {
-      showSpeedWarning();
-    }
+    if (lastRepTime !== null && (now - lastRepTime) < 1000) showSpeedWarning();
     lastRepTime = now;
     playRepSound();
     updateRepUI();
@@ -1327,11 +740,18 @@ function saveSession() {
   localStorage.setItem(key, JSON.stringify(sessions));
 }
 
-document.getElementById('painSliderCongrats').addEventListener('input', function() {
-  document.getElementById('painValueCongrats').textContent = this.value + ' / 10';
+document.addEventListener('DOMContentLoaded', () => {
+  const painCongrats = document.getElementById('painSliderCongrats');
+  if (painCongrats) {
+    painCongrats.addEventListener('input', function() {
+      document.getElementById('painValueCongrats').textContent = this.value + ' / 10';
+    });
+  }
 });
 
-// ── SET TRACKING ──────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 10: SET TRACKING
+   ══════════════════════════════════════════════════════════════════════════ */
 
 let currentSet   = 1;
 let totalSets    = 3;
@@ -1374,13 +794,12 @@ function renderSetDots() {
 function renderRepDots() {
   const container = document.getElementById('repDots');
   if (!container) return;
-  // Only show dots if 20 reps or fewer — otherwise just use the bar
   if (TARGET_REPS > 20) { container.innerHTML = ''; return; }
   container.innerHTML = '';
   for (let i = 1; i <= TARGET_REPS; i++) {
     const dot = document.createElement('div');
     dot.className = 'rep-dot';
-    if (i <= repCount)       dot.classList.add('done');
+    if (i <= repCount)           dot.classList.add('done');
     else if (i === repCount + 1) dot.classList.add('active-rep');
     container.appendChild(dot);
   }
@@ -1394,16 +813,10 @@ function advanceSet() {
     saveSession();
   }
   setsComplete++;
-
   document.getElementById('congratsOverlay').classList.remove('show');
   document.getElementById('allSetsComplete').style.display = 'none';
   document.getElementById('nextSetBtn').textContent = 'Start Next Set';
-
-  if (setsComplete >= totalSets) {
-    showSessionSummary();
-    return;
-  }
-
+  if (setsComplete >= totalSets) { showSessionSummary(); return; }
   currentSet++;
   repCount = 0;
   fingerState = 'unknown';
@@ -1421,15 +834,12 @@ function startRestTimer() {
   overlay.style.display = 'flex';
   document.getElementById('restTimerCount').textContent = restTimeRemaining;
   document.getElementById('restTimerFill').style.width = '100%';
-
   restTimerInterval = setInterval(() => {
     restTimeRemaining--;
     document.getElementById('restTimerCount').textContent = restTimeRemaining;
     const pct = (restTimeRemaining / REST_DURATION) * 100;
     document.getElementById('restTimerFill').style.width = pct + '%';
-    if (restTimeRemaining <= 10) {
-      document.getElementById('restTimerFill').style.background = '#22c55e';
-    }
+    if (restTimeRemaining <= 10) document.getElementById('restTimerFill').style.background = '#22c55e';
     if (restTimeRemaining <= 0) skipRest();
   }, 1000);
 }
@@ -1448,12 +858,10 @@ function showSessionSummary() {
     ? (setPainValues.reduce((a, b) => a + b, 0) / setPainValues.length).toFixed(1)
     : '—';
   const maxROM = Math.round(maxROMThisSession);
-
   document.getElementById('summaryTotalReps').textContent = totalRepsCompleted;
   document.getElementById('summarySets').textContent      = setsComplete;
   document.getElementById('summaryMaxROM').textContent    = maxROM + '°';
   document.getElementById('summaryAvgPain').textContent   = avgPain;
-
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
     message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
@@ -1475,36 +883,40 @@ function dismissSummary() {
   updatePatientHomeScreen();
 }
 
-// ── CAMERA ────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 11: PATIENT SESSION CAMERA  (dashboard camera)
+   ══════════════════════════════════════════════════════════════════════════ */
 
 let mpCamera = null;
 
 function startCamera() {
   if (mpCamera) return;
-  const video  = document.getElementById('patientVideo');
-  const canvas = document.getElementById('patientCanvas');
-  const ctx    = canvas.getContext('2d');
-  const hands  = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  const sessionVideo  = document.getElementById('patientVideo');
+  const sessionCanvas = document.getElementById('patientCanvas');
+  const sessionCtx    = sessionCanvas.getContext('2d');
+  const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
   hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
   hands.onResults(results => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
+    sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
-        drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 4 });
+        drawConnectors(sessionCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+        drawLandmarks(sessionCtx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 4 });
         updateRepCount(landmarks);
       }
     }
   });
-  mpCamera = new Camera(video, {
-    onFrame: async () => { await hands.send({ image: video }); },
+  mpCamera = new Camera(sessionVideo, {
+    onFrame: async () => { await hands.send({ image: sessionVideo }); },
     width: 640, height: 480
   });
   mpCamera.start();
 }
 
-// ── PROGRESS SCREEN ───────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 12: PROGRESS SCREEN
+   ══════════════════════════════════════════════════════════════════════════ */
 
 function showProgressScreen() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
@@ -1556,7 +968,9 @@ function renderProgressScreen() {
   });
 }
 
-// ── JOINT SELECTOR ────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 13: JOINT SELECTOR  (therapist panel)
+   ══════════════════════════════════════════════════════════════════════════ */
 
 const fingerColors = { Thumb: '#f5a623', Index: '#2d7ff9', Middle: '#00c9b1', Ring: '#a78bfa', Pinky: '#f04b4b' };
 let selectedJoints = new Set();
@@ -1748,6 +1162,353 @@ function renderSelectedJoints() {
   }).join('');
 }
 
-</script>
-</body>
-</html>
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 14: CALIBRATION SCREEN  (from script.js / index.html)
+   All variables and DOM references are prefixed "calib" to avoid collisions.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// ── Active joints state ───────────────────────────────────────────────────────
+const calibActiveJoints = {
+  thumb:  { mcp: true,  pip: true,  dip: false },
+  index:  { mcp: true,  pip: true,  dip: true  },
+  middle: { mcp: true,  pip: true,  dip: true  },
+  ring:   { mcp: true,  pip: true,  dip: true  },
+  pinky:  { mcp: true,  pip: true,  dip: true  },
+};
+
+// ── Finger joint definitions ──────────────────────────────────────────────────
+const CALIB_FINGERS = {
+  thumb:  { mcp: { a:0, b:2,  c:3,  id:'calib-thumb-mcp'  }, pip: { a:2,  b:3,  c:4,  id:'calib-thumb-pip'  }, dip: null },
+  index:  { mcp: { a:0, b:5,  c:6,  id:'calib-index-mcp'  }, pip: { a:5,  b:6,  c:7,  id:'calib-index-pip'  }, dip: { a:6,  b:7,  c:8,  id:'calib-index-dip'  } },
+  middle: { mcp: { a:0, b:9,  c:10, id:'calib-middle-mcp' }, pip: { a:9,  b:10, c:11, id:'calib-middle-pip' }, dip: { a:10, b:11, c:12, id:'calib-middle-dip' } },
+  ring:   { mcp: { a:0, b:13, c:14, id:'calib-ring-mcp'   }, pip: { a:13, b:14, c:15, id:'calib-ring-pip'   }, dip: { a:14, b:15, c:16, id:'calib-ring-dip'   } },
+  pinky:  { mcp: { a:0, b:17, c:18, id:'calib-pinky-mcp'  }, pip: { a:17, b:18, c:19, id:'calib-pinky-pip'  }, dip: { a:18, b:19, c:20, id:'calib-pinky-dip'  } },
+};
+
+const CALIB_FINGER_FULL = {
+  thumb: 'Thumb', index: 'Index', middle: 'Middle', ring: 'Ring', pinky: 'Pinky'
+};
+
+const CALIB_JOINT_MAX = { mcp: 110, pip: 115, dip: 70 };
+
+const CALIB_FINGER_THRESHOLDS = {
+  thumb: 0.05, index: 0.05, middle: 0.018, ring: 0.018, pinky: 0.05,
+};
+
+const CALIB_TIP_INDICES = new Set([4, 8, 12, 16, 20]);
+
+// ── One Euro Filter (calib-scoped) ────────────────────────────────────────────
+const CALIB_ONE_EURO_MINCUTOFF = 0.3;
+const CALIB_ONE_EURO_BETA      = 0.1;
+const CALIB_ONE_EURO_DCUTOFF   = 1.0;
+const calibFilterStates = {};
+
+function calibOneEuroFilter(id, rawValue, timestamp) {
+  if (!calibFilterStates[id]) {
+    calibFilterStates[id] = { prevValue: rawValue, prevDeriv: 0, prevTime: timestamp };
+    return rawValue;
+  }
+  const state = calibFilterStates[id];
+  const dt    = timestamp - state.prevTime || 1/60;
+  const alpha_d = calibAlphaFor(CALIB_ONE_EURO_DCUTOFF, dt);
+  const deriv   = alpha_d * ((rawValue - state.prevValue) / dt) + (1 - alpha_d) * state.prevDeriv;
+  const cutoff  = CALIB_ONE_EURO_MINCUTOFF + CALIB_ONE_EURO_BETA * Math.abs(deriv);
+  const alpha   = calibAlphaFor(cutoff, dt);
+  const value   = alpha * rawValue + (1 - alpha) * state.prevValue;
+  state.prevValue = value;
+  state.prevDeriv = deriv;
+  state.prevTime  = timestamp;
+  return Math.round(value);
+}
+
+function calibAlphaFor(cutoff, dt) {
+  const r = 2 * Math.PI * cutoff * dt;
+  return r / (r + 1);
+}
+
+function calibClearBuffers() {
+  for (const key of Object.keys(calibFilterStates)) delete calibFilterStates[key];
+}
+
+// ── Per-landmark stability tracking ──────────────────────────────────────────
+const CALIB_LANDMARK_PREV = {};
+
+function calibLandmarkJumped(index, lm, threshold) {
+  const prev = CALIB_LANDMARK_PREV[index];
+  if (!prev) { CALIB_LANDMARK_PREV[index] = { x: lm.x, y: lm.y }; return false; }
+  const dist = Math.sqrt((lm.x-prev.x)**2 + (lm.y-prev.y)**2);
+  CALIB_LANDMARK_PREV[index] = { x: lm.x, y: lm.y };
+  return dist > threshold;
+}
+
+// ── Angle calculation ─────────────────────────────────────────────────────────
+function calibGetAngle(a, b, c) {
+  const ba = { x: a.x-b.x, y: a.y-b.y, z: (a.z||0)-(b.z||0) };
+  const bc = { x: c.x-b.x, y: c.y-b.y, z: (c.z||0)-(b.z||0) };
+  const dotVal = ba.x*bc.x + ba.y*bc.y + ba.z*bc.z;
+  const magBA  = Math.sqrt(ba.x**2 + ba.y**2 + ba.z**2);
+  const magBC  = Math.sqrt(bc.x**2 + bc.y**2 + bc.z**2);
+  if (magBA === 0 || magBC === 0) return 0;
+  const cos = Math.max(-1, Math.min(1, dotVal / (magBA * magBC)));
+  return Math.round(180 - Math.acos(cos) * (180 / Math.PI));
+}
+
+// ── Compute one joint ─────────────────────────────────────────────────────────
+function calibComputeJoint(joint, landmarks, threshold) {
+  const aJ = calibLandmarkJumped(joint.a, landmarks[joint.a], threshold);
+  const bJ = calibLandmarkJumped(joint.b, landmarks[joint.b], threshold);
+  const cJ = calibLandmarkJumped(joint.c, landmarks[joint.c], threshold);
+  if (!aJ && !bJ && !cJ) {
+    const raw = calibGetAngle(landmarks[joint.a], landmarks[joint.b], landmarks[joint.c]);
+    return calibOneEuroFilter(joint.id, raw, performance.now() / 1000);
+  }
+  return calibFilterStates[joint.id]?.prevValue ? Math.round(calibFilterStates[joint.id].prevValue) : 0;
+}
+
+// ── Rebuild readout DOM ───────────────────────────────────────────────────────
+function calibRebuildReadouts() {
+  const panel = document.getElementById('calibReadoutPanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  let count = 0;
+
+  for (const finger of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
+    const hasActive = ['mcp','pip','dip'].some(j =>
+      calibActiveJoints[finger][j] && !(finger === 'thumb' && j === 'dip') && CALIB_FINGERS[finger][j]
+    );
+    if (!hasActive) continue;
+
+    const label = document.createElement('div');
+    label.className = 'calib-readout-group-label';
+    label.innerHTML = `<strong>${CALIB_FINGER_FULL[finger]}</strong>`;
+    panel.appendChild(label);
+
+    for (const joint of ['mcp', 'pip', 'dip']) {
+      if (!calibActiveJoints[finger][joint]) continue;
+      if (finger === 'thumb' && joint === 'dip') continue;
+
+      const row = document.createElement('div');
+      row.className = 'calib-readout-row';
+      row.id = `calib-readout-${finger}-${joint}`;
+      row.innerHTML = `
+        <div class="calib-readout-label">
+          <span>${CALIB_FINGER_FULL[finger]} ${joint.toUpperCase()}</span>
+          <span class="calib-readout-val" id="calib-rval-${finger}-${joint}">—</span>
+        </div>
+        <div class="calib-readout-bar-wrap">
+          <div class="calib-readout-bar" id="calib-rbar-${finger}-${joint}"></div>
+        </div>`;
+      panel.appendChild(row);
+      count++;
+    }
+  }
+
+  if (count === 0) {
+    panel.innerHTML = '<div class="calib-readout-empty">No joints selected</div>';
+  }
+}
+
+// ── Update readouts ───────────────────────────────────────────────────────────
+function calibUpdateReadouts(landmarks) {
+  for (const finger of Object.keys(CALIB_FINGERS)) {
+    const threshold = CALIB_FINGER_THRESHOLDS[finger];
+    for (const joint of ['mcp', 'pip', 'dip']) {
+      if (!calibActiveJoints[finger][joint]) continue;
+      const jDef = CALIB_FINGERS[finger][joint];
+      if (!jDef) continue;
+      const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
+      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
+      if (!valEl || !barEl) continue;
+      const smoothed = calibComputeJoint(jDef, landmarks, threshold);
+      valEl.textContent = Math.min(smoothed, CALIB_JOINT_MAX[joint]) + '°';
+      barEl.style.width = Math.min(100, (smoothed / CALIB_JOINT_MAX[joint]) * 100) + '%';
+    }
+  }
+}
+
+// ── Clear readouts ────────────────────────────────────────────────────────────
+function calibClearReadouts() {
+  for (const finger of Object.keys(CALIB_FINGERS)) {
+    for (const joint of ['mcp', 'pip', 'dip']) {
+      const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
+      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
+      if (valEl) valEl.textContent = '—';
+      if (barEl) barEl.style.width = '0%';
+    }
+  }
+  calibClearBuffers();
+}
+
+// ── Draw landmarks ────────────────────────────────────────────────────────────
+function calibDrawLandmarks(ctx, landmarks) {
+  drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
+    color: 'rgba(0, 229, 192, 0.45)', lineWidth: 2,
+  });
+  landmarks.forEach((lm, i) => {
+    const x = lm.x * ctx.canvas.width;
+    const y = lm.y * ctx.canvas.height;
+    ctx.beginPath();
+    ctx.arc(x, y, CALIB_TIP_INDICES.has(i) ? 7 : 4, 0, Math.PI * 2);
+    ctx.fillStyle   = CALIB_TIP_INDICES.has(i) ? '#00e5c0' : 'rgba(0,229,192,0.7)';
+    ctx.shadowBlur  = CALIB_TIP_INDICES.has(i) ? 14 : 5;
+    ctx.shadowColor = '#00e5c0';
+    ctx.fill();
+    ctx.shadowBlur  = 0;
+  });
+}
+
+// ── Calib status helpers ──────────────────────────────────────────────────────
+function calibSetStatus(msg, state = 'idle') {
+  const calibDot  = document.getElementById('calibDot');
+  const calibText = document.getElementById('calibStatusText');
+  if (!calibDot || !calibText) return;
+  calibText.textContent = msg;
+  calibText.className   = state === 'active' ? 'active' : '';
+  calibDot.className = 'dot' + (state === 'active' ? ' active' : state === 'error' ? ' error' : '');
+}
+
+// ── MediaPipe results callback (calib) ────────────────────────────────────────
+function calibOnResults(results) {
+  const calibCanvas = document.getElementById('calibCanvas');
+  const calibCtx    = calibCanvas.getContext('2d');
+  const calibHandCount = document.getElementById('calibHandCount');
+  const calibCameraWrapEl = document.getElementById('calibCameraWrap');
+
+  calibCanvas.width  = results.image.width;
+  calibCanvas.height = results.image.height;
+
+  calibCtx.save();
+  calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
+  calibCtx.drawImage(results.image, 0, 0, calibCanvas.width, calibCanvas.height);
+
+  const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+  if (calibHandCount) calibHandCount.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
+
+  if (count > 0) {
+    calibSetStatus('Tracking active', 'active');
+    if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
+    for (const landmarks of results.multiHandLandmarks) {
+      calibDrawLandmarks(calibCtx, landmarks);
+      calibUpdateReadouts(landmarks);
+    }
+  } else {
+    calibSetStatus('Point camera at hand', 'idle');
+    if (calibCameraWrapEl) calibCameraWrapEl.classList.remove('scanning');
+    calibClearReadouts();
+  }
+
+  calibCtx.restore();
+}
+
+// ── Init calibration camera ───────────────────────────────────────────────────
+let calibMpCamera = null;
+
+async function startCalibration() {
+  showScreen('calibrationScreen');
+
+  // Rebuild readouts fresh each time we enter
+  calibRebuildReadouts();
+
+  if (calibMpCamera) return; // already running
+
+  const calibVideo   = document.getElementById('calibVideo');
+  const calibOverlay = document.getElementById('calibOverlay');
+  const calibOverlayMsg = document.getElementById('calibOverlayMsg');
+
+  calibSetStatus('Loading...', 'idle');
+  if (calibOverlayMsg) calibOverlayMsg.textContent = 'LOADING MEDIAPIPE...';
+
+  const hands = new Hands({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+  });
+
+  hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.85,
+    minTrackingConfidence: 0.75,
+  });
+
+  hands.onResults(calibOnResults);
+
+  if (calibOverlayMsg) calibOverlayMsg.textContent = 'REQUESTING CAMERA...';
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: 1280, height: 720 },
+    });
+
+    calibVideo.srcObject = stream;
+    calibVideo.onloadedmetadata = () => calibVideo.play();
+    calibVideo.onplaying = () => {
+      calibVideo.classList.add('ready');
+      if (calibOverlay) calibOverlay.classList.add('hidden');
+      calibSetStatus('Point camera at hand', 'idle');
+    };
+
+    calibMpCamera = new Camera(calibVideo, {
+      onFrame: async () => { await hands.send({ image: calibVideo }); },
+      width: 1280, height: 720,
+    });
+
+    calibMpCamera.start();
+
+  } catch (err) {
+    if (calibOverlay) calibOverlay.classList.remove('hidden');
+    if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
+    calibSetStatus('Camera denied', 'error');
+    console.error(err);
+  }
+}
+
+// ── Wire up calibration toggle grid (runs after DOM ready) ────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Cell toggles
+  document.querySelectorAll('.calib-grid-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const finger = cell.dataset.finger;
+      const joint  = cell.dataset.joint;
+      if (finger === 'thumb' && joint === 'dip') return;
+      calibActiveJoints[finger][joint] = !calibActiveJoints[finger][joint];
+      cell.querySelector('.calib-cell-inner').classList.toggle('active', calibActiveJoints[finger][joint]);
+      calibRebuildReadouts();
+    });
+  });
+
+  // ALL button
+  const allBtn = document.getElementById('calibAllBtn');
+  if (allBtn) {
+    allBtn.addEventListener('click', () => {
+      for (const finger of Object.keys(calibActiveJoints)) {
+        for (const joint of Object.keys(calibActiveJoints[finger])) {
+          if (finger === 'thumb' && joint === 'dip') continue;
+          calibActiveJoints[finger][joint] = true;
+        }
+      }
+      document.querySelectorAll('.calib-grid-cell').forEach(cell => {
+        const f = cell.dataset.finger;
+        const j = cell.dataset.joint;
+        if (f === 'thumb' && j === 'dip') return;
+        cell.querySelector('.calib-cell-inner').classList.add('active');
+      });
+      calibRebuildReadouts();
+    });
+  }
+
+  // NONE button
+  const noneBtn = document.getElementById('calibNoneBtn');
+  if (noneBtn) {
+    noneBtn.addEventListener('click', () => {
+      for (const finger of Object.keys(calibActiveJoints)) {
+        for (const joint of Object.keys(calibActiveJoints[finger])) {
+          calibActiveJoints[finger][joint] = false;
+        }
+      }
+      document.querySelectorAll('.calib-cell-inner').forEach(el => el.classList.remove('active'));
+      calibRebuildReadouts();
+    });
+  }
+
+  // Build initial readouts
+  calibRebuildReadouts();
+});
