@@ -236,6 +236,62 @@
       .joint-selector-body { grid-template-columns: 1fr; }
       .modal-box { width: calc(100% - 32px); }
     }
+
+.rep-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #1e293b;
+  border: 1.5px solid #334155;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.rep-dot.done {
+  background: #22c55e;
+  border-color: #22c55e;
+  transform: scale(1.1);
+}
+.rep-dot.active-rep {
+  border-color: #3b82f6;
+  background: #1e3a5f;
+}
+
+.speed-warning {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(245, 158, 11, 0.95);
+  color: #000;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 99px;
+  z-index: 15;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.speed-warning.show { opacity: 1; }
+
+.streak-badge {
+  width: 100%;
+  max-width: 420px;
+  padding: 12px 18px;
+  background: #111b2a;
+  border: 1px solid #1a2940;
+  border-left: 3px solid #f59e0b;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.streak-flame { font-size: 1.4rem; line-height: 1; }
+.streak-count { font-size: 1.3rem; font-weight: 900; color: #f59e0b; font-family: 'DM Mono', monospace; }
+.streak-text  { font-size: 0.78rem; color: #4a6280; margin-top: 1px; }
+.streak-best  { margin-left: auto; font-size: 0.72rem; color: #334155; text-align: right; }
+
   </style>
 </head>
 <body>
@@ -355,6 +411,15 @@
     </button>
   </div>
 
+  <div class="streak-badge" id="streakBadge" style="display:none;">
+  <span class="streak-flame">🔥</span>
+  <div>
+    <div class="streak-count" id="streakCount">0</div>
+    <div class="streak-text" id="streakLabel">day streak — keep it up!</div>
+  </div>
+  <div class="streak-best" id="streakBest"></div>
+</div>
+
   <div class="secondary-grid">
     <button class="home-btn" onclick="showProgressScreen()">
       <span class="home-btn-icon">📈</span>
@@ -395,7 +460,10 @@
 <div id="cameraScreen" class="screen">
   <div class="patient-header">
     <h2>PhalanX</h2>
-    <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button id="soundToggleBtn" class="logout-btn" onclick="toggleSound()" style="font-size:0.85rem;">🔊 Sound On</button>
+      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+    </div>
   </div>
 
   <div class="assigned-protocol" id="assignedProtocol" style="display:none;">
@@ -409,6 +477,7 @@
       <div class="rep-number" id="repDisplay">0</div>
       <div class="rep-label">Reps</div>
     </div>
+    <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
     <div id="congratsOverlay">
       <h2>🎉 Great work!</h2>
       <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
@@ -419,6 +488,16 @@
       <p id="painValueCongrats" style="font-size:0.85rem; color:#94a3b8;">5 / 10</p>
       <button class="reset-btn" id="nextSetBtn" onclick="advanceSet()">Start Next Set</button>
     </div>
+    <!-- Rest Timer -->
+    <div id="restTimerOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.88); border-radius:16px; flex-direction:column; align-items:center; justify-content:center; z-index:20; gap:10px;">
+      <p style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:2px;">Rest Period</p>
+      <div id="restTimerCount" style="font-size:5.5rem; font-weight:900; color:#3b82f6; line-height:1; font-family:'DM Mono',monospace;">30</div>
+      <p style="color:#475569; font-size:0.88rem;">Next set starts automatically</p>
+      <div id="restTimerBar" style="width:220px; height:6px; background:#1e293b; border-radius:99px; overflow:hidden; margin-top:4px;">
+        <div id="restTimerFill" style="height:100%; background:#3b82f6; border-radius:99px; width:100%; transition:width 1s linear;"></div>
+      </div>
+      <button class="reset-btn" style="background:#3b82f6; margin-top:12px;" onclick="skipRest()">Skip Rest →</button>
+    </div>
   </div>
 
   <div class="progress-section">
@@ -427,6 +506,7 @@
       <span id="setLabel">Set 1</span>
       <span id="progressText">0 / 10 reps</span>
     </div>
+    <div id="repDots" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
     <div class="progress-bar-track">
       <div class="progress-bar-fill" id="progressFill"></div>
     </div>
@@ -473,6 +553,37 @@
     </div>
     <div id="progressContent"></div>
   </div>
+</div>
+
+<!-- SESSION SUMMARY -->
+<div id="sessionSummaryOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:200; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:24px;">
+  <div style="text-align:center;">
+    <div style="font-size:3rem; margin-bottom:8px;">🏆</div>
+    <h2 style="font-size:1.8rem; font-weight:900; color:#22c55e; letter-spacing:-0.5px;">Session Complete!</h2>
+    <p style="color:#475569; font-size:0.9rem; margin-top:6px;">Great work today. Here's how you did:</p>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; width:100%; max-width:360px;">
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summaryTotalReps" style="font-size:2.2rem; font-weight:900; color:#3b82f6;">0</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Total Reps</div>
+    </div>
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summarySets" style="font-size:2.2rem; font-weight:900; color:#22c55e;">0</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Sets Done</div>
+    </div>
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summaryMaxROM" style="font-size:2.2rem; font-weight:900; color:#00c9b1;">0°</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max ROM</div>
+    </div>
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
+      <div id="summaryAvgPain" style="font-size:2.2rem; font-weight:900; color:#f59e0b;">0</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Avg Pain</div>
+    </div>
+  </div>
+  <div style="width:100%; max-width:360px; background:#1e293b; border-radius:14px; padding:16px 20px; border-left:3px solid #22c55e;">
+    <div id="summaryMessage" style="font-size:0.9rem; color:#94a3b8; line-height:1.6;"></div>
+  </div>
+  <button class="reset-btn" style="width:100%; max-width:360px; padding:16px; font-size:1rem;" onclick="dismissSummary()">Back to Home</button>
 </div>
 
 <!-- LOGOUT MODAL -->
@@ -755,8 +866,57 @@ function updatePatientHomeScreen() {
   }
 }
 
+// Streak
+  const sessions  = getPatientSessions(currentUser.email);
+  const streak    = calcStreak(sessions);
+  const badgeEl   = document.getElementById('streakBadge');
+  const countEl   = document.getElementById('streakCount');
+  const labelEl   = document.getElementById('streakLabel');
+  const bestEl    = document.getElementById('streakBest');
+  if (badgeEl && streak.current > 0) {
+    badgeEl.style.display = 'flex';
+    countEl.textContent   = streak.current;
+    labelEl.textContent   = streak.current === 1 ? 'day streak — great start!' : 'day streak — keep it up!';
+    if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
+  } else if (badgeEl) {
+    badgeEl.style.display = 'none';
+  }
+
+function calcStreak(sessions) {
+  if (sessions.length === 0) return { current: 0, best: 0 };
+  const days = [...new Set(sessions.map(s => new Date(s.date).toDateString()))];
+  days.sort((a, b) => new Date(b) - new Date(a));
+
+  let current = 0;
+  let best    = 0;
+  let temp    = 1;
+  const today     = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+  // Current streak — must include today or yesterday to be active
+  if (days[0] === today || days[0] === yesterday) {
+    current = 1;
+    for (let i = 1; i < days.length; i++) {
+      const diff = (new Date(days[i-1]) - new Date(days[i])) / 86400000;
+      if (diff === 1) current++;
+      else break;
+    }
+  }
+
+  // Best streak ever
+  for (let i = 1; i < days.length; i++) {
+    const diff = (new Date(days[i-1]) - new Date(days[i])) / 86400000;
+    if (diff === 1) { temp++; if (temp > best) best = temp; }
+    else temp = 1;
+  }
+  best = Math.max(best, current);
+
+  return { current, best };
+}
+
 function startScanSession() {
   showScreen('cameraScreen');
+  document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
   loadPatientProtocol();
   initSetTracker();
   if (!mpCamera) startCamera();
@@ -1060,6 +1220,47 @@ let fingerState = 'unknown';
 let lastROM     = 0;
 let maxROMThisSession = 0;
 let sessionPaused = false;
+let lastRepTime = null;
+let setPainValues = [];
+let restTimerInterval = null;
+let restTimeRemaining = 30;
+const REST_DURATION = 30;
+let soundEnabled = localStorage.getItem('phalanx_sound') !== 'false';
+
+function playRepSound() {
+  if (!soundEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gainNode   = ctx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.08);
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.12);
+  } catch(e) {}
+}
+
+let speedWarningTimeout = null;
+
+function showSpeedWarning() {
+  const el = document.getElementById('speedWarning');
+  if (!el) return;
+  el.classList.add('show');
+  clearTimeout(speedWarningTimeout);
+  speedWarningTimeout = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem('phalanx_sound', soundEnabled);
+  document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
+}
+
 
 function getMiddleFingerAngle(landmarks) {
   const mcp = landmarks[9];
@@ -1082,11 +1283,18 @@ function updateRepCount(landmarks) {
   } else if (angle > 140 && fingerState === 'flexed') {
     fingerState = 'extended';
     repCount++;
+    const now = Date.now();
+    if (lastRepTime !== null && (now - lastRepTime) < 1000) {
+      showSpeedWarning();
+    }
+    lastRepTime = now;
+    playRepSound();
     updateRepUI();
   }
 }
 
 function updateRepUI() {
+  renderRepDots();
   document.getElementById('repDisplay').textContent    = repCount;
   document.getElementById('progressText').textContent  = `${repCount} / ${TARGET_REPS} reps`;
   const pct = Math.min((repCount / TARGET_REPS) * 100, 100);
@@ -1141,7 +1349,10 @@ function initSetTracker() {
   lastROM      = 0;
   maxROMThisSession = 0;
   sessionPaused = false;
+  lastRepTime = null;
+  setPainValues = [];
   renderSetDots();
+  renderRepDots();
   updateRepUI();
 }
 
@@ -1160,28 +1371,108 @@ function renderSetDots() {
   if (label) label.textContent = `Set ${currentSet} of ${totalSets}`;
 }
 
+function renderRepDots() {
+  const container = document.getElementById('repDots');
+  if (!container) return;
+  // Only show dots if 20 reps or fewer — otherwise just use the bar
+  if (TARGET_REPS > 20) { container.innerHTML = ''; return; }
+  container.innerHTML = '';
+  for (let i = 1; i <= TARGET_REPS; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'rep-dot';
+    if (i <= repCount)       dot.classList.add('done');
+    else if (i === repCount + 1) dot.classList.add('active-rep');
+    container.appendChild(dot);
+  }
+}
+
 function advanceSet() {
   sessionPaused = false;
-  if (repCount >= TARGET_REPS) saveSession();
-  setsComplete++;
-  if (setsComplete >= totalSets) {
-    // All sets done — reset everything for a fresh session
-    initSetTracker();
-    document.getElementById('congratsOverlay').classList.remove('show');
-    document.getElementById('allSetsComplete').style.display = 'none';
-    document.getElementById('nextSetBtn').textContent = 'Start Next Set';
-    return;
+  if (repCount >= TARGET_REPS) {
+    const painVal = parseInt(document.getElementById('painSliderCongrats').value);
+    setPainValues.push(painVal);
+    saveSession();
   }
-  currentSet++;
-  repCount    = 0;
-  fingerState = 'unknown';
-  lastROM     = 0;
-  maxROMThisSession = 0;
+  setsComplete++;
+
   document.getElementById('congratsOverlay').classList.remove('show');
   document.getElementById('allSetsComplete').style.display = 'none';
   document.getElementById('nextSetBtn').textContent = 'Start Next Set';
+
+  if (setsComplete >= totalSets) {
+    showSessionSummary();
+    return;
+  }
+
+  currentSet++;
+  repCount = 0;
+  fingerState = 'unknown';
+  lastROM = 0;
+  maxROMThisSession = 0;
   renderSetDots();
   updateRepUI();
+  startRestTimer();
+}
+
+function startRestTimer() {
+  restTimeRemaining = REST_DURATION;
+  sessionPaused = true;
+  const overlay = document.getElementById('restTimerOverlay');
+  overlay.style.display = 'flex';
+  document.getElementById('restTimerCount').textContent = restTimeRemaining;
+  document.getElementById('restTimerFill').style.width = '100%';
+
+  restTimerInterval = setInterval(() => {
+    restTimeRemaining--;
+    document.getElementById('restTimerCount').textContent = restTimeRemaining;
+    const pct = (restTimeRemaining / REST_DURATION) * 100;
+    document.getElementById('restTimerFill').style.width = pct + '%';
+    if (restTimeRemaining <= 10) {
+      document.getElementById('restTimerFill').style.background = '#22c55e';
+    }
+    if (restTimeRemaining <= 0) skipRest();
+  }, 1000);
+}
+
+function skipRest() {
+  clearInterval(restTimerInterval);
+  restTimerInterval = null;
+  document.getElementById('restTimerOverlay').style.display = 'none';
+  document.getElementById('restTimerFill').style.background = '#3b82f6';
+  sessionPaused = false;
+}
+
+function showSessionSummary() {
+  const totalRepsCompleted = setsComplete * TARGET_REPS;
+  const avgPain = setPainValues.length > 0
+    ? (setPainValues.reduce((a, b) => a + b, 0) / setPainValues.length).toFixed(1)
+    : '—';
+  const maxROM = Math.round(maxROMThisSession);
+
+  document.getElementById('summaryTotalReps').textContent = totalRepsCompleted;
+  document.getElementById('summarySets').textContent      = setsComplete;
+  document.getElementById('summaryMaxROM').textContent    = maxROM + '°';
+  document.getElementById('summaryAvgPain').textContent   = avgPain;
+
+  let message = '';
+  if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
+    message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
+  } else if (maxROM >= 120) {
+    message = '💪 Excellent range of motion today! You\'re making great progress.';
+  } else if (maxROM >= 80) {
+    message = '👍 Good session. Consistency is key — keep it up!';
+  } else {
+    message = '✅ Session logged. Every rep counts toward your recovery.';
+  }
+  document.getElementById('summaryMessage').textContent = message;
+  document.getElementById('sessionSummaryOverlay').style.display = 'flex';
+}
+
+function dismissSummary() {
+  document.getElementById('sessionSummaryOverlay').style.display = 'none';
+  initSetTracker();
+  showScreen('patientScreen');
+  updatePatientHomeScreen();
 }
 
 // ── CAMERA ────────────────────────────────────────────────────────
