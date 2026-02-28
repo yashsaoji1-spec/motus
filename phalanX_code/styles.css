@@ -173,8 +173,8 @@ body {
 .home-btn {
   padding: 24px 16px; background: #FFFFFF; border: 1px solid #D0D7E3;
   border-radius: 14px; cursor: pointer; display: flex; flex-direction: column;
-  align-items: flex-start; justify-content: center; gap: 6px;
-  transition: all 0.2s; text-align: left; font-family: inherit; min-height: 80px;
+  align-items: center; justify-content: center; gap: 6px;
+  transition: all 0.2s; text-align: center; font-family: inherit; min-height: 80px;
 }
 .home-btn.home-btn-centered { align-items: center; text-align: center; }
 .home-btn:hover { border-color: #E3EEFF; background: #EBF0F8; transform: translateY(-1px); }
@@ -187,7 +187,7 @@ body {
   display: flex; align-items: center; gap: 14px; transition: all 0.2s; font-family: inherit;
 }
 .home-btn-wide:hover { border-color: #E3EEFF; background: #EBF0F8; }
-.home-btn-wide-text { flex: 1; text-align: left; }
+.home-btn-wide-text { flex: 1; text-align: center; }
 .home-btn-arrow { color: #8A9AB0; font-size: 1rem; margin-left: auto; }
 .logout-fixed {
   position: fixed; bottom: 20px; right: 20px;
