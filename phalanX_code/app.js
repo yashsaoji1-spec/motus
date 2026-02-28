@@ -293,6 +293,14 @@ function updatePatientHomeScreen() {
   } else if (badgeEl) {
     badgeEl.style.display = 'none';
   }
+
+  const tEmail = getConnectedTherapist();
+  const msgBadge = document.getElementById('patientUnreadBadge');
+  if (msgBadge && tEmail) {
+    const n = unreadCount(currentUser.email, tEmail);
+    msgBadge.textContent = n;
+    msgBadge.style.display = n > 0 ? 'inline' : 'none';
+  }
 }
 
 function calcStreak(sessions) {
@@ -483,7 +491,15 @@ function showRealPatient(patient) {
       </div>
       ${buildJointSelector(patient.email)}
       ${buildSessionHistory(patient.email)}
-      ${buildProtocolForm(patient.email)}`;
+      ${buildProtocolForm(patient.email)}
+      ${buildMessagePanel(patient.email)}`;
+    document.getElementById('therapistMsgSend').onclick = () => {
+      const input = document.getElementById('therapistMsgInput');
+      sendMessage(currentUser.email, patient.email, input.value);
+      input.value = '';
+      renderThread('therapistMsgThread', currentUser.email, patient.email);
+    };
+    renderThread('therapistMsgThread', currentUser.email, patient.email);
     return;
   }
 
@@ -515,7 +531,8 @@ function showRealPatient(patient) {
     <div class="chart-card"><h4>Pain Rating Over Time (1–10)</h4><canvas id="painChart" height="100"></canvas></div>
     ${buildJointSelector(patient.email)}
     ${buildSessionHistory(patient.email)}
-    ${buildProtocolForm(patient.email)}`;
+    ${buildProtocolForm(patient.email)}
+    ${buildMessagePanel(patient.email)}`;
 
   new Chart(document.getElementById('romChart').getContext('2d'), {
     type: 'line',
@@ -527,6 +544,14 @@ function showRealPatient(patient) {
     data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 4, tension: 0.4, fill: true }] },
     options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 } } }
   });
+
+  document.getElementById('therapistMsgSend').onclick = () => {
+    const input = document.getElementById('therapistMsgInput');
+    sendMessage(currentUser.email, patient.email, input.value);
+    input.value = '';
+    renderThread('therapistMsgThread', currentUser.email, patient.email);
+  };
+  renderThread('therapistMsgThread', currentUser.email, patient.email);
 }
 
 function buildSessionHistory(patientEmail) {
@@ -1588,3 +1613,98 @@ document.addEventListener('DOMContentLoaded', () => {
   // Build initial readouts
   calibRebuildReadouts();
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 15: MESSAGING  (patient ↔ therapist in-app thread)
+   Storage key: phalanx_messages  — global array of message objects
+   { from, to, text, timestamp, read }
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// ── Core helpers ──────────────────────────────────────────────────────────────
+
+function getMessages() {
+  return JSON.parse(localStorage.getItem('phalanx_messages') || '[]');
+}
+
+function saveMessages(msgs) {
+  localStorage.setItem('phalanx_messages', JSON.stringify(msgs));
+}
+
+function getThread(a, b) {
+  return getMessages()
+    .filter(m => (m.from === a && m.to === b) || (m.from === b && m.to === a))
+    .sort((x, y) => new Date(x.timestamp) - new Date(y.timestamp));
+}
+
+function sendMessage(from, to, text) {
+  if (!text.trim()) return;
+  const msgs = getMessages();
+  msgs.push({ from, to, text: text.trim(), timestamp: new Date().toISOString(), read: false });
+  saveMessages(msgs);
+}
+
+function markRead(toEmail, fromEmail) {
+  const msgs = getMessages();
+  msgs.forEach(m => { if (m.to === toEmail && m.from === fromEmail) m.read = true; });
+  saveMessages(msgs);
+}
+
+function unreadCount(toEmail, fromEmail) {
+  return getMessages().filter(m => m.to === toEmail && m.from === fromEmail && !m.read).length;
+}
+
+// ── Shared thread renderer ────────────────────────────────────────────────────
+
+function renderThread(containerId, myEmail, otherEmail) {
+  const el     = document.getElementById(containerId);
+  if (!el) return;
+  const thread = getThread(myEmail, otherEmail);
+  if (!thread.length) {
+    el.innerHTML = '<p class="msg-empty">No messages yet.</p>';
+    return;
+  }
+  el.innerHTML = thread.map(m => {
+    const mine = m.from === myEmail;
+    const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `<div class="msg-bubble ${mine ? 'msg-mine' : 'msg-theirs'}">
+      <div class="msg-text">${m.text}</div>
+      <div class="msg-time">${time}</div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Patient-side functions ────────────────────────────────────────────────────
+
+function openPatientMessaging() {
+  const tEmail = getConnectedTherapist();
+  if (!tEmail) { alert('You are not connected to a therapist yet.'); return; }
+  markRead(currentUser.email, tEmail);
+  const t = getAccounts().find(a => a.email === tEmail);
+  document.getElementById('msgHeaderTitle').textContent = t ? t.name : 'Your Therapist';
+  renderThread('msgThread', currentUser.email, tEmail);
+  showScreen('messagingScreen');
+}
+
+function sendMessageFromPatient() {
+  const tEmail = getConnectedTherapist();
+  if (!tEmail) return;
+  const input = document.getElementById('msgInput');
+  sendMessage(currentUser.email, tEmail, input.value);
+  input.value = '';
+  renderThread('msgThread', currentUser.email, tEmail);
+}
+
+// ── Therapist-side panel builder ──────────────────────────────────────────────
+
+function buildMessagePanel(patientEmail) {
+  markRead(currentUser.email, patientEmail);
+  return `<div class="therapist-msg-panel">
+    <div class="section-title" style="font-size:0.85rem; font-weight:700; color:#6B7A99; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Messages</div>
+    <div class="therapist-msg-thread" id="therapistMsgThread"></div>
+    <div class="therapist-msg-row">
+      <input type="text" id="therapistMsgInput" class="therapist-msg-input" placeholder="Send a message…" />
+      <button id="therapistMsgSend" class="therapist-msg-send">Send</button>
+    </div>
+  </div>`;
+}

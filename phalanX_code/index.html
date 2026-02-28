@@ -146,9 +146,9 @@
         <div class="home-btn-label">Track My Progress</div>
       </div>
     </button>
-    <button class="home-btn" onclick="alert('Messaging coming soon')">
+    <button class="home-btn" onclick="openPatientMessaging()">
       <div>
-        <div class="home-btn-label">Contact My Therapist</div>
+        <div class="home-btn-label">Contact My Therapist <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></div>
         <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
       </div>
     </button>
@@ -276,6 +276,24 @@
       <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
     </div>
     <div id="progressContent"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MESSAGING SCREEN  (patient ↔ therapist)
+═══════════════════════════════════════════════════════ -->
+<div id="messagingScreen" class="screen">
+  <div class="msg-container">
+    <div class="msg-header">
+      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+      <span class="msg-header-title" id="msgHeaderTitle">Your Therapist</span>
+    </div>
+    <div class="msg-thread" id="msgThread"></div>
+    <div class="msg-input-row">
+      <input type="text" id="msgInput" class="msg-input" placeholder="Type a message…"
+             onkeydown="if(event.key==='Enter') sendMessageFromPatient()" />
+      <button class="msg-send-btn" onclick="sendMessageFromPatient()">Send</button>
+    </div>
   </div>
 </div>
 
