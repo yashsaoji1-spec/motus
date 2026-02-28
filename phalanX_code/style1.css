@@ -846,6 +846,7 @@ input[type="range"] { width: 100%; accent-color: #3b82f6; }
 }
 .calib-launch-btn .calib-icon { font-size: 1.1rem; }
 
+
 .calib-patient-btn:hover {
   background: var(--accent-dim);
 }
