@@ -288,7 +288,7 @@ function updatePatientHomeScreen() {
   if (badgeEl && streak.current > 0) {
     badgeEl.style.display = 'flex';
     countEl.textContent   = streak.current;
-    labelEl.textContent   = streak.current === 1 ? 'day streak — great start!' : 'day streak — keep it up!';
+    labelEl.textContent   = 'day streak';
     if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
   } else if (badgeEl) {
     badgeEl.style.display = 'none';

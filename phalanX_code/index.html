@@ -129,26 +129,21 @@
   <div class="scan-btn-wrapper">
     <button class="scan-btn" onclick="startScanSession()">
       <div class="scan-btn-inner">
-        <span class="scan-btn-badge">Start Session</span>
-        <div class="scan-btn-title">Scan My Hand</div>
-        <div class="scan-btn-sub">Camera tracks your finger movement in real time</div>
+        <div class="scan-btn-title">Start a Session</div>
       </div>
     </button>
   </div>
 
   <div class="streak-badge" id="streakBadge" style="display:none;">
-    <div>
-      <div class="streak-count" id="streakCount">0</div>
-      <div class="streak-text" id="streakLabel">day streak — keep it up!</div>
-    </div>
-    <div class="streak-best" id="streakBest"></div>
+    <span class="streak-count" id="streakCount">0</span>
+    <span class="streak-text" id="streakLabel">day streak</span>
+    <span class="streak-best" id="streakBest"></span>
   </div>
 
   <div class="secondary-grid">
     <button class="home-btn" onclick="showProgressScreen()">
       <div>
         <div class="home-btn-label">Track My Progress</div>
-        <div class="home-btn-sub">Sessions, ROM & pain history</div>
       </div>
     </button>
     <button class="home-btn" onclick="alert('Messaging coming soon')">
@@ -164,18 +159,12 @@
   <button class="home-btn-wide" onclick="alert('Exercise guides coming soon')">
     <div class="home-btn-wide-text">
       <div class="home-btn-label">My Exercises</div>
-      <div class="home-btn-sub">View your assigned protocol</div>
+      <div class="home-btn-sub">Assigned Protocols</div>
     </div>
     <span class="home-btn-arrow">›</span>
   </button>
 
-  <button class="home-btn-wide" onclick="requestLogout()">
-    <div class="home-btn-wide-text">
-      <div class="home-btn-label">Switch User</div>
-      <div class="home-btn-sub">Sign out of PhalanX</div>
-    </div>
-    <span class="home-btn-arrow">›</span>
-  </button>
+  <button class="logout-fixed" onclick="requestLogout()">Log Out</button>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
