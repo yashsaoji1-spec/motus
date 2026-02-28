@@ -852,8 +852,8 @@ function skipRest() {
   sessionPaused = false;
 }
 
-function showSessionSummary() {
-  const totalRepsCompleted = setsComplete * TARGET_REPS;
+function showSessionSummary(partialReps = 0) {
+  const totalRepsCompleted = setsComplete * TARGET_REPS + partialReps;
   const avgPain = setPainValues.length > 0
     ? (setPainValues.reduce((a, b) => a + b, 0) / setPainValues.length).toFixed(1)
     : '—';
@@ -881,6 +881,37 @@ function dismissSummary() {
   initSetTracker();
   showScreen('patientScreen');
   updatePatientHomeScreen();
+}
+
+function completeSessionEarly() {
+  // Stop rest timer if running
+  clearInterval(restTimerInterval);
+  restTimerInterval = null;
+  document.getElementById('restTimerOverlay').style.display = 'none';
+  sessionPaused = false;
+
+  // Hide congrats overlay if visible
+  document.getElementById('congratsOverlay').classList.remove('show');
+
+  // Save current partial set if any reps were completed
+  if (repCount > 0) {
+    const painVal = parseInt(document.getElementById('painSlider').value);
+    setPainValues.push(painVal);
+    const session = {
+      date:           new Date().toISOString(),
+      reps:           repCount,
+      pain:           painVal,
+      rom:            lastROM,
+      therapistEmail: getConnectedTherapist()
+    };
+    const key      = `phalanx_sessions_${currentUser.email}`;
+    const stored   = localStorage.getItem(key);
+    const sessions = stored ? JSON.parse(stored) : [];
+    sessions.push(session);
+    localStorage.setItem(key, JSON.stringify(sessions));
+  }
+
+  showSessionSummary(repCount > 0 ? repCount : 0);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

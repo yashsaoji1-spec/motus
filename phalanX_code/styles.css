@@ -234,6 +234,8 @@ body {
   border-radius: 99px; transition: width 0.4s ease; width: 0%;
 }
 .pain-section { width: 640px; background: #FFFFFF; border-radius: 14px; padding: 16px 20px; }
+.end-session-btn { width: 640px; padding: 14px; background: transparent; border: 2px solid #CC2936; color: #CC2936; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; letter-spacing: 0.3px; transition: background 0.15s, color 0.15s; }
+.end-session-btn:hover { background: #CC2936; color: #FFFFFF; }
 .pain-section label { font-size: 0.9rem; color: #6B7A99; display: block; margin-bottom: 10px; }
 .pain-section label strong { color: #1A2744; }
 input[type="range"] { width: 100%; accent-color: #005EB8; }
@@ -845,7 +847,7 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
   #cameraScreen { padding: 12px; gap: 12px; justify-content: flex-start; padding-top: 16px; }
   .camera-box { width: 100%; height: auto; aspect-ratio: 4/3; }
   .camera-box video, .camera-box canvas { width: 100%; height: 100%; }
-  .progress-section, .pain-section, .assigned-protocol { width: 100%; }
+  .progress-section, .pain-section, .assigned-protocol, .end-session-btn { width: 100%; }
   .auth-box { margin: 16px; padding: 28px 20px; }
   #therapistScreen { flex-direction: column; }
   .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #D0D7E3; padding: 16px; max-height: 280px; overflow-y: auto; }
