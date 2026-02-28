@@ -1265,6 +1265,28 @@ function calibComputeJoint(joint, landmarks, threshold) {
   return calibFilterStates[joint.id]?.prevValue ? Math.round(calibFilterStates[joint.id].prevValue) : 0;
 }
 
+// ── Joint display label (thumb uses MP / IP instead of MCP / DIP) ────────────
+function calibJointLabel(finger, joint) {
+  if (finger === 'thumb') {
+    if (joint === 'mcp') return 'MP';
+    if (joint === 'dip') return 'IP';
+  }
+  return joint.toUpperCase();
+}
+
+// ── Sync finger toggle button active state ────────────────────────────────────
+function calibUpdateFingerToggles() {
+  for (const finger of Object.keys(calibActiveJoints)) {
+    const btn = document.querySelector(`.calib-finger-toggle[data-finger="${finger}"]`);
+    if (!btn) continue;
+    const anyActive = Object.entries(calibActiveJoints[finger]).some(([j, v]) => {
+      if (finger === 'thumb' && j === 'dip') return false;
+      return v;
+    });
+    btn.classList.toggle('finger-off', !anyActive);
+  }
+}
+
 // ── Rebuild readout DOM ───────────────────────────────────────────────────────
 function calibRebuildReadouts() {
   const panel = document.getElementById('calibReadoutPanel');
@@ -1292,7 +1314,7 @@ function calibRebuildReadouts() {
       row.id = `calib-readout-${finger}-${joint}`;
       row.innerHTML = `
         <div class="calib-readout-label">
-          <span>${CALIB_FINGER_FULL[finger]} ${joint.toUpperCase()}</span>
+          <span>${CALIB_FINGER_FULL[finger]} ${calibJointLabel(finger, joint)}</span>
           <span class="calib-readout-val" id="calib-rval-${finger}-${joint}">—</span>
         </div>
         <div class="calib-readout-bar-wrap">
@@ -1306,6 +1328,7 @@ function calibRebuildReadouts() {
   if (count === 0) {
     panel.innerHTML = '<div class="calib-readout-empty">No joints selected</div>';
   }
+  calibUpdateFingerToggles();
 }
 
 // ── Update readouts ───────────────────────────────────────────────────────────
@@ -1463,6 +1486,28 @@ async function startCalibration() {
 
 // ── Wire up calibration toggle grid (runs after DOM ready) ────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Finger toggle buttons
+  document.querySelectorAll('.calib-finger-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const finger = btn.dataset.finger;
+      const anyOn = Object.entries(calibActiveJoints[finger]).some(([j, v]) => {
+        if (finger === 'thumb' && j === 'dip') return false;
+        return v;
+      });
+      const newState = !anyOn;
+      for (const joint of Object.keys(calibActiveJoints[finger])) {
+        if (finger === 'thumb' && joint === 'dip') continue;
+        calibActiveJoints[finger][joint] = newState;
+      }
+      document.querySelectorAll(`.calib-grid-cell[data-finger="${finger}"]`).forEach(cell => {
+        const j = cell.dataset.joint;
+        if (finger === 'thumb' && j === 'dip') return;
+        cell.querySelector('.calib-cell-inner').classList.toggle('active', calibActiveJoints[finger][j]);
+      });
+      calibRebuildReadouts();
+    });
+  });
+
   // Cell toggles
   document.querySelectorAll('.calib-grid-cell').forEach(cell => {
     cell.addEventListener('click', () => {

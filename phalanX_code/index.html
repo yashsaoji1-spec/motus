@@ -130,12 +130,6 @@
     <button class="scan-btn" onclick="startScanSession()">
       <div class="scan-btn-inner">
         <span class="scan-btn-badge">Start Session</span>
-        <div class="scan-icon">
-          <div class="scan-ring"></div>
-          <div class="scan-ring"></div>
-          <div class="scan-ring"></div>
-          <span class="scan-hand-icon">🤚</span>
-        </div>
         <div class="scan-btn-title">Scan My Hand</div>
         <div class="scan-btn-sub">Camera tracks your finger movement in real time</div>
       </div>
@@ -143,7 +137,6 @@
   </div>
 
   <div class="streak-badge" id="streakBadge" style="display:none;">
-    <span class="streak-flame">🔥</span>
     <div>
       <div class="streak-count" id="streakCount">0</div>
       <div class="streak-text" id="streakLabel">day streak — keep it up!</div>
@@ -153,14 +146,12 @@
 
   <div class="secondary-grid">
     <button class="home-btn" onclick="showProgressScreen()">
-      <span class="home-btn-icon">📈</span>
       <div>
         <div class="home-btn-label">Track My Progress</div>
         <div class="home-btn-sub">Sessions, ROM & pain history</div>
       </div>
     </button>
     <button class="home-btn" onclick="alert('Messaging coming soon')">
-      <span class="home-btn-icon">💬</span>
       <div>
         <div class="home-btn-label">Contact My Therapist</div>
         <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
@@ -171,7 +162,6 @@
   <!-- Calibration button -->
 
   <button class="home-btn-wide" onclick="alert('Exercise guides coming soon')">
-    <span class="home-btn-icon" style="font-size:1.3rem;">📋</span>
     <div class="home-btn-wide-text">
       <div class="home-btn-label">My Exercises</div>
       <div class="home-btn-sub">View your assigned protocol</div>
@@ -180,7 +170,6 @@
   </button>
 
   <button class="home-btn-wide" onclick="requestLogout()">
-    <span class="home-btn-icon" style="font-size:1.3rem;">🔄</span>
     <div class="home-btn-wide-text">
       <div class="home-btn-label">Switch User</div>
       <div class="home-btn-sub">Sign out of PhalanX</div>
@@ -343,37 +332,33 @@
         </div>
 
         <div class="calib-joint-grid">
-          <!-- Header row -->
-          <div class="grid-corner"></div>
-          <div class="grid-finger-label">THB</div>
-          <div class="grid-finger-label">IDX</div>
-          <div class="grid-finger-label">MID</div>
-          <div class="grid-finger-label">RNG</div>
-          <div class="grid-finger-label">PNK</div>
+          <!-- Finger toggle buttons -->
+          <div class="calib-finger-toggle" data-finger="thumb">THB</div>
+          <div class="calib-finger-toggle" data-finger="index">IDX</div>
+          <div class="calib-finger-toggle" data-finger="middle">MID</div>
+          <div class="calib-finger-toggle" data-finger="ring">RNG</div>
+          <div class="calib-finger-toggle" data-finger="pinky">PNK</div>
 
           <!-- MCP row -->
-          <div class="grid-joint-label">MCP</div>
-          <div class="calib-grid-cell" data-finger="thumb"  data-joint="mcp"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="index"  data-joint="mcp"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="middle" data-joint="mcp"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="ring"   data-joint="mcp"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="pinky"  data-joint="mcp"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="thumb"  data-joint="mcp"><div class="calib-cell-inner active">MP</div></div>
+          <div class="calib-grid-cell" data-finger="index"  data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
+          <div class="calib-grid-cell" data-finger="middle" data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
+          <div class="calib-grid-cell" data-finger="ring"   data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
+          <div class="calib-grid-cell" data-finger="pinky"  data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
 
           <!-- PIP row -->
-          <div class="grid-joint-label">PIP</div>
-          <div class="calib-grid-cell" data-finger="thumb"  data-joint="pip"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="index"  data-joint="pip"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="middle" data-joint="pip"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="ring"   data-joint="pip"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="pinky"  data-joint="pip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="thumb"  data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
+          <div class="calib-grid-cell" data-finger="index"  data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
+          <div class="calib-grid-cell" data-finger="middle" data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
+          <div class="calib-grid-cell" data-finger="ring"   data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
+          <div class="calib-grid-cell" data-finger="pinky"  data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
 
           <!-- DIP row -->
-          <div class="grid-joint-label">DIP</div>
-          <div class="calib-grid-cell" data-finger="thumb"  data-joint="dip"><div class="calib-cell-inner"></div></div>
-          <div class="calib-grid-cell" data-finger="index"  data-joint="dip"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="middle" data-joint="dip"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="ring"   data-joint="dip"><div class="calib-cell-inner active"></div></div>
-          <div class="calib-grid-cell" data-finger="pinky"  data-joint="dip"><div class="calib-cell-inner active"></div></div>
+          <div class="calib-grid-cell" data-finger="thumb"  data-joint="dip"><div class="calib-cell-inner">IP</div></div>
+          <div class="calib-grid-cell" data-finger="index"  data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
+          <div class="calib-grid-cell" data-finger="middle" data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
+          <div class="calib-grid-cell" data-finger="ring"   data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
+          <div class="calib-grid-cell" data-finger="pinky"  data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
         </div>
       </div>
 
