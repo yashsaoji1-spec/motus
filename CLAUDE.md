@@ -5,12 +5,12 @@ Authors: Yash Saoji & Oliver Huelsbeck (2025)
 
 ## How to Run
 
-Open `index1.html` directly in a browser. There is **no build step** — no npm install, no bundler, no dev server.
+Open `index.html` directly in a browser. There is **no build step** — no npm install, no bundler, no dev server.
 
 > **MediaPipe camera access requires a secure context.** The app works on `localhost` or `https://`. Opening via `file://` may block camera access in Chrome. Use a simple local server if needed:
 > ```
 > python3 -m http.server 8080
-> # then open http://localhost:8080/index1.html
+> # then open http://localhost:8080/index.html
 > ```
 
 ## Demo Credentials
@@ -20,14 +20,14 @@ Open `index1.html` directly in a browser. There is **no build step** — no npm 
 | Therapist | sarah.chen@mayoclinic.org    | demo123   |
 | Patient   | james.park@gmail.com         | demo123   |
 
-Both accounts are hardcoded in `script1.js` (Section 1) and seeded into localStorage on first load.
+Both accounts are hardcoded in `app.js` (Section 1) and seeded into localStorage on first load.
 
 ## File Structure
 
 ```
-index1.html   — all HTML screens (448 lines)
-script1.js    — all JS logic (~76 KB, 14 sections)
-style1.css    — all styles (870 lines)
+index.html    — all HTML screens (448 lines)
+app.js        — all JS logic (~76 KB, 14 sections)
+styles.css    — all styles (870 lines)
 non_func/     — LICENSE.txt (copyright + third-party licenses)
 node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser app)
 ```
@@ -40,7 +40,7 @@ node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser 
 
 ## Screen System
 
-Single-page app. All screens are `<div class="screen">` in `index1.html`. Navigation is done by toggling the `.active` class via `showScreen(id)` in `script1.js` (Section 2).
+Single-page app. All screens are `<div class="screen">` in `index.html`. Navigation is done by toggling the `.active` class via `showScreen(id)` in `app.js` (Section 2).
 
 | Screen ID           | Purpose                                      |
 |---------------------|----------------------------------------------|
@@ -74,7 +74,7 @@ All app state is stored in `localStorage` — there is no backend.
 
 Streak data is derived from session history at runtime (no dedicated key).
 
-## script1.js Section Map
+## app.js Section Map
 
 The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to find logic:
 
@@ -95,7 +95,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 13 | Joint Selector — therapist panel joint angle UI |
 | 14 | Calibration Screen — MediaPipe Hands init + angle math (`calibVideo`/`calibCanvas`) |
 
-## CSS Variables (style1.css `:root`)
+## CSS Variables (styles.css `:root`)
 
 ```css
 --bg           #0a0c0f       /* page background */
@@ -116,4 +116,4 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 - **No test framework** — manual browser testing only
 - **CDN-only dependencies** — do not introduce npm packages for browser use
 - **All state in localStorage** — no backend, no fetch calls to an API
-- **Single file per layer** — keep all HTML in `index1.html`, all JS in `script1.js`, all CSS in `style1.css`
+- **Single file per layer** — keep all HTML in `index.html`, all JS in `app.js`, all CSS in `styles.css`
