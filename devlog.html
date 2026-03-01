@@ -107,8 +107,9 @@
     transition: all 0.2s;
   }
 
-  .dev-btn.active-you  { background: var(--blue);  color: white; }
-  .dev-btn.active-them { background: var(--cyan);  color: white; }
+  .dev-btn.active-you    { background: var(--blue);    color: white; }
+  .dev-btn.active-them   { background: var(--cyan);    color: white; }
+  .dev-btn.active-claude { background: #8b5cf6;         color: white; }
 
   /* ── MAIN LAYOUT ── */
   .main {
@@ -278,8 +279,9 @@
 
   .entry-card:hover { border-color: #2a3d5a; }
 
-  .entry-card.dev-you  { border-left: 3px solid var(--blue); }
-  .entry-card.dev-them { border-left: 3px solid var(--cyan); }
+  .entry-card.dev-you    { border-left: 3px solid var(--blue); }
+  .entry-card.dev-them   { border-left: 3px solid var(--cyan); }
+  .entry-card.dev-claude { border-left: 3px solid #8b5cf6; }
 
   .entry-header {
     display: flex;
@@ -302,8 +304,9 @@
     border-radius: 99px;
   }
 
-  .entry-dev.you  { background: rgba(59,130,246,0.15); color: var(--blue); }
-  .entry-dev.them { background: rgba(6,182,212,0.15);  color: var(--cyan); }
+  .entry-dev.you    { background: rgba(59,130,246,0.15);  color: var(--blue); }
+  .entry-dev.them   { background: rgba(6,182,212,0.15);   color: var(--cyan); }
+  .entry-dev.claude { background: rgba(139,92,246,0.15);  color: #8b5cf6; }
 
   .entry-date {
     font-family: 'Space Mono', monospace;
@@ -613,8 +616,9 @@
     </div>
     <div class="header-right">
       <div class="dev-selector">
-        <button class="dev-btn active-you" id="btnYou" onclick="setActiveDev('you')">You</button>
-        <button class="dev-btn" id="btnThem" onclick="setActiveDev('them')">Partner</button>
+        <button class="dev-btn active-you" id="btnYou"    onclick="setActiveDev('you')">You</button>
+        <button class="dev-btn"            id="btnThem"   onclick="setActiveDev('them')">Partner</button>
+        <button class="dev-btn"            id="btnClaude" onclick="setActiveDev('claude')">Claude</button>
       </div>
     </div>
   </header>
@@ -636,6 +640,7 @@
             <select id="entryDev">
               <option value="you">You</option>
               <option value="them">Partner</option>
+              <option value="claude">Claude</option>
             </select>
           </div>
         </div>
@@ -678,6 +683,7 @@
         <button class="filter-btn active" data-filter="all"     onclick="setFilter(this)">All</button>
         <button class="filter-btn"        data-filter="you"     onclick="setFilter(this)">You</button>
         <button class="filter-btn"        data-filter="them"    onclick="setFilter(this)">Partner</button>
+        <button class="filter-btn"        data-filter="claude"  onclick="setFilter(this)">Claude</button>
         <button class="filter-btn"        data-filter="UI"      onclick="setFilter(this)">UI</button>
         <button class="filter-btn"        data-filter="Backend" onclick="setFilter(this)">Backend</button>
         <button class="filter-btn"        data-filter="CV"      onclick="setFilter(this)">CV</button>
@@ -745,13 +751,71 @@
 
   const STORAGE_KEY = 'phalanx_devlog';
 
+  // Entries authored by Claude — stored in HTML so they survive across machines.
+  // IDs are small integers to never collide with Date.now()-based localStorage IDs.
+  const SEEDED_ENTRIES = [
+    {
+      id: 1, date: '2026-03-01', dev: 'claude',
+      title: 'Implemented per-exercise tracking parameters system',
+      body: 'Full feature across app.js Sections 7–10:\n• EXERCISE_DEFAULTS — 14 exercise types, each with a conditions array [{finger, joint, flexAt, extendAt}] and requireAll flag\n• FINGER_LANDMARK_MAP — maps (finger, joint) → MediaPipe landmark triplet\n• normalizeExerciseParams() — backward-compat shim for old flat {fingers[], joint} format\n• checkExerciseState(landmarks) — evaluates all conditions, returns {isFlexed, isExtended, repAngle}\n• updateExerciseParamsUI() — dynamically renders condition rows in the therapist form\n• Therapist can add/remove conditions, set finger+joint+flexAt+extendAt per condition, toggle requireAll\n• Patient rep counter reads currentExerciseParams from the stored protocol and enforces them',
+      blockers: '',
+      tags: ['UI', 'Backend', 'CV']
+    },
+    {
+      id: 2, date: '2026-03-01', dev: 'claude',
+      title: 'Fixed joint angle convention to match calibration tool (0°=straight)',
+      body: 'getJointAngle() and getMiddleFingerAngle() were using plain arccos() → 180°=straight. Calibration tool uses 180−arccos() → 0°=straight, higher=more bent. Fixed both functions to match. Updated all EXERCISE_DEFAULTS thresholds (e.g. flexAt:90, extendAt:30) and rep-count logic accordingly (isFlexed = angle >= flexAt, isExtended = angle <= extendAt).',
+      blockers: '',
+      tags: ['CV', 'Bug']
+    },
+    {
+      id: 3, date: '2026-03-01', dev: 'claude',
+      title: 'Wired up My Exercises screen with completion status',
+      body: 'Added exercisesScreen div in index.html and showExercisesScreen() in app.js. Screen shows the assigned protocol in a blue-gradient hero card with exercise name, frequency/set/rep details, per-condition tracking breakdown, and a completion status badge (Done / In Progress / Not Started). Fixed broken layout (content was inheriting therapist two-column CSS — switched to centered max-width wrapper matching progressScreen). Removed "How a Rep is Counted" section — unnecessary clutter for patients.',
+      blockers: '',
+      tags: ['UI']
+    },
+    {
+      id: 4, date: '2026-03-01', dev: 'claude',
+      title: 'Added protocol completion indicator on patient home',
+      body: 'Added getTodayCompletion(email) — counts sessions logged today vs protocol.sets. Protocol strip now shows a status pill: "Done" (green), "X/Y sets done" (amber), or "Not started" (muted gray). Uses new protocolStripStatus element; old protocol-strip-sets/label elements removed.',
+      blockers: '',
+      tags: ['UI', 'Backend']
+    },
+    {
+      id: 5, date: '2026-03-01', dev: 'claude',
+      title: 'Added delete protocol button on therapist panel',
+      body: 'Added deleteProtocol(patientEmail) — shows a confirm() dialog then removes phalanx_protocol_<email> from localStorage and re-renders the patient panel. Styled as a small red ghost button (protocol-delete-btn) in the "Assigned Protocol" section header.',
+      blockers: '',
+      tags: ['UI', 'Backend']
+    },
+    {
+      id: 6, date: '2026-03-01', dev: 'claude',
+      title: 'Pushed all features to feature/functionality and updated CLAUDE.md',
+      body: 'Committed app.js, index.html, styles.css, CLAUDE.md to origin/feature/functionality. Updated CLAUDE.md with accurate line counts, new exercisesScreen entry in the screen table and patient flow, exerciseParams sub-schema, and revised section map for Sections 6–9.',
+      blockers: '',
+      tags: ['GitHub']
+    },
+    {
+      id: 7, date: '2026-03-01', dev: 'claude',
+      title: 'Added SEEDED_ENTRIES support to devlog.html',
+      body: 'Claude-authored entries now persist in the HTML file (git-tracked) rather than only in localStorage — so they survive across machines and browsers. SEEDED_ENTRIES array merged with localStorage entries at render time (seeded entries sorted first). Seeded entries show a purple "Claude" badge, cannot be deleted. Added "Claude" as a dev type (purple, #8b5cf6) to the header selector, form select, and filter bar. Stats panel counts Claude entries separately.',
+      blockers: '',
+      tags: ['UI', 'Backend']
+    },
+  ];
+
   function getEntries() {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const local = raw ? JSON.parse(raw) : [];
+    // Merge: seeded entries first (lower IDs), then local entries by id desc
+    return [...SEEDED_ENTRIES, ...local].sort((a, b) => b.id - a.id);
   }
 
   function saveEntries(entries) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    // Only persist non-seeded entries to localStorage
+    const seededIds = new Set(SEEDED_ENTRIES.map(e => e.id));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.filter(e => !seededIds.has(e.id))));
   }
 
   // ── INIT ───────────────────────────────────────────────────────────
@@ -774,8 +838,9 @@
 
   function setActiveDev(dev) {
     activeDev = dev;
-    document.getElementById('btnYou').className  = 'dev-btn' + (dev === 'you'  ? ' active-you'  : '');
-    document.getElementById('btnThem').className = 'dev-btn' + (dev === 'them' ? ' active-them' : '');
+    document.getElementById('btnYou').className    = 'dev-btn' + (dev === 'you'    ? ' active-you'    : '');
+    document.getElementById('btnThem').className   = 'dev-btn' + (dev === 'them'   ? ' active-them'   : '');
+    document.getElementById('btnClaude').className = 'dev-btn' + (dev === 'claude' ? ' active-claude' : '');
     document.getElementById('entryDev').value = dev;
   }
 
@@ -848,6 +913,7 @@
   // ── DELETE ────────────────────────────────────────────────────────
 
   function deleteEntry(id) {
+    if (SEEDED_ENTRIES.some(e => e.id === id)) return; // seeded entries are read-only
     const entries = getEntries().filter(e => e.id !== id);
     saveEntries(entries);
     renderAll();
@@ -861,7 +927,7 @@
 
     // Filter
     if (activeFilter !== 'all') {
-      if (activeFilter === 'you' || activeFilter === 'them') {
+      if (activeFilter === 'you' || activeFilter === 'them' || activeFilter === 'claude') {
         entries = entries.filter(e => e.dev === activeFilter);
       } else {
         entries = entries.filter(e => e.tags && e.tags.includes(activeFilter));
@@ -915,15 +981,21 @@
       `<span class="entry-tag tag-${t}">${t}</span>`
     ).join('');
 
+    const devLabel = entry.dev === 'you' ? 'You' : entry.dev === 'them' ? 'Partner' : 'Claude';
+    const isSeeded = SEEDED_ENTRIES.some(e => e.id === entry.id);
+    const deleteBtn = isSeeded
+      ? '' // seeded entries can't be deleted
+      : `<button class="entry-delete" onclick="deleteEntry(${entry.id})">✕</button>`;
+
     return `
       <div class="entry-card dev-${entry.dev}" style="margin-bottom:10px;">
         <div class="entry-header">
           <div class="entry-meta">
-            <span class="entry-dev ${entry.dev}">${entry.dev === 'you' ? 'You' : 'Partner'}</span>
+            <span class="entry-dev ${entry.dev}">${devLabel}</span>
             ${tagsHTML}
           </div>
           <div class="entry-actions">
-            <button class="entry-delete" onclick="deleteEntry(${entry.id})">✕</button>
+            ${deleteBtn}
           </div>
         </div>
         <div class="entry-title">${entry.title}</div>
@@ -941,8 +1013,9 @@
 
   function renderStats() {
     const entries = getEntries();
-    const youCount  = entries.filter(e => e.dev === 'you').length;
-    const themCount = entries.filter(e => e.dev === 'them').length;
+    const youCount    = entries.filter(e => e.dev === 'you').length;
+    const themCount   = entries.filter(e => e.dev === 'them').length;
+    const claudeCount = entries.filter(e => e.dev === 'claude').length;
     const days = new Set(entries.map(e => e.date)).size;
 
     document.getElementById('statTotal').textContent = entries.length;
@@ -969,6 +1042,15 @@
         </div>
         <div class="dev-bar-track">
           <div class="dev-bar-fill" style="width:${(themCount/total)*100}%;background:var(--cyan)"></div>
+        </div>
+      </div>
+      <div class="dev-bar-item">
+        <div class="dev-bar-label">
+          <span class="dev-bar-name" style="color:#8b5cf6">Claude</span>
+          <span class="dev-bar-count">${claudeCount} entries</span>
+        </div>
+        <div class="dev-bar-track">
+          <div class="dev-bar-fill" style="width:${(claudeCount/total)*100}%;background:#8b5cf6"></div>
         </div>
       </div>
     `;
