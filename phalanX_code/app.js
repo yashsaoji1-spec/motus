@@ -10,6 +10,8 @@
 let currentRole = null;
 let currentUser = null;
 let selectedRole = 'patient';
+let selectedProtocol = null;
+let _exercisesProtocols = [];
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -108,6 +110,12 @@ function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(screenId).classList.add('active');
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
+
+  // Stop session camera when leaving camera screen
+  if (screenId !== 'cameraScreen' && mpCamera) {
+    mpCamera.stop();
+    mpCamera = null;
+  }
 
   // Stop calibration camera when leaving calibration screen
   if (screenId !== 'calibrationScreen' && calibMpCamera) {
@@ -300,12 +308,17 @@ async function rejectTherapist(email) {
    ══════════════════════════════════════════════════════════════════════════ */
 
 async function getTodayCompletion(email) {
-  const protocol = await getExistingProtocol(email);
-  if (!protocol) return null;
+  const protocols = await getProtocols(email);
+  if (protocols.length === 0) return null;
   const today    = new Date().toDateString();
   const sessions = await getPatientSessions(email);
-  const done     = sessions.filter(s => new Date(s.date).toDateString() === today).length;
-  const required = protocol.sets || 3;
+  const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
+  // Only count sessions whose protocolId matches a current protocol's id.
+  // Sessions without protocolId (saved before this field existed) are excluded — we cannot
+  // tell which protocol they belong to, preventing stale sessions from showing "Done".
+  const currentIds = new Set(protocols.map(p => p.id).filter(Boolean));
+  const done = todaySessions.filter(s => s.protocolId && currentIds.has(s.protocolId)).length;
+  const required = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
   return { done, required };
 }
 
@@ -316,21 +329,29 @@ async function updatePatientHomeScreen() {
   document.getElementById('patientGreeting').textContent    = greeting;
   document.getElementById('patientDisplayName').textContent = currentUser.name;
 
-  const [protocol, sessions, therapistEmail] = await Promise.all([
-    getExistingProtocol(currentUser.email),
+  const [protocols, sessions, therapistEmail] = await Promise.all([
+    getProtocols(currentUser.email),
     getPatientSessions(currentUser.email),
     getConnectedTherapist()
   ]);
 
   const strip = document.getElementById('patientProtocolStrip');
-  if (protocol && strip) {
+  if (protocols.length > 0 && strip) {
     strip.style.display = 'flex';
-    document.getElementById('protocolStripExercise').textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
-    document.getElementById('protocolStripMeta').textContent     = 'Assigned by ' + protocol.assignedBy;
+    document.getElementById('protocolStripExercise').textContent =
+      protocols.length === 1
+        ? (exerciseLabels[protocols[0].exerciseType] || protocols[0].exerciseType)
+        : `${protocols.length} exercises assigned`;
+    document.getElementById('protocolStripMeta').textContent =
+      protocols.length === 1
+        ? 'Assigned by ' + protocols[0].assignedBy
+        : 'Tap "My Exercises" to choose';
 
-    const today    = new Date().toDateString();
-    const done     = sessions.filter(s => new Date(s.date).toDateString() === today).length;
-    const required = protocol.sets || 3;
+    const today         = new Date().toDateString();
+    const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
+    const currentIds    = new Set(protocols.map(p => p.id).filter(Boolean));
+    const done          = todaySessions.filter(s => s.protocolId && currentIds.has(s.protocolId)).length;
+    const required      = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
     const statusEl = document.getElementById('protocolStripStatus');
     if (statusEl) {
       if (done >= required) {
@@ -404,7 +425,24 @@ function calcStreak(sessions) {
   return { current, best };
 }
 
+function startSessionWithProtocol(protocol) {
+  selectedProtocol = protocol;
+  showScreen('cameraScreen');
+  document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
+  loadPatientProtocol();
+  initSetTracker();
+  if (!mpCamera) startCamera();
+}
+
 async function startScanSession() {
+  const protocols = await getProtocols(currentUser.email);
+  if (protocols.length !== 1) {
+    // 0 protocols: exercises screen shows "no protocol" message
+    // 2+ protocols: exercises screen lets patient pick
+    showExercisesScreen();
+    return;
+  }
+  selectedProtocol = protocols[0];
   showScreen('cameraScreen');
   document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
   await loadPatientProtocol();
@@ -469,14 +507,28 @@ const FINGER_LANDMARK_MAP = {
   pinky:  { mcp:[0,17,18], pip:[17,18,20], dip:[18,19,20]  },
 };
 
-async function getExistingProtocol(patientEmail) {
+async function getProtocols(patientEmail) {
   const doc = await db.collection('protocols').doc(patientEmail).get();
-  return doc.exists ? doc.data() : null;
+  if (!doc.exists) return [];
+  const data = doc.data();
+  if (data.items) return data.items;
+  return [{ id: 'legacy', ...data }]; // old flat format
 }
 
-async function deleteProtocol(patientEmail) {
-  if (!confirm(`Remove the assigned protocol for this patient? This cannot be undone.`)) return;
-  await db.collection('protocols').doc(patientEmail).delete();
+async function getExistingProtocol(patientEmail) {
+  const protocols = await getProtocols(patientEmail);
+  return protocols.length > 0 ? protocols[0] : null;
+}
+
+async function deleteProtocol(patientEmail, protocolId) {
+  if (!confirm(`Remove this exercise from the patient's protocol?`)) return;
+  const existing = await getProtocols(patientEmail);
+  const updated = existing.filter(p => p.id !== protocolId);
+  if (updated.length === 0) {
+    await db.collection('protocols').doc(patientEmail).delete();
+  } else {
+    await db.collection('protocols').doc(patientEmail).set({ items: updated });
+  }
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
@@ -503,21 +555,25 @@ async function assignProtocol(patientEmail) {
     exerciseParams = { ...defaults };
   }
 
-  const protocol = {
+  const reps = parseInt(document.getElementById('protocolReps').value);
+  const sets = parseInt(document.getElementById('protocolSets').value);
+  if (isNaN(reps) || reps < 1) { alert('Please enter a valid rep count.'); return; }
+  if (isNaN(sets) || sets < 1) { alert('Please enter a valid set count.'); return; }
+  const newItem = {
+    id:           Date.now().toString(),
     exerciseType,
-    reps:         parseInt(document.getElementById('protocolReps').value),
-    sets:         parseInt(document.getElementById('protocolSets').value),
+    reps,
+    sets,
     frequency:    document.getElementById('protocolFrequency').value,
     notes:        document.getElementById('protocolNotes').value.trim(),
     assignedBy:   currentUser.name,
     assignedAt:   new Date().toISOString()
   };
-  if (exerciseParams) protocol.exerciseParams = exerciseParams;
-  if (isNaN(protocol.reps) || protocol.reps < 1) { alert('Please enter a valid rep count.'); return; }
-  if (isNaN(protocol.sets) || protocol.sets < 1) { alert('Please enter a valid set count.'); return; }
-  await db.collection('protocols').doc(patientEmail).set(protocol);
-  const successEl = document.getElementById('protocolSuccess');
-  if (successEl) { successEl.style.display = 'block'; setTimeout(() => { successEl.style.display = 'none'; }, 3000); }
+  if (exerciseParams) newItem.exerciseParams = exerciseParams;
+  const existing = await getProtocols(patientEmail);
+  await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+  const snap = await db.collection('users').doc(patientEmail).get();
+  if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
 
 function formatProtocol(p) {
@@ -534,7 +590,7 @@ function formatProtocol(p) {
 
 async function loadPatientProtocol() {
   if (!currentUser) return;
-  const protocol  = await getExistingProtocol(currentUser.email);
+  const protocol  = selectedProtocol || await getExistingProtocol(currentUser.email);
   const container = document.getElementById('assignedProtocol');
   const inner     = document.getElementById('assignedProtocolInner');
   if (!container || !inner) return;
@@ -557,66 +613,59 @@ async function loadPatientProtocol() {
 }
 
 async function showExercisesScreen() {
-  const protocol = currentUser ? await getExistingProtocol(currentUser.email) : null;
+  const [protocols, allSessions] = currentUser
+    ? await Promise.all([getProtocols(currentUser.email), getPatientSessions(currentUser.email)])
+    : [[], []];
   const inner = document.getElementById('exercisesScreenInner');
   if (!inner) return;
 
-  if (!protocol) {
+  if (protocols.length === 0) {
     inner.innerHTML = `
       <div class="exs-empty">
         <div class="exs-empty-icon">💪</div>
         <p class="exs-empty-title">No protocol yet</p>
-        <p class="exs-empty-sub">Your therapist has not assigned any exercizes for you.</p>
+        <p class="exs-empty-sub">Your therapist has not assigned any exercises for you.</p>
       </div>`;
     showScreen('exercisesScreen');
     return;
   }
 
-  const comp = await getTodayCompletion(currentUser.email);
-  let completionHTML = '';
-  if (comp) {
-    const isComplete = comp.done >= comp.required;
-    const isPartial  = comp.done > 0 && !isComplete;
-    const statusText  = isComplete ? 'Completed today' : isPartial ? `${comp.done} of ${comp.required} sets done today` : 'Not completed today';
-    const statusClass = isComplete ? 'exs-status-done' : isPartial ? 'exs-status-partial' : 'exs-status-pending';
-    completionHTML = `
-      <div class="exs-section-card exs-status-card ${statusClass}">
-        <div class="exs-status-text">${statusText}</div>
-        ${isPartial ? `<div class="exs-status-sub">Keep going — ${comp.required - comp.done} set${comp.required - comp.done > 1 ? 's' : ''} remaining</div>` : ''}
-        ${!isPartial && !isComplete ? `<div class="exs-status-sub">${comp.required} set${comp.required > 1 ? 's' : ''} assigned for today</div>` : ''}
-      </div>`;
-  }
+  // Count today's completed sets per protocolId
+  const today = new Date().toDateString();
+  const doneById = {};
+  allSessions
+    .filter(s => s.protocolId && new Date(s.date).toDateString() === today)
+    .forEach(s => { doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1; });
 
-  const notesHTML = protocol.notes ? `
-    <div class="exs-section-card">
-      <div class="exs-section-title">Notes from your therapist</div>
-      <p class="exs-notes-text">"${protocol.notes}"</p>
-    </div>` : '';
+  _exercisesProtocols = protocols;
 
-  inner.innerHTML = `
-    <div class="exs-hero-card">
+  inner.innerHTML = protocols.map((p, i) => {
+    const doneSets = doneById[p.id] || 0;
+    const totalSetsNeeded = p.sets || 3;
+    const isDone = doneSets >= totalSetsNeeded;
+    const progressText = isDone
+      ? `<span class="exs-done-badge">Done today ✓</span>`
+      : doneSets > 0
+        ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
+        : '';
+    return `
+    <div class="exs-hero-card" style="margin-bottom:1rem">
       <div class="exs-hero-label">Assigned Exercise</div>
-      <div class="exs-hero-name">${exerciseLabels[protocol.exerciseType] || protocol.exerciseType}</div>
+      <div class="exs-hero-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
       <div class="exs-stats-row">
-        <div class="exs-stat">
-          <div class="exs-stat-value">${protocol.reps}</div>
-          <div class="exs-stat-label">Reps per Set</div>
-        </div>
+        <div class="exs-stat"><div class="exs-stat-value">${p.reps}</div><div class="exs-stat-label">Reps per Set</div></div>
         <div class="exs-stat-divider"></div>
-        <div class="exs-stat">
-          <div class="exs-stat-value">${protocol.sets}</div>
-          <div class="exs-stat-label">Sets</div>
-        </div>
+        <div class="exs-stat"><div class="exs-stat-value">${p.sets}</div><div class="exs-stat-label">Sets</div></div>
         <div class="exs-stat-divider"></div>
-        <div class="exs-stat">
-          <div class="exs-stat-value exs-stat-freq">${frequencyLabels[protocol.frequency] || protocol.frequency}</div>
-          <div class="exs-stat-label">Frequency</div>
-        </div>
+        <div class="exs-stat"><div class="exs-stat-value exs-stat-freq">${frequencyLabels[p.frequency] || p.frequency}</div><div class="exs-stat-label">Frequency</div></div>
       </div>
-      <div class="exs-assigned-by">Prescribed by ${protocol.assignedBy}</div>
-    </div>
-    ${completionHTML}
-    ${notesHTML}`;
+      <div class="exs-assigned-by">Prescribed by ${p.assignedBy}</div>
+      ${p.notes ? `<p class="exs-notes-text" style="margin-top:0.75rem">"${p.notes}"</p>` : ''}
+      ${progressText}
+      <button class="auth-btn" style="width:100%;margin-top:1rem"
+        onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
+    </div>`;
+  }).join('');
 
   showScreen('exercisesScreen');
 }
@@ -704,10 +753,29 @@ function calcCompliance(sessions) {
   return Math.round((recentDays.size / 7) * 100);
 }
 
+function makeCollapsible(id, title, bodyHTML, open) {
+  return `
+    <div class="tp-colsec${open ? '' : ' collapsed'}" id="tps-${id}">
+      <div class="tp-colsec-hdr" onclick="toggleTpSection('tps-${id}')">
+        <span class="tp-colsec-title">${title}</span>
+        <span class="tp-colsec-arrow">▾</span>
+      </div>
+      <div class="tp-colsec-body">${bodyHTML}</div>
+    </div>`;
+}
+
+function toggleTpSection(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('collapsed');
+  // Let Chart.js redraw if a chart section was just revealed
+  window.dispatchEvent(new Event('resize'));
+}
+
 async function showRealPatient(patient) {
-  const [sessions, existingProtocol] = await Promise.all([
+  const [sessions, protocols] = await Promise.all([
     getPatientSessions(patient.email),
-    getExistingProtocol(patient.email)
+    getProtocols(patient.email)
   ]);
   const panel = document.getElementById('mainPanel');
 
@@ -718,10 +786,10 @@ async function showRealPatient(patient) {
       <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
-      ${buildJointSelector(patient.email)}
-      ${buildSessionHistory(sessions)}
-      ${buildProtocolForm(patient.email, existingProtocol)}
-      ${buildMessagePanel(patient.email)}`;
+      ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
+      ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
+      ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
     document.getElementById('therapistMsgSend').onclick = async () => {
       const input = document.getElementById('therapistMsgInput');
@@ -731,7 +799,7 @@ async function showRealPatient(patient) {
     };
     await renderThread('therapistMsgThread', currentUser.email, patient.email);
     ejsInit();
-    updateExerciseParamsUI(existingProtocol?.exerciseType || 'full_fist', existingProtocol?.exerciseParams || null);
+    updateExerciseParamsUI('full_fist', null);
     return;
   }
 
@@ -759,12 +827,12 @@ async function showRealPatient(patient) {
     <div class="stats-row" style="margin-top:-8px;">
       <div class="stat-card" style="grid-column:span 3;"><div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
     </div>
-    <div class="chart-card"><h4>Range of Motion Over Time (degrees)</h4><canvas id="romChart" height="100"></canvas></div>
-    <div class="chart-card"><h4>Pain Rating Over Time (1–10)</h4><canvas id="painChart" height="100"></canvas></div>
-    ${buildJointSelector(patient.email)}
-    ${buildSessionHistory(sessions)}
-    ${buildProtocolForm(patient.email, existingProtocol)}
-    ${buildMessagePanel(patient.email)}`;
+    ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="100"></canvas>', true)}
+    ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="100"></canvas>', true)}
+    ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
+    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
+    ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
+    ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
   new Chart(document.getElementById('romChart').getContext('2d'), {
     type: 'line',
@@ -786,7 +854,7 @@ async function showRealPatient(patient) {
   };
   await renderThread('therapistMsgThread', currentUser.email, patient.email);
   ejsInit();
-  updateExerciseParamsUI(existingProtocol?.exerciseType || 'full_fist', existingProtocol?.exerciseParams || null);
+  updateExerciseParamsUI('full_fist', null);
 }
 
 function buildSessionHistory(sessions) {
@@ -828,10 +896,24 @@ function buildSessionHistory(sessions) {
     </div>`;
 }
 
-function buildProtocolForm(patientEmail, existing) {
+function buildProtocolForm(patientEmail, protocols) {
+  const existingHTML = protocols.length > 0 ? `
+    <div class="protocol-existing">
+      <p class="protocol-existing-label">Assigned Protocols (${protocols.length})</p>
+      ${protocols.map(p => `
+        <div class="protocol-existing-item">
+          <div class="protocol-existing-header">
+            <span style="font-weight:600;color:var(--text)">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+            <button class="protocol-delete-btn" onclick="deleteProtocol('${patientEmail}', '${p.id}')">Remove</button>
+          </div>
+          ${formatProtocol(p)}
+        </div>
+      `).join('')}
+    </div>` : '';
+
   return `
     <div class="protocol-card">
-      <h4>Assign Exercise Protocol</h4>
+      <h4>Add Exercise to Protocol</h4>
       <div class="protocol-form">
         <div class="protocol-field">
           <label>Exercise Type</label>
@@ -862,36 +944,30 @@ function buildProtocolForm(patientEmail, existing) {
         <div class="protocol-row">
           <div class="protocol-field">
             <label>Reps per Set</label>
-            <input type="number" id="protocolReps" value="${existing?.reps || 10}" min="1" max="50" />
+            <input type="number" id="protocolReps" value="10" min="1" max="50" />
           </div>
           <div class="protocol-field">
             <label>Sets per Session</label>
-            <input type="number" id="protocolSets" value="${existing?.sets || 3}" min="1" max="10" />
+            <input type="number" id="protocolSets" value="3" min="1" max="10" />
           </div>
           <div class="protocol-field">
             <label>Frequency</label>
             <select id="protocolFrequency">
-              <option value="daily" ${existing?.frequency==='daily'?'selected':''}>Daily</option>
-              <option value="twice_daily" ${existing?.frequency==='twice_daily'?'selected':''}>Twice Daily</option>
-              <option value="every_other" ${existing?.frequency==='every_other'?'selected':''}>Every Other Day</option>
-              <option value="three_week" ${existing?.frequency==='three_week'?'selected':''}>3x Per Week</option>
+              <option value="daily">Daily</option>
+              <option value="twice_daily">Twice Daily</option>
+              <option value="every_other">Every Other Day</option>
+              <option value="three_week">3x Per Week</option>
             </select>
           </div>
         </div>
         <div class="protocol-field">
           <label>Notes for Patient</label>
-          <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="3">${existing?.notes || ''}</textarea>
+          <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="3"></textarea>
         </div>
-        <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Assign Protocol</button>
+        <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Add to Protocol</button>
         <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">✓ Protocol assigned successfully</div>
       </div>
-      ${existing ? `<div class="protocol-existing">
-        <div class="protocol-existing-header">
-          <p class="protocol-existing-label">Current Protocol</p>
-          <button class="protocol-delete-btn" onclick="deleteProtocol('${patientEmail}')">Remove</button>
-        </div>
-        ${formatProtocol(existing)}
-      </div>` : ''}
+      ${existingHTML}
     </div>`;
 }
 
@@ -1056,6 +1132,7 @@ function getTipDistance(landmarks, tipA, tipB) {
 // Convert old flat exerciseParams format (fingers[]+joint) to conditions array format
 function normalizeExerciseParams(ep) {
   if (!ep || ep.metric !== 'angle' || ep.conditions) return ep;
+  if (!ep.fingers || !ep.fingers.length) return null; // malformed old doc — treat as no params
   return {
     metric:     'angle',
     conditions: ep.fingers.map(finger => ({ finger, joint: ep.joint, flexAt: ep.flexAt, extendAt: ep.extendAt })),
@@ -1063,29 +1140,35 @@ function normalizeExerciseParams(ep) {
   };
 }
 
-// Returns { isFlexed, isExtended, repAngle } based on currentExerciseParams
+// Returns { isFlexed, isExtended, repAngle, conditions } based on currentExerciseParams
 function checkExerciseState(landmarks) {
   const p = currentExerciseParams;
   if (!p) return null;
 
   if (p.metric === 'distance') {
     const dist = getTipDistance(landmarks, p.tipA, p.tipB);
-    return { isFlexed: dist <= p.closeAt, isExtended: dist >= p.openAt, repAngle: Math.round(dist * 100) };
+    return { isFlexed: dist <= p.closeAt, isExtended: dist >= p.openAt, repAngle: Math.round(dist * 100), conditions: null };
   }
 
   if (p.metric === 'abduction') {
     const spread = getTipDistance(landmarks, p.tipA, p.tipB);
-    return { isFlexed: spread >= p.spreadAt, isExtended: spread <= p.closedAt, repAngle: Math.round(spread * 100) };
+    return { isFlexed: spread >= p.spreadAt, isExtended: spread <= p.closedAt, repAngle: Math.round(spread * 100), conditions: null };
   }
 
   // metric === 'angle' — 0° = straight, higher = more bent
   // flexed when angle >= flexAt (bent enough), extended when angle <= extendAt (straight enough)
+  if (!p.conditions || p.conditions.length === 0) return null;
+
   const results = p.conditions.map(cond => {
     const triplet = FINGER_LANDMARK_MAP[cond.finger]?.[cond.joint];
     if (!triplet) return null;
-    const angle = getJointAngle(landmarks, triplet);
+    const angle = Math.round(getJointAngle(landmarks, triplet));
     return {
+      finger:     cond.finger,
+      joint:      cond.joint,
       angle,
+      flexAt:     cond.flexAt,
+      extendAt:   cond.extendAt,
       isFlexed:   angle >= cond.flexAt,
       isExtended: angle <= cond.extendAt,
     };
@@ -1097,7 +1180,48 @@ function checkExerciseState(landmarks) {
   const isExtended = p.requireAll ? results.every(r => r.isExtended) : results.some(r => r.isExtended);
   const repAngle   = Math.round(Math.max(...results.map(r => r.angle)));
 
-  return { isFlexed, isExtended, repAngle };
+  return { isFlexed, isExtended, repAngle, conditions: results };
+}
+
+function updateRepFeedback(state) {
+  const el = document.getElementById('repFeedback');
+  if (!el) return;
+
+  if (!currentExerciseParams || !state) {
+    el.textContent = '';
+    return;
+  }
+
+  const needBend = fingerState !== 'flexed';
+
+  // Distance / abduction metrics — no per-finger conditions
+  if (!state.conditions) {
+    const isAbduction = currentExerciseParams.metric === 'abduction';
+    if (isAbduction) {
+      el.textContent = needBend ? 'Spread your fingers' : 'Bring your fingers together';
+    } else {
+      el.textContent = needBend ? 'Close your hand' : 'Open your hand';
+    }
+    return;
+  }
+
+  // Angle metric — find which fingers still need to move
+  const pending = needBend
+    ? state.conditions.filter(c => !c.isFlexed)
+    : state.conditions.filter(c => !c.isExtended);
+
+  const targets = pending.length > 0 ? pending : state.conditions;
+  const names   = [...new Set(targets.map(c => fingerLabel(c.finger)))];
+  const fingerStr = names.length === 1
+    ? names[0]
+    : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+
+  el.textContent = needBend ? `Bend your ${fingerStr}` : `Straighten your ${fingerStr}`;
+}
+
+function fingerLabel(finger) {
+  const map = { index: 'index finger', middle: 'middle finger', ring: 'ring finger', pinky: 'pinky', thumb: 'thumb' };
+  return map[finger] || finger;
 }
 
 function updateRepCount(landmarks) {
@@ -1106,12 +1230,14 @@ function updateRepCount(landmarks) {
 
   if (currentExerciseParams) {
     const state = checkExerciseState(landmarks);
-    if (!state) return;                         // bad config, skip silently
+    if (!state) { updateRepFeedback(null); return; }
     ({ isFlexed, isExtended, repAngle } = state);
+    updateRepFeedback(state);
   } else {
     // Legacy fallback — middle finger PIP, 0°=straight convention
     const angle = getMiddleFingerAngle(landmarks);
     repAngle = Math.round(angle); isFlexed = angle > 90; isExtended = angle < 30;
+    updateRepFeedback(null);
   }
 
   if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
@@ -1156,7 +1282,9 @@ async function saveSession() {
     pain:           parseInt(document.getElementById('painSliderCongrats').value),
     rom:            lastROM,
     tam:            Math.round(lastROM * 2.8),
-    therapistEmail: await getConnectedTherapist()
+    therapistEmail: await getConnectedTherapist(),
+    exerciseType:   selectedProtocol?.exerciseType || '',
+    protocolId:     selectedProtocol?.id || ''
   });
 }
 
@@ -1178,7 +1306,23 @@ let totalSets    = 3;
 let setsComplete = 0;
 
 async function initSetTracker() {
-  if (currentUser) {
+  // Reset all session state first — unconditionally, before any protocol loading
+  currentSet   = 1;
+  setsComplete = 0;
+  repCount     = 0;
+  fingerState  = 'unknown';
+  lastROM      = 0;
+  maxROMThisSession = 0;
+  sessionPaused = false;
+  lastRepTime = null;
+  setPainValues = [];
+
+  if (selectedProtocol) {
+    totalSets   = selectedProtocol.sets || 3;
+    TARGET_REPS = selectedProtocol.reps || 10;
+    const rawEp = selectedProtocol.exerciseParams || EXERCISE_DEFAULTS[selectedProtocol.exerciseType] || null;
+    currentExerciseParams = normalizeExerciseParams(rawEp);
+  } else if (currentUser) {
     const protocol = await getExistingProtocol(currentUser.email);
     if (protocol) {
       totalSets   = protocol.sets || 3;
@@ -1189,15 +1333,6 @@ async function initSetTracker() {
       currentExerciseParams = null;
     }
   }
-  currentSet   = 1;
-  setsComplete = 0;
-  repCount     = 0;
-  fingerState  = 'unknown';
-  lastROM      = 0;
-  maxROMThisSession = 0;
-  sessionPaused = false;
-  lastRepTime = null;
-  setPainValues = [];
   renderSetDots();
   renderRepDots();
   updateRepUI();
@@ -1331,7 +1466,9 @@ async function completeSessionEarly() {
       pain:           painVal,
       rom:            lastROM,
       tam:            Math.round(lastROM * 2.8),
-      therapistEmail: await getConnectedTherapist()
+      therapistEmail: await getConnectedTherapist(),
+      exerciseType:   selectedProtocol?.exerciseType || '',
+      protocolId:     selectedProtocol?.id || ''
     });
   }
 
@@ -1356,8 +1493,8 @@ function startCamera() {
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
-        drawConnectors(sessionCtx, landmarks, HAND_CONNECTIONS, { color: 'rgba(0, 229, 192, 0)', lineWidth: 2 });
-        drawLandmarks(sessionCtx, landmarks, { color: 'rgba(0, 0, 0, 0)', lineWidth: 1, radius: 4 });
+        drawConnectors(sessionCtx, landmarks, HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
+        drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
         updateRepCount(landmarks);
       }
     }

@@ -323,6 +323,8 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
 .protocol-btn:hover { background: #004A9A; }
 .protocol-existing { margin-top: 20px; padding-top: 16px; border-top: 1px solid #8A9AB0; }
 .protocol-existing-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.protocol-existing-item { border-top: 1px solid var(--border); padding-top: 0.75rem; margin-top: 0.75rem; }
+.protocol-existing-item:first-child { border-top: none; padding-top: 0; margin-top: 0; }
 .protocol-existing-label { font-size: 0.75rem; font-weight: 700; color: #6B7A99; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; }
 .protocol-delete-btn { font-size: 0.75rem; font-weight: 600; color: #CC2936; background: none; border: 1px solid #CC2936; border-radius: 6px; padding: 3px 10px; cursor: pointer; font-family: inherit; }
 .protocol-delete-btn:hover { background: #CC2936; color: #fff; }
@@ -334,18 +336,19 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
 /* ── My Exercises screen (exs-*) ────────────────────────────────────────── */
 #exercisesScreen { background: #F4F6F9; }
 .exs-hero-card {
-  background: linear-gradient(135deg, #005EB8 0%, #0073E6 100%);
-  border-radius: 16px; padding: 28px 24px; margin-bottom: 14px; color: #fff;
+  background: #FFFFFF;
+  border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
-.exs-hero-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.7; margin-bottom: 6px; }
-.exs-hero-name { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 22px; }
-.exs-stats-row { display: flex; align-items: center; gap: 0; margin-bottom: 20px; }
+.exs-hero-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 6px; }
+.exs-hero-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 20px; color: var(--text); }
+.exs-stats-row { display: flex; align-items: center; gap: 0; margin-bottom: 18px; background: var(--bg); border-radius: 10px; padding: 14px 0; }
 .exs-stat { flex: 1; text-align: center; }
-.exs-stat-value { font-size: 1.5rem; font-weight: 800; line-height: 1; }
-.exs-stat-freq { font-size: 1rem; }
-.exs-stat-label { font-size: 0.68rem; opacity: 0.7; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-.exs-stat-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.25); }
-.exs-assigned-by { font-size: 0.75rem; opacity: 0.6; }
+.exs-stat-value { font-size: 1.4rem; font-weight: 800; line-height: 1; color: var(--accent); }
+.exs-stat-freq { font-size: 0.95rem; }
+.exs-stat-label { font-size: 0.68rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.exs-stat-divider { width: 1px; height: 36px; background: var(--border); }
+.exs-assigned-by { font-size: 0.75rem; color: var(--muted); }
 .exs-section-card { background: #FFFFFF; border-radius: 14px; padding: 20px; margin-bottom: 14px; }
 .exs-section-title { font-size: 0.7rem; font-weight: 700; color: #6B7A99; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px; }
 .exs-cond-list { display: flex; flex-direction: column; gap: 8px; }
@@ -360,6 +363,8 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
 .exs-require-note { font-size: 0.78rem; color: #6B7A99; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid #F0F2F5; }
 .exs-desc-text { font-size: 0.88rem; color: #6B7A99; line-height: 1.6; margin: 0; }
 .exs-notes-text { font-size: 0.9rem; color: #1A2744; font-style: italic; line-height: 1.6; margin: 0; }
+.exs-done-badge { display: inline-block; margin-top: 0.75rem; padding: 0.25rem 0.75rem; background: #dcfce7; color: #15803d; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
+.exs-progress-text { display: inline-block; margin-top: 0.75rem; font-size: 0.82rem; color: #92400e; font-weight: 500; }
 .exs-status-card { border-left: 3px solid; }
 .exs-status-done    { border-left-color: #16a34a; background: #f0fdf4; }
 .exs-status-partial { border-left-color: #ca8a04; background: #fefce8; }
@@ -563,6 +568,14 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
   white-space: nowrap; opacity: 0; transition: opacity 0.2s; pointer-events: none;
 }
 .speed-warning.show { opacity: 1; }
+
+/* Rep feedback HUD — live angle readout below camera */
+.rep-feedback {
+  width: 640px; text-align: center;
+  font-size: 1.1rem; font-weight: 600; color: var(--accent);
+  min-height: 1.6rem; padding: 4px 0;
+}
+@media (max-width: 700px) { .rep-feedback { width: 100%; } }
 .streak-badge {
   position: absolute; top: 28px; right: 24px;
   padding: 5px 12px 5px 10px;
@@ -1027,6 +1040,25 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
 .msg-unread-badge { background: #CC2936; color: #FFFFFF; font-size: 0.6rem; font-weight: 700; border-radius: 99px; padding: 1px 5px; vertical-align: middle; margin-left: 5px; }
 
 /* ── Therapist message panel ──────────────────────────────────────────────── */
+/* ── Collapsible therapist panel sections ── */
+.tp-colsec { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); margin-bottom: 12px; }
+.tp-colsec-hdr { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; cursor: pointer; user-select: none; transition: background 0.15s; }
+.tp-colsec-hdr:hover { background: var(--bg); }
+.tp-colsec-title { font-size: 0.82rem; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; }
+.tp-colsec-arrow { color: var(--muted); transition: transform 0.2s; font-size: 1rem; line-height: 1; }
+.tp-colsec.collapsed .tp-colsec-arrow { transform: rotate(-90deg); }
+.tp-colsec-body { border-top: 1px solid var(--border); padding: 16px 20px; }
+.tp-colsec.collapsed .tp-colsec-body { display: none; }
+/* Strip redundant card shells when inside a collapsible body */
+.tp-colsec-body > .session-history-card,
+.tp-colsec-body > .protocol-card,
+.tp-colsec-body > .therapist-msg-panel { background: transparent; border: none; border-radius: 0; padding: 0; margin: 0; }
+.tp-colsec-body > .ejs-panel { border: none; border-radius: 0; margin: 0; }
+/* Hide inner section titles — collapsible header is the title */
+.tp-colsec-body > .session-history-card > h4,
+.tp-colsec-body > .protocol-card > h4,
+.tp-colsec-body > .ejs-panel > .ejs-panel-header { display: none; }
+
 .therapist-msg-panel { margin-top: 24px; background: #FFFFFF; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
 .therapist-msg-thread { height: 240px; overflow-y: auto; border: 1px solid #D0D7E3; border-radius: 12px; padding: 12px; background: #F4F6F9; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .therapist-msg-row { display: flex; gap: 8px; }

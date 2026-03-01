@@ -1,4 +1,4 @@
-# Last updated: 2026-03-01 (admin approval system added)
+# Last updated: 2026-03-01 (collapsible therapist sections, patient exercise card redesign, patient-friendly rep cues)
 
 # PhalanX — Claude Code Guide
 
@@ -27,9 +27,9 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 ## File Structure
 
 ```
-index.html    — all HTML screens (487 lines)
-app.js        — all JS logic (15 sections + Section 5b, 2303 lines)
-styles.css    — all styles (1034 lines)
+index.html    — all HTML screens (489 lines)
+app.js        — all JS logic (15 sections + Section 5b, 2440 lines)
+styles.css    — all styles (1066 lines)
 non_func/     — LICENSE.txt (copyright + third-party licenses)
 node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser app)
 ```
@@ -53,9 +53,13 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 |---------------|----------------------|--------|
 | `users`       | `{email}`            | `{ name, role }` |
 | `connections` | `{therapistEmail}`   | `{ patients: [email, …] }` |
-| `protocols`   | `{patientEmail}`     | full protocol object |
-| `sessions`    | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail }` |
+| `protocols`   | `{patientEmail}`     | `{ items: [{ id, exerciseType, reps, sets, frequency, assignedBy, notes?, exerciseParams? }, …] }` |
+| `sessions`    | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId }` |
 | `messages`    | auto-id              | `{ from, to, participants, text, timestamp, read }` |
+
+**Backward compat:** old `protocols` docs with a flat object (no `items` array) are transparently wrapped by `getProtocols()` as `[{ id: 'legacy', ...data }]`.
+
+**Session tracking:** `exerciseType` and `protocolId` were added later. Old sessions without these fields are excluded from today's completion count — they cannot be attributed to any current protocol.
 
 ### Required Firestore composite indexes
 
@@ -88,7 +92,7 @@ All other state (accounts, connections, protocols, sessions, messages) is in Fir
 
 ## Screen System
 
-Single-page app. All screens are `<div class="screen">` in `index.html`. Navigation is done by toggling the `.active` class via `showScreen(id)` in `app.js` (Section 2).
+Single-page app. All screens are `<div class="screen">` in `index.html`. Navigation is done by toggling the `.active` class via `showScreen(id)` in `app.js` (Section 2). `showScreen` also stops `mpCamera` whenever leaving `cameraScreen`.
 
 | Screen ID           | Purpose                                                        |
 |---------------------|----------------------------------------------------------------|
@@ -98,25 +102,37 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `pendingScreen`     | Shown to therapist_pending users awaiting admin approval       |
 | `adminScreen`       | Admin panel — approve/reject pending therapist accounts        |
 | `connectScreen`     | Patient↔therapist link by therapist code                       |
-| `patientScreen`     | Patient home (today's protocol, streak, completion status)     |
-| `exercisesScreen`   | Patient view of assigned protocol + today's completion status  |
-| `cameraScreen`      | Live exercise session (rep counter + pain)                     |
-| `therapistScreen`   | Therapist dashboard (patient list + charts)                    |
+| `patientScreen`     | Patient home (today's protocol strip, streak, completion status) |
+| `exercisesScreen`   | All assigned protocols; white cards with blue/dark text; per-protocol done/partial/pending badge + Start/Do Again button |
+| `cameraScreen`      | Live exercise session (rep counter, pain slider, plain-English rep cue, set tracker) |
+| `therapistScreen`   | Therapist dashboard (patient list + collapsible sections: charts, joint monitoring, session history, protocol form, messages) |
 | `progressScreen`    | Patient progress history                                       |
 | `messagingScreen`   | In-app patient↔therapist messaging thread                      |
 | `calibrationScreen` | Joint angle calibration (MediaPipe read-out)                   |
 
 ## Role Split
 
-**Patient flow:** `loginScreen` → `patientScreen` → `cameraScreen` → `progressScreen` / `messagingScreen` / `exercisesScreen`
+**Patient flow:** `loginScreen` → `patientScreen` → `exercisesScreen` (pick protocol) → `cameraScreen` → back to `patientScreen`
 
-**Therapist flow:** `loginScreen` → `therapistScreen` (sidebar patient list + main panel with stats, charts, protocol assignment, message panel)
+**Therapist flow:** `loginScreen` → `therapistScreen` (sidebar patient list + main panel with collapsible sections)
 
 **Therapist pending flow:** `loginScreen` → `pendingScreen` (blocked until admin approves)
 
 **Admin flow:** `loginScreen` → `adminScreen` (approve/reject pending therapists — admin accounts created manually by Yash in Firebase)
 
-### `exerciseParams` schema (inside a protocol object)
+### Multi-protocol flow
+
+- Therapist assigns protocols via "Add Exercise to Protocol" form — each assignment **appends** a new item with a unique `id: Date.now().toString()` to `protocols/{patientEmail}.items`.
+- Patient with **1 protocol**: "Start a Session" goes directly to `cameraScreen`.
+- Patient with **2+ protocols**: "Start a Session" routes to `exercisesScreen` to pick a protocol.
+- `selectedProtocol` global holds the chosen protocol for the active session.
+- Completion counting uses `protocolId` (stored on each session doc) to match sessions to current protocols. Deleting a protocol and creating a new one gets a fresh ID — old sessions never count toward new protocol requirements.
+
+### Collapsible therapist panel sections
+
+`makeCollapsible(id, title, bodyHTML, open)` wraps any section in a `.tp-colsec` card with a clickable header (title + ▾ arrow). `toggleTpSection(id)` handles show/hide and dispatches `resize` so Chart.js redraws when chart sections are revealed. Default open: ROM chart, Pain chart. Default collapsed: Joint Monitoring, Session History, Add Exercise to Protocol, Messages.
+
+### `exerciseParams` schema (inside a protocol item)
 
 For angle-metric exercises:
 ```js
@@ -124,7 +140,7 @@ For angle-metric exercises:
 ```
 For distance/abduction exercises the defaults are copied directly (`metric`, `tipA`, `tipB`, etc.).
 Angle convention: **0° = straight, higher = more bent** — matches the calibration tool.
-Old protocols without `exerciseParams` are auto-normalized at runtime via `normalizeExerciseParams()`.
+Old protocols without `exerciseParams` are auto-normalized at runtime via `normalizeExerciseParams()`. Malformed angle objects (missing both `conditions` and `fingers`) are treated as `null`.
 
 ## app.js Section Map
 
@@ -132,22 +148,22 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 
 | Section | Topic |
 |---------|-------|
-| 1   | Auth & State — Firebase init, `onAuthStateChanged`, async Firestore helpers (`getConnectedPatients`, `saveConnection`, `getConnectedTherapist`, `getTherapistForCode`) |
-| 2   | Navigation — `showScreen()`, `screenTitles` map, patient home setup |
+| 1   | Auth & State — Firebase init, `onAuthStateChanged`, async Firestore helpers; globals: `selectedProtocol`, `_exercisesProtocols` |
+| 2   | Navigation — `showScreen()` (also stops `mpCamera` on leave), `screenTitles` map |
 | 3   | Login / Signup / Forgot — async Firebase Auth handlers; therapist signup writes `therapist_pending` role |
 | 4   | Connect — therapist code linking flow (async Firestore) |
-| 5   | Login Success / Logout — role routing: `admin` → adminScreen, `therapist` → therapistScreen, `therapist_pending` → pendingScreen, `patient` → patientScreen/connectScreen |
+| 5   | Login Success / Logout — role routing |
 | 5b  | Admin Panel — `loadAdminScreen()`, `approveTherapist()`, `rejectTherapist()` |
-| 6   | Patient Home — streak display, protocol rendering, `getTodayCompletion`, `showExercisesScreen` (all async) |
-| 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, protocol CRUD (`assignProtocol`, `deleteProtocol`, `normalizeExerciseParams`) — Firestore |
-| 8   | Therapist Panel — patient list, Chart.js graphs, protocol form (`buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`) — Firestore |
-| 9   | Rep Counter — `getMiddleFingerAngle`, `getJointAngle`, `getTipDistance`, `checkExerciseState`, `updateRepCount`, `currentExerciseParams` global; `saveSession` writes to Firestore |
-| 10  | Set Tracking — set/rest timer state machine, `initSetTracker` (async, sets `currentExerciseParams`) |
-| 11  | Patient Session Camera — camera screen init (`patientVideo`/`patientCanvas`) |
-| 12  | Progress Screen — session history display (async Firestore) |
-| 13  | Joint Selector — therapist panel joint angle UI |
-| 14  | Calibration Screen — MediaPipe Hands init + angle math (`calibVideo`/`calibCanvas`) |
-| 15  | Messaging — patient↔therapist in-app thread (`sendMessage`, `getThread`, `markRead`, `unreadCount`, `renderThread`, `openPatientMessaging`, `sendMessageFromPatient`, `buildMessagePanel`) — all async Firestore |
+| 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionWithProtocol`, `startScanSession` |
+| 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends), `deleteProtocol` (removes by id), `normalizeExerciseParams` |
+| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (all sections collapsible), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition` |
+| 9   | Rep Counter — `checkExerciseState`, `updateRepCount`, `updateRepFeedback` (plain-English cues: "Bend your index finger" / "Straighten your index finger"), `fingerLabel`, `saveSession` (saves `exerciseType` + `protocolId`) |
+| 10  | Set Tracking — `initSetTracker` (resets state unconditionally first), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType` + `protocolId`) |
+| 11  | Patient Session Camera — `startCamera` |
+| 12  | Progress Screen — session history display |
+| 13  | Joint Selector — therapist panel joint angle UI (Enhanced) |
+| 14  | Calibration Screen — MediaPipe Hands init + angle math |
+| 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 
 ## Firestore Role Values
 
