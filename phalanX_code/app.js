@@ -88,6 +88,7 @@ const screenTitles = {
   patientScreen:      'PhalanX — Home',
   cameraScreen:       'PhalanX — Session',
   therapistScreen:    'PhalanX — Therapist Dashboard',
+  exercisesScreen:    'PhalanX — My Exercises',
   progressScreen:     'PhalanX — My Progress',
   calibrationScreen:  'PhalanX — Calibration',
 };
@@ -256,6 +257,16 @@ function confirmLogout()    { closeLogoutModal(); logout(); }
    SECTION 6: PATIENT HOME
    ══════════════════════════════════════════════════════════════════════════ */
 
+function getTodayCompletion(email) {
+  const protocol = getExistingProtocol(email);
+  if (!protocol) return null;
+  const today    = new Date().toDateString();
+  const sessions = getPatientSessions(email);
+  const done     = sessions.filter(s => new Date(s.date).toDateString() === today).length;
+  const required = protocol.sets || 3;
+  return { done, required };
+}
+
 function updatePatientHomeScreen() {
   if (!currentUser) return;
   const hour     = new Date().getHours();
@@ -269,7 +280,21 @@ function updatePatientHomeScreen() {
     strip.style.display = 'flex';
     document.getElementById('protocolStripExercise').textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
     document.getElementById('protocolStripMeta').textContent     = 'Assigned by ' + protocol.assignedBy;
-    document.getElementById('protocolStripSets').textContent     = protocol.sets || 3;
+
+    const comp = getTodayCompletion(currentUser.email);
+    const statusEl = document.getElementById('protocolStripStatus');
+    if (statusEl && comp) {
+      if (comp.done >= comp.required) {
+        statusEl.textContent = 'Done';
+        statusEl.className   = 'protocol-strip-status status-done';
+      } else if (comp.done > 0) {
+        statusEl.textContent = `${comp.done} / ${comp.required} sets`;
+        statusEl.className   = 'protocol-strip-status status-partial';
+      } else {
+        statusEl.textContent = `${comp.required} sets`;
+        statusEl.className   = 'protocol-strip-status status-pending';
+      }
+    }
   }
 
   const therapistEmail = getConnectedTherapist();
@@ -367,14 +392,71 @@ const frequencyLabels = {
   three_week:  '3x Per Week'
 };
 
+// Thresholds use calibration convention: 0° = straight, higher = more bent.
+// flexAt: joint must bend TO or PAST this angle to count as flexed.
+// extendAt: joint must straighten TO or BELOW this angle to complete the rep.
+const EXERCISE_DEFAULTS = {
+  full_fist:         { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:90,extendAt:30},{finger:'middle',joint:'pip',flexAt:90,extendAt:30},{finger:'ring',joint:'pip',flexAt:90,extendAt:30},{finger:'pinky',joint:'pip',flexAt:90,extendAt:30}], requireAll:true  },
+  hook_fist:         { metric:'angle', conditions:[{finger:'index',joint:'dip',flexAt:60,extendAt:20},{finger:'middle',joint:'dip',flexAt:60,extendAt:20},{finger:'ring',joint:'dip',flexAt:60,extendAt:20},{finger:'pinky',joint:'dip',flexAt:60,extendAt:20}], requireAll:true  },
+  tabletop_position: { metric:'angle', conditions:[{finger:'index',joint:'mcp',flexAt:70,extendAt:20},{finger:'middle',joint:'mcp',flexAt:70,extendAt:20},{finger:'ring',joint:'mcp',flexAt:70,extendAt:20},{finger:'pinky',joint:'mcp',flexAt:70,extendAt:20}], requireAll:true  },
+  index_flexion:     { metric:'angle', conditions:[{finger:'index', joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
+  middle_flexion:    { metric:'angle', conditions:[{finger:'middle',joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
+  ring_flexion:      { metric:'angle', conditions:[{finger:'ring',  joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
+  pinky_flexion:     { metric:'angle', conditions:[{finger:'pinky', joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
+  thumb_flexion:     { metric:'angle', conditions:[{finger:'thumb', joint:'mcp',flexAt:50,extendAt:15}], requireAll:false },
+  finger_flexion:    { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:90,extendAt:30},{finger:'middle',joint:'pip',flexAt:90,extendAt:30},{finger:'ring',joint:'pip',flexAt:90,extendAt:30},{finger:'pinky',joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
+  finger_extension:  { metric:'angle', conditions:[{finger:'index',joint:'mcp',flexAt:50,extendAt:10},{finger:'middle',joint:'mcp',flexAt:50,extendAt:10},{finger:'ring',joint:'mcp',flexAt:50,extendAt:10},{finger:'pinky',joint:'mcp',flexAt:50,extendAt:10}], requireAll:false },
+  grip_squeeze:      { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:90,extendAt:30},{finger:'middle',joint:'pip',flexAt:90,extendAt:30},{finger:'ring',joint:'pip',flexAt:90,extendAt:30},{finger:'pinky',joint:'pip',flexAt:90,extendAt:30}], requireAll:true  },
+  thumb_index_opposition: { metric:'distance',  tipA:4,  tipB:8,  closeAt:0.08, openAt:0.25 },
+  thumb_opposition:       { metric:'distance',  tipA:4,  tipB:12, closeAt:0.08, openAt:0.25 },
+  finger_abduction:       { metric:'abduction', tipA:8,  tipB:20, spreadAt:0.30, closedAt:0.15 },
+};
+
+// b is pivot. pip uses [MCP, PIP, Tip] = composite flexion, matching current middle-finger behavior.
+const FINGER_LANDMARK_MAP = {
+  thumb:  { mcp:[0,2,3],   pip:[2,3,4],    dip:null        },
+  index:  { mcp:[0,5,6],   pip:[5,6,8],    dip:[6,7,8]     },
+  middle: { mcp:[0,9,10],  pip:[9,10,12],  dip:[10,11,12]  },
+  ring:   { mcp:[0,13,14], pip:[13,14,16], dip:[14,15,16]  },
+  pinky:  { mcp:[0,17,18], pip:[17,18,20], dip:[18,19,20]  },
+};
+
 function getExistingProtocol(patientEmail) {
   const stored = localStorage.getItem(`phalanx_protocol_${patientEmail}`);
   return stored ? JSON.parse(stored) : null;
 }
 
+function deleteProtocol(patientEmail) {
+  if (!confirm(`Remove the assigned protocol for this patient? This cannot be undone.`)) return;
+  localStorage.removeItem(`phalanx_protocol_${patientEmail}`);
+  const patient = getAccounts().find(a => a.email === patientEmail);
+  if (patient) showRealPatient(patient);
+}
+
 function assignProtocol(patientEmail) {
+  const exerciseType = document.getElementById('exerciseType').value;
+  const defaults = EXERCISE_DEFAULTS[exerciseType];
+
+  // Collect exerciseParams from the UI
+  let exerciseParams = null;
+  if (defaults && defaults.metric === 'angle') {
+    const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
+    if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
+    const conditions = Array.from(conditionRows).map(row => ({
+      finger:   row.querySelector('.ep-finger-select').value,
+      joint:    row.querySelector('.ep-joint-select').value,
+      flexAt:   parseFloat(row.querySelector('.ep-flex-at').value),
+      extendAt: parseFloat(row.querySelector('.ep-extend-at').value),
+    }));
+    const requireAllEl = document.getElementById('epRequireAll');
+    const requireAll   = requireAllEl ? requireAllEl.checked : (conditions.length > 1);
+    exerciseParams = { metric: 'angle', conditions, requireAll };
+  } else if (defaults && (defaults.metric === 'distance' || defaults.metric === 'abduction')) {
+    exerciseParams = { ...defaults };
+  }
+
   const protocol = {
-    exerciseType: document.getElementById('exerciseType').value,
+    exerciseType,
     reps:         parseInt(document.getElementById('protocolReps').value),
     sets:         parseInt(document.getElementById('protocolSets').value),
     frequency:    document.getElementById('protocolFrequency').value,
@@ -382,6 +464,7 @@ function assignProtocol(patientEmail) {
     assignedBy:   currentUser.name,
     assignedAt:   new Date().toISOString()
   };
+  if (exerciseParams) protocol.exerciseParams = exerciseParams;
   if (isNaN(protocol.reps) || protocol.reps < 1) { alert('Please enter a valid rep count.'); return; }
   if (isNaN(protocol.sets) || protocol.sets < 1) { alert('Please enter a valid set count.'); return; }
   localStorage.setItem(`phalanx_protocol_${patientEmail}`, JSON.stringify(protocol));
@@ -423,6 +506,71 @@ function loadPatientProtocol() {
       <span class="protocol-meta-item"><strong>Frequency:</strong> ${frequencyLabels[protocol.frequency] || protocol.frequency}</span>
     </div>
     ${protocol.notes ? `<p class="protocol-patient-notes">"${protocol.notes}"</p>` : ''}`;
+}
+
+function showExercisesScreen() {
+  const protocol = currentUser ? getExistingProtocol(currentUser.email) : null;
+  const inner = document.getElementById('exercisesScreenInner');
+  if (!inner) return;
+
+  if (!protocol) {
+    inner.innerHTML = `
+      <div class="exs-empty">
+        <div class="exs-empty-icon">💪</div>
+        <p class="exs-empty-title">No protocol yet</p>
+        <p class="exs-empty-sub">Your therapist has not assigned any exercizes for you.</p>
+      </div>`;
+    showScreen('exercisesScreen');
+    return;
+  }
+
+  const comp = getTodayCompletion(currentUser.email);
+  let completionHTML = '';
+  if (comp) {
+    const isComplete = comp.done >= comp.required;
+    const isPartial  = comp.done > 0 && !isComplete;
+    const statusText  = isComplete ? 'Completed today' : isPartial ? `${comp.done} of ${comp.required} sets done today` : 'Not completed today';
+    const statusClass = isComplete ? 'exs-status-done' : isPartial ? 'exs-status-partial' : 'exs-status-pending';
+    completionHTML = `
+      <div class="exs-section-card exs-status-card ${statusClass}">
+        <div class="exs-status-text">${statusText}</div>
+        ${isPartial ? `<div class="exs-status-sub">Keep going — ${comp.required - comp.done} set${comp.required - comp.done > 1 ? 's' : ''} remaining</div>` : ''}
+        ${!isPartial && !isComplete ? `<div class="exs-status-sub">${comp.required} set${comp.required > 1 ? 's' : ''} assigned for today</div>` : ''}
+      </div>`;
+  }
+
+  const notesHTML = protocol.notes ? `
+    <div class="exs-section-card">
+      <div class="exs-section-title">Notes from your therapist</div>
+      <p class="exs-notes-text">"${protocol.notes}"</p>
+    </div>` : '';
+
+  inner.innerHTML = `
+    <div class="exs-hero-card">
+      <div class="exs-hero-label">Assigned Exercise</div>
+      <div class="exs-hero-name">${exerciseLabels[protocol.exerciseType] || protocol.exerciseType}</div>
+      <div class="exs-stats-row">
+        <div class="exs-stat">
+          <div class="exs-stat-value">${protocol.reps}</div>
+          <div class="exs-stat-label">Reps per Set</div>
+        </div>
+        <div class="exs-stat-divider"></div>
+        <div class="exs-stat">
+          <div class="exs-stat-value">${protocol.sets}</div>
+          <div class="exs-stat-label">Sets</div>
+        </div>
+        <div class="exs-stat-divider"></div>
+        <div class="exs-stat">
+          <div class="exs-stat-value exs-stat-freq">${frequencyLabels[protocol.frequency] || protocol.frequency}</div>
+          <div class="exs-stat-label">Frequency</div>
+        </div>
+      </div>
+      <div class="exs-assigned-by">Prescribed by ${protocol.assignedBy}</div>
+    </div>
+    ${completionHTML}
+    ${notesHTML}`;
+
+  showScreen('exercisesScreen');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -500,6 +648,9 @@ function showRealPatient(patient) {
       renderThread('therapistMsgThread', currentUser.email, patient.email);
     };
     renderThread('therapistMsgThread', currentUser.email, patient.email);
+    ejsInit();
+    const _ep0 = getExistingProtocol(patient.email);
+    updateExerciseParamsUI(_ep0?.exerciseType || 'full_fist', _ep0?.exerciseParams || null);
     return;
   }
 
@@ -552,6 +703,9 @@ function showRealPatient(patient) {
     renderThread('therapistMsgThread', currentUser.email, patient.email);
   };
   renderThread('therapistMsgThread', currentUser.email, patient.email);
+  ejsInit();
+  const _ep = getExistingProtocol(patient.email);
+  updateExerciseParamsUI(_ep?.exerciseType || 'full_fist', _ep?.exerciseParams || null);
 }
 
 function buildSessionHistory(patientEmail) {
@@ -602,11 +756,12 @@ function buildProtocolForm(patientEmail) {
       <div class="protocol-form">
         <div class="protocol-field">
           <label>Exercise Type</label>
-          <select id="exerciseType">
+          <select id="exerciseType" onchange="updateExerciseParamsUI(this.value, null)">
             <optgroup label="Full Hand">
               <option value="full_fist">Full Fist</option>
               <option value="hook_fist">Hook Fist</option>
               <option value="tabletop_position">Tabletop Position</option>
+              <option value="grip_squeeze">Grip Squeeze</option>
             </optgroup>
             <optgroup label="Individual Fingers">
               <option value="index_flexion">Index Finger Flexion</option>
@@ -614,13 +769,17 @@ function buildProtocolForm(patientEmail) {
               <option value="ring_flexion">Ring Finger Flexion</option>
               <option value="pinky_flexion">Pinky Flexion</option>
               <option value="thumb_flexion">Thumb Flexion</option>
+              <option value="finger_flexion">Finger Flexion</option>
+              <option value="finger_extension">Finger Extension</option>
             </optgroup>
-            <optgroup label="Opposition">
+            <optgroup label="Opposition / Spread">
               <option value="thumb_index_opposition">Thumb to Index Opposition</option>
               <option value="thumb_opposition">Thumb Opposition</option>
+              <option value="finger_abduction">Finger Abduction</option>
             </optgroup>
           </select>
         </div>
+        <div id="exerciseParamsSection" class="ep-container"></div>
         <div class="protocol-row">
           <div class="protocol-field">
             <label>Reps per Set</label>
@@ -633,10 +792,10 @@ function buildProtocolForm(patientEmail) {
           <div class="protocol-field">
             <label>Frequency</label>
             <select id="protocolFrequency">
-              <option value="daily">Daily</option>
-              <option value="twice_daily">Twice Daily</option>
-              <option value="every_other">Every Other Day</option>
-              <option value="three_week">3x Per Week</option>
+              <option value="daily" ${existing?.frequency==='daily'?'selected':''}>Daily</option>
+              <option value="twice_daily" ${existing?.frequency==='twice_daily'?'selected':''}>Twice Daily</option>
+              <option value="every_other" ${existing?.frequency==='every_other'?'selected':''}>Every Other Day</option>
+              <option value="three_week" ${existing?.frequency==='three_week'?'selected':''}>3x Per Week</option>
             </select>
           </div>
         </div>
@@ -647,8 +806,91 @@ function buildProtocolForm(patientEmail) {
         <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Assign Protocol</button>
         <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">✓ Protocol assigned successfully</div>
       </div>
-      ${existing ? `<div class="protocol-existing"><p class="protocol-existing-label">Current Protocol</p>${formatProtocol(existing)}</div>` : ''}
+      ${existing ? `<div class="protocol-existing">
+        <div class="protocol-existing-header">
+          <p class="protocol-existing-label">Current Protocol</p>
+          <button class="protocol-delete-btn" onclick="deleteProtocol('${patientEmail}')">Remove</button>
+        </div>
+        ${formatProtocol(existing)}
+      </div>` : ''}
     </div>`;
+}
+
+function epUpdateRequireAllVisibility() {
+  const count = document.querySelectorAll('#epConditionsList .ep-condition-row').length;
+  const row   = document.getElementById('epRequireAllRow');
+  if (row) row.style.display = count > 1 ? 'flex' : 'none';
+  document.querySelectorAll('.ep-remove-btn').forEach(btn => {
+    btn.style.visibility = count > 1 ? 'visible' : 'hidden';
+  });
+}
+
+function epAddCondition(finger = 'index', joint = 'pip', flexAt = 60, extendAt = 140) {
+  const list = document.getElementById('epConditionsList');
+  if (!list) return;
+  const row = document.createElement('div');
+  row.className = 'ep-condition-row';
+  const fingers = ['index','middle','ring','pinky','thumb'];
+  const fOpts = fingers.map(f => `<option value="${f}" ${f===finger?'selected':''}>${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('');
+  const jOpts = ['mcp','pip','dip'].map(j => `<option value="${j}" ${j===joint?'selected':''}>${j.toUpperCase()}</option>`).join('');
+  row.innerHTML = `
+    <select class="ep-select ep-finger-select">${fOpts}</select>
+    <select class="ep-select ep-joint-select">${jOpts}</select>
+    <input type="number" class="ep-number-input ep-flex-at"    value="${flexAt}"    min="0" max="180" placeholder="Flex°">
+    <input type="number" class="ep-number-input ep-extend-at"  value="${extendAt}"  min="0" max="180" placeholder="Extend°">
+    <button class="ep-remove-btn" onclick="epRemoveCondition(this)" title="Remove">×</button>`;
+  list.appendChild(row);
+  epUpdateRequireAllVisibility();
+}
+
+function epRemoveCondition(btn) {
+  btn.closest('.ep-condition-row').remove();
+  epUpdateRequireAllVisibility();
+}
+
+function updateExerciseParamsUI(exerciseType, savedParams) {
+  const container = document.getElementById('exerciseParamsSection');
+  if (!container) return;
+
+  const sel = document.getElementById('exerciseType');
+  if (sel && exerciseType) sel.value = exerciseType;
+
+  const defaults = EXERCISE_DEFAULTS[exerciseType];
+  if (!defaults) { container.innerHTML = ''; return; }
+
+  if (defaults.metric === 'distance') {
+    const tipName = defaults.tipB === 8 ? 'index finger' : defaults.tipB === 12 ? 'middle finger' : 'target finger';
+    container.innerHTML = `<div class="ep-section"><p class="ep-desc-text">Rep counts when the thumb tip approaches the ${tipName} tip, then returns open.</p></div>`;
+    return;
+  }
+
+  if (defaults.metric === 'abduction') {
+    container.innerHTML = `<div class="ep-section"><p class="ep-desc-text">Rep counts when fingers spread wide, then return together.</p></div>`;
+    return;
+  }
+
+  // angle metric — normalize and build condition-list UI
+  const normalized = normalizeExerciseParams(savedParams ? { ...defaults, ...savedParams } : defaults);
+  const requireAllChecked = normalized.requireAll ? 'checked' : '';
+
+  container.innerHTML = `
+    <div class="ep-section">
+      <span class="ep-section-label">Joint Conditions</span>
+      <div class="ep-condition-header">
+        <span>Finger</span><span>Joint</span><span>Flex °</span><span>Extend °</span><span></span>
+      </div>
+      <div id="epConditionsList"></div>
+      <button class="ep-add-btn" onclick="epAddCondition()">+ Add Condition</button>
+    </div>
+    <div class="ep-require-all-row" id="epRequireAllRow" style="display:none">
+      <label class="ep-checkbox-label">
+        <input type="checkbox" id="epRequireAll" ${requireAllChecked}>
+        Require ALL conditions to be met simultaneously
+      </label>
+    </div>
+    <p class="ep-threshold-hint">0° = straight. Flex at: joint must bend to or past this angle. Extend at: joint must straighten to or below this angle.</p>`;
+
+  normalized.conditions.forEach(c => epAddCondition(c.finger, c.joint, c.flexAt, c.extendAt));
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -665,6 +907,7 @@ let lastRepTime = null;
 let setPainValues = [];
 let restTimerInterval = null;
 let restTimeRemaining = 30;
+let currentExerciseParams = null;
 const REST_DURATION = 30;
 let soundEnabled = localStorage.getItem('phalanx_sound') !== 'false';
 
@@ -711,16 +954,92 @@ function getMiddleFingerAngle(landmarks) {
   const dot = v1.x * v2.x + v1.y * v2.y;
   const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
   const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
-  return Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * (180 / Math.PI);
+  return 180 - Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * (180 / Math.PI);
+}
+
+// Generic 2D joint angle — 0° = straight, higher = more bent (matches calibration tool)
+function getJointAngle(landmarks, triplet) {
+  const A = landmarks[triplet[0]], B = landmarks[triplet[1]], C = landmarks[triplet[2]];
+  const v1 = { x: A.x - B.x, y: A.y - B.y }, v2 = { x: C.x - B.x, y: C.y - B.y };
+  const dot = v1.x * v2.x + v1.y * v2.y;
+  const m1 = Math.sqrt(v1.x ** 2 + v1.y ** 2), m2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
+  if (m1 === 0 || m2 === 0) return 0;
+  return 180 - Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2)))) * (180 / Math.PI);
+}
+
+// Normalized tip-to-tip distance (wrist→middle-MCP as scale reference)
+function getTipDistance(landmarks, tipA, tipB) {
+  const ref = Math.sqrt((landmarks[9].x - landmarks[0].x) ** 2 + (landmarks[9].y - landmarks[0].y) ** 2);
+  if (ref === 0) return 1;
+  return Math.sqrt((landmarks[tipA].x - landmarks[tipB].x) ** 2 + (landmarks[tipA].y - landmarks[tipB].y) ** 2) / ref;
+}
+
+// Convert old flat exerciseParams format (fingers[]+joint) to conditions array format
+function normalizeExerciseParams(ep) {
+  if (!ep || ep.metric !== 'angle' || ep.conditions) return ep;
+  return {
+    metric:     'angle',
+    conditions: ep.fingers.map(finger => ({ finger, joint: ep.joint, flexAt: ep.flexAt, extendAt: ep.extendAt })),
+    requireAll: ep.requireAll ?? false,
+  };
+}
+
+// Returns { isFlexed, isExtended, repAngle } based on currentExerciseParams
+function checkExerciseState(landmarks) {
+  const p = currentExerciseParams;
+  if (!p) return null;
+
+  if (p.metric === 'distance') {
+    const dist = getTipDistance(landmarks, p.tipA, p.tipB);
+    return { isFlexed: dist <= p.closeAt, isExtended: dist >= p.openAt, repAngle: Math.round(dist * 100) };
+  }
+
+  if (p.metric === 'abduction') {
+    const spread = getTipDistance(landmarks, p.tipA, p.tipB);
+    return { isFlexed: spread >= p.spreadAt, isExtended: spread <= p.closedAt, repAngle: Math.round(spread * 100) };
+  }
+
+  // metric === 'angle' — 0° = straight, higher = more bent
+  // flexed when angle >= flexAt (bent enough), extended when angle <= extendAt (straight enough)
+  const results = p.conditions.map(cond => {
+    const triplet = FINGER_LANDMARK_MAP[cond.finger]?.[cond.joint];
+    if (!triplet) return null;
+    const angle = getJointAngle(landmarks, triplet);
+    return {
+      angle,
+      isFlexed:   angle >= cond.flexAt,
+      isExtended: angle <= cond.extendAt,
+    };
+  }).filter(r => r !== null);
+
+  if (results.length === 0) return null;
+
+  const isFlexed   = p.requireAll ? results.every(r => r.isFlexed)   : results.some(r => r.isFlexed);
+  const isExtended = p.requireAll ? results.every(r => r.isExtended) : results.some(r => r.isExtended);
+  const repAngle   = Math.round(Math.max(...results.map(r => r.angle)));
+
+  return { isFlexed, isExtended, repAngle };
 }
 
 function updateRepCount(landmarks) {
   if (sessionPaused) return;
-  const angle = getMiddleFingerAngle(landmarks);
-  if (angle > maxROMThisSession) { maxROMThisSession = angle; lastROM = Math.round(angle); }
-  if (angle < 60 && fingerState !== 'flexed') {
+  let isFlexed, isExtended, repAngle;
+
+  if (currentExerciseParams) {
+    const state = checkExerciseState(landmarks);
+    if (!state) return;                         // bad config, skip silently
+    ({ isFlexed, isExtended, repAngle } = state);
+  } else {
+    // Legacy fallback — middle finger PIP, 0°=straight convention
+    const angle = getMiddleFingerAngle(landmarks);
+    repAngle = Math.round(angle); isFlexed = angle > 90; isExtended = angle < 30;
+  }
+
+  if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
+
+  if (isFlexed && fingerState !== 'flexed') {
     fingerState = 'flexed';
-  } else if (angle > 140 && fingerState === 'flexed') {
+  } else if (isExtended && fingerState === 'flexed') {
     fingerState = 'extended';
     repCount++;
     const now = Date.now();
@@ -785,7 +1104,14 @@ let setsComplete = 0;
 function initSetTracker() {
   if (currentUser) {
     const protocol = getExistingProtocol(currentUser.email);
-    if (protocol) { totalSets = protocol.sets || 3; TARGET_REPS = protocol.reps || 10; }
+    if (protocol) {
+      totalSets  = protocol.sets || 3;
+      TARGET_REPS = protocol.reps || 10;
+      const rawEp = protocol.exerciseParams || EXERCISE_DEFAULTS[protocol.exerciseType] || null;
+      currentExerciseParams = normalizeExerciseParams(rawEp);
+    } else {
+      currentExerciseParams = null;
+    }
   }
   currentSet   = 1;
   setsComplete = 0;
@@ -957,8 +1283,8 @@ function startCamera() {
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
-        drawConnectors(sessionCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
-        drawLandmarks(sessionCtx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 4 });
+        drawConnectors(sessionCtx, landmarks, HAND_CONNECTIONS, { color: 'rgba(0, 229, 192, 0)', lineWidth: 2 });
+        drawLandmarks(sessionCtx, landmarks, { color: 'rgba(0, 0, 0, 0)', lineWidth: 1, radius: 4 });
         updateRepCount(landmarks);
       }
     }
@@ -1025,197 +1351,395 @@ function renderProgressScreen() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SECTION 13: JOINT SELECTOR  (therapist panel)
+   SECTION 13: JOINT SELECTOR  (therapist panel) — Enhanced
    ══════════════════════════════════════════════════════════════════════════ */
 
-const fingerColors = { Thumb: '#f5a623', Index: '#2d7ff9', Middle: '#00c9b1', Ring: '#a78bfa', Pinky: '#f04b4b' };
-let selectedJoints = new Set();
+const EJS_FINGER_COLORS = {
+  thumb: '#F5A623', index: '#2D7FF9', middle: '#00C9B1', ring: '#A78BFA', pinky: '#F04B4B'
+};
+const EJS_FINGER_LABELS = {
+  thumb: 'Thumb', index: 'Index', middle: 'Middle', ring: 'Ring', pinky: 'Pinky'
+};
+const EJS_FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+const EJS_JOINTS  = ['mcp', 'pip', 'dip', 'tip'];
+const EJS_PRIORITY_COLORS = { Critical: '#CC2936', High: '#F59E0B', Medium: '#005EB8', Low: '#8A9AB0' };
+
+const EJS_JOINT_DATA = {
+  'thumb-mcp':  { label:'MP',  fullName:'Metacarpophalangeal Joint',       lm:2,  maxROM:60,  jointType:'Condyloid', priority:'High',     finger:'thumb',  desc:"The thumb's basal knuckle, enabling opposition and key pinch mechanics. Critical for grip strength assessment. Stiffness here often indicates early CMC arthritis or post-fracture contracture." },
+  'thumb-pip':  { label:'IP',  fullName:'Interphalangeal Joint',           lm:3,  maxROM:80,  jointType:'Hinge',     priority:'Medium',   finger:'thumb',  desc:"The thumb's only interphalangeal joint. Monitors flexor/extensor tendon integrity. Loss of active extension may indicate extensor pollicis longus rupture." },
+  'thumb-dip':  { label:'—',   fullName:'N/A (Thumb has no DIP)',          lm:null,maxROM:null,jointType:'—',        priority:'—',        finger:'thumb',  desc:'Thumb has only two phalanges and therefore no DIP joint.' },
+  'thumb-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:4,  maxROM:null,jointType:'Reference', priority:'Low',      finger:'thumb',  desc:'Fingertip landmark used for opposition distance calculations and precision pinch tracking.' },
+  'index-mcp':  { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:5,  maxROM:90,  jointType:'Condyloid', priority:'High',     finger:'index',  desc:'Primary power grip knuckle. Monitors flexor digitorum profundus integrity and dorsal hood mechanism. Hyperextension may indicate volar plate laxity post-dislocation.' },
+  'index-pip':  { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:6,  maxROM:100, jointType:'Hinge',     priority:'Critical', finger:'index',  desc:'The most commonly injured joint in the hand. Boutonnière and swan neck deformities originate here. Primary target for ROM tracking after ORIF, tendon repair, or arthroplasty.' },
+  'index-dip':  { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:7,  maxROM:70,  jointType:'Hinge',     priority:'Medium',   finger:'index',  desc:'Monitors flexor digitorum profundus and terminal extensor tendon function. Mallet finger presents as loss of active DIP extension.' },
+  'index-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:8,  maxROM:null,jointType:'Reference', priority:'Low',      finger:'index',  desc:'Index fingertip reference for grip reach, tool manipulation tracking, and opposition distance from thumb.' },
+  'middle-mcp': { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:9,  maxROM:90,  jointType:'Condyloid', priority:'High',     finger:'middle', desc:'Central axis of the hand. The reference joint for fist formation and composite flexion. Primary metric for post-surgical hook fist and full fist progression protocols.' },
+  'middle-pip': { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:10, maxROM:100, jointType:'Hinge',     priority:'Critical', finger:'middle', desc:'Current primary rep-counting joint in PhalanX. Used for open-close cycle detection. Highest sensitivity for edema-related stiffness and tendon adhesion assessment.' },
+  'middle-dip': { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:11, maxROM:70,  jointType:'Hinge',     priority:'Medium',   finger:'middle', desc:'FDP slip assessment point. Decreased active DIP flexion with intact PIP motion indicates a partial FDP rupture or zone 1 injury pattern.' },
+  'middle-tip': { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:12, maxROM:null,jointType:'Reference', priority:'Low',      finger:'middle', desc:'Longest reach point of the hand. Used for composite fist-to-palm distance (fingertip-to-distal palmar crease gap), a standard clinical ROM outcome measure.' },
+  'ring-mcp':   { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:13, maxROM:90,  jointType:'Condyloid', priority:'Medium',   finger:'ring',   desc:'Commonly affected in rheumatoid arthritis with ulnar drift deformity. Monitors intrinsic muscle function and MCP joint capsule integrity after arthroplasty.' },
+  'ring-pip':   { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:14, maxROM:100, jointType:'Hinge',     priority:'High',     finger:'ring',   desc:"Frequently stiff in crush injuries and ring avulsion. Tracks central slip integrity and oblique retinacular ligament tightness — a key indicator in Dupuytren's contracture progression." },
+  'ring-dip':   { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:15, maxROM:70,  jointType:'Hinge',     priority:'Low',      finger:'ring',   desc:'FDP terminal slip assessment. Ring finger DIP mallet deformity is less common but clinically significant in athletic hand trauma.' },
+  'ring-tip':   { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:16, maxROM:null,jointType:'Reference', priority:'Low',      finger:'ring',   desc:'Ring fingertip reference landmark. Used in abduction spread calculations and fingertip-to-palm composite reach measurements.' },
+  'pinky-mcp':  { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:17, maxROM:90,  jointType:'Condyloid', priority:'Medium',   finger:'pinky',  desc:"Site of boxer's fracture (5th metacarpal neck fracture). Monitors post-fracture angulation correction and extensor lag. Important for power grip and hypothenar muscle function." },
+  'pinky-pip':  { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:18, maxROM:100, jointType:'Hinge',     priority:'High',     finger:'pinky',  desc:'Pinky PIP stiffness significantly impacts grip width and keyboard/instrument function. Monitors FDS slip integrity and volar plate healing.' },
+  'pinky-dip':  { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:19, maxROM:70,  jointType:'Hinge',     priority:'Low',      finger:'pinky',  desc:'Terminal phalanx position affects fine motor coordination for writing and musical instrument performance.' },
+  'pinky-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:20, maxROM:null,jointType:'Reference', priority:'Low',      finger:'pinky',  desc:'Pinky tip reference for grip span measurement and abduction spread calculations.' },
+};
+
+let selectedJoints   = new Set();
+let ejsActiveInfoKey = null;
 
 function buildJointSelector(patientEmail) {
-  return `
-    <div class="joint-selector-panel">
-      <h4>Joint Tracking — Select Which Joints to Monitor</h4>
-      <div class="joint-selector-body">
-        <div class="hand-svg-wrapper">
-          <svg viewBox="0 0 280 360" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M 80 220 Q 60 240 65 280 Q 70 310 100 320 Q 140 330 180 320 Q 210 310 215 280 Q 220 240 200 220 Z" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
-            <path d="M 80 220 Q 55 200 45 175 Q 38 155 50 140 Q 62 128 75 138 Q 82 145 85 165 L 90 200" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
-            <path d="M 105 215 Q 100 185 98 160 Q 96 135 98 115 Q 100 95 110 90 Q 120 85 128 92 Q 136 100 133 120 Q 130 145 128 170 Q 126 195 125 215" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
-            <path d="M 130 213 Q 128 180 127 152 Q 126 124 128 100 Q 130 78 140 73 Q 150 68 158 76 Q 166 85 163 108 Q 160 135 158 162 Q 156 188 155 213" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
-            <path d="M 157 213 Q 158 182 160 158 Q 162 132 165 110 Q 168 90 177 87 Q 187 84 194 93 Q 200 103 196 125 Q 192 148 189 172 Q 186 196 184 213" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
-            <path d="M 184 215 Q 188 192 191 172 Q 194 150 198 132 Q 202 115 210 112 Q 218 109 223 118 Q 228 128 224 148 Q 220 168 216 190 Q 212 208 208 218" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
-            <g class="joint-dot" data-joint="thumb-mcp" data-finger="Thumb" data-name="MCP Joint" data-lm="2" data-desc="Thumb base knuckle" onclick="toggleJoint(this)">
-              <circle cx="68" cy="168" r="7" fill="#1a2940" stroke="#f5a623" stroke-width="2"/>
-              <text x="68" y="172" text-anchor="middle" fill="#f5a623" font-size="7" font-family="monospace">M</text>
-            </g>
-            <g class="joint-dot" data-joint="thumb-tip" data-finger="Thumb" data-name="Tip" data-lm="4" data-desc="Thumb fingertip" onclick="toggleJoint(this)">
-              <circle cx="50" cy="138" r="7" fill="#1a2940" stroke="#f5a623" stroke-width="2"/>
-              <text x="50" y="142" text-anchor="middle" fill="#f5a623" font-size="7" font-family="monospace">T</text>
-            </g>
-            <g class="joint-dot" data-joint="index-mcp" data-finger="Index" data-name="MCP Joint" data-lm="5" data-desc="Index base knuckle" onclick="toggleJoint(this)">
-              <circle cx="115" cy="210" r="7" fill="#1a2940" stroke="#2d7ff9" stroke-width="2"/>
-              <text x="115" y="214" text-anchor="middle" fill="#2d7ff9" font-size="7" font-family="monospace">M</text>
-            </g>
-            <g class="joint-dot" data-joint="index-pip" data-finger="Index" data-name="PIP Joint" data-lm="6" data-desc="Index middle joint — primary flex measurement" onclick="toggleJoint(this)">
-              <circle cx="112" cy="158" r="7" fill="#1a2940" stroke="#2d7ff9" stroke-width="2"/>
-              <text x="112" y="162" text-anchor="middle" fill="#2d7ff9" font-size="7" font-family="monospace">P</text>
-            </g>
-            <g class="joint-dot" data-joint="index-tip" data-finger="Index" data-name="Tip" data-lm="8" data-desc="Index fingertip" onclick="toggleJoint(this)">
-              <circle cx="110" cy="100" r="7" fill="#1a2940" stroke="#2d7ff9" stroke-width="2"/>
-              <text x="110" y="104" text-anchor="middle" fill="#2d7ff9" font-size="7" font-family="monospace">T</text>
-            </g>
-            <g class="joint-dot" data-joint="middle-mcp" data-finger="Middle" data-name="MCP Joint" data-lm="9" data-desc="Middle finger base knuckle" onclick="toggleJoint(this)">
-              <circle cx="141" cy="210" r="7" fill="#1a2940" stroke="#00c9b1" stroke-width="2"/>
-              <text x="141" y="214" text-anchor="middle" fill="#00c9b1" font-size="7" font-family="monospace">M</text>
-            </g>
-            <g class="joint-dot" data-joint="middle-pip" data-finger="Middle" data-name="PIP Joint" data-lm="10" data-desc="Middle finger PIP — used for current rep counting" onclick="toggleJoint(this)">
-              <circle cx="142" cy="152" r="7" fill="#1a2940" stroke="#00c9b1" stroke-width="2"/>
-              <text x="142" y="156" text-anchor="middle" fill="#00c9b1" font-size="7" font-family="monospace">P</text>
-            </g>
-            <g class="joint-dot" data-joint="middle-tip" data-finger="Middle" data-name="Tip" data-lm="12" data-desc="Middle fingertip" onclick="toggleJoint(this)">
-              <circle cx="143" cy="88" r="7" fill="#1a2940" stroke="#00c9b1" stroke-width="2"/>
-              <text x="143" y="92" text-anchor="middle" fill="#00c9b1" font-size="7" font-family="monospace">T</text>
-            </g>
-            <g class="joint-dot" data-joint="ring-mcp" data-finger="Ring" data-name="MCP Joint" data-lm="13" data-desc="Ring finger base knuckle" onclick="toggleJoint(this)">
-              <circle cx="170" cy="210" r="7" fill="#1a2940" stroke="#a78bfa" stroke-width="2"/>
-              <text x="170" y="214" text-anchor="middle" fill="#a78bfa" font-size="7" font-family="monospace">M</text>
-            </g>
-            <g class="joint-dot" data-joint="ring-pip" data-finger="Ring" data-name="PIP Joint" data-lm="14" data-desc="Ring finger middle joint — commonly stiff in arthritis" onclick="toggleJoint(this)">
-              <circle cx="175" cy="152" r="7" fill="#1a2940" stroke="#a78bfa" stroke-width="2"/>
-              <text x="175" y="156" text-anchor="middle" fill="#a78bfa" font-size="7" font-family="monospace">P</text>
-            </g>
-            <g class="joint-dot" data-joint="ring-tip" data-finger="Ring" data-name="Tip" data-lm="16" data-desc="Ring fingertip" onclick="toggleJoint(this)">
-              <circle cx="178" cy="94" r="7" fill="#1a2940" stroke="#a78bfa" stroke-width="2"/>
-              <text x="178" y="98" text-anchor="middle" fill="#a78bfa" font-size="7" font-family="monospace">T</text>
-            </g>
-            <g class="joint-dot" data-joint="pinky-mcp" data-finger="Pinky" data-name="MCP Joint" data-lm="17" data-desc="Pinky base knuckle" onclick="toggleJoint(this)">
-              <circle cx="196" cy="212" r="7" fill="#1a2940" stroke="#f04b4b" stroke-width="2"/>
-              <text x="196" y="216" text-anchor="middle" fill="#f04b4b" font-size="7" font-family="monospace">M</text>
-            </g>
-            <g class="joint-dot" data-joint="pinky-pip" data-finger="Pinky" data-name="PIP Joint" data-lm="18" data-desc="Pinky middle joint" onclick="toggleJoint(this)">
-              <circle cx="206" cy="162" r="7" fill="#1a2940" stroke="#f04b4b" stroke-width="2"/>
-              <text x="206" y="166" text-anchor="middle" fill="#f04b4b" font-size="7" font-family="monospace">P</text>
-            </g>
-            <g class="joint-dot" data-joint="pinky-tip" data-finger="Pinky" data-name="Tip" data-lm="20" data-desc="Pinky fingertip" onclick="toggleJoint(this)">
-              <circle cx="214" cy="118" r="7" fill="#1a2940" stroke="#f04b4b" stroke-width="2"/>
-              <text x="214" y="122" text-anchor="middle" fill="#f04b4b" font-size="7" font-family="monospace">T</text>
-            </g>
-          </svg>
-          <div class="finger-legend">
-            <div class="legend-item"><div class="legend-dot" style="background:#f5a623"></div>Thumb</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#2d7ff9"></div>Index</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#00c9b1"></div>Middle</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>Ring</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#f04b4b"></div>Pinky</div>
-          </div>
-          <div style="font-size:0.68rem; color:#334155; font-family:monospace;">M=MCP · P=PIP · T=Tip</div>
+  // Build finger blocks for the grid column
+  const fingerBlocks = EJS_FINGERS.map(finger => {
+    const cards = EJS_JOINTS.map(joint => {
+      const key  = `${finger}-${joint}`;
+      const data = EJS_JOINT_DATA[key];
+      if (!data || data.lm === null) {
+        return `<div class="ejs-joint-card ejs-disabled" style="color:${EJS_FINGER_COLORS[finger]}">
+          <div class="ejs-joint-card-label" style="opacity:0.3">—</div>
+          <div class="ejs-joint-card-name" style="opacity:0.3">N/A</div>
+        </div>`;
+      }
+      return `<div class="ejs-joint-card" id="ejscard-${key}" style="color:${EJS_FINGER_COLORS[finger]}"
+                   onclick="ejsSelectCard('${key}')">
+        <div class="ejs-joint-check" id="ejscheck-${key}">
+          <svg viewBox="0 0 8 8" fill="none"><polyline points="1,4 3,6 7,2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
-        <div class="joint-right-panel">
-          <div class="joint-info-box">
-            <div class="joint-info-empty-text" id="jointInfoEmpty">← Tap a joint to see details</div>
-            <div id="jointInfoContent" style="display:none;">
-              <div class="joint-info-finger-label" id="jointInfoFinger"></div>
-              <div class="joint-info-joint-name" id="jointInfoName"></div>
-              <div class="joint-info-desc-text" id="jointInfoDesc"></div>
-              <span class="landmark-tag" id="jointInfoLm"></span>
-            </div>
-          </div>
-          <div>
-            <div style="font-size:0.65rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Quick Select</div>
-            <div class="finger-quick-btns">
-              <button class="finger-quick-btn" onclick="quickSelectFinger('Thumb', this)">Thumb</button>
-              <button class="finger-quick-btn" onclick="quickSelectFinger('Index', this)">Index</button>
-              <button class="finger-quick-btn" onclick="quickSelectFinger('Middle', this)">Middle</button>
-              <button class="finger-quick-btn" onclick="quickSelectFinger('Ring', this)">Ring</button>
-              <button class="finger-quick-btn" onclick="quickSelectFinger('Pinky', this)">Pinky</button>
-              <button class="finger-quick-btn" onclick="quickSelectAll(this)">All</button>
-            </div>
-          </div>
-          <div>
-            <div style="font-size:0.65rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">
-              Tracking (<span id="jointCount">0</span>)
-            </div>
-            <div class="selected-joints-list" id="selectedJointsList">
-              <div style="color:#334155; font-size:0.78rem; text-align:center; padding:12px;">None selected</div>
-            </div>
-          </div>
-          <button class="joint-clear-btn" onclick="clearAllJoints()">Clear All</button>
+        <div class="ejs-joint-card-label">${data.label}</div>
+        <div class="ejs-joint-card-name">${data.fullName.split(' ').slice(0,2).join(' ')}</div>
+        <div class="ejs-joint-card-lm">LM ${data.lm}</div>
+      </div>`;
+    }).join('');
+    return `<div class="ejs-finger-block">
+      <div class="ejs-finger-block-header">
+        <div class="ejs-finger-color-bar" style="background:${EJS_FINGER_COLORS[finger]}"></div>
+        <span class="ejs-finger-name">${EJS_FINGER_LABELS[finger]}</span>
+        <span class="ejs-finger-sel-count" id="ejsfcount-${finger}">0 / 4</span>
+      </div>
+      <div class="ejs-joint-row">${cards}</div>
+    </div>`;
+  }).join('');
+
+  // Finger pills
+  const pills = EJS_FINGERS.map(f =>
+    `<div class="ejs-finger-pill" id="ejspill-${f}" data-finger="${f}"
+          style="border-color:${EJS_FINGER_COLORS[f]};color:${EJS_FINGER_COLORS[f]}"
+          onclick="ejsQuickSelectFinger('${f}')">
+      ${f.slice(0,3).toUpperCase()}
+    </div>`
+  ).join('');
+
+  return `
+  <div class="ejs-panel">
+    <div class="ejs-panel-header">
+      <span class="ejs-panel-title">Joint Monitoring — Select joints to track for this patient</span>
+      <span class="ejs-total-count" id="ejsTotalCount">0 tracked</span>
+    </div>
+    <div class="ejs-body">
+
+      <!-- LEFT: Hand SVG -->
+      <div class="ejs-hand-col">
+        <span class="ejs-view-label">Palmar View</span>
+        <div class="ejs-svg-wrap" id="ejsSvgWrap-${patientEmail.replace(/[@.]/g,'_')}">
+          <svg viewBox="0 0 220 340" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
+            <path class="ejs-palm" d="M 60 200 Q 42 215 44 255 Q 46 290 80 305 Q 110 318 145 310 Q 178 302 185 270 Q 192 238 180 210 Z"/>
+            <path class="ejs-finger-seg" d="M 52 195 Q 32 185 22 160 Q 14 138 28 122 Q 42 108 58 120 Q 68 130 70 158 L 72 190"/>
+            <path class="ejs-finger-seg" d="M 85 198 Q 82 165 80 138 Q 78 112 80 90 Q 82 70 94 65 Q 106 60 114 70 Q 121 80 118 104 Q 115 130 113 158 Q 111 180 110 198"/>
+            <path class="ejs-finger-seg" d="M 112 197 Q 110 163 109 135 Q 108 107 110 84 Q 112 62 124 56 Q 136 50 144 60 Q 152 70 149 94 Q 146 120 144 148 Q 142 172 141 197"/>
+            <path class="ejs-finger-seg" d="M 143 197 Q 144 166 146 141 Q 148 116 152 95 Q 156 76 166 73 Q 176 70 182 80 Q 188 92 183 114 Q 178 138 174 162 Q 170 182 168 197"/>
+            <path class="ejs-finger-seg" d="M 170 200 Q 173 178 177 160 Q 181 140 186 122 Q 191 106 199 104 Q 208 102 212 113 Q 216 126 210 146 Q 204 166 199 184 Q 195 196 192 206"/>
+            <!-- Thumb joints -->
+            <g class="ejs-jdot" id="ejsdot-thumb-mcp" onclick="ejsDotClick('thumb','mcp')"><circle class="ejs-dot-outer" cx="60" cy="178" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="60" cy="178" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="60" y="178" fill="#F5A623">M</text></g>
+            <g class="ejs-jdot" id="ejsdot-thumb-pip" onclick="ejsDotClick('thumb','pip')"><circle class="ejs-dot-outer" cx="46" cy="150" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="46" cy="150" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="46" y="150" fill="#F5A623">P</text></g>
+            <g class="ejs-jdot" id="ejsdot-thumb-tip" onclick="ejsDotClick('thumb','tip')"><circle class="ejs-dot-outer" cx="30" cy="125" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="30" cy="125" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="30" y="125" fill="#F5A623">T</text></g>
+            <!-- Index joints -->
+            <g class="ejs-jdot" id="ejsdot-index-mcp" onclick="ejsDotClick('index','mcp')"><circle class="ejs-dot-outer" cx="100" cy="193" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="100" cy="193" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="100" y="193" fill="#2D7FF9">M</text></g>
+            <g class="ejs-jdot" id="ejsdot-index-pip" onclick="ejsDotClick('index','pip')"><circle class="ejs-dot-outer" cx="96" cy="148" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="96" cy="148" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="96" y="148" fill="#2D7FF9">P</text></g>
+            <g class="ejs-jdot" id="ejsdot-index-dip" onclick="ejsDotClick('index','dip')"><circle class="ejs-dot-outer" cx="94" cy="108" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="94" cy="108" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="94" y="108" fill="#2D7FF9">D</text></g>
+            <g class="ejs-jdot" id="ejsdot-index-tip" onclick="ejsDotClick('index','tip')"><circle class="ejs-dot-outer" cx="92" cy="72" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="92" cy="72" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="92" y="72" fill="#2D7FF9">T</text></g>
+            <!-- Middle joints -->
+            <g class="ejs-jdot" id="ejsdot-middle-mcp" onclick="ejsDotClick('middle','mcp')"><circle class="ejs-dot-outer" cx="126" cy="192" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="126" cy="192" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="126" y="192" fill="#00C9B1">M</text></g>
+            <g class="ejs-jdot" id="ejsdot-middle-pip" onclick="ejsDotClick('middle','pip')"><circle class="ejs-dot-outer" cx="127" cy="145" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="127" cy="145" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="127" y="145" fill="#00C9B1">P</text></g>
+            <g class="ejs-jdot" id="ejsdot-middle-dip" onclick="ejsDotClick('middle','dip')"><circle class="ejs-dot-outer" cx="128" cy="103" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="128" cy="103" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="128" y="103" fill="#00C9B1">D</text></g>
+            <g class="ejs-jdot" id="ejsdot-middle-tip" onclick="ejsDotClick('middle','tip')"><circle class="ejs-dot-outer" cx="129" cy="65" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="129" cy="65" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="129" y="65" fill="#00C9B1">T</text></g>
+            <!-- Ring joints -->
+            <g class="ejs-jdot" id="ejsdot-ring-mcp" onclick="ejsDotClick('ring','mcp')"><circle class="ejs-dot-outer" cx="158" cy="192" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="158" cy="192" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="158" y="192" fill="#A78BFA">M</text></g>
+            <g class="ejs-jdot" id="ejsdot-ring-pip" onclick="ejsDotClick('ring','pip')"><circle class="ejs-dot-outer" cx="162" cy="147" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="162" cy="147" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="162" y="147" fill="#A78BFA">P</text></g>
+            <g class="ejs-jdot" id="ejsdot-ring-dip" onclick="ejsDotClick('ring','dip')"><circle class="ejs-dot-outer" cx="166" cy="107" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="166" cy="107" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="166" y="107" fill="#A78BFA">D</text></g>
+            <g class="ejs-jdot" id="ejsdot-ring-tip" onclick="ejsDotClick('ring','tip')"><circle class="ejs-dot-outer" cx="170" cy="72" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="170" cy="72" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="170" y="72" fill="#A78BFA">T</text></g>
+            <!-- Pinky joints -->
+            <g class="ejs-jdot" id="ejsdot-pinky-mcp" onclick="ejsDotClick('pinky','mcp')"><circle class="ejs-dot-outer" cx="183" cy="197" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="183" cy="197" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="183" y="197" fill="#F04B4B">M</text></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-pip" onclick="ejsDotClick('pinky','pip')"><circle class="ejs-dot-outer" cx="190" cy="158" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="190" cy="158" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="190" y="158" fill="#F04B4B">P</text></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-dip" onclick="ejsDotClick('pinky','dip')"><circle class="ejs-dot-outer" cx="196" cy="126" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="196" cy="126" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="196" y="126" fill="#F04B4B">D</text></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-tip" onclick="ejsDotClick('pinky','tip')"><circle class="ejs-dot-outer" cx="202" cy="108" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="202" cy="108" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="202" y="108" fill="#F04B4B">T</text></g>
+          </svg>
+        </div>
+        <div class="ejs-finger-strip">${pills}</div>
+        <div class="ejs-bulk-row">
+          <button class="ejs-bulk-btn" onclick="ejsSelectAll()">All</button>
+          <button class="ejs-bulk-btn" onclick="ejsClearAll()">Clear</button>
         </div>
       </div>
-    </div>`;
-}
 
-function toggleJoint(el) {
-  const joint  = el.dataset.joint;
-  const finger = el.dataset.finger;
-  const color  = fingerColors[finger];
-  document.getElementById('jointInfoEmpty').style.display   = 'none';
-  document.getElementById('jointInfoContent').style.display = 'block';
-  document.getElementById('jointInfoFinger').textContent    = finger + ' Finger';
-  document.getElementById('jointInfoFinger').style.color    = color;
-  document.getElementById('jointInfoName').textContent      = el.dataset.name;
-  document.getElementById('jointInfoDesc').textContent      = el.dataset.desc;
-  document.getElementById('jointInfoLm').textContent        = 'Landmark [' + el.dataset.lm + ']';
-  if (selectedJoints.has(joint)) { selectedJoints.delete(joint); el.classList.remove('selected'); }
-  else                           { selectedJoints.add(joint);    el.classList.add('selected');    }
-  renderSelectedJoints();
-}
+      <!-- MIDDLE: Joint grid -->
+      <div class="ejs-grid-col">${fingerBlocks}</div>
 
-function quickSelectFinger(finger, btn) {
-  const joints      = document.querySelectorAll(`[data-finger="${finger}"]`);
-  const allSelected = [...joints].every(j => selectedJoints.has(j.dataset.joint));
-  joints.forEach(j => {
-    if (allSelected) { selectedJoints.delete(j.dataset.joint); j.classList.remove('selected'); }
-    else             { selectedJoints.add(j.dataset.joint);    j.classList.add('selected');    }
-  });
-  btn.classList.toggle('fq-active', !allSelected);
-  renderSelectedJoints();
-}
-
-function quickSelectAll(btn) {
-  const all         = document.querySelectorAll('.joint-dot');
-  const allSelected = [...all].every(j => selectedJoints.has(j.dataset.joint));
-  all.forEach(j => {
-    if (allSelected) { selectedJoints.delete(j.dataset.joint); j.classList.remove('selected'); }
-    else             { selectedJoints.add(j.dataset.joint);    j.classList.add('selected');    }
-  });
-  document.querySelectorAll('.finger-quick-btn').forEach(b => b.classList.toggle('fq-active', !allSelected));
-  renderSelectedJoints();
-}
-
-function clearAllJoints() {
-  selectedJoints.clear();
-  document.querySelectorAll('.joint-dot').forEach(j => j.classList.remove('selected'));
-  document.querySelectorAll('.finger-quick-btn').forEach(b => b.classList.remove('fq-active'));
-  renderSelectedJoints();
-}
-
-function renderSelectedJoints() {
-  const list    = document.getElementById('selectedJointsList');
-  const countEl = document.getElementById('jointCount');
-  if (!list) return;
-  if (countEl) countEl.textContent = selectedJoints.size;
-  if (selectedJoints.size === 0) {
-    list.innerHTML = `<div style="color:#334155; font-size:0.78rem; text-align:center; padding:12px;">None selected</div>`;
-    return;
-  }
-  list.innerHTML = [...selectedJoints].map(jointId => {
-    const el     = document.querySelector(`[data-joint="${jointId}"]`);
-    if (!el) return '';
-    const finger = el.dataset.finger;
-    const color  = fingerColors[finger];
-    return `
-      <div class="selected-joint-item">
-        <div class="selected-joint-item-left">
-          <div class="selected-joint-color" style="background:${color}"></div>
-          <div>
-            <div class="selected-joint-name">${el.dataset.name}</div>
-            <div class="selected-joint-finger">${finger}</div>
+      <!-- RIGHT: Info panel -->
+      <div class="ejs-info-col">
+        <div class="ejs-info-empty" id="ejsInfoEmpty">
+          <div class="ejs-info-empty-icon">🦴</div>
+          <div class="ejs-info-empty-text">Tap any joint on the diagram or in the grid to view clinical details and toggle tracking.</div>
+        </div>
+        <div class="ejs-info-detail" id="ejsInfoDetail">
+          <div class="ejs-info-top">
+            <div class="ejs-info-finger-tag" id="ejsInfoTag">—</div>
+            <div class="ejs-info-joint-name" id="ejsInfoJointName">—</div>
+            <div class="ejs-info-joint-full" id="ejsInfoJointFull">—</div>
+          </div>
+          <div class="ejs-info-meta">
+            <div class="ejs-info-meta-row"><span class="ejs-meta-key">MediaPipe LM</span><span class="ejs-meta-val" id="ejsInfoLM">—</span></div>
+            <div class="ejs-info-meta-row"><span class="ejs-meta-key">Max ROM</span><span class="ejs-meta-val" id="ejsInfoMaxROM">—</span></div>
+            <div class="ejs-info-meta-row"><span class="ejs-meta-key">Joint Type</span><span class="ejs-meta-val" id="ejsInfoJointType">—</span></div>
+            <div class="ejs-info-meta-row"><span class="ejs-meta-key">Clinical Priority</span><span class="ejs-meta-val" id="ejsInfoPriority">—</span></div>
+          </div>
+          <div class="ejs-rom-wrap">
+            <div class="ejs-rom-label">Normal Range of Motion</div>
+            <div class="ejs-rom-row">
+              <svg viewBox="0 0 80 48" width="72" height="44">
+                <path d="M 8,44 A 36,36 0 0,1 72,44" fill="none" stroke="#E8ECF2" stroke-width="6" stroke-linecap="round"/>
+                <path id="ejsArcFill" d="M 8,44 A 36,36 0 0,1 72,44" fill="none" stroke="#005EB8" stroke-width="6" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="113" style="transition:stroke-dashoffset 0.5s ease,stroke 0.3s"/>
+              </svg>
+              <div class="ejs-rom-vals">
+                <div class="ejs-rom-val-row"><span class="ejs-rom-num" id="ejsRomMax" style="color:#005EB8">—</span><span class="ejs-rom-lbl">max</span></div>
+                <div class="ejs-rom-val-row"><span class="ejs-rom-num" style="color:var(--muted)">0°</span><span class="ejs-rom-lbl">min</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="ejs-info-desc"><div id="ejsInfoDesc" class="ejs-info-desc-text">—</div></div>
+          <div class="ejs-info-actions">
+            <button class="ejs-track-btn ejs-track-add" id="ejsTrackBtn" onclick="ejsToggleFromInfo()">＋ Track This Joint</button>
           </div>
         </div>
-        <span class="selected-joint-lm">LM ${el.dataset.lm}</span>
-      </div>`;
+        <div class="ejs-tracked-summary">
+          <div class="ejs-tracked-title">Currently Tracking</div>
+          <div class="ejs-tracked-chips" id="ejsTrackedChips"><span class="ejs-tracked-empty">None selected</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>`;
+}
+
+/* After buildJointSelector HTML is injected into the DOM, call this to reset state */
+function ejsInit() {
+  selectedJoints.clear();
+  ejsActiveInfoKey = null;
+  ejsRefreshUI();
+}
+
+function ejsDotClick(finger, joint) {
+  const key = `${finger}-${joint}`;
+  const data = EJS_JOINT_DATA[key];
+  if (!data || data.lm === null) return;
+  ejsToggleJoint(key);
+  ejsShowInfo(key);
+}
+
+function ejsSelectCard(key) {
+  const data = EJS_JOINT_DATA[key];
+  if (!data || data.lm === null) return;
+  ejsShowInfo(key);
+}
+
+function ejsToggleJoint(key) {
+  if (selectedJoints.has(key)) selectedJoints.delete(key);
+  else selectedJoints.add(key);
+  ejsRefreshUI();
+}
+
+function ejsToggleFromInfo() {
+  if (!ejsActiveInfoKey) return;
+  ejsToggleJoint(ejsActiveInfoKey);
+  ejsShowInfo(ejsActiveInfoKey);
+}
+
+function ejsShowInfo(key) {
+  ejsActiveInfoKey = key;
+  const data = EJS_JOINT_DATA[key];
+  if (!data) return;
+
+  document.getElementById('ejsInfoEmpty').style.display  = 'none';
+  document.getElementById('ejsInfoDetail').style.display = 'flex';
+
+  const tag = document.getElementById('ejsInfoTag');
+  tag.textContent   = EJS_FINGER_LABELS[data.finger];
+  tag.style.background = EJS_FINGER_COLORS[data.finger];
+
+  document.getElementById('ejsInfoJointName').textContent = `${data.label} — ${data.fullName.split(' ')[0]}`;
+  document.getElementById('ejsInfoJointFull').textContent = data.fullName;
+  document.getElementById('ejsInfoLM').textContent        = data.lm !== null ? `[${data.lm}]` : 'N/A';
+  document.getElementById('ejsInfoMaxROM').textContent    = data.maxROM !== null ? `${data.maxROM}°` : 'N/A';
+  document.getElementById('ejsInfoJointType').textContent = data.jointType;
+  document.getElementById('ejsInfoDesc').textContent      = data.desc;
+
+  const priEl = document.getElementById('ejsInfoPriority');
+  priEl.textContent  = data.priority;
+  priEl.style.color  = EJS_PRIORITY_COLORS[data.priority] || 'var(--muted)';
+
+  // ROM arc
+  const arcFill = document.getElementById('ejsArcFill');
+  const romMax  = document.getElementById('ejsRomMax');
+  if (data.maxROM !== null) {
+    const pct = Math.min(data.maxROM / 120, 1);
+    arcFill.style.strokeDashoffset = 113 * (1 - pct);
+    arcFill.style.stroke = EJS_FINGER_COLORS[data.finger];
+    romMax.textContent   = `${data.maxROM}°`;
+    romMax.style.color   = EJS_FINGER_COLORS[data.finger];
+  } else {
+    arcFill.style.strokeDashoffset = 113;
+    romMax.textContent = '—';
+    romMax.style.color = 'var(--muted)';
+  }
+
+  // Track button
+  const btn = document.getElementById('ejsTrackBtn');
+  if (selectedJoints.has(key)) {
+    btn.className   = 'ejs-track-btn ejs-track-remove';
+    btn.textContent = '✕ Remove from Tracking';
+  } else {
+    btn.className   = 'ejs-track-btn ejs-track-add';
+    btn.textContent = '＋ Track This Joint';
+    btn.style.background = EJS_FINGER_COLORS[data.finger];
+  }
+
+  // Highlight card
+  document.querySelectorAll('.ejs-joint-card').forEach(c => c.style.outline = '');
+  const card = document.getElementById(`ejscard-${key}`);
+  if (card && data.lm !== null) card.style.outline = `2px solid ${EJS_FINGER_COLORS[data.finger]}`;
+}
+
+function ejsRefreshUI() {
+  // Cards + finger counts
+  EJS_FINGERS.forEach(finger => {
+    let count = 0;
+    EJS_JOINTS.forEach(joint => {
+      const key  = `${finger}-${joint}`;
+      const card = document.getElementById(`ejscard-${key}`);
+      const chk  = document.getElementById(`ejscheck-${key}`);
+      if (!card) return;
+      const sel = selectedJoints.has(key);
+      card.classList.toggle('ejs-selected', sel);
+      if (chk) chk.classList.toggle('ejs-check-on', sel);
+      if (sel) count++;
+    });
+    const fc = document.getElementById(`ejsfcount-${finger}`);
+    if (fc) fc.textContent = `${count} / ${EJS_JOINTS.length}`;
+  });
+
+  // SVG dots
+  EJS_FINGERS.forEach(finger => {
+    EJS_JOINTS.forEach(joint => {
+      const key  = `${finger}-${joint}`;
+      const dot  = document.getElementById(`ejsdot-${finger}-${joint}`);
+      if (!dot) return;
+      dot.classList.toggle('ejs-dot-selected', selectedJoints.has(key));
+    });
+  });
+
+  // Finger pills
+  EJS_FINGERS.forEach(finger => {
+    const pill = document.getElementById(`ejspill-${finger}`);
+    if (!pill) return;
+    const validJoints = EJS_JOINTS.filter(j => {
+      const d = EJS_JOINT_DATA[`${finger}-${j}`];
+      return d && d.lm !== null;
+    });
+    const all = validJoints.every(j => selectedJoints.has(`${finger}-${j}`));
+    const any = validJoints.some(j => selectedJoints.has(`${finger}-${j}`));
+    pill.classList.toggle('ejs-pill-on',  all);
+    pill.classList.toggle('ejs-pill-off', !any);
+    pill.style.background = all ? EJS_FINGER_COLORS[finger] : '';
+    pill.style.color      = all ? 'white' : EJS_FINGER_COLORS[finger];
+  });
+
+  // Counter
+  const tc = document.getElementById('ejsTotalCount');
+  if (tc) tc.textContent = `${selectedJoints.size} tracked`;
+
+  // Chips
+  ejsRenderChips();
+
+  // Re-outline active card
+  if (ejsActiveInfoKey) {
+    document.querySelectorAll('.ejs-joint-card').forEach(c => c.style.outline = '');
+    const card = document.getElementById(`ejscard-${ejsActiveInfoKey}`);
+    const data = EJS_JOINT_DATA[ejsActiveInfoKey];
+    if (card && data && data.lm !== null) card.style.outline = `2px solid ${EJS_FINGER_COLORS[data.finger]}`;
+    // Refresh button state
+    const btn = document.getElementById('ejsTrackBtn');
+    if (btn && data) {
+      if (selectedJoints.has(ejsActiveInfoKey)) {
+        btn.className   = 'ejs-track-btn ejs-track-remove';
+        btn.textContent = '✕ Remove from Tracking';
+      } else {
+        btn.className   = 'ejs-track-btn ejs-track-add';
+        btn.textContent = '＋ Track This Joint';
+        btn.style.background = EJS_FINGER_COLORS[data.finger];
+      }
+    }
+  }
+}
+
+function ejsRenderChips() {
+  const wrap = document.getElementById('ejsTrackedChips');
+  if (!wrap) return;
+  if (selectedJoints.size === 0) {
+    wrap.innerHTML = '<span class="ejs-tracked-empty">None selected</span>';
+    return;
+  }
+  wrap.innerHTML = [...selectedJoints].map(key => {
+    const data = EJS_JOINT_DATA[key];
+    if (!data) return '';
+    return `<button class="ejs-chip" style="background:${EJS_FINGER_COLORS[data.finger]}"
+                    onclick="ejsRemoveChip('${key}')">
+      ${EJS_FINGER_LABELS[data.finger].slice(0,3)} ${data.label} <span>×</span>
+    </button>`;
   }).join('');
+}
+
+function ejsRemoveChip(key) {
+  selectedJoints.delete(key);
+  ejsRefreshUI();
+  if (ejsActiveInfoKey === key) ejsShowInfo(key);
+}
+
+function ejsQuickSelectFinger(finger) {
+  const validJoints = EJS_JOINTS.filter(j => {
+    const d = EJS_JOINT_DATA[`${finger}-${j}`];
+    return d && d.lm !== null;
+  });
+  const all = validJoints.every(j => selectedJoints.has(`${finger}-${j}`));
+  validJoints.forEach(j => {
+    const key = `${finger}-${j}`;
+    if (all) selectedJoints.delete(key);
+    else selectedJoints.add(key);
+  });
+  ejsRefreshUI();
+}
+
+function ejsSelectAll() {
+  EJS_FINGERS.forEach(f => EJS_JOINTS.forEach(j => {
+    const d = EJS_JOINT_DATA[`${f}-${j}`];
+    if (d && d.lm !== null) selectedJoints.add(`${f}-${j}`);
+  }));
+  ejsRefreshUI();
+}
+
+function ejsClearAll() {
+  selectedJoints.clear();
+  ejsRefreshUI();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

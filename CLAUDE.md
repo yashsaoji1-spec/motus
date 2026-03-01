@@ -1,3 +1,5 @@
+# Last updated: 2026-03-01
+
 # PhalanX — Claude Code Guide
 
 Hand rehabilitation web app using MediaPipe hand tracking.
@@ -25,11 +27,10 @@ Both accounts are hardcoded in `app.js` (Section 1) and seeded into localStorage
 ## File Structure
 
 ```
-index.html    — all HTML screens (448 lines)
-app.js        — all JS logic (~76 KB, 14 sections)
-styles.css    — all styles (870 lines)
-non_func/     — LICENSE.txt (copyright + third-party licenses)
-node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser app)
+phalanX_code/
+  index.html    — all HTML screens (441 lines)
+  app.js        — all JS logic (~82 KB, 15 sections, 1709 lines)
+  styles.css    — all styles (899 lines)
 ```
 
 ## Dependencies (CDN only — no local install)
@@ -42,35 +43,37 @@ node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser 
 
 Single-page app. All screens are `<div class="screen">` in `index.html`. Navigation is done by toggling the `.active` class via `showScreen(id)` in `app.js` (Section 2).
 
-| Screen ID           | Purpose                                      |
-|---------------------|----------------------------------------------|
-| `loginScreen`       | Default landing screen (has `.active`)       |
-| `signupScreen`      | New account registration                     |
-| `forgotScreen`      | Password reset                               |
-| `connectScreen`     | Patient↔therapist link by therapist code     |
-| `patientScreen`     | Patient home (today's protocol, streak)      |
-| `cameraScreen`      | Live exercise session (rep counter + pain)   |
-| `therapistScreen`   | Therapist dashboard (patient list + charts)  |
-| `progressScreen`    | Patient progress history                     |
-| `calibrationScreen` | Joint angle calibration (MediaPipe read-out) |
+| Screen ID           | Purpose                                           |
+|---------------------|---------------------------------------------------|
+| `loginScreen`       | Default landing screen (has `.active`)            |
+| `signupScreen`      | New account registration                          |
+| `forgotScreen`      | Password reset                                    |
+| `connectScreen`     | Patient↔therapist link by therapist code          |
+| `patientScreen`     | Patient home (today's protocol, streak)           |
+| `cameraScreen`      | Live exercise session (rep counter + pain)        |
+| `therapistScreen`   | Therapist dashboard (patient list + charts)       |
+| `progressScreen`    | Patient progress history                          |
+| `messagingScreen`   | In-app patient↔therapist messaging thread         |
+| `calibrationScreen` | Joint angle calibration (MediaPipe read-out)      |
 
 ## Role Split
 
-**Patient flow:** `loginScreen` → `patientScreen` → `cameraScreen` → `progressScreen`
+**Patient flow:** `loginScreen` → `patientScreen` → `cameraScreen` → `progressScreen` / `messagingScreen`
 
-**Therapist flow:** `loginScreen` → `therapistScreen` (sidebar patient list + main panel with stats, charts, protocol assignment)
+**Therapist flow:** `loginScreen` → `therapistScreen` (sidebar patient list + main panel with stats, charts, protocol assignment, message panel)
 
 ## localStorage Schema
 
 All app state is stored in `localStorage` — there is no backend.
 
-| Key                                | Contents                                  |
-|------------------------------------|-------------------------------------------|
-| `phalanx_accounts`                 | Array of user account objects             |
-| `phalanx_connections`              | Therapist↔patient links (keyed by therapist email) |
-| `phalanx_sessions_<patientEmail>`  | Array of session history objects          |
-| `phalanx_protocol_<patientEmail>`  | Assigned exercise protocol object         |
-| `phalanx_sound`                    | `'true'` / `'false'` — sound preference  |
+| Key                                | Contents                                                              |
+|------------------------------------|-----------------------------------------------------------------------|
+| `phalanx_accounts`                 | Array of user account objects `{name, email, password, role}`        |
+| `phalanx_connections`              | Therapist↔patient links (keyed by therapist email)                   |
+| `phalanx_sessions_<patientEmail>`  | Array of session history objects                                      |
+| `phalanx_protocol_<patientEmail>`  | Assigned exercise protocol object                                     |
+| `phalanx_sound`                    | `'true'` / `'false'` — sound preference                              |
+| `phalanx_messages`                 | Array of message objects `{from, to, text, timestamp, read}`         |
 
 Streak data is derived from session history at runtime (no dedicated key).
 
@@ -94,20 +97,31 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 12 | Progress Screen — session history display |
 | 13 | Joint Selector — therapist panel joint angle UI |
 | 14 | Calibration Screen — MediaPipe Hands init + angle math (`calibVideo`/`calibCanvas`) |
+| 15 | Messaging — patient↔therapist in-app thread (`getMessages`, `sendMessage`, `getThread`, `markRead`, `unreadCount`, `renderThread`, `openPatientMessaging`, `sendMessageFromPatient`, `buildMessagePanel`) |
 
 ## CSS Variables (styles.css `:root`)
 
 ```css
---bg           #0a0c0f       /* page background */
---surface      #111318       /* card/panel background */
---border       #1e2229       /* borders and grid lines */
---accent       #00e5c0       /* teal — primary interactive color */
---accent-dim   rgba(0,229,192,0.15)
---accent-glow  rgba(0,229,192,0.4)
---text         #e8eaed       /* primary text */
---muted        #5a6072       /* secondary/disabled text */
---danger       #ff4d6a       /* error states, pain indicator */
+--bg           #F4F6F9                  /* page background (light) */
+--surface      #FFFFFF                  /* card/panel background */
+--border       #D0D7E3                  /* borders and grid lines */
+--accent       #005EB8                  /* blue — primary interactive color */
+--accent-dim   rgba(0, 94, 184, 0.1)
+--accent-glow  rgba(0, 94, 184, 0.3)
+--text         #1A2744                  /* primary text */
+--muted        #6B7A99                  /* secondary/disabled text */
+--danger       #CC2936                  /* error states, pain indicator */
 ```
+
+## Maintenance Instructions
+
+Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), Claude must:
+1. Read the current `CLAUDE.md`
+2. Read and audit `app.js`, `index.html`, and `styles.css` for any changes
+3. Update ALL stale sections — file line counts, section map, screen list, localStorage keys, CSS variables, file structure, etc.
+4. Replace the date on the top line of **both** files with today's date
+5. Apply updates to **both** `/Users/alpanajoshi/PhalanX_the_real_deal/CLAUDE.md` and `/Users/alpanajoshi/phalanX/CLAUDE.md`
+6. **Never commit or push to GitHub unless the user explicitly asks**
 
 ## Key Constraints
 

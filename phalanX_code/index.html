@@ -120,10 +120,7 @@
       <div class="protocol-strip-exercise" id="protocolStripExercise">—</div>
       <div class="protocol-strip-meta" id="protocolStripMeta">—</div>
     </div>
-    <div>
-      <div class="protocol-strip-sets" id="protocolStripSets">3</div>
-      <div class="protocol-strip-sets-label">Sets Today</div>
-    </div>
+    <div id="protocolStripStatus" class="protocol-strip-status status-pending">—</div>
   </div>
 
   <div class="scan-btn-wrapper">
@@ -156,7 +153,7 @@
 
   <!-- Calibration button -->
 
-  <button class="home-btn-wide" onclick="alert('Exercise guides coming soon')">
+  <button class="home-btn-wide" onclick="showExercisesScreen()">
     <div class="home-btn-wide-text">
       <div class="home-btn-label">My Exercises</div>
       <div class="home-btn-sub">Assigned Protocols</div>
@@ -165,6 +162,19 @@
   </button>
 
   <button class="logout-fixed" onclick="requestLogout()">Log Out</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MY EXERCISES SCREEN
+═══════════════════════════════════════════════════════ -->
+<div id="exercisesScreen" class="screen">
+  <div style="max-width:680px; margin:0 auto; padding:32px 24px; width:100%;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px;">
+      <h2 style="color:#1A2744; font-size:1.5rem; font-weight:800; letter-spacing:-0.3px;">My Exercises</h2>
+      <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
+    </div>
+    <div id="exercisesScreenInner"></div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
