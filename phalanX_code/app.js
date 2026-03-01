@@ -91,17 +91,42 @@ const screenTitles = {
   exercisesScreen:    'PhalanX — My Exercises',
   progressScreen:     'PhalanX — My Progress',
   calibrationScreen:  'PhalanX — Calibration',
+  messagingScreen:    'PhalanX — Messages',
 };
 
 function showScreen(screenId) {
+  const prevActive = document.querySelector('.screen.active');
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(screenId).classList.add('active');
+  const next = document.getElementById(screenId);
+  next.classList.add('active');
+  next.scrollTop = 0;
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
+
+  // Stop patient camera when leaving the camera screen
+  if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
+    if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  }
 
   // Stop calibration camera when leaving calibration screen
   if (screenId !== 'calibrationScreen' && calibMpCamera) {
     calibMpCamera.stop();
     calibMpCamera = null;
+  }
+
+  // Reset forgot-password form if navigating away mid-flow
+  if (screenId !== 'forgotScreen' && forgotStep !== 1) {
+    forgotStep = 1;
+    const fe = document.getElementById('forgotEmail');
+    const fp = document.getElementById('forgotNewPassword');
+    const npf = document.getElementById('newPasswordField');
+    const fb = document.getElementById('forgotBtn');
+    const fs = document.getElementById('forgotSuccess');
+    if (fe)  { fe.value = ''; fe.disabled = false; }
+    if (fp)  fp.value = '';
+    if (npf) npf.style.display = 'none';
+    if (fb)  fb.textContent = 'Find Account';
+    if (fs)  fs.style.display = 'none';
+    hideError('forgotError');
   }
 }
 
@@ -136,6 +161,8 @@ function handleSignup() {
   const email    = document.getElementById('signupEmail').value.trim().toLowerCase();
   const password = document.getElementById('signupPassword').value;
   if (!name || !email || !password) { showError('signupError', 'Please fill in all fields.'); return; }
+  if (name.length < 2) { showError('signupError', 'Please enter your full name.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('signupError', 'Please enter a valid email address.'); return; }
   if (password.length < 6) { showError('signupError', 'Password must be at least 6 characters.'); return; }
   if (getAccounts().find(a => a.email.toLowerCase() === email)) { showError('signupError', 'An account with that email already exists.'); return; }
   const newAccount = { name, email, password, role: selectedRole };
@@ -193,21 +220,19 @@ function handleForgot() {
 function handleConnect() {
   hideError('connectError');
   const code = document.getElementById('clinicCodeInput').value.trim();
-  if (code.length !== 6 || isNaN(code)) { showError('connectError', 'Please enter a valid 6-digit clinic code.'); return; }
+  if (!/^\d{6}$/.test(code)) { showError('connectError', 'Please enter a valid 6-digit clinic code.'); return; }
   const therapist = getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   saveConnection(therapist.email, currentUser.email);
-  const successEl = document.getElementById('connectSuccess');
-  successEl.textContent = `✓ Connected to ${therapist.name}! Loading your exercises...`;
-  successEl.style.display = 'block';
-  setTimeout(() => {
-    showScreen('patientScreen');
-    updatePatientHomeScreen();
-    initSetTracker();
-  }, 1800);
+  localStorage.removeItem('phalanx_skipped_connect_' + currentUser.email);
+  document.getElementById('clinicCodeInput').value = '';
+  showScreen('patientScreen');
+  updatePatientHomeScreen();
+  initSetTracker();
 }
 
 function skipConnect() {
+  localStorage.setItem('phalanx_skipped_connect_' + currentUser.email, '1');
   showScreen('patientScreen');
   updatePatientHomeScreen();
   initSetTracker();
@@ -225,7 +250,8 @@ function loginSuccess() {
   } else {
     const connections      = getConnections();
     const alreadyConnected = Object.values(connections).some(list => list.includes(currentUser.email));
-    if (alreadyConnected) {
+    const skipped          = localStorage.getItem('phalanx_skipped_connect_' + currentUser.email);
+    if (alreadyConnected || skipped) {
       showScreen('patientScreen');
       updatePatientHomeScreen();
       initSetTracker();
@@ -238,8 +264,9 @@ function loginSuccess() {
 function logout() {
   currentUser = null;
   currentRole = null;
-  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-  if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
+  if (mpCamera)        { mpCamera.stop(); mpCamera = null; }
+  if (calibMpCamera)   { calibMpCamera.stop(); calibMpCamera = null; }
+  if (restTimerInterval) { clearInterval(restTimerInterval); restTimerInterval = null; }
   showScreen('loginScreen');
 }
 
@@ -298,9 +325,17 @@ function updatePatientHomeScreen() {
   }
 
   const therapistEmail = getConnectedTherapist();
+  const therapistBtn   = document.getElementById('therapistContactBtn');
+  const therapistLabel = document.getElementById('therapistBtnLabel');
   if (therapistEmail) {
     const therapist = getAccounts().find(a => a.email === therapistEmail);
     if (therapist) document.getElementById('therapistContactName').textContent = 'Message ' + therapist.name;
+    if (therapistLabel) therapistLabel.textContent = 'Contact My Therapist';
+    if (therapistBtn)   therapistBtn.onclick = openPatientMessaging;
+  } else {
+    if (therapistLabel) therapistLabel.textContent = 'Connect to Therapist';
+    document.getElementById('therapistContactName').textContent = 'Enter your clinic code';
+    if (therapistBtn)   therapistBtn.onclick = () => { document.getElementById('clinicCodeInput').value = ''; showScreen('connectScreen'); };
   }
 
   // Streak
@@ -319,10 +354,10 @@ function updatePatientHomeScreen() {
     badgeEl.style.display = 'none';
   }
 
-  const tEmail = getConnectedTherapist();
+  // Unread badge — reuse therapistEmail already fetched above
   const msgBadge = document.getElementById('patientUnreadBadge');
-  if (msgBadge && tEmail) {
-    const n = unreadCount(currentUser.email, tEmail);
+  if (msgBadge && therapistEmail) {
+    const n = unreadCount(currentUser.email, therapistEmail);
     msgBadge.textContent = n;
     msgBadge.style.display = n > 0 ? 'inline' : 'none';
   }
@@ -465,11 +500,22 @@ function assignProtocol(patientEmail) {
     assignedAt:   new Date().toISOString()
   };
   if (exerciseParams) protocol.exerciseParams = exerciseParams;
-  if (isNaN(protocol.reps) || protocol.reps < 1) { alert('Please enter a valid rep count.'); return; }
-  if (isNaN(protocol.sets) || protocol.sets < 1) { alert('Please enter a valid set count.'); return; }
+  const errEl = document.getElementById('protocolSuccess');
+  if (isNaN(protocol.reps) || protocol.reps < 1 || protocol.reps > 100) {
+    if (errEl) { errEl.textContent = '⚠ Reps must be between 1 and 100.'; errEl.style.color = '#CC2936'; errEl.style.display = 'block'; setTimeout(() => { errEl.style.display = 'none'; errEl.style.color = ''; }, 3000); }
+    return;
+  }
+  if (isNaN(protocol.sets) || protocol.sets < 1 || protocol.sets > 20) {
+    if (errEl) { errEl.textContent = '⚠ Sets must be between 1 and 20.'; errEl.style.color = '#CC2936'; errEl.style.display = 'block'; setTimeout(() => { errEl.style.display = 'none'; errEl.style.color = ''; }, 3000); }
+    return;
+  }
   localStorage.setItem(`phalanx_protocol_${patientEmail}`, JSON.stringify(protocol));
-  const successEl = document.getElementById('protocolSuccess');
-  if (successEl) { successEl.style.display = 'block'; setTimeout(() => { successEl.style.display = 'none'; }, 3000); }
+  if (errEl) {
+    errEl.textContent = '✓ Protocol assigned successfully';
+    errEl.style.color = '';
+    errEl.style.display = 'block';
+    setTimeout(() => { errEl.style.display = 'none'; }, 3000);
+  }
 }
 
 function formatProtocol(p) {
@@ -656,27 +702,31 @@ function showRealPatient(patient) {
 
   const compliance      = calcCompliance(sessions);
   const avgROM          = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
+  const avgTAM          = Math.round(sessions.reduce((s, x) => s + (x.tam  || 0), 0) / sessions.length);
   const avgPain         = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
   const totalReps       = sessions.reduce((s, x) => s + (x.reps || 0), 0);
   const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
   const recent          = sessions.slice(-8);
   const romData         = recent.map(s => s.rom  || 0);
+  const tamData         = recent.map(s => s.tam  || 0);
   const painData        = recent.map(s => s.pain || 0);
   const labels          = recent.map(s => {
     const d = new Date(s.date);
     return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
   });
+  const hasTAM = sessions.some(s => s.tam > 0);
 
   panel.innerHTML = `
     <h3>${patient.name}</h3>
     <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value" style="color:${complianceColor}">${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
-      <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
-      <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain Rating</div></div>
+      <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg ROM</div></div>
+      ${hasTAM ? `<div class="stat-card"><div class="stat-value" style="color:#a78bfa">${avgTAM}°</div><div class="stat-label">Avg TAM</div></div>` : ''}
+      <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain</div></div>
     </div>
     <div class="stats-row" style="margin-top:-8px;">
-      <div class="stat-card" style="grid-column:span 3;"><div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
+      <div class="stat-card" style="grid-column:span ${hasTAM ? 4 : 3};"><div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
     </div>
     <div class="chart-card"><h4>Range of Motion Over Time (degrees)</h4><canvas id="romChart" height="100"></canvas></div>
     <div class="chart-card"><h4>Pain Rating Over Time (1–10)</h4><canvas id="painChart" height="100"></canvas></div>
@@ -685,15 +735,28 @@ function showRealPatient(patient) {
     ${buildProtocolForm(patient.email)}
     ${buildMessagePanel(patient.email)}`;
 
+  const chartDefaults = {
+    plugins: { legend: { display: hasTAM } },
+    scales: {
+      x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } },
+      y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0 }
+    }
+  };
   new Chart(document.getElementById('romChart').getContext('2d'), {
     type: 'line',
-    data: { labels, datasets: [{ data: romData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 } } }
+    data: {
+      labels,
+      datasets: [
+        { label: 'ROM', data: romData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true },
+        ...(hasTAM ? [{ label: 'TAM', data: tamData, borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.08)', borderWidth: 2, pointBackgroundColor: '#a78bfa', pointRadius: 4, tension: 0.4, fill: false }] : [])
+      ]
+    },
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, max: 300 } } }
   });
   new Chart(document.getElementById('painChart').getContext('2d'), {
     type: 'line',
-    data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 4, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 } } }
+    data: { labels, datasets: [{ label: 'Pain', data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 4, tension: 0.4, fill: true }] },
+    options: { ...chartDefaults, plugins: { legend: { display: false } }, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, max: 10 } } }
   });
 
   document.getElementById('therapistMsgSend').onclick = () => {
@@ -719,8 +782,10 @@ function buildSessionHistory(patientEmail) {
     const timeStr   = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const pain      = s.pain || 0;
     const rom       = s.rom  || 0;
+    const tam       = s.tam  || 0;
     const painColor = pain <= 3 ? '#22c55e' : pain <= 6 ? '#f59e0b' : '#ef4444';
     const romColor  = rom  >= 120 ? '#22c55e' : rom >= 80 ? '#f59e0b' : '#94a3b8';
+    const tamColor  = tam  >= 220 ? '#22c55e' : tam >= 150 ? '#a78bfa' : '#94a3b8';
     return `
       <div class="session-history-row">
         <div class="session-date">
@@ -729,6 +794,7 @@ function buildSessionHistory(patientEmail) {
         </div>
         <div class="session-stat" style="color:#3b82f6;">${s.reps || 0} reps</div>
         <div class="session-stat" style="color:${romColor};">${rom}°</div>
+        <div class="session-stat" style="color:${tamColor};">${tam}°</div>
         <div class="session-stat">
           <span class="session-pain-dot" style="background:${painColor}"></span>
           <span style="color:${painColor}">${pain}/10</span>
@@ -741,7 +807,7 @@ function buildSessionHistory(patientEmail) {
       <div class="session-history-list">
         <div class="session-history-row header-row">
           <span>Date & Time</span><span style="text-align:center">Reps</span>
-          <span style="text-align:center">ROM</span><span style="text-align:center">Pain</span>
+          <span style="text-align:center">ROM</span><span style="text-align:center">TAM</span><span style="text-align:center">Pain</span>
         </div>
         ${rows}
       </div>
@@ -902,7 +968,11 @@ let repCount    = 0;
 let fingerState = 'unknown';
 let lastROM     = 0;
 let maxROMThisSession = 0;
+let lastTAM     = 0;
+let maxTAMThisSession = 0;
 let sessionPaused = false;
+let angleBuffer = [];  // rolling average to prevent jitter-induced double-counts
+const ANGLE_SMOOTH_FRAMES = 5;
 let lastRepTime = null;
 let setPainValues = [];
 let restTimerInterval = null;
@@ -1021,21 +1091,56 @@ function checkExerciseState(landmarks) {
   return { isFlexed, isExtended, repAngle };
 }
 
+// ── Total Arc of Motion (TAM = MCP + PIP + DIP for one finger) ────────────────
+function calcFingerTAM(landmarks, finger) {
+  const jDefs = CALIB_FINGERS[finger];
+  if (!jDefs) return 0;
+  let total = 0;
+  for (const joint of ['mcp', 'pip', 'dip']) {
+    const j = jDefs[joint];
+    if (!j) continue;
+    total += calibGetAngle(landmarks[j.a], landmarks[j.b], landmarks[j.c]);
+  }
+  return total;
+}
+
+// Returns the highest TAM across all four main fingers (best performing finger)
+function calcTAM(landmarks) {
+  let max = 0;
+  for (const finger of ['index', 'middle', 'ring', 'pinky']) {
+    const tam = calcFingerTAM(landmarks, finger);
+    if (tam > max) max = tam;
+  }
+  return max;
+}
+
 function updateRepCount(landmarks) {
   if (sessionPaused) return;
-  let isFlexed, isExtended, repAngle;
 
+  // ── ROM tracking ──────────────────────────────────────────────────────────────
+  const rawAngle = getMiddleFingerAngle(landmarks);
+  angleBuffer.push(rawAngle);
+  if (angleBuffer.length > ANGLE_SMOOTH_FRAMES) angleBuffer.shift();
+  const smoothAngle = angleBuffer.reduce((a, b) => a + b, 0) / angleBuffer.length;
+  if (smoothAngle > maxROMThisSession) { maxROMThisSession = smoothAngle; lastROM = Math.round(smoothAngle); }
+
+  // ── TAM tracking ──────────────────────────────────────────────────────────────
+  const tam = calcTAM(landmarks);
+  if (tam > maxTAMThisSession) { maxTAMThisSession = tam; lastTAM = Math.round(tam); }
+  const tamEl = document.getElementById('tamDisplay');
+  if (tamEl) tamEl.textContent = Math.round(tam) + '°';
+
+  // ── Rep detection ─────────────────────────────────────────────────────────────
+  let isFlexed, isExtended;
   if (currentExerciseParams) {
     const state = checkExerciseState(landmarks);
-    if (!state) return;                         // bad config, skip silently
-    ({ isFlexed, isExtended, repAngle } = state);
+    if (!state) return;
+    ({ isFlexed, isExtended } = state);
   } else {
-    // Legacy fallback — middle finger PIP, 0°=straight convention
-    const angle = getMiddleFingerAngle(landmarks);
-    repAngle = Math.round(angle); isFlexed = angle > 90; isExtended = angle < 30;
+    // Legacy fallback — 3D-aware middle-finger PIP (0°=extended, ~90°=flexed)
+    const pipFlex = calibGetAngle(landmarks[9], landmarks[10], landmarks[11]);
+    isFlexed = pipFlex > 45; isExtended = pipFlex < 20;
   }
-
-  if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
 
   if (isFlexed && fingerState !== 'flexed') {
     fingerState = 'flexed';
@@ -1075,6 +1180,7 @@ function saveSession() {
     reps:           repCount,
     pain:           parseInt(document.getElementById('painSliderCongrats').value),
     rom:            lastROM,
+    tam:            lastTAM,
     therapistEmail: getConnectedTherapist()
   };
   const key      = `phalanx_sessions_${currentUser.email}`;
@@ -1119,6 +1225,9 @@ function initSetTracker() {
   fingerState  = 'unknown';
   lastROM      = 0;
   maxROMThisSession = 0;
+  lastTAM      = 0;
+  maxTAMThisSession = 0;
+  angleBuffer  = [];
   sessionPaused = false;
   lastRepTime = null;
   setPainValues = [];
@@ -1173,6 +1282,9 @@ function advanceSet() {
   fingerState = 'unknown';
   lastROM = 0;
   maxROMThisSession = 0;
+  lastTAM = 0;
+  maxTAMThisSession = 0;
+  angleBuffer = [];
   renderSetDots();
   updateRepUI();
   startRestTimer();
@@ -1209,17 +1321,21 @@ function showSessionSummary(partialReps = 0) {
     ? (setPainValues.reduce((a, b) => a + b, 0) / setPainValues.length).toFixed(1)
     : '—';
   const maxROM = Math.round(maxROMThisSession);
+  const maxTAM = Math.round(maxTAMThisSession);
   document.getElementById('summaryTotalReps').textContent = totalRepsCompleted;
   document.getElementById('summarySets').textContent      = setsComplete;
   document.getElementById('summaryMaxROM').textContent    = maxROM + '°';
   document.getElementById('summaryAvgPain').textContent   = avgPain;
+  document.getElementById('summaryMaxTAM').textContent    = maxTAM + '°';
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
     message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
-  } else if (maxROM >= 120) {
+  } else if (maxTAM >= 220 || maxROM >= 120) {
     message = '💪 Excellent range of motion today! You\'re making great progress.';
-  } else if (maxROM >= 80) {
+  } else if (maxTAM >= 160 || maxROM >= 80) {
     message = '👍 Good session. Consistency is key — keep it up!';
+  } else if (totalRepsCompleted === 0) {
+    message = '📋 Session recorded. Start moving to track your range of motion next time.';
   } else {
     message = '✅ Session logged. Every rep counts toward your recovery.';
   }
@@ -1253,6 +1369,7 @@ function completeSessionEarly() {
       reps:           repCount,
       pain:           painVal,
       rom:            lastROM,
+      tam:            lastTAM,
       therapistEmail: getConnectedTherapist()
     };
     const key      = `phalanx_sessions_${currentUser.email}`;
@@ -1281,12 +1398,16 @@ function startCamera() {
   hands.onResults(results => {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
-    if (results.multiHandLandmarks) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (const landmarks of results.multiHandLandmarks) {
         drawConnectors(sessionCtx, landmarks, HAND_CONNECTIONS, { color: 'rgba(0, 229, 192, 0)', lineWidth: 2 });
         drawLandmarks(sessionCtx, landmarks, { color: 'rgba(0, 0, 0, 0)', lineWidth: 1, radius: 4 });
         updateRepCount(landmarks);
       }
+    } else {
+      // No hand in frame — reset live TAM display
+      const tamEl = document.getElementById('tamDisplay');
+      if (tamEl) tamEl.textContent = '—';
     }
   });
   mpCamera = new Camera(sessionVideo, {
@@ -1315,6 +1436,7 @@ function renderProgressScreen() {
   }
   const totalReps = sessions.reduce((s, x) => s + (x.reps || 0), 0);
   const avgROM    = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
+  const avgTAM    = Math.round(sessions.reduce((s, x) => s + (x.tam  || 0), 0) / sessions.length);
   const recent    = sessions.slice(-10);
   const romData   = recent.map(s => s.rom || 0);
   const labels    = recent.map(s => { const d = new Date(s.date); return `${d.getMonth()+1}/${d.getDate()}`; });
@@ -1327,6 +1449,7 @@ function renderProgressScreen() {
         <div class="progress-session-stats">
           <div class="progress-stat"><div class="progress-stat-value">${s.reps || 0}</div><div class="progress-stat-label">Reps</div></div>
           <div class="progress-stat"><div class="progress-stat-value">${s.rom || 0}°</div><div class="progress-stat-label">ROM</div></div>
+          <div class="progress-stat"><div class="progress-stat-value" style="color:#a78bfa">${s.tam || 0}°</div><div class="progress-stat-label">TAM</div></div>
           <div class="progress-stat"><div class="progress-stat-value" style="color:#ef4444">${s.pain || 0}</div><div class="progress-stat-label">Pain</div></div>
         </div>
       </div>`;
@@ -1336,6 +1459,7 @@ function renderProgressScreen() {
       <div class="stat-card"><div class="stat-value">${sessions.length}</div><div class="stat-label">Total Sessions</div></div>
       <div class="stat-card"><div class="stat-value">${totalReps}</div><div class="stat-label">Total Reps</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg ROM</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#a78bfa">${avgTAM}°</div><div class="stat-label">Avg TAM</div></div>
     </div>
     <div class="chart-card" style="margin-bottom:24px;">
       <h4>Range of Motion Over Time</h4>
@@ -1977,12 +2101,19 @@ function calibOnResults(results) {
   const calibHandCount = document.getElementById('calibHandCount');
   const calibCameraWrapEl = document.getElementById('calibCameraWrap');
 
-  calibCanvas.width  = results.image.width;
-  calibCanvas.height = results.image.height;
+  // Center-crop the source frame to a square (matches video's object-fit:cover)
+  const srcW = results.image.width;
+  const srcH = results.image.height;
+  const size  = Math.min(srcW, srcH);
+  const cropX = (srcW - size) / 2;
+  const cropY = (srcH - size) / 2;
+
+  calibCanvas.width  = size;
+  calibCanvas.height = size;
 
   calibCtx.save();
-  calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
-  calibCtx.drawImage(results.image, 0, 0, calibCanvas.width, calibCanvas.height);
+  calibCtx.clearRect(0, 0, size, size);
+  calibCtx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
 
   const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
   if (calibHandCount) calibHandCount.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
@@ -1991,8 +2122,15 @@ function calibOnResults(results) {
     calibSetStatus('Tracking active', 'active');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
     for (const landmarks of results.multiHandLandmarks) {
-      calibDrawLandmarks(calibCtx, landmarks);
-      calibUpdateReadouts(landmarks);
+      // Remap landmarks into the cropped square coordinate space for drawing.
+      // Original landmarks are normalized to the full frame; adjust for the crop offset.
+      const drawLandmarks = landmarks.map(lm => ({
+        ...lm,
+        x: (lm.x * srcW - cropX) / size,
+        y: (lm.y * srcH - cropY) / size,
+      }));
+      calibDrawLandmarks(calibCtx, drawLandmarks);
+      calibUpdateReadouts(landmarks); // always use original coords for angle math
     }
   } else {
     calibSetStatus('Point camera at hand', 'idle');
@@ -2144,7 +2282,16 @@ document.addEventListener('DOMContentLoaded', () => {
    { from, to, text, timestamp, read }
    ══════════════════════════════════════════════════════════════════════════ */
 
-// ── Core helpers ──────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function getMessages() {
   return JSON.parse(localStorage.getItem('phalanx_messages') || '[]');
@@ -2179,8 +2326,19 @@ function unreadCount(toEmail, fromEmail) {
 
 // ── Shared thread renderer ────────────────────────────────────────────────────
 
+function formatMsgTime(isoStr) {
+  const d     = new Date(isoStr);
+  const now   = new Date();
+  const today = now.toDateString();
+  const yesterday = new Date(now - 86400000).toDateString();
+  const time  = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === today)     return time;
+  if (d.toDateString() === yesterday) return `Yesterday ${time}`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + time;
+}
+
 function renderThread(containerId, myEmail, otherEmail) {
-  const el     = document.getElementById(containerId);
+  const el = document.getElementById(containerId);
   if (!el) return;
   const thread = getThread(myEmail, otherEmail);
   if (!thread.length) {
@@ -2189,10 +2347,9 @@ function renderThread(containerId, myEmail, otherEmail) {
   }
   el.innerHTML = thread.map(m => {
     const mine = m.from === myEmail;
-    const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     return `<div class="msg-bubble ${mine ? 'msg-mine' : 'msg-theirs'}">
-      <div class="msg-text">${m.text}</div>
-      <div class="msg-time">${time}</div>
+      <div class="msg-text">${escapeHtml(m.text)}</div>
+      <div class="msg-time">${formatMsgTime(m.timestamp)}</div>
     </div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
@@ -2227,7 +2384,8 @@ function buildMessagePanel(patientEmail) {
     <div class="section-title" style="font-size:0.85rem; font-weight:700; color:#6B7A99; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Messages</div>
     <div class="therapist-msg-thread" id="therapistMsgThread"></div>
     <div class="therapist-msg-row">
-      <input type="text" id="therapistMsgInput" class="therapist-msg-input" placeholder="Send a message…" />
+      <input type="text" id="therapistMsgInput" class="therapist-msg-input" placeholder="Send a message…"
+             onkeydown="if(event.key==='Enter'){ document.getElementById('therapistMsgSend').click(); }" />
       <button id="therapistMsgSend" class="therapist-msg-send">Send</button>
     </div>
   </div>`;
