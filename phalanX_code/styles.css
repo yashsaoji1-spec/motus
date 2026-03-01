@@ -104,6 +104,11 @@ body {
   background: #D1FAE5; border: 1px solid #22c55e; color: #065F46;
   font-size: 0.85rem; padding: 10px 14px; border-radius: 8px;
 }
+.pending-therapist-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.pending-therapist-row:last-child { border-bottom: none; }
 .role-toggle { display: flex; gap: 8px; }
 .role-toggle-btn {
   flex: 1; padding: 10px; border-radius: 8px; border: 2px solid #8A9AB0;
@@ -211,7 +216,7 @@ body {
 .patient-header h2 { font-size: 1.4rem; font-weight: 700; color: #005EB8; }
 .logout-btn {
   background: none; border: 1px solid #8A9AB0; color: #6B7A99;
-  padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 1rem; font-family: inherit;
+  padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-family: inherit;
 }
 .camera-box {
   position: relative; width: 640px; height: 480px;
@@ -637,9 +642,9 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
 
 .calib-back-btn {
   font-family: 'Space Mono', monospace;
-  font-size: 0.8rem;
+  font-size: 0.6rem;
   letter-spacing: 0.06em;
-  padding: 10px 20px;
+  padding: 5px 12px;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 2px;
@@ -670,15 +675,13 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
   flex: 0 0 55%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   min-width: 0;
 }
 
 .calib-camera-wrap {
   position: relative;
-  aspect-ratio: 1 / 1;
-  width: min(100%, calc(100vh - 160px));
+  width: 100%;
+  height: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 4px;

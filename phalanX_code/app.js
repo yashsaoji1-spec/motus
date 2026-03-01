@@ -4,30 +4,50 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SECTION 1: AUTH & STATE  (from dashboard)
+   SECTION 1: AUTH & STATE  (Firebase)
    ══════════════════════════════════════════════════════════════════════════ */
 
 let currentRole = null;
 let currentUser = null;
 let selectedRole = 'patient';
 
-const demoAccounts = [
-  { name: "Dr. Sarah Chen", email: "sarah.chen@mayoclinic.org", password: "demo123", role: "therapist" },
-  { name: "James Park",     email: "james.park@gmail.com",      password: "demo123", role: "patient" }
-];
+// ── Firebase config — replace all REPLACE_* values with your project's config ──
+// Get these from: Firebase console → Project Settings → Your apps → SDK setup
+// Required Firestore composite indexes (create in Firebase console → Firestore → Indexes):
+//   sessions:  patientEmail ASC, date ASC
+//   messages:  participants ARRAY, timestamp ASC
+//   messages:  to ASC, from ASC, read ASC
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAwlgTFuYFQ8CO_svT26kQpqzXCjr0yT_A",
+  authDomain:        "phalanx-firebase-database.firebaseapp.com",
+  projectId:         "phalanx-firebase-database",
+  storageBucket:     "phalanx-firebase-database.firebasestorage.app",
+  messagingSenderId: "1023274632764",
+  appId:             "1:1023274632764:web:6190e7a3b4622ebce26539"
+};
 
-function getAccounts() {
-  const stored = localStorage.getItem('phalanx_accounts');
-  const saved  = stored ? JSON.parse(stored) : [];
-  return [...demoAccounts, ...saved];
-}
+firebase.initializeApp(FIREBASE_CONFIG);
+const db   = firebase.firestore();
+const auth = firebase.auth();
 
-function saveAccount(account) {
-  const stored = localStorage.getItem('phalanx_accounts');
-  const saved  = stored ? JSON.parse(stored) : [];
-  saved.push(account);
-  localStorage.setItem('phalanx_accounts', JSON.stringify(saved));
-}
+// Restore session on page reload and route on sign-in / sign-out
+auth.onAuthStateChanged(async (firebaseUser) => {
+  if (!firebaseUser) {
+    currentUser = null;
+    currentRole = null;
+    showScreen('loginScreen');
+    return;
+  }
+  try {
+    const snap = await db.collection('users').doc(firebaseUser.email).get();
+    currentUser = { email: firebaseUser.email, ...snap.data() };
+    currentRole = currentUser.role;
+    await loginSuccess();
+  } catch (e) {
+    console.error('onAuthStateChanged error:', e);
+    showScreen('loginScreen');
+  }
+});
 
 function generateCodeForEmail(email) {
   let hash = 0;
@@ -38,40 +58,29 @@ function generateCodeForEmail(email) {
   return String(Math.abs(hash) % 900000 + 100000);
 }
 
-function getConnections() {
-  const stored = localStorage.getItem('phalanx_connections');
-  return stored ? JSON.parse(stored) : {};
+async function getConnectedPatients(therapistEmail) {
+  const doc = await db.collection('connections').doc(therapistEmail).get();
+  const emails = doc.exists ? (doc.data().patients || []) : [];
+  const snaps = await Promise.all(emails.map(e => db.collection('users').doc(e).get()));
+  return snaps.filter(d => d.exists).map(d => ({ email: d.id, ...d.data() }));
 }
 
-function saveConnection(therapistEmail, patientEmail) {
-  const connections = getConnections();
-  if (!connections[therapistEmail]) connections[therapistEmail] = [];
-  if (!connections[therapistEmail].includes(patientEmail)) {
-    connections[therapistEmail].push(patientEmail);
-  }
-  localStorage.setItem('phalanx_connections', JSON.stringify(connections));
+async function saveConnection(therapistEmail, patientEmail) {
+  await db.collection('connections').doc(therapistEmail)
+    .set({ patients: firebase.firestore.FieldValue.arrayUnion(patientEmail) }, { merge: true });
 }
 
-function getTherapistForCode(code) {
-  const seen = new Set();
-  for (const t of getAccounts().filter(a => a.role === 'therapist')) {
-    if (seen.has(t.email)) continue;
-    seen.add(t.email);
-    if (generateCodeForEmail(t.email) === code) return t;
-  }
-  return null;
+async function getConnectedTherapist() {
+  if (!currentUser) return null;
+  const snap = await db.collection('connections')
+    .where('patients', 'array-contains', currentUser.email).get();
+  return snap.empty ? null : snap.docs[0].id;
 }
 
-function getConnectedPatients(therapistEmail) {
-  const connections   = getConnections();
-  const patientEmails = connections[therapistEmail] || [];
-  return patientEmails.map(email => getAccounts().find(a => a.email === email)).filter(Boolean);
-}
-
-function getConnectedTherapist() {
-  const connections = getConnections();
-  for (const [therapistEmail, patients] of Object.entries(connections)) {
-    if (patients.includes(currentUser.email)) return therapistEmail;
+async function getTherapistForCode(code) {
+  const snap = await db.collection('users').where('role', '==', 'therapist').get();
+  for (const doc of snap.docs) {
+    if (generateCodeForEmail(doc.id) === code) return { email: doc.id, ...doc.data() };
   }
   return null;
 }
@@ -91,6 +100,8 @@ const screenTitles = {
   exercisesScreen:    'PhalanX — My Exercises',
   progressScreen:     'PhalanX — My Progress',
   calibrationScreen:  'PhalanX — Calibration',
+  pendingScreen:      'PhalanX — Pending Approval',
+  adminScreen:        'PhalanX — Admin Panel',
 };
 
 function showScreen(screenId) {
@@ -118,71 +129,61 @@ function hideError(id)      { document.getElementById(id).style.display = 'none'
    SECTION 3: LOGIN / SIGNUP / FORGOT
    ══════════════════════════════════════════════════════════════════════════ */
 
-function handleLogin() {
+async function handleLogin() {
   hideError('loginError');
   const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
   if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
-  const match = getAccounts().find(a => a.email.toLowerCase() === email && a.password === password);
-  if (!match) { showError('loginError', 'Incorrect email or password. Try again.'); return; }
-  currentUser = match;
-  currentRole = match.role;
-  loginSuccess();
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged handles routing
+  } catch (e) {
+    showError('loginError',
+      (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential')
+        ? 'Incorrect email or password. Try again.'
+        : (e.message || 'Sign in failed. Please try again.'));
+  }
 }
 
-function handleSignup() {
+async function handleSignup() {
   hideError('signupError');
   const name     = document.getElementById('signupName').value.trim();
   const email    = document.getElementById('signupEmail').value.trim().toLowerCase();
   const password = document.getElementById('signupPassword').value;
   if (!name || !email || !password) { showError('signupError', 'Please fill in all fields.'); return; }
   if (password.length < 6) { showError('signupError', 'Password must be at least 6 characters.'); return; }
-  if (getAccounts().find(a => a.email.toLowerCase() === email)) { showError('signupError', 'An account with that email already exists.'); return; }
-  const newAccount = { name, email, password, role: selectedRole };
-  saveAccount(newAccount);
-  currentUser = newAccount;
-  currentRole = selectedRole;
-  loginSuccess();
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    const roleToSave = selectedRole === 'therapist' ? 'therapist_pending' : 'patient';
+    await db.collection('users').doc(cred.user.email).set({ name, role: roleToSave });
+    // onAuthStateChanged handles routing
+  } catch (e) {
+    showError('signupError',
+      e.code === 'auth/email-already-in-use'
+        ? 'An account with that email already exists.'
+        : (e.message || 'Sign up failed. Please try again.'));
+  }
 }
 
-let forgotStep = 1;
-
-function handleForgot() {
-  if (forgotStep === 1) {
-    const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
-    if (!email) { showError('forgotError', 'Please enter your email.'); return; }
-    const match = getAccounts().find(a => a.email.toLowerCase() === email);
-    if (!match) { showError('forgotError', 'No account found with that email.'); return; }
-    if (demoAccounts.map(a => a.email.toLowerCase()).includes(email)) {
-      showError('forgotError', 'Demo accounts cannot be changed. Try creating your own account.'); return;
-    }
-    hideError('forgotError');
-    document.getElementById('newPasswordField').style.display = 'flex';
-    document.getElementById('forgotBtn').textContent = 'Reset Password';
-    document.getElementById('forgotEmail').disabled  = true;
-    forgotStep = 2;
-  } else {
-    const email       = document.getElementById('forgotEmail').value.trim().toLowerCase();
-    const newPassword = document.getElementById('forgotNewPassword').value;
-    if (newPassword.length < 6) { showError('forgotError', 'Password must be at least 6 characters.'); return; }
-    const stored = localStorage.getItem('phalanx_accounts');
-    const saved  = stored ? JSON.parse(stored) : [];
-    const idx    = saved.findIndex(a => a.email.toLowerCase() === email);
-    if (idx !== -1) { saved[idx].password = newPassword; localStorage.setItem('phalanx_accounts', JSON.stringify(saved)); }
-    hideError('forgotError');
+async function handleForgot() {
+  hideError('forgotError');
+  const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
+  if (!email) { showError('forgotError', 'Please enter your email.'); return; }
+  try {
+    await auth.sendPasswordResetEmail(email);
     const successEl = document.getElementById('forgotSuccess');
-    successEl.textContent = '✓ Password reset! You can now sign in.';
+    successEl.textContent = '✓ Password reset email sent! Check your inbox.';
     successEl.style.display = 'block';
     setTimeout(() => {
-      forgotStep = 1;
-      document.getElementById('forgotEmail').disabled    = false;
-      document.getElementById('forgotEmail').value       = '';
-      document.getElementById('forgotNewPassword').value = '';
-      document.getElementById('newPasswordField').style.display = 'none';
-      document.getElementById('forgotBtn').textContent   = 'Find Account';
       successEl.style.display = 'none';
+      document.getElementById('forgotEmail').value = '';
       showScreen('loginScreen');
-    }, 2000);
+    }, 3000);
+  } catch (e) {
+    showError('forgotError',
+      e.code === 'auth/user-not-found'
+        ? 'No account found with that email.'
+        : (e.message || 'Password reset failed. Please try again.'));
   }
 }
 
@@ -190,45 +191,50 @@ function handleForgot() {
    SECTION 4: CONNECT
    ══════════════════════════════════════════════════════════════════════════ */
 
-function handleConnect() {
+async function handleConnect() {
   hideError('connectError');
   const code = document.getElementById('clinicCodeInput').value.trim();
   if (code.length !== 6 || isNaN(code)) { showError('connectError', 'Please enter a valid 6-digit clinic code.'); return; }
-  const therapist = getTherapistForCode(code);
+  const therapist = await getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
-  saveConnection(therapist.email, currentUser.email);
+  await saveConnection(therapist.email, currentUser.email);
   const successEl = document.getElementById('connectSuccess');
   successEl.textContent = `✓ Connected to ${therapist.name}! Loading your exercises...`;
   successEl.style.display = 'block';
-  setTimeout(() => {
+  setTimeout(async () => {
     showScreen('patientScreen');
-    updatePatientHomeScreen();
-    initSetTracker();
+    await updatePatientHomeScreen();
+    await initSetTracker();
   }, 1800);
 }
 
-function skipConnect() {
+async function skipConnect() {
   showScreen('patientScreen');
-  updatePatientHomeScreen();
-  initSetTracker();
+  await updatePatientHomeScreen();
+  await initSetTracker();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 5: LOGIN SUCCESS / LOGOUT
    ══════════════════════════════════════════════════════════════════════════ */
 
-function loginSuccess() {
-  if (currentRole === 'therapist') {
+async function loginSuccess() {
+  if (currentRole === 'admin') {
+    showScreen('adminScreen');
+    await loadAdminScreen();
+  } else if (currentRole === 'therapist') {
     showScreen('therapistScreen');
     document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
-    loadConnectedPatients();
+    await loadConnectedPatients();
+  } else if (currentRole === 'therapist_pending') {
+    showScreen('pendingScreen');
   } else {
-    const connections      = getConnections();
-    const alreadyConnected = Object.values(connections).some(list => list.includes(currentUser.email));
-    if (alreadyConnected) {
+    // patient
+    const therapistEmail = await getConnectedTherapist();
+    if (therapistEmail) {
       showScreen('patientScreen');
-      updatePatientHomeScreen();
-      initSetTracker();
+      await updatePatientHomeScreen();
+      await initSetTracker();
     } else {
       showScreen('connectScreen');
     }
@@ -236,11 +242,10 @@ function loginSuccess() {
 }
 
 function logout() {
-  currentUser = null;
-  currentRole = null;
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
-  showScreen('loginScreen');
+  auth.signOut();
+  // onAuthStateChanged resets currentUser/currentRole and shows loginScreen
 }
 
 function requestLogout() {
@@ -254,62 +259,106 @@ function closeLogoutModal() { document.getElementById('logoutModal').style.displ
 function confirmLogout()    { closeLogoutModal(); logout(); }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   SECTION 5b: ADMIN PANEL
+   ══════════════════════════════════════════════════════════════════════════ */
+
+async function loadAdminScreen() {
+  const snap = await db.collection('users').where('role', '==', 'therapist_pending').get();
+  const list = document.getElementById('pendingTherapistList');
+  if (snap.empty) {
+    list.innerHTML = '<p style="color:var(--muted)">No pending therapist approvals.</p>';
+    return;
+  }
+  list.innerHTML = snap.docs.map(d => {
+    const u = d.data();
+    return `<div class="pending-therapist-row">
+      <div>
+        <strong>${u.name}</strong><br>
+        <span style="color:var(--muted);font-size:0.85rem">${d.id}</span>
+      </div>
+      <div style="display:flex;gap:0.5rem">
+        <button class="auth-btn" style="padding:0.4rem 0.9rem;font-size:0.85rem;margin:0" onclick="approveTherapist('${d.id}')">Approve</button>
+        <button class="logout-btn" onclick="rejectTherapist('${d.id}')">Reject</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function approveTherapist(email) {
+  await db.collection('users').doc(email).update({ role: 'therapist' });
+  await loadAdminScreen();
+}
+
+async function rejectTherapist(email) {
+  if (!confirm(`Remove ${email}'s account entirely?`)) return;
+  await db.collection('users').doc(email).delete();
+  await loadAdminScreen();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    SECTION 6: PATIENT HOME
    ══════════════════════════════════════════════════════════════════════════ */
 
-function getTodayCompletion(email) {
-  const protocol = getExistingProtocol(email);
+async function getTodayCompletion(email) {
+  const protocol = await getExistingProtocol(email);
   if (!protocol) return null;
   const today    = new Date().toDateString();
-  const sessions = getPatientSessions(email);
+  const sessions = await getPatientSessions(email);
   const done     = sessions.filter(s => new Date(s.date).toDateString() === today).length;
   const required = protocol.sets || 3;
   return { done, required };
 }
 
-function updatePatientHomeScreen() {
+async function updatePatientHomeScreen() {
   if (!currentUser) return;
   const hour     = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   document.getElementById('patientGreeting').textContent    = greeting;
   document.getElementById('patientDisplayName').textContent = currentUser.name;
 
-  const protocol = getExistingProtocol(currentUser.email);
-  const strip    = document.getElementById('patientProtocolStrip');
+  const [protocol, sessions, therapistEmail] = await Promise.all([
+    getExistingProtocol(currentUser.email),
+    getPatientSessions(currentUser.email),
+    getConnectedTherapist()
+  ]);
+
+  const strip = document.getElementById('patientProtocolStrip');
   if (protocol && strip) {
     strip.style.display = 'flex';
     document.getElementById('protocolStripExercise').textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
     document.getElementById('protocolStripMeta').textContent     = 'Assigned by ' + protocol.assignedBy;
 
-    const comp = getTodayCompletion(currentUser.email);
+    const today    = new Date().toDateString();
+    const done     = sessions.filter(s => new Date(s.date).toDateString() === today).length;
+    const required = protocol.sets || 3;
     const statusEl = document.getElementById('protocolStripStatus');
-    if (statusEl && comp) {
-      if (comp.done >= comp.required) {
+    if (statusEl) {
+      if (done >= required) {
         statusEl.textContent = 'Done';
         statusEl.className   = 'protocol-strip-status status-done';
-      } else if (comp.done > 0) {
-        statusEl.textContent = `${comp.done} / ${comp.required} sets`;
+      } else if (done > 0) {
+        statusEl.textContent = `${done} / ${required} sets`;
         statusEl.className   = 'protocol-strip-status status-partial';
       } else {
-        statusEl.textContent = `${comp.required} sets`;
+        statusEl.textContent = `${required} sets`;
         statusEl.className   = 'protocol-strip-status status-pending';
       }
     }
+  } else if (strip) {
+    strip.style.display = 'none';
   }
 
-  const therapistEmail = getConnectedTherapist();
   if (therapistEmail) {
-    const therapist = getAccounts().find(a => a.email === therapistEmail);
-    if (therapist) document.getElementById('therapistContactName').textContent = 'Message ' + therapist.name;
+    const tSnap = await db.collection('users').doc(therapistEmail).get();
+    if (tSnap.exists) document.getElementById('therapistContactName').textContent = 'Message ' + tSnap.data().name;
   }
 
   // Streak
-  const sessions  = getPatientSessions(currentUser.email);
-  const streak    = calcStreak(sessions);
-  const badgeEl   = document.getElementById('streakBadge');
-  const countEl   = document.getElementById('streakCount');
-  const labelEl   = document.getElementById('streakLabel');
-  const bestEl    = document.getElementById('streakBest');
+  const streak  = calcStreak(sessions);
+  const badgeEl = document.getElementById('streakBadge');
+  const countEl = document.getElementById('streakCount');
+  const labelEl = document.getElementById('streakLabel');
+  const bestEl  = document.getElementById('streakBest');
   if (badgeEl && streak.current > 0) {
     badgeEl.style.display = 'flex';
     countEl.textContent   = streak.current;
@@ -319,10 +368,9 @@ function updatePatientHomeScreen() {
     badgeEl.style.display = 'none';
   }
 
-  const tEmail = getConnectedTherapist();
   const msgBadge = document.getElementById('patientUnreadBadge');
-  if (msgBadge && tEmail) {
-    const n = unreadCount(currentUser.email, tEmail);
+  if (msgBadge && therapistEmail) {
+    const n = await unreadCount(currentUser.email, therapistEmail);
     msgBadge.textContent = n;
     msgBadge.style.display = n > 0 ? 'inline' : 'none';
   }
@@ -356,11 +404,11 @@ function calcStreak(sessions) {
   return { current, best };
 }
 
-function startScanSession() {
+async function startScanSession() {
   showScreen('cameraScreen');
   document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
-  loadPatientProtocol();
-  initSetTracker();
+  await loadPatientProtocol();
+  await initSetTracker();
   if (!mpCamera) startCamera();
 }
 
@@ -421,19 +469,19 @@ const FINGER_LANDMARK_MAP = {
   pinky:  { mcp:[0,17,18], pip:[17,18,20], dip:[18,19,20]  },
 };
 
-function getExistingProtocol(patientEmail) {
-  const stored = localStorage.getItem(`phalanx_protocol_${patientEmail}`);
-  return stored ? JSON.parse(stored) : null;
+async function getExistingProtocol(patientEmail) {
+  const doc = await db.collection('protocols').doc(patientEmail).get();
+  return doc.exists ? doc.data() : null;
 }
 
-function deleteProtocol(patientEmail) {
+async function deleteProtocol(patientEmail) {
   if (!confirm(`Remove the assigned protocol for this patient? This cannot be undone.`)) return;
-  localStorage.removeItem(`phalanx_protocol_${patientEmail}`);
-  const patient = getAccounts().find(a => a.email === patientEmail);
-  if (patient) showRealPatient(patient);
+  await db.collection('protocols').doc(patientEmail).delete();
+  const snap = await db.collection('users').doc(patientEmail).get();
+  if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
 
-function assignProtocol(patientEmail) {
+async function assignProtocol(patientEmail) {
   const exerciseType = document.getElementById('exerciseType').value;
   const defaults = EXERCISE_DEFAULTS[exerciseType];
 
@@ -467,7 +515,7 @@ function assignProtocol(patientEmail) {
   if (exerciseParams) protocol.exerciseParams = exerciseParams;
   if (isNaN(protocol.reps) || protocol.reps < 1) { alert('Please enter a valid rep count.'); return; }
   if (isNaN(protocol.sets) || protocol.sets < 1) { alert('Please enter a valid set count.'); return; }
-  localStorage.setItem(`phalanx_protocol_${patientEmail}`, JSON.stringify(protocol));
+  await db.collection('protocols').doc(patientEmail).set(protocol);
   const successEl = document.getElementById('protocolSuccess');
   if (successEl) { successEl.style.display = 'block'; setTimeout(() => { successEl.style.display = 'none'; }, 3000); }
 }
@@ -484,9 +532,9 @@ function formatProtocol(p) {
     <p style="font-size:0.75rem; color:#334155; margin-top:8px;">Assigned by ${p.assignedBy}</p>`;
 }
 
-function loadPatientProtocol() {
+async function loadPatientProtocol() {
   if (!currentUser) return;
-  const protocol  = getExistingProtocol(currentUser.email);
+  const protocol  = await getExistingProtocol(currentUser.email);
   const container = document.getElementById('assignedProtocol');
   const inner     = document.getElementById('assignedProtocolInner');
   if (!container || !inner) return;
@@ -508,8 +556,8 @@ function loadPatientProtocol() {
     ${protocol.notes ? `<p class="protocol-patient-notes">"${protocol.notes}"</p>` : ''}`;
 }
 
-function showExercisesScreen() {
-  const protocol = currentUser ? getExistingProtocol(currentUser.email) : null;
+async function showExercisesScreen() {
+  const protocol = currentUser ? await getExistingProtocol(currentUser.email) : null;
   const inner = document.getElementById('exercisesScreenInner');
   if (!inner) return;
 
@@ -524,7 +572,7 @@ function showExercisesScreen() {
     return;
   }
 
-  const comp = getTodayCompletion(currentUser.email);
+  const comp = await getTodayCompletion(currentUser.email);
   let completionHTML = '';
   if (comp) {
     const isComplete = comp.done >= comp.required;
@@ -577,11 +625,11 @@ function showExercisesScreen() {
    SECTION 8: THERAPIST PANEL
    ══════════════════════════════════════════════════════════════════════════ */
 
-function loadConnectedPatients() {
+async function loadConnectedPatients() {
   document.querySelectorAll('.patient-item').forEach(el => el.remove());
   const existing = document.getElementById('noPatientsMsg');
   if (existing) existing.remove();
-  const patients = getConnectedPatients(currentUser.email);
+  const patients = await getConnectedPatients(currentUser.email);
   if (patients.length === 0) {
     const msg = document.createElement('div');
     msg.id = 'noPatientsMsg';
@@ -590,10 +638,10 @@ function loadConnectedPatients() {
     document.querySelector('.sidebar-footer').before(msg);
     return;
   }
-  patients.forEach(patient => {
+  for (const patient of patients) {
     const item      = document.createElement('div');
     item.className  = 'patient-item';
-    const sessions  = getPatientSessions(patient.email);
+    const sessions  = await getPatientSessions(patient.email);
     const compliance = calcCompliance(sessions);
     const statusColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
@@ -608,7 +656,7 @@ function loadConnectedPatients() {
       showRealPatient(patient);
     };
     document.querySelector('.sidebar-footer').before(item);
-  });
+  }
 }
 
 // Seeded sessions for demo patient — always present regardless of localStorage state.
@@ -637,11 +685,13 @@ function getDemoSessions(patientEmail) {
   });
 }
 
-function getPatientSessions(patientEmail) {
-  const stored = localStorage.getItem(`phalanx_sessions_${patientEmail}`);
-  const local  = stored ? JSON.parse(stored) : [];
-  const demo   = getDemoSessions(patientEmail);
-  return [...demo, ...local].sort((a, b) => new Date(a.date) - new Date(b.date));
+async function getPatientSessions(patientEmail) {
+  const snap = await db.collection('sessions')
+    .where('patientEmail', '==', patientEmail)
+    .orderBy('date', 'asc').get();
+  const stored = snap.docs.map(d => d.data());
+  return [...getDemoSessions(patientEmail), ...stored]
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
 function calcCompliance(sessions) {
@@ -654,9 +704,12 @@ function calcCompliance(sessions) {
   return Math.round((recentDays.size / 7) * 100);
 }
 
-function showRealPatient(patient) {
-  const sessions = getPatientSessions(patient.email);
-  const panel    = document.getElementById('mainPanel');
+async function showRealPatient(patient) {
+  const [sessions, existingProtocol] = await Promise.all([
+    getPatientSessions(patient.email),
+    getExistingProtocol(patient.email)
+  ]);
+  const panel = document.getElementById('mainPanel');
 
   if (sessions.length === 0) {
     panel.innerHTML = `
@@ -666,19 +719,19 @@ function showRealPatient(patient) {
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
       ${buildJointSelector(patient.email)}
-      ${buildSessionHistory(patient.email)}
-      ${buildProtocolForm(patient.email)}
+      ${buildSessionHistory(sessions)}
+      ${buildProtocolForm(patient.email, existingProtocol)}
       ${buildMessagePanel(patient.email)}`;
-    document.getElementById('therapistMsgSend').onclick = () => {
+    await markRead(currentUser.email, patient.email);
+    document.getElementById('therapistMsgSend').onclick = async () => {
       const input = document.getElementById('therapistMsgInput');
-      sendMessage(currentUser.email, patient.email, input.value);
+      await sendMessage(currentUser.email, patient.email, input.value);
       input.value = '';
-      renderThread('therapistMsgThread', currentUser.email, patient.email);
+      await renderThread('therapistMsgThread', currentUser.email, patient.email);
     };
-    renderThread('therapistMsgThread', currentUser.email, patient.email);
+    await renderThread('therapistMsgThread', currentUser.email, patient.email);
     ejsInit();
-    const _ep0 = getExistingProtocol(patient.email);
-    updateExerciseParamsUI(_ep0?.exerciseType || 'full_fist', _ep0?.exerciseParams || null);
+    updateExerciseParamsUI(existingProtocol?.exerciseType || 'full_fist', existingProtocol?.exerciseParams || null);
     return;
   }
 
@@ -709,8 +762,8 @@ function showRealPatient(patient) {
     <div class="chart-card"><h4>Range of Motion Over Time (degrees)</h4><canvas id="romChart" height="100"></canvas></div>
     <div class="chart-card"><h4>Pain Rating Over Time (1–10)</h4><canvas id="painChart" height="100"></canvas></div>
     ${buildJointSelector(patient.email)}
-    ${buildSessionHistory(patient.email)}
-    ${buildProtocolForm(patient.email)}
+    ${buildSessionHistory(sessions)}
+    ${buildProtocolForm(patient.email, existingProtocol)}
     ${buildMessagePanel(patient.email)}`;
 
   new Chart(document.getElementById('romChart').getContext('2d'), {
@@ -724,20 +777,19 @@ function showRealPatient(patient) {
     options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 } } }
   });
 
-  document.getElementById('therapistMsgSend').onclick = () => {
+  await markRead(currentUser.email, patient.email);
+  document.getElementById('therapistMsgSend').onclick = async () => {
     const input = document.getElementById('therapistMsgInput');
-    sendMessage(currentUser.email, patient.email, input.value);
+    await sendMessage(currentUser.email, patient.email, input.value);
     input.value = '';
-    renderThread('therapistMsgThread', currentUser.email, patient.email);
+    await renderThread('therapistMsgThread', currentUser.email, patient.email);
   };
-  renderThread('therapistMsgThread', currentUser.email, patient.email);
+  await renderThread('therapistMsgThread', currentUser.email, patient.email);
   ejsInit();
-  const _ep = getExistingProtocol(patient.email);
-  updateExerciseParamsUI(_ep?.exerciseType || 'full_fist', _ep?.exerciseParams || null);
+  updateExerciseParamsUI(existingProtocol?.exerciseType || 'full_fist', existingProtocol?.exerciseParams || null);
 }
 
-function buildSessionHistory(patientEmail) {
-  const sessions = getPatientSessions(patientEmail);
+function buildSessionHistory(sessions) {
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session History</h4><div style="color:#334155; font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
@@ -776,8 +828,7 @@ function buildSessionHistory(patientEmail) {
     </div>`;
 }
 
-function buildProtocolForm(patientEmail) {
-  const existing = getExistingProtocol(patientEmail);
+function buildProtocolForm(patientEmail, existing) {
   return `
     <div class="protocol-card">
       <h4>Assign Exercise Protocol</h4>
@@ -1097,19 +1148,16 @@ function updateRepUI() {
   }
 }
 
-function saveSession() {
-  const session = {
+async function saveSession() {
+  await db.collection('sessions').add({
+    patientEmail:   currentUser.email,
     date:           new Date().toISOString(),
     reps:           repCount,
     pain:           parseInt(document.getElementById('painSliderCongrats').value),
     rom:            lastROM,
-    therapistEmail: getConnectedTherapist()
-  };
-  const key      = `phalanx_sessions_${currentUser.email}`;
-  const stored   = localStorage.getItem(key);
-  const sessions = stored ? JSON.parse(stored) : [];
-  sessions.push(session);
-  localStorage.setItem(key, JSON.stringify(sessions));
+    tam:            Math.round(lastROM * 2.8),
+    therapistEmail: await getConnectedTherapist()
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1129,11 +1177,11 @@ let currentSet   = 1;
 let totalSets    = 3;
 let setsComplete = 0;
 
-function initSetTracker() {
+async function initSetTracker() {
   if (currentUser) {
-    const protocol = getExistingProtocol(currentUser.email);
+    const protocol = await getExistingProtocol(currentUser.email);
     if (protocol) {
-      totalSets  = protocol.sets || 3;
+      totalSets   = protocol.sets || 3;
       TARGET_REPS = protocol.reps || 10;
       const rawEp = protocol.exerciseParams || EXERCISE_DEFAULTS[protocol.exerciseType] || null;
       currentExerciseParams = normalizeExerciseParams(rawEp);
@@ -1184,12 +1232,12 @@ function renderRepDots() {
   }
 }
 
-function advanceSet() {
+async function advanceSet() {
   sessionPaused = false;
   if (repCount >= TARGET_REPS) {
     const painVal = parseInt(document.getElementById('painSliderCongrats').value);
     setPainValues.push(painVal);
-    saveSession();
+    await saveSession();
   }
   setsComplete++;
   document.getElementById('congratsOverlay').classList.remove('show');
@@ -1255,14 +1303,14 @@ function showSessionSummary(partialReps = 0) {
   document.getElementById('sessionSummaryOverlay').style.display = 'flex';
 }
 
-function dismissSummary() {
+async function dismissSummary() {
   document.getElementById('sessionSummaryOverlay').style.display = 'none';
-  initSetTracker();
+  await initSetTracker();
   showScreen('patientScreen');
-  updatePatientHomeScreen();
+  await updatePatientHomeScreen();
 }
 
-function completeSessionEarly() {
+async function completeSessionEarly() {
   // Stop rest timer if running
   clearInterval(restTimerInterval);
   restTimerInterval = null;
@@ -1276,18 +1324,15 @@ function completeSessionEarly() {
   if (repCount > 0) {
     const painVal = parseInt(document.getElementById('painSlider').value);
     setPainValues.push(painVal);
-    const session = {
+    await db.collection('sessions').add({
+      patientEmail:   currentUser.email,
       date:           new Date().toISOString(),
       reps:           repCount,
       pain:           painVal,
       rom:            lastROM,
-      therapistEmail: getConnectedTherapist()
-    };
-    const key      = `phalanx_sessions_${currentUser.email}`;
-    const stored   = localStorage.getItem(key);
-    const sessions = stored ? JSON.parse(stored) : [];
-    sessions.push(session);
-    localStorage.setItem(key, JSON.stringify(sessions));
+      tam:            Math.round(lastROM * 2.8),
+      therapistEmail: await getConnectedTherapist()
+    });
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -1328,14 +1373,14 @@ function startCamera() {
    SECTION 12: PROGRESS SCREEN
    ══════════════════════════════════════════════════════════════════════════ */
 
-function showProgressScreen() {
+async function showProgressScreen() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   showScreen('progressScreen');
-  renderProgressScreen();
+  await renderProgressScreen();
 }
 
-function renderProgressScreen() {
-  const sessions = currentUser ? getPatientSessions(currentUser.email) : [];
+async function renderProgressScreen() {
+  const sessions = currentUser ? await getPatientSessions(currentUser.email) : [];
   const content  = document.getElementById('progressContent');
   if (sessions.length === 0) {
     content.innerHTML = `<div class="no-progress-msg">No sessions recorded yet.<br/>Complete a set of reps to see your progress here.</div>`;
@@ -2168,49 +2213,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 15: MESSAGING  (patient ↔ therapist in-app thread)
-   Storage key: phalanx_messages  — global array of message objects
-   { from, to, text, timestamp, read }
+   Firestore collection: messages  — documents: { from, to, participants, text, timestamp, read }
    ══════════════════════════════════════════════════════════════════════════ */
 
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
-function getMessages() {
-  return JSON.parse(localStorage.getItem('phalanx_messages') || '[]');
+async function getThread(a, b) {
+  const snap = await db.collection('messages')
+    .where('participants', 'array-contains', a)
+    .orderBy('timestamp', 'asc').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(m => (m.from === a && m.to === b) || (m.from === b && m.to === a));
 }
 
-function saveMessages(msgs) {
-  localStorage.setItem('phalanx_messages', JSON.stringify(msgs));
-}
-
-function getThread(a, b) {
-  return getMessages()
-    .filter(m => (m.from === a && m.to === b) || (m.from === b && m.to === a))
-    .sort((x, y) => new Date(x.timestamp) - new Date(y.timestamp));
-}
-
-function sendMessage(from, to, text) {
+async function sendMessage(from, to, text) {
   if (!text.trim()) return;
-  const msgs = getMessages();
-  msgs.push({ from, to, text: text.trim(), timestamp: new Date().toISOString(), read: false });
-  saveMessages(msgs);
+  await db.collection('messages').add({
+    from, to, participants: [from, to],
+    text: text.trim(), timestamp: new Date().toISOString(), read: false
+  });
 }
 
-function markRead(toEmail, fromEmail) {
-  const msgs = getMessages();
-  msgs.forEach(m => { if (m.to === toEmail && m.from === fromEmail) m.read = true; });
-  saveMessages(msgs);
+async function markRead(toEmail, fromEmail) {
+  const snap = await db.collection('messages')
+    .where('to', '==', toEmail).where('from', '==', fromEmail).where('read', '==', false).get();
+  const batch = db.batch();
+  snap.forEach(d => batch.update(d.ref, { read: true }));
+  await batch.commit();
 }
 
-function unreadCount(toEmail, fromEmail) {
-  return getMessages().filter(m => m.to === toEmail && m.from === fromEmail && !m.read).length;
+async function unreadCount(toEmail, fromEmail) {
+  const snap = await db.collection('messages')
+    .where('to', '==', toEmail).where('from', '==', fromEmail).where('read', '==', false).get();
+  return snap.size;
 }
 
 // ── Shared thread renderer ────────────────────────────────────────────────────
 
-function renderThread(containerId, myEmail, otherEmail) {
-  const el     = document.getElementById(containerId);
+async function renderThread(containerId, myEmail, otherEmail) {
+  const el = document.getElementById(containerId);
   if (!el) return;
-  const thread = getThread(myEmail, otherEmail);
+  const thread = await getThread(myEmail, otherEmail);
   if (!thread.length) {
     el.innerHTML = '<p class="msg-empty">No messages yet.</p>';
     return;
@@ -2228,29 +2271,28 @@ function renderThread(containerId, myEmail, otherEmail) {
 
 // ── Patient-side functions ────────────────────────────────────────────────────
 
-function openPatientMessaging() {
-  const tEmail = getConnectedTherapist();
+async function openPatientMessaging() {
+  const tEmail = await getConnectedTherapist();
   if (!tEmail) { alert('You are not connected to a therapist yet.'); return; }
-  markRead(currentUser.email, tEmail);
-  const t = getAccounts().find(a => a.email === tEmail);
-  document.getElementById('msgHeaderTitle').textContent = t ? t.name : 'Your Therapist';
-  renderThread('msgThread', currentUser.email, tEmail);
+  await markRead(currentUser.email, tEmail);
+  const tSnap = await db.collection('users').doc(tEmail).get();
+  document.getElementById('msgHeaderTitle').textContent = tSnap.exists ? tSnap.data().name : 'Your Therapist';
+  await renderThread('msgThread', currentUser.email, tEmail);
   showScreen('messagingScreen');
 }
 
-function sendMessageFromPatient() {
-  const tEmail = getConnectedTherapist();
+async function sendMessageFromPatient() {
+  const tEmail = await getConnectedTherapist();
   if (!tEmail) return;
   const input = document.getElementById('msgInput');
-  sendMessage(currentUser.email, tEmail, input.value);
+  await sendMessage(currentUser.email, tEmail, input.value);
   input.value = '';
-  renderThread('msgThread', currentUser.email, tEmail);
+  await renderThread('msgThread', currentUser.email, tEmail);
 }
 
 // ── Therapist-side panel builder ──────────────────────────────────────────────
 
 function buildMessagePanel(patientEmail) {
-  markRead(currentUser.email, patientEmail);
   return `<div class="therapist-msg-panel">
     <div class="section-title" style="font-size:0.85rem; font-weight:700; color:#6B7A99; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Messages</div>
     <div class="therapist-msg-thread" id="therapistMsgThread"></div>

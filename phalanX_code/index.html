@@ -88,6 +88,37 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     PENDING APPROVAL
+═══════════════════════════════════════════════════════ -->
+<div id="pendingScreen" class="screen">
+  <div class="auth-box">
+    <h1>phalanX</h1>
+    <p class="auth-subtitle">Account Pending</p>
+    <p style="color:var(--muted);margin-bottom:2rem;text-align:center;line-height:1.5">
+      Your therapist account is awaiting approval from a clinic admin.
+      You'll be able to log in once approved.
+    </p>
+    <button class="auth-btn" onclick="logout()">Sign Out</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     ADMIN PANEL
+═══════════════════════════════════════════════════════ -->
+<div id="adminScreen" class="screen">
+  <div style="max-width:640px;margin:2rem auto;padding:0 1rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <h2 style="margin:0;color:var(--text)">Admin Panel</h2>
+      <button class="logout-btn" onclick="logout()">Sign Out</button>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem">
+      <h3 style="margin-top:0;color:var(--text)">Pending Therapist Approvals</h3>
+      <div id="pendingTherapistList">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      CONNECT TO THERAPIST
 ═══════════════════════════════════════════════════════ -->
 <div id="connectScreen" class="screen">
@@ -99,10 +130,8 @@
     <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
     <div class="auth-field">
       <label>Clinic Code</label>
-      <input type="text" id="clinicCodeInput" placeholder="482910" maxlength="6"
-             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;"
-             oninput="this.value=this.value.replace(/\D/g,''); if(this.value.length===6) handleConnect()"
-             onkeydown="if(event.key==='Enter') handleConnect()" />
+      <input type="text" id="clinicCodeInput" placeholder="e.g. 482910" maxlength="6"
+             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;" />
     </div>
     <button class="auth-btn" onclick="handleConnect()">Connect</button>
     <button class="auth-btn" onclick="skipConnect()" style="background:#1e293b; color:#94a3b8; margin-top:-8px;">Skip for now</button>
@@ -145,9 +174,9 @@
         <div class="home-btn-label">Track My Progress</div>
       </div>
     </button>
-    <button class="home-btn" id="therapistContactBtn" onclick="openPatientMessaging()">
+    <button class="home-btn" onclick="openPatientMessaging()">
       <div>
-        <div class="home-btn-label"><span id="therapistBtnLabel">Contact My Therapist</span> <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></div>
+        <div class="home-btn-label">Contact My Therapist <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></div>
         <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
       </div>
     </button>
@@ -201,10 +230,6 @@
     <div class="rep-overlay">
       <div class="rep-number" id="repDisplay">0</div>
       <div class="rep-label">Reps</div>
-    </div>
-    <div style="position:absolute; top:12px; right:12px; background:rgba(0,0,0,0.72); border-radius:12px; padding:8px 16px; text-align:center; z-index:10; backdrop-filter:blur(4px);">
-      <div id="tamDisplay" style="font-size:1.5rem; font-weight:900; color:#a78bfa; font-family:'DM Mono',monospace; line-height:1;">—</div>
-      <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; margin-top:3px;">TAM</div>
     </div>
     <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
     <div id="congratsOverlay">
@@ -421,10 +446,6 @@
       <div id="summaryMaxROM" style="font-size:2.2rem; font-weight:900; color:#00c9b1;">0°</div>
       <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max ROM</div>
     </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center; grid-column: 1 / -1;">
-      <div id="summaryMaxTAM" style="font-size:2.2rem; font-weight:900; color:#a78bfa;">0°</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max TAM (Total Arc of Motion)</div>
-    </div>
     <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
       <div id="summaryAvgPain" style="font-size:2.2rem; font-weight:900; color:#f59e0b;">0</div>
       <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Avg Pain</div>
@@ -454,6 +475,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<!-- Firebase (v8 compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <!-- phalanX -->
 <script src="app.js"></script>
