@@ -613,8 +613,8 @@
     </div>
     <div class="header-right">
       <div class="dev-selector">
-        <button class="dev-btn active-you" id="btnYou"  onclick="setActiveDev('you')">You</button>
-        <button class="dev-btn"            id="btnThem" onclick="setActiveDev('them')">Partner</button>
+        <button class="dev-btn active-you" id="btnYou"  onclick="setActiveDev('you')">Yash</button>
+        <button class="dev-btn"            id="btnThem" onclick="setActiveDev('them')">Oliver</button>
       </div>
     </div>
   </header>
@@ -634,8 +634,8 @@
           <div class="form-field">
             <label>Logging as</label>
             <select id="entryDev">
-              <option value="you">You</option>
-              <option value="them">Partner</option>
+              <option value="you">Yash</option>
+              <option value="them">Oliver</option>
             </select>
           </div>
         </div>
@@ -676,8 +676,8 @@
       <input class="search-input" id="searchInput" placeholder="Search entries..." oninput="renderEntries()" />
       <div class="filter-bar" id="filterBar">
         <button class="filter-btn active" data-filter="all"     onclick="setFilter(this)">All</button>
-        <button class="filter-btn"        data-filter="you"     onclick="setFilter(this)">You</button>
-        <button class="filter-btn"        data-filter="them"    onclick="setFilter(this)">Partner</button>
+        <button class="filter-btn"        data-filter="you"     onclick="setFilter(this)">Yash</button>
+        <button class="filter-btn"        data-filter="them"    onclick="setFilter(this)">Oliver</button>
         <button class="filter-btn"        data-filter="UI"      onclick="setFilter(this)">UI</button>
         <button class="filter-btn"        data-filter="Backend" onclick="setFilter(this)">Backend</button>
         <button class="filter-btn"        data-filter="CV"      onclick="setFilter(this)">CV</button>
@@ -704,11 +704,11 @@
         </div>
         <div class="stat-card">
           <div class="stat-value" id="statYou" style="color:var(--blue)">0</div>
-          <div class="stat-label">Your Entries</div>
+          <div class="stat-label">Yash's Entries</div>
         </div>
         <div class="stat-card">
           <div class="stat-value" id="statThem" style="color:var(--cyan)">0</div>
-          <div class="stat-label">Partner Entries</div>
+          <div class="stat-label">Oliver's Entries</div>
         </div>
       </div>
 
@@ -919,7 +919,7 @@
       <div class="entry-card dev-${entry.dev}" style="margin-bottom:10px;">
         <div class="entry-header">
           <div class="entry-meta">
-            <span class="entry-dev ${entry.dev}">${entry.dev === 'you' ? 'You' : 'Partner'}</span>
+            <span class="entry-dev ${entry.dev}">${entry.dev === 'you' ? 'Yash' : 'Oliver'}</span>
             ${tagsHTML}
           </div>
           <div class="entry-actions">
@@ -955,7 +955,7 @@
     document.getElementById('devBars').innerHTML = `
       <div class="dev-bar-item">
         <div class="dev-bar-label">
-          <span class="dev-bar-name" style="color:var(--blue)">You</span>
+          <span class="dev-bar-name" style="color:var(--blue)">Yash</span>
           <span class="dev-bar-count">${youCount} entries</span>
         </div>
         <div class="dev-bar-track">
@@ -964,7 +964,7 @@
       </div>
       <div class="dev-bar-item">
         <div class="dev-bar-label">
-          <span class="dev-bar-name" style="color:var(--cyan)">Partner</span>
+          <span class="dev-bar-name" style="color:var(--cyan)">Oliver</span>
           <span class="dev-bar-count">${themCount} entries</span>
         </div>
         <div class="dev-bar-track">
