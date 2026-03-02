@@ -1008,9 +1008,18 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
   .camera-box video, .camera-box canvas { width: 100%; height: 100%; }
   .progress-section, .pain-section, .assigned-protocol, .end-session-btn { width: 100%; }
   .auth-box { margin: 16px; padding: 28px 20px; }
-  #therapistScreen { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #D0D7E3; padding: 16px; max-height: 280px; overflow-y: auto; }
-  .main-panel { padding: 16px; }
+  #therapistScreen { flex-direction: column; height: 100vh; overflow: hidden; }
+  .sidebar { width: 100%; border-right: none; border-bottom: none; padding: 0; flex: 1; overflow-y: auto; }
+  .sidebar h2 { padding: 16px 20px 12px; margin-bottom: 0; border-bottom: 1px solid var(--border); }
+  .sidebar .clinic-code-box { display: none; }
+  .sidebar .calib-launch-btn { display: none; }
+  .sidebar .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+  .sidebar .no-patients { margin: 16px; }
+  .patient-item { border-radius: 0; border: none; border-bottom: 1px solid var(--border); padding: 16px 20px; background: var(--surface); }
+  .main-panel { padding: 16px; display: none; flex: 1; overflow-y: auto; }
+  #therapistScreen.tp-mobile-detail .sidebar { display: none; }
+  #therapistScreen.tp-mobile-detail .main-panel { display: block; }
+  .tp-mobile-back-btn { background: none; border: none; color: var(--accent); font-weight: 700; font-size: 0.95rem; cursor: pointer; padding: 0 0 16px 0; font-family: inherit; display: block; }
   .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .protocol-row { grid-template-columns: 1fr; }
   .ejs-body { grid-template-columns: 1fr; }

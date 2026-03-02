@@ -6,7 +6,6 @@
   <title>phalanX</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤚</text></svg>">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -356,7 +355,7 @@
       <span id="calibStatusText">Initializing...</span>
       <span id="calibHandCount">0 hands</span>
     </div>
-    <button class="calib-back-btn" onclick="showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen')">← Back</button>
+    <button class="calib-back-btn" onclick="calibBack()">← Back</button>
   </header>
 
   <div class="calib-main">
@@ -480,13 +479,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
-<!-- Firebase (v8 compat) -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <!-- phalanX -->
-<script src="app.js"></script>
+<script type="module" src="/app.js"></script>
 
 </body>
 </html>

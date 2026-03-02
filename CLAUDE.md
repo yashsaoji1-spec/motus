@@ -1,4 +1,4 @@
-# Last updated: 2026-03-02 (mobile camera support, sound removed, flip camera button)
+# Last updated: 2026-03-02 (Vite build step added)
 
 # PhalanX — Claude Code Guide
 
@@ -13,9 +13,15 @@ Default branch: `main`. Feature work goes on `feature/functionality`.
 
 ## How to Run
 
-Open `index.html` directly in a browser. There is **no build step** — no npm install, no bundler, no dev server.
+### Local dev (recommended)
+```
+npm install       # first time only
+npm run dev
+# opens http://localhost:5173 — full HMR, no python server needed
+```
 
-> **MediaPipe camera access requires a secure context.** The app works on `localhost` or `https://`. Opening via `file://` may block camera access in Chrome. Use a simple local server if needed:
+### One-off static server (no build)
+> **MediaPipe camera access requires a secure context.** The app works on `localhost` or `https://`. Opening via `file://` may block camera access in Chrome.
 > ```
 > python3 -m http.server 8080
 > # then open http://localhost:8080/index.html
@@ -33,19 +39,39 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 ## File Structure
 
 ```
-index.html    — all HTML screens (491 lines)
-app.js        — all JS logic (15 sections + Section 5b, 2627 lines)
-styles.css    — all styles (1093 lines)
-non_func/     — LICENSE.txt (copyright + third-party licenses)
-node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser app)
+index.html        — all HTML screens (485 lines)
+app.js            — all JS logic (15 sections + Section 5b + window exports block, 2693 lines)
+styles.css        — all styles (1102 lines)
+vite.config.mjs   — Vite config (outDir: dist)
+public/
+  404.html        — Firebase 404 page (copied verbatim to dist/ by Vite)
+dist/             — build output (gitignored); deploy this to Firebase Hosting
+non_func/         — LICENSE.txt (copyright + third-party licenses)
+node_modules/     — npm packages (vite, firebase, chart.js, prompt-sync)
 ```
 
-## Dependencies (CDN only — no local install)
+## Dependencies
 
+### npm (bundled by Vite)
+- **firebase** `^9.23.0` — Firebase compat SDK (auth + firestore)
+- **chart.js** `^4.0.0` — therapist progress charts
+- **vite** `^5.0.0` (devDependency) — build tool
+
+### CDN (loaded at runtime — kept on CDN due to WASM complexity)
 - **MediaPipe Hands** + `camera_utils` + `drawing_utils` — hand tracking
-- **Chart.js** — therapist progress charts
 - **Google Fonts** — DM Sans, DM Mono, Space Mono
-- **Firebase v9 compat** (`firebase-app-compat`, `firebase-auth-compat`, `firebase-firestore-compat`) — auth + database
+
+## Firebase Hosting
+
+Live URL: **https://phalanx-firebase-database.web.app**
+
+Deploy command (run from project root):
+```
+npm run build
+~/.npm-global/bin/firebase deploy --only hosting
+```
+
+Vite outputs content-hashed filenames (e.g. `assets/index-CEDTte8E.js`) to `dist/`. Firebase deploys from `dist/`. **No manual version bumping ever needed** — every build is automatically cache-safe.
 
 ## Firebase Setup
 
@@ -170,7 +196,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 5b  | Admin Panel — `loadAdminScreen()`, `approveTherapist()`, `rejectTherapist()` |
 | 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionWithProtocol` (async — loads `trackedJoints`), `startScanSession` |
 | 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends), `deleteProtocol` (removes by id), `normalizeExerciseParams`, `loadTrackedJoints`, `saveTrackedJoints` |
-| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition` |
+| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button) |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera), `flipCamera`, `isMobile` |
@@ -226,9 +252,11 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 
 ## Key Constraints
 
-- **No build step** — edit files and refresh browser; no compilation
+- **Vite build step** — run `npm run dev` for local dev; `npm run build` before deploy. No other bundler/compiler.
 - **No linter or formatter** — no enforced style rules
 - **No test framework** — manual browser testing only
-- **CDN-only dependencies** — do not introduce npm packages for browser use
+- **MediaPipe stays on CDN** — WASM model files make bundling fragile; grab from `window` at top of `app.js`
+- **Firebase + Chart.js via npm** — imported at top of `app.js` using `firebase/compat` API (zero refactor needed)
+- **Window exports block** — app.js ends with `Object.assign(window, {...})` exposing all functions called from HTML `onclick` attrs (required because app.js is an ES module)
 - **Firebase backend** — all user data in Firestore; no localStorage keys remain
 - **Single file per layer** — keep all HTML in `index.html`, all JS in `app.js`, all CSS in `styles.css`

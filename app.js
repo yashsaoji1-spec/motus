@@ -3,6 +3,19 @@
    Combines: dashboard.html inline JS + script.js (calibration tracker)
    ═══════════════════════════════════════════════════════════════════════════ */
 
+// ── npm imports (replaces CDN globals for Firebase + Chart.js) ──
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import Chart from 'chart.js/auto';
+
+// ── MediaPipe stays on CDN — grab from window so module scope can see them ──
+const Hands            = window.Hands;
+const Camera           = window.Camera;
+const drawConnectors   = window.drawConnectors;
+const drawLandmarks    = window.drawLandmarks;
+const HAND_CONNECTIONS = window.HAND_CONNECTIONS;
+
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 1: AUTH & STATE  (Firebase)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -723,6 +736,17 @@ async function loadConnectedPatients() {
   }
 }
 
+function backToPatientList() {
+  document.getElementById('therapistScreen').classList.remove('tp-mobile-detail');
+  document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
+}
+
+function enableMobilePatientDetail(panel) {
+  if (!isMobile()) return;
+  document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
+  panel.insertAdjacentHTML('afterbegin', '<button class="tp-mobile-back-btn" onclick="backToPatientList()">← All Patients</button>');
+}
+
 // Seeded sessions for demo patient — always present regardless of localStorage state.
 // daysAgo is relative to today so the data always looks recent.
 function getDemoSessions(patientEmail) {
@@ -805,6 +829,7 @@ async function showRealPatient(patient) {
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
       ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
+    enableMobilePatientDetail(panel);
     await markRead(currentUser.email, patient.email);
     document.getElementById('therapistMsgSend').onclick = async () => {
       const input = document.getElementById('therapistMsgInput');
@@ -848,6 +873,7 @@ async function showRealPatient(patient) {
     ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
+  enableMobilePatientDetail(panel);
 
   new Chart(document.getElementById('romChart').getContext('2d'), {
     type: 'line',
@@ -2626,3 +2652,43 @@ function buildMessagePanel(patientEmail) {
     </div>
   </div>`;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WINDOW EXPORTS — expose functions/variables used from HTML onclick attrs
+   (required because app.js is now an ES module — module scope is not global)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// Helper for calibration back button (avoids direct currentRole ref in HTML)
+function calibBack() { showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen'); }
+
+Object.assign(window, {
+  // Auth screens
+  handleLogin, handleSignup, handleForgot,
+  selectRole, logout,
+  handleConnect, skipConnect,
+  requestLogout, closeLogoutModal, confirmLogout,
+
+  // Navigation
+  showScreen,
+
+  // Patient screens
+  startScanSession, startSessionWithProtocol,
+  showExercisesScreen, showProgressScreen,
+  openPatientMessaging, sendMessageFromPatient,
+
+  // Camera session
+  flipCamera, advanceSet, skipRest,
+  completeSessionEarly, dismissSummary,
+
+  // Therapist panel
+  startCalibration, calibBack,
+  backToPatientList, toggleTpSection,
+  approveTherapist, rejectTherapist,
+  deleteProtocol, assignProtocol,
+  epAddCondition, epRemoveCondition,
+
+  // Joint selector
+  ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
+  ejsRemoveChip, ejsQuickSelectFinger,
+  ejsSelectAll, ejsClearAll,
+});
