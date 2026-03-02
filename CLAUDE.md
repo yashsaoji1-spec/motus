@@ -1,4 +1,4 @@
-# Last updated: 2026-03-01 (functional Joint Monitoring — Firestore persistence + per-joint ROM charts)
+# Last updated: 2026-03-02 (mobile camera support, sound removed, flip camera button)
 
 # PhalanX — Claude Code Guide
 
@@ -27,8 +27,8 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 ## File Structure
 
 ```
-index.html    — all HTML screens (489 lines)
-app.js        — all JS logic (15 sections + Section 5b, 2591 lines)
+index.html    — all HTML screens (491 lines)
+app.js        — all JS logic (15 sections + Section 5b, 2627 lines)
 styles.css    — all styles (1093 lines)
 non_func/     — LICENSE.txt (copyright + third-party licenses)
 node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser app)
@@ -87,11 +87,7 @@ service cloud.firestore {
 
 ### localStorage (remaining)
 
-| Key             | Contents                          |
-|-----------------|-----------------------------------|
-| `phalanx_sound` | `'true'` / `'false'` — sound preference (local UI only) |
-
-All other state (accounts, connections, protocols, sessions, messages, joint tracking selections) is in Firestore.
+No localStorage keys remain. All state is in Firestore.
 
 ## Screen System
 
@@ -171,7 +167,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition` |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`) |
-| 11  | Patient Session Camera — `startCamera` |
+| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera), `flipCamera`, `isMobile` |
 | 12  | Progress Screen — session history display |
 | 13  | Joint Selector — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, and related helpers |
 | 14  | Calibration Screen — MediaPipe Hands init + angle math |
@@ -219,7 +215,7 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 - [ ] **Tighten Firestore security rules** — current rules allow any authenticated user to read/write everything. Before launch, scope rules so patients can only read/write their own data, therapists can only access their connected patients, and admins can only access the `users` collection.
 - [ ] **Delete demo accounts** — remove `sarah.chen@mayoclinic.org` and `james.park@gmail.com` from Firebase Auth and Firestore, or change their passwords.
 - [ ] **Create first real admin account** — follow the manual steps in the Firestore Role Values section above.
-- [ ] **Test on HTTPS** — MediaPipe camera requires a secure context; verify the production URL is `https://`.
+- [x] **Test on HTTPS / mobile** — tested via ngrok + VS Code port forwarding on iOS Safari and Chrome. Mobile uses direct `getUserMedia` path (not MediaPipe `Camera` class). `startCamera()` must be called before any `await` in session-start functions to preserve iOS gesture context.
 - [ ] **Review Firebase Auth settings** — disable any sign-in providers you're not using.
 
 ## Key Constraints
@@ -228,5 +224,5 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 - **No linter or formatter** — no enforced style rules
 - **No test framework** — manual browser testing only
 - **CDN-only dependencies** — do not introduce npm packages for browser use
-- **Firebase backend** — all user data in Firestore; `phalanx_sound` is the only remaining localStorage key
+- **Firebase backend** — all user data in Firestore; no localStorage keys remain
 - **Single file per layer** — keep all HTML in `index.html`, all JS in `app.js`, all CSS in `styles.css`

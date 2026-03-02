@@ -117,6 +117,8 @@ function showScreen(screenId) {
     mpCamera = null;
   }
 
+  if (screenId !== 'cameraScreen') currentFacingMode = 'user';
+
   // Stop calibration camera when leaving calibration screen
   if (screenId !== 'calibrationScreen' && calibMpCamera) {
     calibMpCamera.stop();
@@ -427,31 +429,28 @@ function calcStreak(sessions) {
 
 async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
+  showScreen('cameraScreen');
+  if (!mpCamera) startCamera();
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
-  showScreen('cameraScreen');
-  document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
   loadPatientProtocol();
   initSetTracker();
-  if (!mpCamera) startCamera();
 }
 
 async function startScanSession() {
+  showScreen('cameraScreen');
+  if (!mpCamera) startCamera();
   const protocols = await getProtocols(currentUser.email);
   if (protocols.length !== 1) {
-    // 0 protocols: exercises screen shows "no protocol" message
-    // 2+ protocols: exercises screen lets patient pick
+    if (mpCamera) { mpCamera.stop(); mpCamera = null; }
     showExercisesScreen();
     return;
   }
   selectedProtocol = protocols[0];
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
-  showScreen('cameraScreen');
-  document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
   await loadPatientProtocol();
   await initSetTracker();
-  if (!mpCamera) startCamera();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1082,25 +1081,7 @@ let currentExerciseParams = null;
 let trackedJoints   = [];   // joint keys loaded at session start for per-joint angle tracking
 let jointMaxAngles  = {};   // max angle per tracked joint during the current set
 const REST_DURATION = 30;
-let soundEnabled = localStorage.getItem('phalanx_sound') !== 'false';
-
-function playRepSound() {
-  if (!soundEnabled) return;
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode   = audioCtx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.08);
-    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
-    oscillator.start(audioCtx.currentTime);
-    oscillator.stop(audioCtx.currentTime + 0.12);
-  } catch(e) {}
-}
+function playRepSound() {}
 
 let speedWarningTimeout = null;
 
@@ -1112,11 +1093,7 @@ function showSpeedWarning() {
   speedWarningTimeout = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
-function toggleSound() {
-  soundEnabled = !soundEnabled;
-  localStorage.setItem('phalanx_sound', soundEnabled);
-  document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
-}
+function toggleSound() {}
 
 function getMiddleFingerAngle(landmarks) {
   const mcp = landmarks[9];
@@ -1513,6 +1490,17 @@ async function completeSessionEarly() {
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 11: PATIENT SESSION CAMERA  (dashboard camera)
    ══════════════════════════════════════════════════════════════════════════ */
+let currentFacingMode = 'user';
+
+function flipCamera() {
+  currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+  if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  startCamera();
+}
+
+function isMobile() {
+  return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+}
 
 let mpCamera = null;
 
@@ -1521,8 +1509,14 @@ function startCamera() {
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
-  const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
+  let hands;
+  try {
+    hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  } catch(e) {
+    alert('Hands init error: ' + e.message);
+    return;
+  }
+  hands.setOptions({ maxNumHands: 1, modelComplexity: isMobile() ? 0 : 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
   hands.onResults(results => {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
@@ -1534,11 +1528,53 @@ function startCamera() {
       }
     }
   });
-  mpCamera = new Camera(sessionVideo, {
-    onFrame: async () => { await hands.send({ image: sessionVideo }); },
-    width: 640, height: 480
-  });
-  mpCamera.start();
+
+  if (isMobile()) {
+    document.getElementById('flipCameraBtn').style.display = 'inline-block';
+    let active = true;
+    mpCamera = { stop: () => { active = false; } };
+
+    const doGetUserMedia = () => {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode }, audio: false })
+        .then(stream => {
+          sessionVideo.srcObject = stream;
+          const processFrame = async () => {
+            if (!active) return;
+            if (sessionVideo.readyState >= 2) {
+              sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
+              sessionCtx.drawImage(sessionVideo, 0, 0, sessionCanvas.width, sessionCanvas.height);
+              try { await hands.send({ image: sessionVideo }); } catch(e) {}
+            }
+            if (active) requestAnimationFrame(processFrame);
+          };
+          sessionVideo.onloadedmetadata = () => {
+            sessionCanvas.width  = sessionVideo.videoWidth;
+            sessionCanvas.height = sessionVideo.videoHeight;
+            sessionCanvas.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+            document.querySelector('.camera-box').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
+            processFrame();
+          };
+          mpCamera = {
+            stop: () => {
+              active = false;
+              stream.getTracks().forEach(t => t.stop());
+              sessionVideo.srcObject = null;
+            }
+          };
+        })
+        .catch(err => { alert('Camera error: ' + err.name + ': ' + err.message); });
+    };
+
+    doGetUserMedia();
+  } else {
+    mpCamera = new Camera(sessionVideo, {
+      onFrame: async () => {
+        if (sessionVideo.readyState >= 2) await hands.send({ image: sessionVideo });
+      },
+      width: 640, height: 480,
+    });
+    mpCamera.start();
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

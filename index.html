@@ -215,7 +215,6 @@
   <div class="patient-header">
     <h2>phalanX</h2>
     <div style="display:flex; gap:8px; align-items:center;">
-      <button id="soundToggleBtn" class="logout-btn" onclick="toggleSound()" style="font-size:0.85rem;">🔊 Sound On</button>
       <button class="logout-btn" onclick="showScreen('patientScreen')">← Back</button>
     </div>
   </div>
@@ -225,8 +224,11 @@
   </div>
 
   <div class="camera-box">
-    <video id="patientVideo" autoplay playsinline></video>
+    <video id="patientVideo" autoplay playsinline muted></video>
     <canvas id="patientCanvas" width="640" height="480"></canvas>
+    <button id="flipCameraBtn" onclick="flipCamera()" style="display:none; position:absolute; top:12px; right:12px; z-index:15; background:rgba(0,0,0,0.35); border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; backdrop-filter:blur(4px);">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-5 11.5V14H9v2.5L5.5 13 9 9.5V12h6V9.5l3.5 3.5-3.5 3.5z"/></svg>
+    </button>
     <div class="rep-overlay">
       <div class="rep-number" id="repDisplay">0</div>
       <div class="rep-label">Reps</div>
