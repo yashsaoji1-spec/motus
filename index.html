@@ -130,8 +130,10 @@
     <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
     <div class="auth-field">
       <label>Clinic Code</label>
-      <input type="text" id="clinicCodeInput" placeholder="e.g. 482910" maxlength="6"
-             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;" />
+      <input type="text" id="clinicCodeInput" placeholder="482910" maxlength="6"
+             style="text-align:center; font-size:1.8rem; letter-spacing:8px; font-weight:800;"
+             oninput="this.value=this.value.replace(/\D/g,''); if(this.value.length===6) handleConnect()"
+             onkeydown="if(event.key==='Enter') handleConnect()" />
     </div>
     <button class="auth-btn" onclick="handleConnect()">Connect</button>
     <button class="auth-btn" onclick="skipConnect()" style="background:#1e293b; color:#94a3b8; margin-top:-8px;">Skip for now</button>
@@ -174,9 +176,9 @@
         <div class="home-btn-label">Track My Progress</div>
       </div>
     </button>
-    <button class="home-btn" onclick="openPatientMessaging()">
+    <button class="home-btn" id="therapistContactBtn" onclick="openPatientMessaging()">
       <div>
-        <div class="home-btn-label">Contact My Therapist <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></div>
+        <div class="home-btn-label"><span id="therapistBtnLabel">Contact My Therapist</span> <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></div>
         <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
       </div>
     </button>
@@ -232,6 +234,11 @@
       <div class="rep-label">Reps</div>
     </div>
     <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
+    <!-- TAM live display (from feature/ui) -->
+    <div id="tamDisplay" style="display:none; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(167,139,250,0.4); border-radius:10px; padding:6px 14px; z-index:10; pointer-events:none;">
+      <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1px;">TAM</div>
+      <div id="tamValue" style="font-size:1.4rem; font-weight:900; color:#a78bfa; font-family:'DM Mono',monospace;">0°</div>
+    </div>
     <div id="congratsOverlay">
       <h2>🎉 Great work!</h2>
       <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
@@ -447,6 +454,10 @@
     <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
       <div id="summaryMaxROM" style="font-size:2.2rem; font-weight:900; color:#00c9b1;">0°</div>
       <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max ROM</div>
+    </div>
+    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center; grid-column: 1 / -1;">
+      <div id="summaryMaxTAM" style="font-size:2.2rem; font-weight:900; color:#a78bfa;">0°</div>
+      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max TAM</div>
     </div>
     <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
       <div id="summaryAvgPain" style="font-size:2.2rem; font-weight:900; color:#f59e0b;">0</div>
