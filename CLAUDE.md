@@ -5,6 +5,12 @@
 Hand rehabilitation web app using MediaPipe hand tracking.
 Authors: Yash Saoji & Oliver Huelsbeck (2025)
 
+## GitHub
+
+Repository: **https://github.com/yashsaoji1-spec/phalanX**
+
+Default branch: `main`. Feature work goes on `feature/functionality`.
+
 ## How to Run
 
 Open `index.html` directly in a browser. There is **no build step** — no npm install, no bundler, no dev server.
