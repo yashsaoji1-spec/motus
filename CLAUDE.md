@@ -1,4 +1,4 @@
-# Last updated: 2026-03-02 (Vite build step added)
+# Last updated: 2026-03-02 (Vite build step, folder reorganization)
 
 # PhalanX — Claude Code Guide
 
@@ -46,7 +46,7 @@ vite.config.mjs   — Vite config (outDir: dist)
 public/
   404.html        — Firebase 404 page (copied verbatim to dist/ by Vite)
 dist/             — build output (gitignored); deploy this to Firebase Hosting
-non_func/         — LICENSE.txt (copyright + third-party licenses)
+non_func/         — LICENSE.txt, devlog.html (non-production files)
 node_modules/     — npm packages (vite, firebase, chart.js, prompt-sync)
 ```
 
