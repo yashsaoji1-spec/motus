@@ -1,4 +1,4 @@
-# Last updated: 2026-03-02 (Vite build step, folder reorganization)
+# Last updated: 2026-03-02 (Vite build, mobile calibration fixes)
 
 # PhalanX — Claude Code Guide
 
@@ -40,8 +40,8 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 
 ```
 index.html        — all HTML screens (485 lines)
-app.js            — all JS logic (15 sections + Section 5b + window exports block, 2693 lines)
-styles.css        — all styles (1102 lines)
+app.js            — all JS logic (15 sections + Section 5b + window exports block, 2720 lines)
+styles.css        — all styles (1107 lines)
 vite.config.mjs   — Vite config (outDir: dist)
 public/
   404.html        — Firebase 404 page (copied verbatim to dist/ by Vite)
@@ -202,7 +202,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera), `flipCamera`, `isMobile` |
 | 12  | Progress Screen — session history display |
 | 13  | Joint Selector — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, and related helpers |
-| 14  | Calibration Screen — MediaPipe Hands init + angle math |
+| 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 
 ## Firestore Role Values

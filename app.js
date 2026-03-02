@@ -665,7 +665,7 @@ async function showExercisesScreen() {
     .filter(s => s.protocolId && new Date(s.date).toDateString() === today)
     .forEach(s => { doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1; });
 
-  _exercisesProtocols = protocols;
+  _exercisesProtocols = window._exercisesProtocols = protocols;
 
   inner.innerHTML = protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
@@ -691,7 +691,7 @@ async function showExercisesScreen() {
       ${p.notes ? `<p class="exs-notes-text" style="margin-top:0.75rem">"${p.notes}"</p>` : ''}
       ${progressText}
       <button class="auth-btn" style="width:100%;margin-top:1rem"
-        onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
+        onclick="startSessionWithProtocol(window._exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
     </div>`;
   }).join('');
 
@@ -744,7 +744,7 @@ function backToPatientList() {
 function enableMobilePatientDetail(panel) {
   if (!isMobile()) return;
   document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
-  panel.insertAdjacentHTML('afterbegin', '<button class="tp-mobile-back-btn" onclick="backToPatientList()">← All Patients</button>');
+  panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">🔬 Calibrate</button></div>');
 }
 
 // Seeded sessions for demo patient — always present regardless of localStorage state.
@@ -2465,19 +2465,46 @@ async function startCalibration() {
     });
 
     calibVideo.srcObject = stream;
-    calibVideo.onloadedmetadata = () => calibVideo.play();
-    calibVideo.onplaying = () => {
-      calibVideo.classList.add('ready');
-      if (calibOverlay) calibOverlay.classList.add('hidden');
-      calibSetStatus('Point camera at hand', 'idle');
-    };
 
-    calibMpCamera = new Camera(calibVideo, {
-      onFrame: async () => { await hands.send({ image: calibVideo }); },
-      width: 1280, height: 720,
-    });
-
-    calibMpCamera.start();
+    if (isMobile()) {
+      let active = true;
+      const processFrame = async () => {
+        if (!active) return;
+        if (calibVideo.readyState >= 2) {
+          try { await hands.send({ image: calibVideo }); } catch(e) {}
+        }
+        if (active) requestAnimationFrame(processFrame);
+      };
+      calibVideo.onloadedmetadata = () => {
+        const wrap = document.querySelector('.calib-camera-wrap');
+        if (wrap) wrap.style.aspectRatio = calibVideo.videoWidth + '/' + calibVideo.videoHeight;
+        calibVideo.play().then(() => {
+          calibVideo.classList.add('ready');
+          if (calibOverlay) calibOverlay.classList.add('hidden');
+          calibSetStatus('Point camera at hand', 'idle');
+          processFrame();
+        });
+      };
+      calibMpCamera = {
+        stop: () => {
+          active = false;
+          stream.getTracks().forEach(t => t.stop());
+          calibVideo.srcObject = null;
+        }
+      };
+    } else {
+      calibVideo.onloadedmetadata = () => calibVideo.play();
+      calibVideo.onplaying = () => {
+        calibVideo.classList.add('ready');
+        if (calibOverlay) calibOverlay.classList.add('hidden');
+        calibSetStatus('Point camera at hand', 'idle');
+      };
+      calibMpCamera = new Camera(calibVideo, {
+        onFrame: async () => { await hands.send({ image: calibVideo }); },
+        width: 1280, height: 720,
+      });
+      calibMpCamera.start();
+    }
 
   } catch (err) {
     if (calibOverlay) calibOverlay.classList.remove('hidden');

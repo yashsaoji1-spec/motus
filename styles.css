@@ -24,6 +24,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 
@@ -595,7 +596,7 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
 
 #calibrationScreen {
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   overflow: hidden;
 }
 
@@ -1012,7 +1013,7 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
   .sidebar { width: 100%; border-right: none; border-bottom: none; padding: 0; flex: 1; overflow-y: auto; }
   .sidebar h2 { padding: 16px 20px 12px; margin-bottom: 0; border-bottom: 1px solid var(--border); }
   .sidebar .clinic-code-box { display: none; }
-  .sidebar .calib-launch-btn { display: none; }
+  .sidebar .calib-launch-btn { margin: 8px 16px 0; width: calc(100% - 32px); }
   .sidebar .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
   .sidebar .no-patients { margin: 16px; }
   .patient-item { border-radius: 0; border: none; border-bottom: 1px solid var(--border); padding: 16px 20px; background: var(--surface); }
@@ -1026,8 +1027,12 @@ input[type="range"] { width: 100%; accent-color: #005EB8; }
   .ejs-hand-col { border-right: none; border-bottom: 1px solid #D0D7E3; }
   .ejs-info-col { border-left: none; border-top: 1px solid #D0D7E3; }
   .modal-box { width: calc(100% - 32px); }
-  .calib-main { flex-direction: column; }
-  .calib-camera-col { flex: none; height: 50vw; min-height: 200px; }
+  #calibrationScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
+  .calib-main { flex-direction: column; overflow: visible; }
+  .calib-right-col { overflow: visible; flex: none; }
+  .calib-readout-panel { overflow-y: visible; flex: none; }
+  .calib-camera-col { flex: none; width: 100%; height: auto; }
+  .calib-camera-wrap { height: auto; aspect-ratio: 4/3; }
 }
 
 /* ── Messaging screen ─────────────────────────────────────────────────────── */
