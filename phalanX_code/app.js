@@ -425,8 +425,10 @@ function calcStreak(sessions) {
   return { current, best };
 }
 
-function startSessionWithProtocol(protocol) {
+async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
+  trackedJoints  = await loadTrackedJoints(currentUser.email);
+  jointMaxAngles = {};
   showScreen('cameraScreen');
   document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
   loadPatientProtocol();
@@ -443,6 +445,8 @@ async function startScanSession() {
     return;
   }
   selectedProtocol = protocols[0];
+  trackedJoints  = await loadTrackedJoints(currentUser.email);
+  jointMaxAngles = {};
   showScreen('cameraScreen');
   document.getElementById('soundToggleBtn').textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
   await loadPatientProtocol();
@@ -531,6 +535,18 @@ async function deleteProtocol(patientEmail, protocolId) {
   }
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+}
+
+async function loadTrackedJoints(patientEmail) {
+  const doc = await db.collection('jointTracking').doc(patientEmail).get();
+  return doc.exists ? (doc.data().joints || []) : [];
+}
+
+async function saveTrackedJoints(patientEmail, joints) {
+  await db.collection('jointTracking').doc(patientEmail).set({
+    joints: [...joints],
+    updatedBy: currentUser?.email || ''
+  });
 }
 
 async function assignProtocol(patientEmail) {
@@ -798,7 +814,7 @@ async function showRealPatient(patient) {
       await renderThread('therapistMsgThread', currentUser.email, patient.email);
     };
     await renderThread('therapistMsgThread', currentUser.email, patient.email);
-    ejsInit();
+    await ejsInit(patient.email, sessions);
     updateExerciseParamsUI('full_fist', null);
     return;
   }
@@ -853,7 +869,7 @@ async function showRealPatient(patient) {
     await renderThread('therapistMsgThread', currentUser.email, patient.email);
   };
   await renderThread('therapistMsgThread', currentUser.email, patient.email);
-  ejsInit();
+  await ejsInit(patient.email, sessions);
   updateExerciseParamsUI('full_fist', null);
 }
 
@@ -1063,6 +1079,8 @@ let setPainValues = [];
 let restTimerInterval = null;
 let restTimeRemaining = 30;
 let currentExerciseParams = null;
+let trackedJoints   = [];   // joint keys loaded at session start for per-joint angle tracking
+let jointMaxAngles  = {};   // max angle per tracked joint during the current set
 const REST_DURATION = 30;
 let soundEnabled = localStorage.getItem('phalanx_sound') !== 'false';
 
@@ -1242,6 +1260,17 @@ function updateRepCount(landmarks) {
 
   if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
 
+  // Track per-joint max angles for joint monitoring charts
+  if (trackedJoints.length > 0) {
+    trackedJoints.forEach(key => {
+      const [finger, joint] = key.split('-');
+      const triplet = FINGER_LANDMARK_MAP[finger]?.[joint];
+      if (!triplet) return;
+      const angle = Math.round(getJointAngle(landmarks, triplet));
+      if (angle > (jointMaxAngles[key] || 0)) jointMaxAngles[key] = angle;
+    });
+  }
+
   if (isFlexed && fingerState !== 'flexed') {
     fingerState = 'flexed';
   } else if (isExtended && fingerState === 'flexed') {
@@ -1275,7 +1304,7 @@ function updateRepUI() {
 }
 
 async function saveSession() {
-  await db.collection('sessions').add({
+  const doc = {
     patientEmail:   currentUser.email,
     date:           new Date().toISOString(),
     reps:           repCount,
@@ -1285,7 +1314,10 @@ async function saveSession() {
     therapistEmail: await getConnectedTherapist(),
     exerciseType:   selectedProtocol?.exerciseType || '',
     protocolId:     selectedProtocol?.id || ''
-  });
+  };
+  if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
+  await db.collection('sessions').add(doc);
+  jointMaxAngles = {}; // reset after save so each set starts fresh
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1316,6 +1348,7 @@ async function initSetTracker() {
   sessionPaused = false;
   lastRepTime = null;
   setPainValues = [];
+  jointMaxAngles = {};
 
   if (selectedProtocol) {
     totalSets   = selectedProtocol.sets || 3;
@@ -1459,7 +1492,7 @@ async function completeSessionEarly() {
   if (repCount > 0) {
     const painVal = parseInt(document.getElementById('painSlider').value);
     setPainValues.push(painVal);
-    await db.collection('sessions').add({
+    const doc = {
       patientEmail:   currentUser.email,
       date:           new Date().toISOString(),
       reps:           repCount,
@@ -1469,7 +1502,9 @@ async function completeSessionEarly() {
       therapistEmail: await getConnectedTherapist(),
       exerciseType:   selectedProtocol?.exerciseType || '',
       protocolId:     selectedProtocol?.id || ''
-    });
+    };
+    if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
+    await db.collection('sessions').add(doc);
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -1597,8 +1632,12 @@ const EJS_JOINT_DATA = {
   'pinky-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:20, maxROM:null,jointType:'Reference', priority:'Low',      finger:'pinky',  desc:'Pinky tip reference for grip span measurement and abduction spread calculations.' },
 };
 
-let selectedJoints   = new Set();
-let ejsActiveInfoKey = null;
+let selectedJoints    = new Set();
+let ejsActiveInfoKey  = null;
+let _ejsPatientEmail  = '';
+let _ejsSessions      = [];
+let _ejsChartInstances = [];
+let _ejsSaveTimer     = null;
 
 function buildJointSelector(patientEmail) {
   // Build finger blocks for the grid column
@@ -1739,14 +1778,126 @@ function buildJointSelector(patientEmail) {
       </div>
 
     </div>
-  </div>`;
+  </div>
+  <div id="ejsChartsArea" class="ejs-charts-area"></div>`;
 }
 
-/* After buildJointSelector HTML is injected into the DOM, call this to reset state */
-function ejsInit() {
+/* After buildJointSelector HTML is injected into the DOM, call this to reset/load state */
+async function ejsInit(patientEmail, sessions) {
+  _ejsPatientEmail = patientEmail || '';
+  _ejsSessions     = sessions     || [];
   selectedJoints.clear();
   ejsActiveInfoKey = null;
+
+  // Load saved joint selections from Firestore
+  if (patientEmail) {
+    const saved = await loadTrackedJoints(patientEmail);
+    saved.forEach(key => selectedJoints.add(key));
+  }
+
   ejsRefreshUI();
+  renderJointCharts();
+}
+
+/* Called whenever the joint selection changes — updates UI, charts, and persists to Firestore */
+function ejsOnSelectionChange() {
+  ejsRefreshUI();
+  renderJointCharts();
+  if (_ejsSaveTimer) clearTimeout(_ejsSaveTimer);
+  _ejsSaveTimer = setTimeout(() => {
+    if (_ejsPatientEmail) saveTrackedJoints(_ejsPatientEmail, [...selectedJoints]);
+  }, 800);
+}
+
+/* Render one Chart.js line chart per tracked joint showing max angle over sessions */
+function renderJointCharts() {
+  const area = document.getElementById('ejsChartsArea');
+  if (!area) return;
+
+  // Destroy stale chart instances
+  _ejsChartInstances.forEach(c => c.destroy());
+  _ejsChartInstances = [];
+
+  if (selectedJoints.size === 0) {
+    area.innerHTML = '';
+    return;
+  }
+
+  const joints = [...selectedJoints];
+  area.innerHTML = joints.map(key => {
+    const safe = key.replace('-', '_');
+    return `<div class="ejs-chart-card">
+      <div class="ejs-chart-title" id="ejscharttitle-${safe}"></div>
+      <canvas id="ejscanvas-${safe}" height="90"></canvas>
+      <div class="ejs-chart-empty" id="ejschartempty-${safe}" style="display:none">
+        No session data with this joint tracked yet — data will appear here once the patient completes a session with joint monitoring active.
+      </div>
+    </div>`;
+  }).join('');
+
+  joints.forEach(key => {
+    const data  = EJS_JOINT_DATA[key];
+    if (!data) return;
+    const safe  = key.replace('-', '_');
+    const canvas  = document.getElementById(`ejscanvas-${safe}`);
+    const titleEl = document.getElementById(`ejscharttitle-${safe}`);
+    const emptyEl = document.getElementById(`ejschartempty-${safe}`);
+    if (!canvas) return;
+
+    const color = EJS_FINGER_COLORS[data.finger];
+    if (titleEl) {
+      titleEl.textContent = `${EJS_FINGER_LABELS[data.finger]} ${data.label} — ${data.fullName}`;
+      titleEl.style.color = color;
+    }
+
+    const sessionData = _ejsSessions
+      .filter(s => s.jointAngles && typeof s.jointAngles[key] === 'number')
+      .map(s => {
+        const d = new Date(s.date);
+        return {
+          label: `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`,
+          angle: s.jointAngles[key]
+        };
+      });
+
+    if (sessionData.length === 0) {
+      canvas.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+
+    const chart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: sessionData.map(s => s.label),
+        datasets: [{
+          label: 'Max ROM (°)',
+          data: sessionData.map(s => s.angle),
+          borderColor: color,
+          backgroundColor: color + '22',
+          borderWidth: 2,
+          pointBackgroundColor: color,
+          pointRadius: 4,
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#E8ECF2' } },
+          y: {
+            min: 0,
+            max: data.maxROM ? Math.min(data.maxROM + 20, 180) : 120,
+            ticks: { color: '#64748b' },
+            grid: { color: '#E8ECF2' },
+            title: { display: true, text: 'Degrees (°)', color: '#64748b', font: { size: 11 } }
+          }
+        }
+      }
+    });
+    _ejsChartInstances.push(chart);
+  });
 }
 
 function ejsDotClick(finger, joint) {
@@ -1766,7 +1917,7 @@ function ejsSelectCard(key) {
 function ejsToggleJoint(key) {
   if (selectedJoints.has(key)) selectedJoints.delete(key);
   else selectedJoints.add(key);
-  ejsRefreshUI();
+  ejsOnSelectionChange();
 }
 
 function ejsToggleFromInfo() {
@@ -1921,7 +2072,7 @@ function ejsRenderChips() {
 
 function ejsRemoveChip(key) {
   selectedJoints.delete(key);
-  ejsRefreshUI();
+  ejsOnSelectionChange();
   if (ejsActiveInfoKey === key) ejsShowInfo(key);
 }
 
@@ -1936,7 +2087,7 @@ function ejsQuickSelectFinger(finger) {
     if (all) selectedJoints.delete(key);
     else selectedJoints.add(key);
   });
-  ejsRefreshUI();
+  ejsOnSelectionChange();
 }
 
 function ejsSelectAll() {
@@ -1944,12 +2095,12 @@ function ejsSelectAll() {
     const d = EJS_JOINT_DATA[`${f}-${j}`];
     if (d && d.lm !== null) selectedJoints.add(`${f}-${j}`);
   }));
-  ejsRefreshUI();
+  ejsOnSelectionChange();
 }
 
 function ejsClearAll() {
   selectedJoints.clear();
-  ejsRefreshUI();
+  ejsOnSelectionChange();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

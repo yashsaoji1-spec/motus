@@ -1,4 +1,4 @@
-# Last updated: 2026-03-01 (collapsible therapist sections, patient exercise card redesign, patient-friendly rep cues)
+# Last updated: 2026-03-01 (functional Joint Monitoring — Firestore persistence + per-joint ROM charts)
 
 # PhalanX — Claude Code Guide
 
@@ -28,8 +28,8 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 
 ```
 index.html    — all HTML screens (489 lines)
-app.js        — all JS logic (15 sections + Section 5b, 2440 lines)
-styles.css    — all styles (1066 lines)
+app.js        — all JS logic (15 sections + Section 5b, 2591 lines)
+styles.css    — all styles (1093 lines)
 non_func/     — LICENSE.txt (copyright + third-party licenses)
 node_modules/ — prompt-sync + helpers (CLI utility only, unrelated to browser app)
 ```
@@ -49,17 +49,20 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 
 ### Firestore collections
 
-| Collection    | Document ID          | Fields |
-|---------------|----------------------|--------|
-| `users`       | `{email}`            | `{ name, role }` |
-| `connections` | `{therapistEmail}`   | `{ patients: [email, …] }` |
-| `protocols`   | `{patientEmail}`     | `{ items: [{ id, exerciseType, reps, sets, frequency, assignedBy, notes?, exerciseParams? }, …] }` |
-| `sessions`    | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId }` |
-| `messages`    | auto-id              | `{ from, to, participants, text, timestamp, read }` |
+| Collection      | Document ID          | Fields |
+|-----------------|----------------------|--------|
+| `users`         | `{email}`            | `{ name, role }` |
+| `connections`   | `{therapistEmail}`   | `{ patients: [email, …] }` |
+| `protocols`     | `{patientEmail}`     | `{ items: [{ id, exerciseType, reps, sets, frequency, assignedBy, notes?, exerciseParams? }, …] }` |
+| `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles? }` |
+| `messages`      | auto-id              | `{ from, to, participants, text, timestamp, read }` |
+| `jointTracking` | `{patientEmail}`     | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
 
 **Backward compat:** old `protocols` docs with a flat object (no `items` array) are transparently wrapped by `getProtocols()` as `[{ id: 'legacy', ...data }]`.
 
 **Session tracking:** `exerciseType` and `protocolId` were added later. Old sessions without these fields are excluded from today's completion count — they cannot be attributed to any current protocol.
+
+**Joint tracking:** `jointAngles` is only present if at least one joint was tracked during the session. Format: `{ 'index-pip': 72, 'middle-mcp': 45, … }` — peak angle (degrees) observed for each tracked joint during that set.
 
 ### Required Firestore composite indexes
 
@@ -88,7 +91,7 @@ service cloud.firestore {
 |-----------------|-----------------------------------|
 | `phalanx_sound` | `'true'` / `'false'` — sound preference (local UI only) |
 
-All other state (accounts, connections, protocols, sessions, messages) is in Firestore.
+All other state (accounts, connections, protocols, sessions, messages, joint tracking selections) is in Firestore.
 
 ## Screen System
 
@@ -132,6 +135,15 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 
 `makeCollapsible(id, title, bodyHTML, open)` wraps any section in a `.tp-colsec` card with a clickable header (title + ▾ arrow). `toggleTpSection(id)` handles show/hide and dispatches `resize` so Chart.js redraws when chart sections are revealed. Default open: ROM chart, Pain chart. Default collapsed: Joint Monitoring, Session History, Add Exercise to Protocol, Messages.
 
+### Joint Monitoring data flow
+
+1. **Therapist opens patient panel** → `ejsInit(patientEmail, sessions)` loads saved joint keys from `jointTracking/{patientEmail}` in Firestore, populates `selectedJoints`, and calls `renderJointCharts()` to show historical data immediately.
+2. **Therapist toggles joints** → `ejsOnSelectionChange()` updates the visual UI, re-renders all charts, and schedules a debounced (800 ms) write to `jointTracking/{patientEmail}`.
+3. **Patient starts session** → `startSessionWithProtocol` / `startScanSession` loads joint keys into `trackedJoints[]` and resets `jointMaxAngles = {}`.
+4. **Each camera frame** → `updateRepCount` records the peak angle for each tracked joint into `jointMaxAngles`.
+5. **Set complete / session saved** → `saveSession` / `completeSessionEarly` writes `jointAngles: { ...jointMaxAngles }` to the session document, then resets `jointMaxAngles` for the next set.
+6. **Therapist re-opens panel** → `renderJointCharts` plots one Chart.js line chart per tracked joint, color-coded by finger, showing peak ROM per session. Joints with no recorded data show a "no data yet" message.
+
 ### `exerciseParams` schema (inside a protocol item)
 
 For angle-metric exercises:
@@ -148,20 +160,20 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 
 | Section | Topic |
 |---------|-------|
-| 1   | Auth & State — Firebase init, `onAuthStateChanged`, async Firestore helpers; globals: `selectedProtocol`, `_exercisesProtocols` |
+| 1   | Auth & State — Firebase init, `onAuthStateChanged`, async Firestore helpers; globals: `selectedProtocol`, `_exercisesProtocols`, `trackedJoints`, `jointMaxAngles` |
 | 2   | Navigation — `showScreen()` (also stops `mpCamera` on leave), `screenTitles` map |
 | 3   | Login / Signup / Forgot — async Firebase Auth handlers; therapist signup writes `therapist_pending` role |
 | 4   | Connect — therapist code linking flow (async Firestore) |
 | 5   | Login Success / Logout — role routing |
 | 5b  | Admin Panel — `loadAdminScreen()`, `approveTherapist()`, `rejectTherapist()` |
-| 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionWithProtocol`, `startScanSession` |
-| 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends), `deleteProtocol` (removes by id), `normalizeExerciseParams` |
-| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (all sections collapsible), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition` |
-| 9   | Rep Counter — `checkExerciseState`, `updateRepCount`, `updateRepFeedback` (plain-English cues: "Bend your index finger" / "Straighten your index finger"), `fingerLabel`, `saveSession` (saves `exerciseType` + `protocolId`) |
-| 10  | Set Tracking — `initSetTracker` (resets state unconditionally first), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType` + `protocolId`) |
+| 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionWithProtocol` (async — loads `trackedJoints`), `startScanSession` |
+| 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends), `deleteProtocol` (removes by id), `normalizeExerciseParams`, `loadTrackedJoints`, `saveTrackedJoints` |
+| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition` |
+| 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`) |
+| 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 11  | Patient Session Camera — `startCamera` |
 | 12  | Progress Screen — session history display |
-| 13  | Joint Selector — therapist panel joint angle UI (Enhanced) |
+| 13  | Joint Selector — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, and related helpers |
 | 14  | Calibration Screen — MediaPipe Hands init + angle math |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 
