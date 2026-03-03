@@ -1,4 +1,4 @@
-# Last updated: 2026-03-02 (Vite build, mobile calibration fixes)
+# Last updated: 2026-03-03 (iOS Safari hand tracking fix — canvas instead of video)
 
 # PhalanX — Claude Code Guide
 
@@ -40,7 +40,7 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 
 ```
 index.html        — all HTML screens (485 lines)
-app.js            — all JS logic (15 sections + Section 5b + window exports block, 2720 lines)
+app.js            — all JS logic (15 sections + Section 5b + window exports block, 2721 lines)
 styles.css        — all styles (1107 lines)
 vite.config.mjs   — Vite config (outDir: dist)
 public/
@@ -199,10 +199,10 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button) |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`) |
-| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera), `flipCamera`, `isMobile` |
+| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS), `flipCamera`, `isMobile` |
 | 12  | Progress Screen — session history display |
 | 13  | Joint Selector — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, and related helpers |
-| 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion |
+| 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 
 ## Firestore Role Values
@@ -247,7 +247,7 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 - [ ] **Tighten Firestore security rules** — current rules allow any authenticated user to read/write everything. Before launch, scope rules so patients can only read/write their own data, therapists can only access their connected patients, and admins can only access the `users` collection.
 - [ ] **Delete demo accounts** — remove `sarah.chen@mayoclinic.org` and `james.park@gmail.com` from Firebase Auth and Firestore, or change their passwords.
 - [ ] **Create first real admin account** — follow the manual steps in the Firestore Role Values section above.
-- [x] **Test on HTTPS / mobile** — tested via ngrok + VS Code port forwarding on iOS Safari and Chrome. Mobile uses direct `getUserMedia` path (not MediaPipe `Camera` class). `startCamera()` must be called before any `await` in session-start functions to preserve iOS gesture context.
+- [x] **Test on HTTPS / mobile** — tested via ngrok + VS Code port forwarding on iOS Safari and Chrome. Mobile uses direct `getUserMedia` path (not MediaPipe `Camera` class). `startCamera()` must be called before any `await` in session-start functions to preserve iOS gesture context. iOS Safari requires `hands.send({ image: canvas })` — passing the video element directly does not work; video must be drawn to a canvas first.
 - [ ] **Review Firebase Auth settings** — disable any sign-in providers you're not using.
 
 ## Key Constraints
@@ -255,7 +255,7 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 - **Vite build step** — run `npm run dev` for local dev; `npm run build` before deploy. No other bundler/compiler.
 - **No linter or formatter** — no enforced style rules
 - **No test framework** — manual browser testing only
-- **MediaPipe stays on CDN** — WASM model files make bundling fragile; grab from `window` at top of `app.js`
+- **MediaPipe stays on CDN** — WASM model files make bundling fragile; accessed via `window.Hands`, `window.Camera`, etc. directly at call sites (not at module init — avoids CDN timing race on mobile)
 - **Firebase + Chart.js via npm** — imported at top of `app.js` using `firebase/compat` API (zero refactor needed)
 - **Window exports block** — app.js ends with `Object.assign(window, {...})` exposing all functions called from HTML `onclick` attrs (required because app.js is an ES module)
 - **Firebase backend** — all user data in Firestore; no localStorage keys remain
