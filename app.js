@@ -9,12 +9,8 @@ import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import Chart from 'chart.js/auto';
 
-// ── MediaPipe stays on CDN — grab from window so module scope can see them ──
-const Hands            = window.Hands;
-const Camera           = window.Camera;
-const drawConnectors   = window.drawConnectors;
-const drawLandmarks    = window.drawLandmarks;
-const HAND_CONNECTIONS = window.HAND_CONNECTIONS;
+// ── MediaPipe stays on CDN — accessed via window at call time (not init time)
+//    to avoid race conditions on mobile where CDN scripts may load slowly ──
 
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 1: AUTH & STATE  (Firebase)
@@ -1537,7 +1533,7 @@ function startCamera() {
   const sessionCtx    = sessionCanvas.getContext('2d');
   let hands;
   try {
-    hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+    hands = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
   } catch(e) {
     alert('Hands init error: ' + e.message);
     return;
@@ -1548,8 +1544,8 @@ function startCamera() {
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks) {
       for (const landmarks of results.multiHandLandmarks) {
-        drawConnectors(sessionCtx, landmarks, HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
-        drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
+        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
+        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
         updateRepCount(landmarks);
       }
     }
@@ -1569,7 +1565,7 @@ function startCamera() {
             if (sessionVideo.readyState >= 2) {
               sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
               sessionCtx.drawImage(sessionVideo, 0, 0, sessionCanvas.width, sessionCanvas.height);
-              try { await hands.send({ image: sessionVideo }); } catch(e) {}
+              try { await hands.send({ image: sessionCanvas }); } catch(e) {}
             }
             if (active) requestAnimationFrame(processFrame);
           };
@@ -1593,7 +1589,7 @@ function startCamera() {
 
     doGetUserMedia();
   } else {
-    mpCamera = new Camera(sessionVideo, {
+    mpCamera = new window.Camera(sessionVideo, {
       onFrame: async () => {
         if (sessionVideo.readyState >= 2) await hands.send({ image: sessionVideo });
       },
@@ -2367,7 +2363,7 @@ function calibClearReadouts() {
 
 // ── Draw landmarks ────────────────────────────────────────────────────────────
 function calibDrawLandmarks(ctx, landmarks) {
-  drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
+  window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, {
     color: 'rgba(0, 229, 192, 0.45)', lineWidth: 2,
   });
   landmarks.forEach((lm, i) => {
@@ -2444,7 +2440,7 @@ async function startCalibration() {
   calibSetStatus('Loading...', 'idle');
   if (calibOverlayMsg) calibOverlayMsg.textContent = 'LOADING MEDIAPIPE...';
 
-  const hands = new Hands({
+  const hands = new window.Hands({
     locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
   });
 
@@ -2468,10 +2464,15 @@ async function startCalibration() {
 
     if (isMobile()) {
       let active = true;
+      const calibCanvas = document.getElementById('calibCanvas');
+      const calibCtx2   = calibCanvas.getContext('2d');
       const processFrame = async () => {
         if (!active) return;
         if (calibVideo.readyState >= 2) {
-          try { await hands.send({ image: calibVideo }); } catch(e) {}
+          calibCanvas.width  = calibVideo.videoWidth;
+          calibCanvas.height = calibVideo.videoHeight;
+          calibCtx2.drawImage(calibVideo, 0, 0, calibCanvas.width, calibCanvas.height);
+          try { await hands.send({ image: calibCanvas }); } catch(e) {}
         }
         if (active) requestAnimationFrame(processFrame);
       };
@@ -2499,7 +2500,7 @@ async function startCalibration() {
         if (calibOverlay) calibOverlay.classList.add('hidden');
         calibSetStatus('Point camera at hand', 'idle');
       };
-      calibMpCamera = new Camera(calibVideo, {
+      calibMpCamera = new window.Camera(calibVideo, {
         onFrame: async () => { await hands.send({ image: calibVideo }); },
         width: 1280, height: 720,
       });
