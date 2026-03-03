@@ -146,6 +146,21 @@
   <div class="patient-greeting" id="patientGreeting">Good morning</div>
   <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
 
+  <div class="xp-bar-container" id="xpBarContainer" style="display:none;">
+    <div class="xp-bar-header">
+      <span class="xp-level" id="xpLevel">Level 1</span>
+      <span class="xp-progress-text" id="xpProgressText">0 / 10 sessions</span>
+      <div class="streak-badge" id="streakBadge" style="display:none;">
+        <span class="streak-count" id="streakCount">0</span>
+        <span class="streak-text" id="streakLabel">day streak</span>
+        <span class="streak-best" id="streakBest"></span>
+      </div>
+    </div>
+    <div class="xp-bar-track">
+      <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
+    </div>
+  </div>
+
   <div class="protocol-strip" id="patientProtocolStrip" style="display:none;">
     <div>
       <div class="protocol-strip-label">Today's Protocol</div>
@@ -163,19 +178,15 @@
     </button>
   </div>
 
-  <div class="streak-badge" id="streakBadge" style="display:none;">
-    <span class="streak-count" id="streakCount">0</span>
-    <span class="streak-text" id="streakLabel">day streak</span>
-    <span class="streak-best" id="streakBest"></span>
-  </div>
-
   <div class="secondary-grid">
     <button class="home-btn" onclick="showProgressScreen()">
+      <div class="home-btn-icon">📈</div>
       <div>
         <div class="home-btn-label">Track My Progress</div>
       </div>
     </button>
     <button class="home-btn" id="therapistContactBtn" onclick="openPatientMessaging()">
+      <div class="home-btn-icon">💬</div>
       <div>
         <div class="home-btn-label"><span id="therapistBtnLabel">Contact My Therapist</span> <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></div>
         <div class="home-btn-sub" id="therapistContactName">Message your therapist</div>
@@ -230,9 +241,15 @@
     <button id="flipCameraBtn" onclick="flipCamera()" style="display:none; position:absolute; top:12px; right:12px; z-index:15; background:rgba(0,0,0,0.35); border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; backdrop-filter:blur(4px);">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-5 11.5V14H9v2.5L5.5 13 9 9.5V12h6V9.5l3.5 3.5-3.5 3.5z"/></svg>
     </button>
+    <div id="tamDisplay" style="display:none; position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(16,185,129,0.4); border-radius:10px; padding:6px 14px; z-index:10; pointer-events:none;">
+      <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1px;">TAM</div>
+      <div id="tamValue" style="font-size:1.4rem; font-weight:900; color:#10B981; font-family:'DM Mono',monospace;">0°</div>
+    </div>
     <div class="rep-overlay">
-      <div class="rep-number" id="repDisplay">0</div>
-      <div class="rep-label">Reps</div>
+      <div class="rep-count-row">
+        <span class="rep-number" id="repDisplay">0</span>
+        <span class="rep-target" id="repTargetDisplay">/ 10</span>
+      </div>
     </div>
     <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
     <!-- TAM live display (from feature/ui) -->
@@ -243,34 +260,29 @@
     <div id="congratsOverlay">
       <h2>🎉 Great work!</h2>
       <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
-      <p style="font-size:0.9rem; color:#f1f5f9; margin-top:4px;"><strong id="targetDisplay">10</strong> reps completed</p>
-      <p id="allSetsComplete" style="display:none; color:#22c55e; font-weight:700; font-size:1rem;">🏆 All sets complete for today!</p>
-      <p style="font-size:0.85rem; color:#475569;">How much pain are you in right now?</p>
+      <p style="font-size:0.9rem; color:rgba(255,255,255,0.7); margin-top:4px;"><strong id="targetDisplay">10</strong> reps completed</p>
+      <p id="allSetsComplete" style="display:none; color:#10B981; font-weight:700; font-size:1rem;">🏆 All sets complete for today!</p>
+      <p style="font-size:0.85rem; color:rgba(255,255,255,0.45);">How much pain are you in right now?</p>
       <input type="range" min="1" max="10" value="5" id="painSliderCongrats" style="width:220px; margin-top:4px;" />
-      <p id="painValueCongrats" style="font-size:0.85rem; color:#94a3b8;">5 / 10</p>
+      <p id="painValueCongrats" style="font-size:0.85rem; color:rgba(255,255,255,0.5);">5 / 10</p>
       <button class="reset-btn" id="nextSetBtn" onclick="advanceSet()">Start Next Set</button>
     </div>
     <!-- Rest Timer -->
-    <div id="restTimerOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.88); border-radius:16px; flex-direction:column; align-items:center; justify-content:center; z-index:20; gap:10px;">
-      <p style="color:#94a3b8; font-size:0.78rem; text-transform:uppercase; letter-spacing:2px;">Rest Period</p>
-      <div id="restTimerCount" style="font-size:5.5rem; font-weight:900; color:#3b82f6; line-height:1; font-family:'DM Mono',monospace;">30</div>
-      <p style="color:#475569; font-size:0.88rem;">Next set starts automatically</p>
-      <div id="restTimerBar" style="width:220px; height:6px; background:#1e293b; border-radius:99px; overflow:hidden; margin-top:4px;">
-        <div id="restTimerFill" style="height:100%; background:#3b82f6; border-radius:99px; width:100%; transition:width 1s linear;"></div>
+    <div id="restTimerOverlay" class="rest-timer-overlay" style="display:none;">
+      <p class="rest-timer-label">Rest Period</p>
+      <div id="restTimerCount" class="rest-timer-count">30</div>
+      <p class="rest-timer-sub">Next set starts automatically</p>
+      <div class="rest-timer-bar">
+        <div id="restTimerFill" class="rest-timer-fill"></div>
       </div>
-      <button class="reset-btn" style="background:#3b82f6; margin-top:12px;" onclick="skipRest()">Skip Rest →</button>
+      <button class="reset-btn rest-skip-btn" onclick="skipRest()">Skip Rest →</button>
     </div>
   </div>
 
   <div id="repFeedback" class="rep-feedback"></div>
 
-  <div class="progress-section">
+  <div class="progress-section cam-progress-card">
     <div class="set-tracker" id="setTracker"></div>
-    <div class="progress-info">
-      <span id="setLabel">Set 1</span>
-      <span id="progressText">0 / 10 reps</span>
-    </div>
-    <div id="repDots" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
     <div class="progress-bar-track">
       <div class="progress-bar-fill" id="progressFill"></div>
     </div>
@@ -437,38 +449,38 @@
 <!-- ═══════════════════════════════════════════════════════
      SESSION SUMMARY OVERLAY
 ═══════════════════════════════════════════════════════ -->
-<div id="sessionSummaryOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:200; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:24px;">
+<div id="sessionSummaryOverlay" class="session-summary-overlay" style="display:none;">
   <div style="text-align:center;">
     <div style="font-size:3rem; margin-bottom:8px;">🏆</div>
-    <h2 style="font-size:1.8rem; font-weight:900; color:#22c55e; letter-spacing:-0.5px;">Session Complete!</h2>
-    <p style="color:#475569; font-size:0.9rem; margin-top:6px;">Great work today. Here's how you did:</p>
+    <h2 class="summary-title">Session Complete!</h2>
+    <p class="summary-subtitle">Great work today. Here's how you did:</p>
   </div>
-  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; width:100%; max-width:360px;">
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summaryTotalReps" style="font-size:2.2rem; font-weight:900; color:#3b82f6;">0</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Total Reps</div>
+  <div class="summary-stats-grid">
+    <div class="summary-stat-card">
+      <div id="summaryTotalReps" class="summary-stat-value" style="color:#3b82f6;">0</div>
+      <div class="summary-stat-label">Total Reps</div>
     </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summarySets" style="font-size:2.2rem; font-weight:900; color:#22c55e;">0</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Sets Done</div>
+    <div class="summary-stat-card">
+      <div id="summarySets" class="summary-stat-value" style="color:#10B981;">0</div>
+      <div class="summary-stat-label">Sets Done</div>
     </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summaryMaxROM" style="font-size:2.2rem; font-weight:900; color:#00c9b1;">0°</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max ROM</div>
+    <div class="summary-stat-card">
+      <div id="summaryMaxROM" class="summary-stat-value" style="color:#0B6CB0;">0°</div>
+      <div class="summary-stat-label">Max ROM</div>
     </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center; grid-column: 1 / -1;">
-      <div id="summaryMaxTAM" style="font-size:2.2rem; font-weight:900; color:#a78bfa;">0°</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Max TAM</div>
+    <div class="summary-stat-card" style="grid-column: 1 / -1;">
+      <div id="summaryMaxTAM" class="summary-stat-value" style="color:#10B981;">0°</div>
+      <div class="summary-stat-label">Max TAM</div>
     </div>
-    <div style="background:#1e293b; border-radius:14px; padding:20px; text-align:center;">
-      <div id="summaryAvgPain" style="font-size:2.2rem; font-weight:900; color:#f59e0b;">0</div>
-      <div style="font-size:0.72rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px;">Avg Pain</div>
+    <div class="summary-stat-card">
+      <div id="summaryAvgPain" class="summary-stat-value" style="color:#f59e0b;">0</div>
+      <div class="summary-stat-label">Avg Pain</div>
     </div>
   </div>
-  <div style="width:100%; max-width:360px; background:#1e293b; border-radius:14px; padding:16px 20px; border-left:3px solid #22c55e;">
-    <div id="summaryMessage" style="font-size:0.9rem; color:#94a3b8; line-height:1.6;"></div>
+  <div class="summary-message-card">
+    <div id="summaryMessage" class="summary-message-text"></div>
   </div>
-  <button class="reset-btn" style="width:100%; max-width:360px; padding:16px; font-size:1rem;" onclick="dismissSummary()">Back to Home</button>
+  <button class="reset-btn summary-home-btn" onclick="dismissSummary()">Back to Home</button>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
@@ -490,7 +502,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
-<!-- phalanX -->
+<!-- phalanX (Vite module) -->
 <script type="module" src="/app.js"></script>
 
 </body>

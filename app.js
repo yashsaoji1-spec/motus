@@ -21,6 +21,8 @@ let currentUser = null;
 let selectedRole = 'patient';
 let selectedProtocol = null;
 let _exercisesProtocols = [];
+let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
+let editingPatientEmail = null;
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -126,9 +128,8 @@ function showScreen(screenId) {
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+    currentFacingMode = 'user';
   }
-
-  if (screenId !== 'cameraScreen') currentFacingMode = 'user';
 
   // Stop calibration camera when leaving calibration screen
   if (screenId !== 'calibrationScreen' && calibMpCamera) {
@@ -413,11 +414,29 @@ async function updatePatientHomeScreen() {
   const bestEl  = document.getElementById('streakBest');
   if (badgeEl && streak.current > 0) {
     badgeEl.style.display = 'flex';
+    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame">🔥</span>');
     countEl.textContent   = streak.current;
     labelEl.textContent   = 'day streak';
     if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
   } else if (badgeEl) {
     badgeEl.style.display = 'none';
+  }
+
+  // XP / Level system (visual, based on total sessions)
+  const xpContainer = document.getElementById('xpBarContainer');
+  if (xpContainer && sessions.length > 0) {
+    xpContainer.style.display = 'block';
+    const thresholds = [0, 10, 25, 50, 100, 200];
+    let level = 1;
+    for (let i = 1; i < thresholds.length; i++) { if (sessions.length >= thresholds[i]) level = i + 1; }
+    const nextThreshold = thresholds[level] || thresholds[thresholds.length - 1];
+    const prevThreshold = thresholds[level - 1] || 0;
+    const progress = Math.min(100, ((sessions.length - prevThreshold) / (nextThreshold - prevThreshold)) * 100);
+    document.getElementById('xpLevel').textContent = `Level ${level}`;
+    document.getElementById('xpProgressText').textContent = `${sessions.length} / ${nextThreshold} sessions`;
+    document.getElementById('xpBarFill').style.width = `${Math.round(progress)}%`;
+  } else if (xpContainer) {
+    xpContainer.style.display = 'none';
   }
 
   const msgBadge = document.getElementById('patientUnreadBadge');
@@ -458,28 +477,29 @@ function calcStreak(sessions) {
 
 async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
-  showScreen('cameraScreen');
-  if (!mpCamera) startCamera();
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
+  showScreen('cameraScreen');
   loadPatientProtocol();
   initSetTracker();
+  if (!mpCamera) startCamera();
 }
 
 async function startScanSession() {
-  showScreen('cameraScreen');
-  if (!mpCamera) startCamera();
   const protocols = await getProtocols(currentUser.email);
   if (protocols.length !== 1) {
-    if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+    // 0 protocols: exercises screen shows "no protocol" message
+    // 2+ protocols: exercises screen lets patient pick
     showExercisesScreen();
     return;
   }
   selectedProtocol = protocols[0];
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
+  showScreen('cameraScreen');
   await loadPatientProtocol();
   await initSetTracker();
+  if (!mpCamera) startCamera();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -514,23 +534,23 @@ const frequencyLabels = {
 // flexAt: joint must bend TO or PAST this angle to count as flexed.
 // extendAt: joint must straighten TO or BELOW this angle to complete the rep.
 const EXERCISE_DEFAULTS = {
-  full_fist:         { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:90,extendAt:30},{finger:'middle',joint:'pip',flexAt:90,extendAt:30},{finger:'ring',joint:'pip',flexAt:90,extendAt:30},{finger:'pinky',joint:'pip',flexAt:90,extendAt:30}], requireAll:true  },
-  hook_fist:         { metric:'angle', conditions:[{finger:'index',joint:'dip',flexAt:60,extendAt:20},{finger:'middle',joint:'dip',flexAt:60,extendAt:20},{finger:'ring',joint:'dip',flexAt:60,extendAt:20},{finger:'pinky',joint:'dip',flexAt:60,extendAt:20}], requireAll:true  },
-  tabletop_position: { metric:'angle', conditions:[{finger:'index',joint:'mcp',flexAt:70,extendAt:20},{finger:'middle',joint:'mcp',flexAt:70,extendAt:20},{finger:'ring',joint:'mcp',flexAt:70,extendAt:20},{finger:'pinky',joint:'mcp',flexAt:70,extendAt:20}], requireAll:true  },
-  index_flexion:     { metric:'angle', conditions:[{finger:'index', joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
-  middle_flexion:    { metric:'angle', conditions:[{finger:'middle',joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
-  ring_flexion:      { metric:'angle', conditions:[{finger:'ring',  joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
-  pinky_flexion:     { metric:'angle', conditions:[{finger:'pinky', joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
-  thumb_flexion:     { metric:'angle', conditions:[{finger:'thumb', joint:'mcp',flexAt:50,extendAt:15}], requireAll:false },
-  finger_flexion:    { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:90,extendAt:30},{finger:'middle',joint:'pip',flexAt:90,extendAt:30},{finger:'ring',joint:'pip',flexAt:90,extendAt:30},{finger:'pinky',joint:'pip',flexAt:90,extendAt:30}], requireAll:false },
-  finger_extension:  { metric:'angle', conditions:[{finger:'index',joint:'mcp',flexAt:50,extendAt:10},{finger:'middle',joint:'mcp',flexAt:50,extendAt:10},{finger:'ring',joint:'mcp',flexAt:50,extendAt:10},{finger:'pinky',joint:'mcp',flexAt:50,extendAt:10}], requireAll:false },
-  grip_squeeze:      { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:90,extendAt:30},{finger:'middle',joint:'pip',flexAt:90,extendAt:30},{finger:'ring',joint:'pip',flexAt:90,extendAt:30},{finger:'pinky',joint:'pip',flexAt:90,extendAt:30}], requireAll:true  },
+  full_fist:         { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:60,extendAt:15},{finger:'middle',joint:'pip',flexAt:60,extendAt:15},{finger:'ring',joint:'pip',flexAt:60,extendAt:15},{finger:'pinky',joint:'pip',flexAt:60,extendAt:15}], requireAll:true  },
+  hook_fist:         { metric:'angle', conditions:[{finger:'index',joint:'dip',flexAt:45,extendAt:15},{finger:'middle',joint:'dip',flexAt:45,extendAt:15},{finger:'ring',joint:'dip',flexAt:45,extendAt:15},{finger:'pinky',joint:'dip',flexAt:45,extendAt:15}], requireAll:true  },
+  tabletop_position: { metric:'angle', conditions:[{finger:'index',joint:'mcp',flexAt:50,extendAt:15},{finger:'middle',joint:'mcp',flexAt:50,extendAt:15},{finger:'ring',joint:'mcp',flexAt:50,extendAt:15},{finger:'pinky',joint:'mcp',flexAt:50,extendAt:15}], requireAll:true  },
+  index_flexion:     { metric:'angle', conditions:[{finger:'index', joint:'pip',flexAt:60,extendAt:15}], requireAll:false },
+  middle_flexion:    { metric:'angle', conditions:[{finger:'middle',joint:'pip',flexAt:60,extendAt:15}], requireAll:false },
+  ring_flexion:      { metric:'angle', conditions:[{finger:'ring',  joint:'pip',flexAt:60,extendAt:15}], requireAll:false },
+  pinky_flexion:     { metric:'angle', conditions:[{finger:'pinky', joint:'pip',flexAt:60,extendAt:15}], requireAll:false },
+  thumb_flexion:     { metric:'angle', conditions:[{finger:'thumb', joint:'mcp',flexAt:40,extendAt:12}], requireAll:false },
+  finger_flexion:    { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:60,extendAt:15},{finger:'middle',joint:'pip',flexAt:60,extendAt:15},{finger:'ring',joint:'pip',flexAt:60,extendAt:15},{finger:'pinky',joint:'pip',flexAt:60,extendAt:15}], requireAll:false },
+  finger_extension:  { metric:'angle', conditions:[{finger:'index',joint:'mcp',flexAt:40,extendAt:10},{finger:'middle',joint:'mcp',flexAt:40,extendAt:10},{finger:'ring',joint:'mcp',flexAt:40,extendAt:10},{finger:'pinky',joint:'mcp',flexAt:40,extendAt:10}], requireAll:false },
+  grip_squeeze:      { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:60,extendAt:15},{finger:'middle',joint:'pip',flexAt:60,extendAt:15},{finger:'ring',joint:'pip',flexAt:60,extendAt:15},{finger:'pinky',joint:'pip',flexAt:60,extendAt:15}], requireAll:true  },
   thumb_index_opposition: { metric:'distance',  tipA:4,  tipB:8,  closeAt:0.08, openAt:0.25 },
   thumb_opposition:       { metric:'distance',  tipA:4,  tipB:12, closeAt:0.08, openAt:0.25 },
   finger_abduction:       { metric:'abduction', tipA:8,  tipB:20, spreadAt:0.30, closedAt:0.15 },
 };
 
-// b is pivot. pip uses [MCP, PIP, Tip] = composite flexion, matching current middle-finger behavior.
+// b is pivot. pip uses [MCP, PIP, TIP] = composite flexion, matching legacy middle-finger behavior.
 const FINGER_LANDMARK_MAP = {
   thumb:  { mcp:[0,2,3],   pip:[2,3,4],    dip:null        },
   index:  { mcp:[0,5,6],   pip:[5,6,8],    dip:[6,7,8]     },
@@ -563,6 +583,75 @@ async function deleteProtocol(patientEmail, protocolId) {
   }
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+}
+
+async function editProtocol(patientEmail, protocolId) {
+  const protocols = await getProtocols(patientEmail);
+  const p = protocols.find(x => x.id === protocolId);
+  if (!p) return;
+
+  editingProtocolId = protocolId;
+  editingPatientEmail = patientEmail;
+
+  // Expand the protocol collapsible section
+  const section = document.getElementById('tps-protocol');
+  if (section && section.classList.contains('collapsed')) toggleTpSection('tps-protocol');
+
+  // Populate the form with existing values
+  const sel = document.getElementById('exerciseType');
+  if (sel) sel.value = p.exerciseType;
+  updateExerciseParamsUI(p.exerciseType, p.exerciseParams || null);
+
+  const repsEl = document.getElementById('protocolReps');
+  const setsEl = document.getElementById('protocolSets');
+  const freqEl = document.getElementById('protocolFrequency');
+  const notesEl = document.getElementById('protocolNotes');
+  if (repsEl) repsEl.value = p.reps || 10;
+  if (setsEl) setsEl.value = p.sets || 3;
+  if (freqEl) freqEl.value = p.frequency || 'daily';
+  if (notesEl) notesEl.value = p.notes || '';
+
+  // Change button text and show cancel link
+  const btn = document.querySelector('.protocol-btn');
+  if (btn) {
+    btn.textContent = 'Save Changes';
+    btn.classList.add('editing');
+  }
+  let cancelEl = document.getElementById('cancelEditBtn');
+  if (!cancelEl) {
+    cancelEl = document.createElement('button');
+    cancelEl.id = 'cancelEditBtn';
+    cancelEl.className = 'protocol-cancel-btn';
+    cancelEl.textContent = 'Cancel Edit';
+    cancelEl.onclick = () => cancelEditProtocol(patientEmail);
+    const btn2 = document.querySelector('.protocol-btn');
+    if (btn2) btn2.parentElement.insertBefore(cancelEl, btn2.nextSibling);
+  }
+  cancelEl.style.display = 'inline-block';
+
+  // Scroll into view
+  const formEl = document.querySelector('.protocol-card');
+  if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelEditProtocol(patientEmail) {
+  editingProtocolId = null;
+  editingPatientEmail = null;
+  const btn = document.querySelector('.protocol-btn');
+  if (btn) {
+    btn.textContent = 'Add to Protocol';
+    btn.classList.remove('editing');
+  }
+  const cancelEl = document.getElementById('cancelEditBtn');
+  if (cancelEl) cancelEl.style.display = 'none';
+  // Reset form
+  const repsEl = document.getElementById('protocolReps');
+  const setsEl = document.getElementById('protocolSets');
+  const notesEl = document.getElementById('protocolNotes');
+  if (repsEl) repsEl.value = 10;
+  if (setsEl) setsEl.value = 3;
+  if (notesEl) notesEl.value = '';
+  updateExerciseParamsUI('full_fist', null);
 }
 
 async function loadTrackedJoints(patientEmail) {
@@ -603,33 +692,79 @@ async function assignProtocol(patientEmail) {
   const sets = parseInt(document.getElementById('protocolSets').value);
   if (isNaN(reps) || reps < 1) { alert('Please enter a valid rep count.'); return; }
   if (isNaN(sets) || sets < 1) { alert('Please enter a valid set count.'); return; }
-  const newItem = {
-    id:           Date.now().toString(),
-    exerciseType,
-    reps,
-    sets,
-    frequency:    document.getElementById('protocolFrequency').value,
-    notes:        document.getElementById('protocolNotes').value.trim(),
-    assignedBy:   currentUser.name,
-    assignedAt:   new Date().toISOString()
-  };
-  if (exerciseParams) newItem.exerciseParams = exerciseParams;
   const existing = await getProtocols(patientEmail);
-  await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+
+  if (editingProtocolId) {
+    // Edit mode — update the existing protocol item in place
+    const updated = existing.map(p => {
+      if (p.id !== editingProtocolId) return p;
+      const edited = {
+        ...p,
+        exerciseType,
+        reps,
+        sets,
+        frequency:  document.getElementById('protocolFrequency').value,
+        notes:      document.getElementById('protocolNotes').value.trim(),
+        assignedBy: currentUser.name,
+        editedAt:   new Date().toISOString()
+      };
+      if (exerciseParams) edited.exerciseParams = exerciseParams;
+      else delete edited.exerciseParams;
+      return edited;
+    });
+    await db.collection('protocols').doc(patientEmail).set({ items: updated });
+    editingProtocolId = null;
+    editingPatientEmail = null;
+  } else {
+    // Add mode — append a new protocol item
+    const newItem = {
+      id:           Date.now().toString(),
+      exerciseType,
+      reps,
+      sets,
+      frequency:    document.getElementById('protocolFrequency').value,
+      notes:        document.getElementById('protocolNotes').value.trim(),
+      assignedBy:   currentUser.name,
+      assignedAt:   new Date().toISOString()
+    };
+    if (exerciseParams) newItem.exerciseParams = exerciseParams;
+    await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+  }
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
 
 function formatProtocol(p) {
+  const dateStr = p.assignedAt ? new Date(p.assignedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+  const editedStr = p.editedAt ? ` · Edited ${new Date(p.editedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}` : '';
+
+  // Build exercise params summary
+  let paramsHTML = '';
+  const ep = p.exerciseParams;
+  if (ep && ep.metric === 'angle' && ep.conditions) {
+    const condStrs = ep.conditions.map(c =>
+      `${c.finger.charAt(0).toUpperCase() + c.finger.slice(1)} ${c.joint.toUpperCase()}: flex ${c.flexAt}° → extend ${c.extendAt}°`
+    );
+    paramsHTML = `<div class="protocol-params-detail">
+      <div class="protocol-params-label">Tracking Parameters</div>
+      ${condStrs.map(s => `<div class="protocol-param-row">${s}</div>`).join('')}
+      ${ep.conditions.length > 1 ? `<div class="protocol-param-row" style="color:var(--accent);font-weight:600">${ep.requireAll ? 'All joints required' : 'Any joint counts'}</div>` : ''}
+    </div>`;
+  } else if (ep && ep.metric === 'distance') {
+    paramsHTML = `<div class="protocol-params-detail"><div class="protocol-params-label">Distance-based rep counting</div></div>`;
+  } else if (ep && ep.metric === 'abduction') {
+    paramsHTML = `<div class="protocol-params-detail"><div class="protocol-params-label">Abduction/spread measurement</div></div>`;
+  }
+
   return `
     <div class="protocol-existing-detail">
-      <div class="protocol-tag"><strong>Exercise:</strong> ${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
       <div class="protocol-tag"><strong>Reps:</strong> ${p.reps} per set</div>
       <div class="protocol-tag"><strong>Sets:</strong> ${p.sets} per session</div>
       <div class="protocol-tag"><strong>Frequency:</strong> ${frequencyLabels[p.frequency] || p.frequency}</div>
     </div>
+    ${paramsHTML}
     ${p.notes ? `<p class="protocol-notes-display">"${p.notes}"</p>` : ''}
-    <p style="font-size:0.75rem; color:#334155; margin-top:8px;">Assigned by ${p.assignedBy}</p>`;
+    <p class="protocol-meta">Assigned by ${p.assignedBy}${dateStr ? ` on ${dateStr}` : ''}${editedStr}</p>`;
 }
 
 async function loadPatientProtocol() {
@@ -681,9 +816,9 @@ async function showExercisesScreen() {
     .filter(s => s.protocolId && new Date(s.date).toDateString() === today)
     .forEach(s => { doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1; });
 
-  _exercisesProtocols = window._exercisesProtocols = protocols;
+  _exercisesProtocols = protocols;
 
-  inner.innerHTML = protocols.map((p, i) => {
+  inner.innerHTML = `<div class="exs-card-grid">${protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
@@ -693,7 +828,7 @@ async function showExercisesScreen() {
         ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
         : '';
     return `
-    <div class="exs-hero-card" style="margin-bottom:1rem">
+    <div class="exs-hero-card">
       <div class="exs-hero-label">Assigned Exercise</div>
       <div class="exs-hero-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
       <div class="exs-stats-row">
@@ -704,12 +839,12 @@ async function showExercisesScreen() {
         <div class="exs-stat"><div class="exs-stat-value exs-stat-freq">${frequencyLabels[p.frequency] || p.frequency}</div><div class="exs-stat-label">Frequency</div></div>
       </div>
       <div class="exs-assigned-by">Prescribed by ${p.assignedBy}</div>
-      ${p.notes ? `<p class="exs-notes-text" style="margin-top:0.75rem">"${p.notes}"</p>` : ''}
+      ${p.notes ? `<p class="exs-notes-text" style="margin-top:0.5rem">"${p.notes}"</p>` : ''}
       ${progressText}
-      <button class="auth-btn" style="width:100%;margin-top:1rem"
-        onclick="startSessionWithProtocol(window._exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
+      <button class="auth-btn" style="width:100%;margin-top:auto;padding-top:0.75rem"
+        onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
 
   showScreen('exercisesScreen');
 }
@@ -752,6 +887,7 @@ async function loadConnectedPatients() {
   }
 }
 
+// ── Mobile therapist panel helpers ────────────────────────────────────────────
 function backToPatientList() {
   document.getElementById('therapistScreen').classList.remove('tp-mobile-detail');
   document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
@@ -761,6 +897,11 @@ function enableMobilePatientDetail(panel) {
   if (!isMobile()) return;
   document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
   panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">🔬 Calibrate</button></div>');
+}
+
+// ── Calibration back button (named so Vite module can export it) ──────────────
+function calibBack() {
+  showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen');
 }
 
 // Seeded sessions for demo patient — always present regardless of localStorage state.
@@ -845,7 +986,6 @@ async function showRealPatient(patient) {
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
       ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
-    enableMobilePatientDetail(panel);
     await markRead(currentUser.email, patient.email);
     document.getElementById('therapistMsgSend').onclick = async () => {
       const input = document.getElementById('therapistMsgInput');
@@ -854,6 +994,7 @@ async function showRealPatient(patient) {
       await renderThread('therapistMsgThread', currentUser.email, patient.email);
     };
     await renderThread('therapistMsgThread', currentUser.email, patient.email);
+    enableMobilePatientDetail(panel);
     await ejsInit(patient.email, sessions);
     updateExerciseParamsUI('full_fist', null);
     return;
@@ -889,7 +1030,6 @@ async function showRealPatient(patient) {
     ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
-  enableMobilePatientDetail(panel);
 
   new Chart(document.getElementById('romChart').getContext('2d'), {
     type: 'line',
@@ -910,6 +1050,7 @@ async function showRealPatient(patient) {
     await renderThread('therapistMsgThread', currentUser.email, patient.email);
   };
   await renderThread('therapistMsgThread', currentUser.email, patient.email);
+  enableMobilePatientDetail(panel);
   await ejsInit(patient.email, sessions);
   updateExerciseParamsUI('full_fist', null);
 }
@@ -926,17 +1067,21 @@ function buildSessionHistory(sessions) {
     const rom       = s.rom  || 0;
     const painColor = pain <= 3 ? '#22c55e' : pain <= 6 ? '#f59e0b' : '#ef4444';
     const romColor  = rom  >= 120 ? '#22c55e' : rom >= 80 ? '#f59e0b' : '#94a3b8';
+    const exLabel   = s.exerciseType ? (exerciseLabels[s.exerciseType] || s.exerciseType) : '';
     return `
       <div class="session-history-row">
         <div class="session-date">
-          <div style="color:#94a3b8; font-weight:600;">${dateStr}</div>
-          <div style="font-size:0.72rem; color:#475569;">${timeStr}</div>
+          <div style="color:var(--text); font-weight:600; font-size:0.85rem;">${dateStr}</div>
+          <div style="font-size:0.7rem; color:var(--muted);">${timeStr}</div>
+          ${exLabel ? `<div class="session-exercise-label">${exLabel}</div>` : ''}
         </div>
-        <div class="session-stat" style="color:#3b82f6;">${s.reps || 0} reps</div>
-        <div class="session-stat" style="color:${romColor};">${rom}°</div>
-        <div class="session-stat">
-          <span class="session-pain-dot" style="background:${painColor}"></span>
-          <span style="color:${painColor}">${pain}/10</span>
+        <div style="display:flex;gap:10px;justify-content:space-between;">
+          <div class="session-stat" style="color:#0B6CB0;">${s.reps || 0} reps</div>
+          <div class="session-stat" style="color:${romColor};">${rom}°</div>
+          <div class="session-stat">
+            <span class="session-pain-dot" style="background:${painColor}"></span>
+            <span style="color:${painColor}">${pain}/10</span>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -961,7 +1106,10 @@ function buildProtocolForm(patientEmail, protocols) {
         <div class="protocol-existing-item">
           <div class="protocol-existing-header">
             <span style="font-weight:600;color:var(--text)">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
-            <button class="protocol-delete-btn" onclick="deleteProtocol('${patientEmail}', '${p.id}')">Remove</button>
+            <div class="protocol-action-btns">
+              <button class="protocol-edit-btn" onclick="editProtocol('${patientEmail}', '${p.id}')">Edit</button>
+              <button class="protocol-delete-btn" onclick="deleteProtocol('${patientEmail}', '${p.id}')">Remove</button>
+            </div>
           </div>
           ${formatProtocol(p)}
         </div>
@@ -1295,15 +1443,15 @@ function updateRepCount(landmarks) {
     ({ isFlexed, isExtended, repAngle } = state);
     updateRepFeedback(state);
   } else {
-    // Legacy fallback — middle finger PIP, 0°=straight convention
+    // Legacy fallback — middle finger PIP (MCP→PIP→DIP), 0°=straight convention
     const angle = getMiddleFingerAngle(landmarks);
-    repAngle = Math.round(angle); isFlexed = angle > 90; isExtended = angle < 30;
+    repAngle = Math.round(angle); isFlexed = angle > 60; isExtended = angle < 15;
     updateRepFeedback(null);
   }
 
   if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
 
-  // ── TAM tracking (cherry-picked from feature/ui) ──
+  // ── TAM tracking ──
   const tam = calcTAM(landmarks);
   if (tam > maxTAMThisSession) { maxTAMThisSession = tam; lastTAM = Math.round(tam); }
   const tamEl = document.getElementById('tamDisplay');
@@ -1322,7 +1470,11 @@ function updateRepCount(landmarks) {
     });
   }
 
-  if (isFlexed && fingerState !== 'flexed') {
+  // Must start open-handed — entering camera with a fist won't count as a rep
+  if (fingerState === 'unknown') {
+    if (isExtended) fingerState = 'extended';
+    // Do NOT transition to flexed from unknown
+  } else if (isFlexed && fingerState === 'extended') {
     fingerState = 'flexed';
   } else if (isExtended && fingerState === 'flexed') {
     fingerState = 'extended';
@@ -1336,9 +1488,9 @@ function updateRepCount(landmarks) {
 }
 
 function updateRepUI() {
-  renderRepDots();
   document.getElementById('repDisplay').textContent    = repCount;
-  document.getElementById('progressText').textContent  = `${repCount} / ${TARGET_REPS} reps`;
+  const repTarget = document.getElementById('repTargetDisplay');
+  if (repTarget) repTarget.textContent = `/ ${TARGET_REPS}`;
   const pct = Math.min((repCount / TARGET_REPS) * 100, 100);
   document.getElementById('progressFill').style.width  = pct + '%';
   if (repCount >= TARGET_REPS) {
@@ -1420,7 +1572,6 @@ async function initSetTracker() {
     }
   }
   renderSetDots();
-  renderRepDots();
   updateRepUI();
 }
 
@@ -1431,12 +1582,11 @@ function renderSetDots() {
   for (let i = 1; i <= totalSets; i++) {
     const dot = document.createElement('div');
     dot.className = 'set-dot';
-    if (i < currentSet)    dot.classList.add('complete');
-    if (i === currentSet)  dot.classList.add('active');
+    if (i < currentSet)   { dot.classList.add('complete'); dot.textContent = '✓'; }
+    else if (i === currentSet) { dot.classList.add('active'); dot.textContent = i; }
+    else                  { dot.textContent = i; }
     tracker.appendChild(dot);
   }
-  const label = document.getElementById('setLabel');
-  if (label) label.textContent = `Set ${currentSet} of ${totalSets}`;
 }
 
 function renderRepDots() {
@@ -1489,7 +1639,6 @@ function startRestTimer() {
     document.getElementById('restTimerCount').textContent = restTimeRemaining;
     const pct = (restTimeRemaining / REST_DURATION) * 100;
     document.getElementById('restTimerFill').style.width = pct + '%';
-    if (restTimeRemaining <= 10) document.getElementById('restTimerFill').style.background = '#22c55e';
     if (restTimeRemaining <= 0) skipRest();
   }, 1000);
 }
@@ -1498,7 +1647,7 @@ function skipRest() {
   clearInterval(restTimerInterval);
   restTimerInterval = null;
   document.getElementById('restTimerOverlay').style.display = 'none';
-  document.getElementById('restTimerFill').style.background = '#3b82f6';
+  document.getElementById('restTimerFill').style.width = '100%';
   sessionPaused = false;
 }
 
@@ -1573,6 +1722,7 @@ async function completeSessionEarly() {
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 11: PATIENT SESSION CAMERA  (dashboard camera)
    ══════════════════════════════════════════════════════════════════════════ */
+
 let currentFacingMode = 'user';
 
 function flipCamera() {
@@ -1683,8 +1833,11 @@ async function renderProgressScreen() {
   }
   const totalReps = sessions.reduce((s, x) => s + (x.reps || 0), 0);
   const avgROM    = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
+  const bestROM   = Math.max(...sessions.map(s => s.rom || 0));
+  const avgPain   = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
   const recent    = sessions.slice(-10);
   const romData   = recent.map(s => s.rom || 0);
+  const painData  = recent.map(s => s.pain || 0);
   const labels    = recent.map(s => { const d = new Date(s.date); return `${d.getMonth()+1}/${d.getDate()}`; });
   const historyHTML = [...sessions].reverse().map(s => {
     const d       = new Date(s.date);
@@ -1704,17 +1857,28 @@ async function renderProgressScreen() {
       <div class="stat-card"><div class="stat-value">${sessions.length}</div><div class="stat-label">Total Sessions</div></div>
       <div class="stat-card"><div class="stat-value">${totalReps}</div><div class="stat-label">Total Reps</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg ROM</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#0B6CB0">${bestROM}°</div><div class="stat-label">Best ROM</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#ef4444">${avgPain}</div><div class="stat-label">Avg Pain</div></div>
     </div>
     <div class="chart-card" style="margin-bottom:24px;">
       <h4>Range of Motion Over Time</h4>
       <canvas id="patientRomChart" height="100"></canvas>
     </div>
-    <p style="font-size:0.8rem; color:#475569; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Session History</p>
-    ${historyHTML}`;
+    <div class="chart-card" style="margin-bottom:24px;">
+      <h4>Pain Level Over Time</h4>
+      <canvas id="patientPainChart" height="100"></canvas>
+    </div>
+    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Session History</p>
+    <div class="progress-history-grid">${historyHTML}</div>`;
   new Chart(document.getElementById('patientRomChart').getContext('2d'), {
     type: 'line',
-    data: { labels, datasets: [{ data: romData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 } } }
+    data: { labels, datasets: [{ data: romData, borderColor: '#0B6CB0', backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 2, pointBackgroundColor: '#10B981', pointRadius: 5, pointBorderColor: '#0B6CB0', pointBorderWidth: 2, tension: 0.4, fill: true }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' } }, y: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' }, min: 0, max: 180 } } }
+  });
+  new Chart(document.getElementById('patientPainChart').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 5, pointBorderColor: '#CC2936', pointBorderWidth: 2, tension: 0.4, fill: true }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' } }, y: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' }, min: 0, max: 10 } } }
   });
 }
 
@@ -2539,51 +2703,19 @@ async function startCalibration() {
     });
 
     calibVideo.srcObject = stream;
+    calibVideo.onloadedmetadata = () => calibVideo.play();
+    calibVideo.onplaying = () => {
+      calibVideo.classList.add('ready');
+      if (calibOverlay) calibOverlay.classList.add('hidden');
+      calibSetStatus('Point camera at hand', 'idle');
+    };
 
-    if (isMobile()) {
-      let active = true;
-      const calibCanvas = document.getElementById('calibCanvas');
-      const calibCtx2   = calibCanvas.getContext('2d');
-      const processFrame = async () => {
-        if (!active) return;
-        if (calibVideo.readyState >= 2) {
-          calibCanvas.width  = calibVideo.videoWidth;
-          calibCanvas.height = calibVideo.videoHeight;
-          calibCtx2.drawImage(calibVideo, 0, 0, calibCanvas.width, calibCanvas.height);
-          try { await hands.send({ image: calibCanvas }); } catch(e) {}
-        }
-        if (active) requestAnimationFrame(processFrame);
-      };
-      calibVideo.onloadedmetadata = () => {
-        const wrap = document.querySelector('.calib-camera-wrap');
-        if (wrap) wrap.style.aspectRatio = calibVideo.videoWidth + '/' + calibVideo.videoHeight;
-        calibVideo.play().then(() => {
-          calibVideo.classList.add('ready');
-          if (calibOverlay) calibOverlay.classList.add('hidden');
-          calibSetStatus('Point camera at hand', 'idle');
-          processFrame();
-        });
-      };
-      calibMpCamera = {
-        stop: () => {
-          active = false;
-          stream.getTracks().forEach(t => t.stop());
-          calibVideo.srcObject = null;
-        }
-      };
-    } else {
-      calibVideo.onloadedmetadata = () => calibVideo.play();
-      calibVideo.onplaying = () => {
-        calibVideo.classList.add('ready');
-        if (calibOverlay) calibOverlay.classList.add('hidden');
-        calibSetStatus('Point camera at hand', 'idle');
-      };
-      calibMpCamera = new window.Camera(calibVideo, {
-        onFrame: async () => { await hands.send({ image: calibVideo }); },
-        width: 1280, height: 720,
-      });
-      calibMpCamera.start();
-    }
+    calibMpCamera = new window.Camera(calibVideo, {
+      onFrame: async () => { await hands.send({ image: calibVideo }); },
+      width: 1280, height: 720,
+    });
+
+    calibMpCamera.start();
 
   } catch (err) {
     if (calibOverlay) calibOverlay.classList.remove('hidden');
@@ -2781,41 +2913,37 @@ function buildMessagePanel(patientEmail) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   WINDOW EXPORTS — expose functions/variables used from HTML onclick attrs
-   (required because app.js is now an ES module — module scope is not global)
+   WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
+   handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
-
-// Helper for calibration back button (avoids direct currentRole ref in HTML)
-function calibBack() { showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen'); }
-
 Object.assign(window, {
-  // Auth screens
-  handleLogin, handleSignup, handleForgot,
-  selectRole, logout,
+  // Auth
+  handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
-  requestLogout, closeLogoutModal, confirmLogout,
+  logout, requestLogout, closeLogoutModal, confirmLogout,
+  approveTherapist, rejectTherapist,
 
   // Navigation
   showScreen,
 
-  // Patient screens
-  startScanSession, startSessionWithProtocol,
-  showExercisesScreen, showProgressScreen,
-  openPatientMessaging, sendMessageFromPatient,
+  // Patient flows
+  startScanSession, startSessionWithProtocol, showExercisesScreen,
+  showProgressScreen, openPatientMessaging, sendMessageFromPatient,
 
   // Camera session
-  flipCamera, advanceSet, skipRest,
-  completeSessionEarly, dismissSummary,
+  flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary,
+  toggleSound,
 
   // Therapist panel
   startCalibration, calibBack,
-  backToPatientList, toggleTpSection,
-  approveTherapist, rejectTherapist,
-  deleteProtocol, assignProtocol,
-  epAddCondition, epRemoveCondition,
+  backToPatientList, toggleTpSection, showRealPatient,
+  deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
+  epAddCondition, epRemoveCondition, updateExerciseParamsUI,
 
   // Joint selector
   ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
-  ejsRemoveChip, ejsQuickSelectFinger,
-  ejsSelectAll, ejsClearAll,
+  ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
+
+  // Exposed array for exercises screen start buttons
+  get _exercisesProtocols() { return _exercisesProtocols; },
 });

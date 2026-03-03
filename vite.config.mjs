@@ -5,4 +5,7 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
+  server: {
+    host: 'localhost',
+  },
 });
