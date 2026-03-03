@@ -1,0 +1,23 @@
+{
+  "name": "phalanx",
+  "version": "1.0.0",
+  "description": "Hand rehabilitation web app using MediaPipe hand tracking",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Yash Saoji & Oliver Huelsbeck",
+  "license": "ISC",
+  "dependencies": {
+    "chart.js": "^4.0.0",
+    "firebase": "^9.23.0",
+    "prompt-sync": "^4.2.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
