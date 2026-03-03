@@ -41,6 +41,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 
@@ -567,6 +568,91 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .ep-desc-text { font-size: 0.83rem; color: #6B7A99; line-height: 1.5; margin: 0; }
 .ep-threshold-hint { font-size: 0.72rem; color: #6B7A99; margin-top: 2px; }
 
+/* ── My Exercises screen (exs-*) ────────────────────────────────────────── */
+#exercisesScreen { background: #F4F6F9; }
+.exs-hero-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.exs-hero-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 6px; }
+.exs-hero-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 20px; color: var(--text); }
+.exs-stats-row { display: flex; align-items: center; gap: 0; margin-bottom: 18px; background: var(--bg); border-radius: 10px; padding: 14px 0; }
+.exs-stat { flex: 1; text-align: center; }
+.exs-stat-value { font-size: 1.4rem; font-weight: 800; line-height: 1; color: var(--accent); }
+.exs-stat-freq { font-size: 0.95rem; }
+.exs-stat-label { font-size: 0.68rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.exs-stat-divider { width: 1px; height: 36px; background: var(--border); }
+.exs-assigned-by { font-size: 0.75rem; color: var(--muted); }
+.exs-section-card { background: #FFFFFF; border-radius: 14px; padding: 20px; margin-bottom: 14px; }
+.exs-section-title { font-size: 0.7rem; font-weight: 700; color: #6B7A99; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px; }
+.exs-cond-list { display: flex; flex-direction: column; gap: 8px; }
+.exs-cond-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #F4F6F9; border-radius: 10px; flex-wrap: wrap; }
+.exs-cond-finger { font-size: 0.95rem; font-weight: 700; color: #1A2744; min-width: 54px; }
+.exs-cond-joint { font-size: 0.7rem; font-weight: 700; border-radius: 5px; padding: 3px 7px; border: 1px solid; flex-shrink: 0; }
+.exs-cond-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.exs-range-item { font-size: 0.82rem; font-weight: 600; padding: 2px 8px; border-radius: 5px; }
+.exs-range-flex { background: rgba(239,68,68,0.08); color: #dc2626; }
+.exs-range-extend { background: rgba(34,197,94,0.08); color: #16a34a; }
+.exs-range-sep { font-size: 0.72rem; color: #8A9AB0; }
+.exs-require-note { font-size: 0.78rem; color: #6B7A99; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid #F0F2F5; }
+.exs-desc-text { font-size: 0.88rem; color: #6B7A99; line-height: 1.6; margin: 0; }
+.exs-notes-text { font-size: 0.9rem; color: #1A2744; font-style: italic; line-height: 1.6; margin: 0; }
+.exs-done-badge { display: inline-block; margin-top: 0.75rem; padding: 0.25rem 0.75rem; background: #dcfce7; color: #15803d; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
+.exs-progress-text { display: inline-block; margin-top: 0.75rem; font-size: 0.82rem; color: #92400e; font-weight: 500; }
+.exs-status-card { border-left: 3px solid; }
+.exs-status-done    { border-left-color: #16a34a; background: #f0fdf4; }
+.exs-status-partial { border-left-color: #ca8a04; background: #fefce8; }
+.exs-status-pending { border-left-color: #D0D7E3; }
+.exs-status-text { font-size: 0.95rem; font-weight: 700; color: #1A2744; }
+.exs-status-done    .exs-status-text { color: #15803d; }
+.exs-status-partial .exs-status-text { color: #a16207; }
+.exs-status-sub  { font-size: 0.8rem; color: #6B7A99; margin-top: 3px; }
+.exs-empty { text-align: center; padding: 60px 0; }
+.exs-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.exs-empty-title { font-size: 1.1rem; font-weight: 700; color: #1A2744; margin-bottom: 6px; }
+.exs-empty-sub { font-size: 0.88rem; color: #6B7A99; line-height: 1.5; }
+
+/* ── Exercise Params UI (ep-*) ───────────────────────────────────────────── */
+.ep-container { background: #F4F6F9; border: 1px solid #D0D7E3; border-radius: 10px; padding: 14px 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 12px; }
+.ep-section { display: flex; flex-direction: column; gap: 6px; }
+.ep-section-label { font-size: 0.68rem; font-weight: 700; color: #6B7A99; text-transform: uppercase; letter-spacing: 0.5px; }
+.ep-select {
+  padding: 5px 8px; border-radius: 6px; border: 1px solid #D0D7E3;
+  background: #fff; color: #1A2744; font-size: 0.82rem; font-family: inherit; min-width: 0;
+}
+.ep-number-input {
+  width: 100%; padding: 5px 8px; border-radius: 6px; border: 1px solid #D0D7E3;
+  background: #fff; color: #1A2744; font-size: 0.82rem; font-family: inherit; min-width: 0;
+}
+.ep-condition-header {
+  display: grid; grid-template-columns: 1fr 70px 62px 72px 26px;
+  gap: 6px; padding: 0 2px 4px;
+}
+.ep-condition-header span { font-size: 0.63rem; font-weight: 700; color: #8A9AB0; text-transform: uppercase; letter-spacing: 0.4px; }
+.ep-condition-row {
+  display: grid; grid-template-columns: 1fr 70px 62px 72px 26px;
+  gap: 6px; align-items: center; margin-bottom: 5px;
+}
+.ep-remove-btn {
+  width: 24px; height: 24px; padding: 0;
+  background: none; border: 1px solid #CC2936; color: #CC2936;
+  border-radius: 4px; cursor: pointer; font-size: 1rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.ep-remove-btn:hover { background: #CC2936; color: #fff; }
+.ep-add-btn {
+  margin-top: 4px; padding: 5px 12px; background: none;
+  border: 1px dashed #005EB8; color: #005EB8; border-radius: 6px;
+  cursor: pointer; font-size: 0.78rem; font-family: inherit; font-weight: 600; align-self: flex-start;
+}
+.ep-add-btn:hover { background: rgba(0,94,184,0.08); }
+.ep-require-all-row { display: flex; align-items: center; gap: 8px; }
+.ep-checkbox-label { display: flex; align-items: center; gap: 7px; font-size: 0.83rem; color: #1A2744; cursor: pointer; }
+.ep-checkbox-label input[type=checkbox] { accent-color: #005EB8; width: 14px; height: 14px; }
+.ep-desc-text { font-size: 0.83rem; color: #6B7A99; line-height: 1.5; margin: 0; }
+.ep-threshold-hint { font-size: 0.72rem; color: #6B7A99; margin-top: 2px; }
+
 /* ── Session history ──────────────────────────────────────────────────────── */
 .session-history-card { background: #FFFFFF; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
 .session-history-card h4 { font-size: 0.85rem; font-weight: 700; color: #6B7A99; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -850,7 +936,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 #calibrationScreen {
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   overflow: hidden;
 }
 
@@ -1263,22 +1349,30 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .camera-box video, .camera-box canvas { width: 100%; height: 100%; }
   .progress-section, .pain-section, .assigned-protocol, .end-session-btn, .patient-header { width: 100%; }
   .auth-box { margin: 16px; padding: 28px 20px; }
-  #therapistScreen { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 16px; max-height: 280px; overflow-y: auto; }
-  .main-panel { padding: 16px; }
+  #therapistScreen { flex-direction: column; height: 100vh; overflow: hidden; }
+  .sidebar { width: 100%; border-right: none; border-bottom: none; padding: 0; flex: 1; overflow-y: auto; }
+  .sidebar h2 { padding: 16px 20px 12px; margin-bottom: 0; border-bottom: 1px solid var(--border); }
+  .sidebar .clinic-code-box { display: none; }
+  .sidebar .calib-launch-btn { margin: 8px 16px 0; width: calc(100% - 32px); }
+  .sidebar .sidebar-footer { padding: 16px; border-top: 1px solid var(--border); }
+  .sidebar .no-patients { margin: 16px; }
+  .patient-item { border-radius: 0; border: none; border-bottom: 1px solid var(--border); padding: 16px 20px; background: var(--surface); }
+  .main-panel { padding: 16px; display: none; flex: 1; overflow-y: auto; }
+  #therapistScreen.tp-mobile-detail .sidebar { display: none; }
+  #therapistScreen.tp-mobile-detail .main-panel { display: block; }
+  .tp-mobile-back-btn { background: none; border: none; color: var(--accent); font-weight: 700; font-size: 0.95rem; cursor: pointer; padding: 0 0 16px 0; font-family: inherit; display: block; }
   .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .protocol-row { grid-template-columns: 1fr; }
   .ejs-body { grid-template-columns: 1fr; }
-  .ejs-hand-col { border-right: none; border-bottom: 1px solid var(--border); }
-  .ejs-info-col { border-left: none; border-top: 1px solid var(--border); }
+  .ejs-hand-col { border-right: none; border-bottom: 1px solid #D0D7E3; }
+  .ejs-info-col { border-left: none; border-top: 1px solid #D0D7E3; }
   .modal-box { width: calc(100% - 32px); }
-  .calib-main { flex-direction: column; }
-  .calib-camera-col { flex: none; height: 50vw; min-height: 200px; }
-  .exs-card-grid { grid-template-columns: 1fr; }
-  .progress-history-grid { grid-template-columns: 1fr; }
-  .session-history-list { grid-template-columns: 1fr; }
-  .streak-badge { margin-left: 8px; }
-  .xp-bar-container { max-width: 100%; }
+  #calibrationScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
+  .calib-main { flex-direction: column; overflow: visible; }
+  .calib-right-col { overflow: visible; flex: none; }
+  .calib-readout-panel { overflow-y: visible; flex: none; }
+  .calib-camera-col { flex: none; width: 100%; height: auto; }
+  .calib-camera-wrap { height: auto; aspect-ratio: 4/3; }
 }
 
 /* ── Messaging screen ─────────────────────────────────────────────────────── */
@@ -1352,39 +1446,3 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   line-height: 1.5;
 }
 .therapist-msg-send { padding: 8px 16px; background: #005EB8; color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-family: inherit; font-weight: 600; }
-
-/* ══ MOBILE — therapist split-view (tp-mobile-detail toggle) ═════════════ */
-@media (max-width: 700px) {
-  /* Main panel is hidden by default; shown only when a patient is selected */
-  #therapistScreen .main-panel {
-    display: none;
-  }
-  #therapistScreen.tp-mobile-detail .sidebar {
-    display: none;
-  }
-  #therapistScreen.tp-mobile-detail .main-panel {
-    display: block;
-    width: 100%;
-  }
-
-  /* Back-to-list button injected by enableMobilePatientDetail() */
-  .tp-mobile-back-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    margin: 16px 0 12px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .tp-mobile-back-btn:hover {
-    background: var(--accent-dim);
-    border-color: var(--accent);
-  }
-}

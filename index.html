@@ -252,6 +252,11 @@
       </div>
     </div>
     <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
+    <!-- TAM live display (from feature/ui) -->
+    <div id="tamDisplay" style="display:none; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(167,139,250,0.4); border-radius:10px; padding:6px 14px; z-index:10; pointer-events:none;">
+      <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1px;">TAM</div>
+      <div id="tamValue" style="font-size:1.4rem; font-weight:900; color:#a78bfa; font-family:'DM Mono',monospace;">0°</div>
+    </div>
     <div id="congratsOverlay">
       <h2>🎉 Great work!</h2>
       <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
