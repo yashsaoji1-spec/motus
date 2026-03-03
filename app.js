@@ -116,14 +116,16 @@ const screenTitles = {
 };
 
 function showScreen(screenId) {
+  const prevActive = document.querySelector('.screen.active');
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(screenId).classList.add('active');
+  const next = document.getElementById(screenId);
+  next.classList.add('active');
+  next.scrollTop = 0;
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
 
   // Stop session camera when leaving camera screen
-  if (screenId !== 'cameraScreen' && mpCamera) {
-    mpCamera.stop();
-    mpCamera = null;
+  if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
+    if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   }
 
   if (screenId !== 'cameraScreen') currentFacingMode = 'user';
@@ -132,6 +134,21 @@ function showScreen(screenId) {
   if (screenId !== 'calibrationScreen' && calibMpCamera) {
     calibMpCamera.stop();
     calibMpCamera = null;
+  }
+
+  // Reset forgot-password form if navigating away mid-flow
+  if (screenId !== 'forgotScreen') {
+    const fe = document.getElementById('forgotEmail');
+    const fp = document.getElementById('forgotNewPassword');
+    const npf = document.getElementById('newPasswordField');
+    const fb = document.getElementById('forgotBtn');
+    const fs = document.getElementById('forgotSuccess');
+    if (fe)  { fe.value = ''; fe.disabled = false; }
+    if (fp)  fp.value = '';
+    if (npf) npf.style.display = 'none';
+    if (fb)  fb.textContent = 'Find Account';
+    if (fs)  fs.style.display = 'none';
+    hideError('forgotError');
   }
 }
 
@@ -170,6 +187,8 @@ async function handleSignup() {
   const email    = document.getElementById('signupEmail').value.trim().toLowerCase();
   const password = document.getElementById('signupPassword').value;
   if (!name || !email || !password) { showError('signupError', 'Please fill in all fields.'); return; }
+  if (name.length < 2) { showError('signupError', 'Please enter your full name.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('signupError', 'Please enter a valid email address.'); return; }
   if (password.length < 6) { showError('signupError', 'Password must be at least 6 characters.'); return; }
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
@@ -263,6 +282,7 @@ async function loginSuccess() {
 function logout() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
+  if (restTimerInterval) { clearInterval(restTimerInterval); restTimerInterval = null; }
   auth.signOut();
   // onAuthStateChanged resets currentUser/currentRole and shows loginScreen
 }
@@ -1093,7 +1113,9 @@ let TARGET_REPS = 10;
 let repCount    = 0;
 let fingerState = 'unknown';
 let lastROM     = 0;
+let lastTAM     = 0;
 let maxROMThisSession = 0;
+let maxTAMThisSession = 0;
 let sessionPaused = false;
 let lastRepTime = null;
 let setPainValues = [];
@@ -1241,6 +1263,28 @@ function fingerLabel(finger) {
   return map[finger] || finger;
 }
 
+// ── TAM (Total Arc of Motion) — cherry-picked from feature/ui ─────────────────
+function calcFingerTAM(landmarks, finger) {
+  const jDefs = CALIB_FINGERS[finger];
+  if (!jDefs) return 0;
+  let total = 0;
+  for (const joint of ['mcp', 'pip', 'dip']) {
+    const j = jDefs[joint];
+    if (!j) continue;
+    total += calibGetAngle(landmarks[j.a], landmarks[j.b], landmarks[j.c]);
+  }
+  return total;
+}
+
+function calcTAM(landmarks) {
+  let max = 0;
+  for (const finger of ['index', 'middle', 'ring', 'pinky']) {
+    const tam = calcFingerTAM(landmarks, finger);
+    if (tam > max) max = tam;
+  }
+  return max;
+}
+
 function updateRepCount(landmarks) {
   if (sessionPaused) return;
   let isFlexed, isExtended, repAngle;
@@ -1258,6 +1302,14 @@ function updateRepCount(landmarks) {
   }
 
   if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
+
+  // ── TAM tracking (cherry-picked from feature/ui) ──
+  const tam = calcTAM(landmarks);
+  if (tam > maxTAMThisSession) { maxTAMThisSession = tam; lastTAM = Math.round(tam); }
+  const tamEl = document.getElementById('tamDisplay');
+  const tamValEl = document.getElementById('tamValue');
+  if (tamEl) tamEl.style.display = 'block';
+  if (tamValEl) tamValEl.textContent = Math.round(tam) + '°';
 
   // Track per-joint max angles for joint monitoring charts
   if (trackedJoints.length > 0) {
@@ -1309,7 +1361,7 @@ async function saveSession() {
     reps:           repCount,
     pain:           parseInt(document.getElementById('painSliderCongrats').value),
     rom:            lastROM,
-    tam:            Math.round(lastROM * 2.8),
+    tam:            lastTAM,
     therapistEmail: await getConnectedTherapist(),
     exerciseType:   selectedProtocol?.exerciseType || '',
     protocolId:     selectedProtocol?.id || ''
@@ -1343,7 +1395,9 @@ async function initSetTracker() {
   repCount     = 0;
   fingerState  = 'unknown';
   lastROM      = 0;
+  lastTAM      = 0;
   maxROMThisSession = 0;
+  maxTAMThisSession = 0;
   sessionPaused = false;
   lastRepTime = null;
   setPainValues = [];
@@ -1415,7 +1469,9 @@ async function advanceSet() {
   repCount = 0;
   fingerState = 'unknown';
   lastROM = 0;
+  lastTAM = 0;
   maxROMThisSession = 0;
+  maxTAMThisSession = 0;
   renderSetDots();
   updateRepUI();
   startRestTimer();
@@ -1452,17 +1508,22 @@ function showSessionSummary(partialReps = 0) {
     ? (setPainValues.reduce((a, b) => a + b, 0) / setPainValues.length).toFixed(1)
     : '—';
   const maxROM = Math.round(maxROMThisSession);
+  const maxTAM = Math.round(maxTAMThisSession);
   document.getElementById('summaryTotalReps').textContent = totalRepsCompleted;
   document.getElementById('summarySets').textContent      = setsComplete;
   document.getElementById('summaryMaxROM').textContent    = maxROM + '°';
   document.getElementById('summaryAvgPain').textContent   = avgPain;
+  const tamEl = document.getElementById('summaryMaxTAM');
+  if (tamEl) tamEl.textContent = maxTAM + '°';
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
     message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
-  } else if (maxROM >= 120) {
+  } else if (maxTAM >= 220 || maxROM >= 120) {
     message = '💪 Excellent range of motion today! You\'re making great progress.';
-  } else if (maxROM >= 80) {
+  } else if (maxTAM >= 160 || maxROM >= 80) {
     message = '👍 Good session. Consistency is key — keep it up!';
+  } else if (totalRepsCompleted === 0) {
+    message = '📋 Session recorded. Start moving to track your range of motion next time.';
   } else {
     message = '✅ Session logged. Every rep counts toward your recovery.';
   }
@@ -1497,7 +1558,7 @@ async function completeSessionEarly() {
       reps:           repCount,
       pain:           painVal,
       rom:            lastROM,
-      tam:            Math.round(lastROM * 2.8),
+      tam:            lastTAM,
       therapistEmail: await getConnectedTherapist(),
       exerciseType:   selectedProtocol?.exerciseType || '',
       protocolId:     selectedProtocol?.id || ''
@@ -1542,12 +1603,16 @@ function startCamera() {
   hands.onResults(results => {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
-    if (results.multiHandLandmarks) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (const landmarks of results.multiHandLandmarks) {
         window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
         window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
         updateRepCount(landmarks);
       }
+    } else {
+      // No hand detected — reset live TAM display
+      const tamValEl = document.getElementById('tamValue');
+      if (tamValEl) tamValEl.textContent = '—';
     }
   });
 
@@ -2396,12 +2461,19 @@ function calibOnResults(results) {
   const calibHandCount = document.getElementById('calibHandCount');
   const calibCameraWrapEl = document.getElementById('calibCameraWrap');
 
-  calibCanvas.width  = results.image.width;
-  calibCanvas.height = results.image.height;
+  // Center-crop to square (matches video's object-fit:cover) — from feature/ui
+  const srcW = results.image.width;
+  const srcH = results.image.height;
+  const size  = Math.min(srcW, srcH);
+  const cropX = (srcW - size) / 2;
+  const cropY = (srcH - size) / 2;
+
+  calibCanvas.width  = size;
+  calibCanvas.height = size;
 
   calibCtx.save();
-  calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
-  calibCtx.drawImage(results.image, 0, 0, calibCanvas.width, calibCanvas.height);
+  calibCtx.clearRect(0, 0, size, size);
+  calibCtx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
 
   const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
   if (calibHandCount) calibHandCount.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
@@ -2410,8 +2482,14 @@ function calibOnResults(results) {
     calibSetStatus('Tracking active', 'active');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
     for (const landmarks of results.multiHandLandmarks) {
-      calibDrawLandmarks(calibCtx, landmarks);
-      calibUpdateReadouts(landmarks);
+      // Remap landmarks into cropped square coordinate space for drawing
+      const drawLandmarks = landmarks.map(lm => ({
+        ...lm,
+        x: (lm.x * srcW - cropX) / size,
+        y: (lm.y * srcH - cropY) / size,
+      }));
+      calibDrawLandmarks(calibCtx, drawLandmarks);
+      calibUpdateReadouts(landmarks); // original coords for angle math
     }
   } else {
     calibSetStatus('Point camera at hand', 'idle');
@@ -2594,6 +2672,27 @@ document.addEventListener('DOMContentLoaded', () => {
    Firestore collection: messages  — documents: { from, to, participants, text, timestamp, read }
    ══════════════════════════════════════════════════════════════════════════ */
 
+// ── XSS protection & relative time — cherry-picked from feature/ui ────────────
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatMsgTime(isoStr) {
+  const d     = new Date(isoStr);
+  const now   = new Date();
+  const today = now.toDateString();
+  const yesterday = new Date(now - 86400000).toDateString();
+  const time  = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === today)     return time;
+  if (d.toDateString() === yesterday) return `Yesterday ${time}`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + time;
+}
+
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
 async function getThread(a, b) {
@@ -2638,9 +2737,9 @@ async function renderThread(containerId, myEmail, otherEmail) {
   }
   el.innerHTML = thread.map(m => {
     const mine = m.from === myEmail;
-    const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = formatMsgTime(m.timestamp);
     return `<div class="msg-bubble ${mine ? 'msg-mine' : 'msg-theirs'}">
-      <div class="msg-text">${m.text}</div>
+      <div class="msg-text">${escapeHtml(m.text)}</div>
       <div class="msg-time">${time}</div>
     </div>`;
   }).join('');
