@@ -2625,19 +2625,25 @@ function calibOnResults(results) {
   const calibHandCount = document.getElementById('calibHandCount');
   const calibCameraWrapEl = document.getElementById('calibCameraWrap');
 
-  // Center-crop to square (matches video's object-fit:cover) — from feature/ui
   const srcW = results.image.width;
   const srcH = results.image.height;
-  const size  = Math.min(srcW, srcH);
-  const cropX = (srcW - size) / 2;
-  const cropY = (srcH - size) / 2;
-
-  calibCanvas.width  = size;
-  calibCanvas.height = size;
 
   calibCtx.save();
-  calibCtx.clearRect(0, 0, size, size);
-  calibCtx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
+
+  if (isMobile()) {
+    // Mobile: canvas is pre-sized from video dimensions — draw full frame, no crop
+    calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
+    calibCtx.drawImage(results.image, 0, 0, calibCanvas.width, calibCanvas.height);
+  } else {
+    // Desktop: center-crop to square (matches object-fit:cover)
+    const size  = Math.min(srcW, srcH);
+    const cropX = (srcW - size) / 2;
+    const cropY = (srcH - size) / 2;
+    calibCanvas.width  = size;
+    calibCanvas.height = size;
+    calibCtx.clearRect(0, 0, size, size);
+    calibCtx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
+  }
 
   const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
   if (calibHandCount) calibHandCount.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
@@ -2646,13 +2652,21 @@ function calibOnResults(results) {
     calibSetStatus('Tracking active', 'active');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
     for (const landmarks of results.multiHandLandmarks) {
-      // Remap landmarks into cropped square coordinate space for drawing
-      const drawLandmarks = landmarks.map(lm => ({
-        ...lm,
-        x: (lm.x * srcW - cropX) / size,
-        y: (lm.y * srcH - cropY) / size,
-      }));
-      calibDrawLandmarks(calibCtx, drawLandmarks);
+      if (isMobile()) {
+        // Landmarks are normalized to full frame — draw directly
+        calibDrawLandmarks(calibCtx, landmarks);
+      } else {
+        // Remap landmarks into cropped square coordinate space for drawing
+        const size  = Math.min(srcW, srcH);
+        const cropX = (srcW - size) / 2;
+        const cropY = (srcH - size) / 2;
+        const drawLandmarks = landmarks.map(lm => ({
+          ...lm,
+          x: (lm.x * srcW - cropX) / size,
+          y: (lm.y * srcH - cropY) / size,
+        }));
+        calibDrawLandmarks(calibCtx, drawLandmarks);
+      }
       calibUpdateReadouts(landmarks); // original coords for angle math
     }
   } else {
@@ -2675,9 +2689,12 @@ async function startCalibration() {
 
   if (calibMpCamera) return; // already running
 
-  const calibVideo   = document.getElementById('calibVideo');
-  const calibOverlay = document.getElementById('calibOverlay');
+  const calibVideo      = document.getElementById('calibVideo');
+  const calibCanvas     = document.getElementById('calibCanvas');
+  const calibCtx        = calibCanvas.getContext('2d');
+  const calibOverlay    = document.getElementById('calibOverlay');
   const calibOverlayMsg = document.getElementById('calibOverlayMsg');
+  const wrap            = document.getElementById('calibCameraWrap');
 
   calibSetStatus('Loading...', 'idle');
   if (calibOverlayMsg) calibOverlayMsg.textContent = 'LOADING MEDIAPIPE...';
@@ -2688,7 +2705,7 @@ async function startCalibration() {
 
   hands.setOptions({
     maxNumHands: 2,
-    modelComplexity: 1,
+    modelComplexity: isMobile() ? 0 : 1,
     minDetectionConfidence: 0.85,
     minTrackingConfidence: 0.75,
   });
@@ -2697,31 +2714,87 @@ async function startCalibration() {
 
   if (calibOverlayMsg) calibOverlayMsg.textContent = 'REQUESTING CAMERA...';
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: 1280, height: 720 },
-    });
+  if (isMobile()) {
+    // ── Mobile path: getUserMedia + rAF loop, canvas send (iOS Safari fix) ──
+    let active = true;
+    calibMpCamera = { stop: () => { active = false; } };
 
-    calibVideo.srcObject = stream;
-    calibVideo.onloadedmetadata = () => calibVideo.play();
-    calibVideo.onplaying = () => {
-      calibVideo.classList.add('ready');
-      if (calibOverlay) calibOverlay.classList.add('hidden');
-      calibSetStatus('Point camera at hand', 'idle');
-    };
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
 
-    calibMpCamera = new window.Camera(calibVideo, {
-      onFrame: async () => { await hands.send({ image: calibVideo }); },
-      width: 1280, height: 720,
-    });
+      calibVideo.srcObject = stream;
 
-    calibMpCamera.start();
+      const TARGET_FPS = 15;
+      const FRAME_MS   = 1000 / TARGET_FPS;
+      let lastFrameTime = 0;
 
-  } catch (err) {
-    if (calibOverlay) calibOverlay.classList.remove('hidden');
-    if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
-    calibSetStatus('Camera denied', 'error');
-    console.error(err);
+      const processFrame = async (timestamp) => {
+        if (!active) return;
+        if (timestamp - lastFrameTime >= FRAME_MS && calibVideo.readyState >= 2) {
+          lastFrameTime = timestamp;
+          calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
+          calibCtx.drawImage(calibVideo, 0, 0, calibCanvas.width, calibCanvas.height);
+          try { await hands.send({ image: calibCanvas }); } catch (e) {}
+        }
+        if (active) requestAnimationFrame(processFrame);
+      };
+
+      calibVideo.onloadedmetadata = () => {
+        // Size canvas from actual video — drives natural aspect ratio via CSS height:auto
+        calibCanvas.width  = calibVideo.videoWidth;
+        calibCanvas.height = calibVideo.videoHeight;
+        calibVideo.play();
+        if (calibOverlay) calibOverlay.classList.add('hidden');
+        calibSetStatus('Point camera at hand', 'idle');
+        requestAnimationFrame(processFrame);
+      };
+
+      calibMpCamera = {
+        stop: () => {
+          active = false;
+          stream.getTracks().forEach(t => t.stop());
+          calibVideo.srcObject = null;
+        },
+      };
+
+    } catch (err) {
+      if (calibOverlay) calibOverlay.classList.remove('hidden');
+      if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
+      calibSetStatus('Camera denied', 'error');
+      console.error(err);
+    }
+
+  } else {
+    // ── Desktop path: MediaPipe Camera class ──
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: 1280, height: 720 },
+      });
+
+      calibVideo.srcObject = stream;
+      calibVideo.onloadedmetadata = () => calibVideo.play();
+      calibVideo.onplaying = () => {
+        calibVideo.classList.add('ready');
+        if (calibOverlay) calibOverlay.classList.add('hidden');
+        calibSetStatus('Point camera at hand', 'idle');
+      };
+
+      calibMpCamera = new window.Camera(calibVideo, {
+        onFrame: async () => { await hands.send({ image: calibVideo }); },
+        width: 1280, height: 720,
+      });
+
+      calibMpCamera.start();
+
+    } catch (err) {
+      if (calibOverlay) calibOverlay.classList.remove('hidden');
+      if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
+      calibSetStatus('Camera denied', 'error');
+      console.error(err);
+    }
   }
 }
 

@@ -1372,7 +1372,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .calib-right-col { overflow: visible; flex: none; }
   .calib-readout-panel { overflow-y: visible; flex: none; }
   .calib-camera-col { flex: none; width: 100%; height: auto; }
-  .calib-camera-wrap { height: auto; aspect-ratio: 4/3; }
+  /* On mobile the video is drawn to canvas; let canvas define the height naturally */
+  .calib-camera-wrap { height: auto; overflow: hidden; }
+  #calibVideo { display: none; }
+  #calibCanvas {
+    position: static;
+    width: 100%; height: auto;
+    display: block;
+    transform: scaleX(-1);
+  }
 }
 
 /* ── Messaging screen ─────────────────────────────────────────────────────── */
