@@ -241,10 +241,6 @@
     <button id="flipCameraBtn" onclick="flipCamera()" style="display:none; position:absolute; top:12px; right:12px; z-index:15; background:rgba(0,0,0,0.35); border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; backdrop-filter:blur(4px);">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-5 11.5V14H9v2.5L5.5 13 9 9.5V12h6V9.5l3.5 3.5-3.5 3.5z"/></svg>
     </button>
-    <div id="tamDisplay" style="display:none; position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(16,185,129,0.4); border-radius:10px; padding:6px 14px; z-index:10; pointer-events:none;">
-      <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1px;">TAM</div>
-      <div id="tamValue" style="font-size:1.4rem; font-weight:900; color:#10B981; font-family:'DM Mono',monospace;">0°</div>
-    </div>
     <div class="rep-overlay">
       <div class="rep-count-row">
         <span class="rep-number" id="repDisplay">0</span>
@@ -252,11 +248,6 @@
       </div>
     </div>
     <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
-    <!-- TAM live display (from feature/ui) -->
-    <div id="tamDisplay" style="display:none; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(167,139,250,0.4); border-radius:10px; padding:6px 14px; z-index:10; pointer-events:none;">
-      <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1px;">TAM</div>
-      <div id="tamValue" style="font-size:1.4rem; font-weight:900; color:#a78bfa; font-family:'DM Mono',monospace;">0°</div>
-    </div>
     <div id="congratsOverlay">
       <h2>🎉 Great work!</h2>
       <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
@@ -467,10 +458,6 @@
     <div class="summary-stat-card">
       <div id="summaryMaxROM" class="summary-stat-value" style="color:#0B6CB0;">0°</div>
       <div class="summary-stat-label">Max ROM</div>
-    </div>
-    <div class="summary-stat-card" style="grid-column: 1 / -1;">
-      <div id="summaryMaxTAM" class="summary-stat-value" style="color:#10B981;">0°</div>
-      <div class="summary-stat-label">Max TAM</div>
     </div>
     <div class="summary-stat-card">
       <div id="summaryAvgPain" class="summary-stat-value" style="color:#f59e0b;">0</div>

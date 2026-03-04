@@ -1451,13 +1451,9 @@ function updateRepCount(landmarks) {
 
   if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
 
-  // ── TAM tracking ──
+  // ── TAM tracking (data only, no live display) ──
   const tam = calcTAM(landmarks);
   if (tam > maxTAMThisSession) { maxTAMThisSession = tam; lastTAM = Math.round(tam); }
-  const tamEl = document.getElementById('tamDisplay');
-  const tamValEl = document.getElementById('tamValue');
-  if (tamEl) tamEl.style.display = 'block';
-  if (tamValEl) tamValEl.textContent = Math.round(tam) + '°';
 
   // Track per-joint max angles for joint monitoring charts
   if (trackedJoints.length > 0) {
@@ -1662,14 +1658,12 @@ function showSessionSummary(partialReps = 0) {
   document.getElementById('summarySets').textContent      = setsComplete;
   document.getElementById('summaryMaxROM').textContent    = maxROM + '°';
   document.getElementById('summaryAvgPain').textContent   = avgPain;
-  const tamEl = document.getElementById('summaryMaxTAM');
-  if (tamEl) tamEl.textContent = maxTAM + '°';
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
     message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
-  } else if (maxTAM >= 220 || maxROM >= 120) {
+  } else if (maxROM >= 120) {
     message = '💪 Excellent range of motion today! You\'re making great progress.';
-  } else if (maxTAM >= 160 || maxROM >= 80) {
+  } else if (maxROM >= 80) {
     message = '👍 Good session. Consistency is key — keep it up!';
   } else if (totalRepsCompleted === 0) {
     message = '📋 Session recorded. Start moving to track your range of motion next time.';
@@ -1759,11 +1753,8 @@ function startCamera() {
         window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
         updateRepCount(landmarks);
       }
-    } else {
-      // No hand detected — reset live TAM display
-      const tamValEl = document.getElementById('tamValue');
-      if (tamValEl) tamValEl.textContent = '—';
     }
+
   });
 
   if (isMobile()) {
