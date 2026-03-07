@@ -23,6 +23,7 @@ let selectedProtocol = null;
 let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
+let inactivityTimer = null;
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -42,6 +43,48 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const db   = firebase.firestore();
 const auth = firebase.auth();
+
+// ── Audit logging — append-only PHI access/write log ──────────────────────
+async function logAudit(action, details = {}) {
+  try {
+    await db.collection('auditLog').add({
+      user:      currentUser?.email || 'unknown',
+      action,
+      details,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    // Never let audit failures break the app; silently warn in console
+    console.warn('Audit log write failed:', e);
+  }
+}
+
+// ── Session timeout — auto-logout after 15 min inactivity ─────────────────
+const INACTIVITY_MS = 15 * 60 * 1000; // 15 minutes
+
+function resetInactivityTimer() {
+  if (!currentUser) return;
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(() => {
+    console.info('PhalanX: session timed out due to inactivity');
+    logout();
+  }, INACTIVITY_MS);
+}
+
+function startInactivityTimer() {
+  resetInactivityTimer();
+  ['click', 'keypress', 'mousemove', 'touchstart', 'scroll'].forEach(evt =>
+    document.addEventListener(evt, resetInactivityTimer, { passive: true })
+  );
+}
+
+function stopInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = null;
+  ['click', 'keypress', 'mousemove', 'touchstart', 'scroll'].forEach(evt =>
+    document.removeEventListener(evt, resetInactivityTimer)
+  );
+}
 
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
@@ -258,6 +301,7 @@ async function skipConnect() {
    ══════════════════════════════════════════════════════════════════════════ */
 
 async function loginSuccess() {
+  startInactivityTimer();
   if (currentRole === 'admin') {
     showScreen('adminScreen');
     await loadAdminScreen();
@@ -268,19 +312,41 @@ async function loginSuccess() {
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
-    // patient
-    const therapistEmail = await getConnectedTherapist();
-    if (therapistEmail) {
-      showScreen('patientScreen');
-      await updatePatientHomeScreen();
-      await initSetTracker();
-    } else {
-      showScreen('connectScreen');
+    // patient — require consent before any PHI screen
+    if (!currentUser.consentGiven) {
+      showScreen('consentScreen');
+      return;
     }
+    await routePatient();
   }
 }
 
+// Shared patient routing (called after consent is confirmed)
+async function routePatient() {
+  const therapistEmail = await getConnectedTherapist();
+  if (therapistEmail) {
+    showScreen('patientScreen');
+    await updatePatientHomeScreen();
+    await initSetTracker();
+  } else {
+    showScreen('connectScreen');
+  }
+}
+
+async function acceptConsent() {
+  const timestamp = new Date().toISOString();
+  await db.collection('users').doc(currentUser.email).update({
+    consentGiven:     true,
+    consentTimestamp: timestamp
+  });
+  currentUser.consentGiven     = true;
+  currentUser.consentTimestamp = timestamp;
+  await logAudit('consent_accepted', { patientEmail: currentUser.email });
+  await routePatient();
+}
+
 function logout() {
+  stopInactivityTimer();
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
   if (restTimerInterval) { clearInterval(restTimerInterval); restTimerInterval = null; }
@@ -581,6 +647,7 @@ async function deleteProtocol(patientEmail, protocolId) {
   } else {
     await db.collection('protocols').doc(patientEmail).set({ items: updated });
   }
+  await logAudit('protocol_deleted', { patientEmail, protocolId });
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
@@ -730,6 +797,7 @@ async function assignProtocol(patientEmail) {
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
+  await logAudit('protocol_assigned', { patientEmail, exerciseType });
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
@@ -969,6 +1037,7 @@ function toggleTpSection(id) {
 }
 
 async function showRealPatient(patient) {
+  await logAudit('patient_record_viewed', { patientEmail: patient.email });
   const [sessions, protocols] = await Promise.all([
     getPatientSessions(patient.email),
     getProtocols(patient.email)
@@ -1520,6 +1589,7 @@ async function saveSession() {
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
   await db.collection('sessions').add(doc);
+  await logAudit('session_saved', { patientEmail: doc.patientEmail, exerciseType: doc.exerciseType, protocolId: doc.protocolId });
   jointMaxAngles = {}; // reset after save so each set starts fresh
 }
 
@@ -1714,6 +1784,7 @@ async function completeSessionEarly() {
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
     await db.collection('sessions').add(doc);
+    await logAudit('session_saved_early', { patientEmail: doc.patientEmail, exerciseType: doc.exerciseType, protocolId: doc.protocolId });
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -2914,6 +2985,7 @@ async function sendMessage(from, to, text) {
     from, to, participants: [from, to],
     text: text.trim(), timestamp: new Date().toISOString(), read: false
   });
+  await logAudit('message_sent', { from, to });
 }
 
 async function markRead(toEmail, fromEmail) {
@@ -2994,6 +3066,7 @@ Object.assign(window, {
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
   logout, requestLogout, closeLogoutModal, confirmLogout,
+  acceptConsent,
   approveTherapist, rejectTherapist,
 
   // Navigation

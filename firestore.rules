@@ -1,0 +1,156 @@
+rules_version = '2';
+
+// PhalanX — Firestore Security Rules
+// PHI collections (sessions, protocols, messages, jointTracking) are strictly
+// scoped by identity. Structural collections (users, connections) are readable
+// by any authenticated user because the app queries them at the collection level.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    function myEmail() {
+      return request.auth.token.email;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(myEmail())).data.role;
+    }
+
+    function isAdmin() {
+      return myRole() == 'admin';
+    }
+
+    function isTherapist() {
+      return myRole() == 'therapist';
+    }
+
+    // Returns true if the current user is a therapist connected to patientEmail.
+    // Reads connections/{myEmail} — therapist email is the document ID.
+    function isConnectedTherapist(patientEmail) {
+      let conn = get(/databases/$(database)/documents/connections/$(myEmail()));
+      return isTherapist()
+          && conn.data != null
+          && conn.data.patients.hasAny([patientEmail]);
+    }
+
+    // ── users/{email} ────────────────────────────────────────────────────────
+    // Readable by all authenticated users: patients need to query therapist docs
+    // by role to resolve a clinic code (getTherapistForCode), and therapists need
+    // to resolve patient names. No PHI beyond email+name+role is stored here.
+    match /users/{email} {
+      allow read: if request.auth != null;
+
+      // Users create their own profile on signup.
+      allow create: if request.auth != null && myEmail() == email;
+
+      // Users update their own profile; admins update any (approve/reject flow).
+      allow update: if request.auth != null && (myEmail() == email || isAdmin());
+
+      // Only admins can delete (reject flow removes the account doc).
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+    // ── connections/{therapistEmail} ─────────────────────────────────────────
+    // Readable by all authenticated users: patients query the whole collection
+    // with array-contains to find their therapist (getConnectedTherapist).
+    // Write: therapist manages their own doc; patients can add themselves via
+    // the connect screen (set+merge with arrayUnion). No PHI stored here beyond
+    // the list of connected email addresses.
+    match /connections/{therapistEmail} {
+      allow read: if request.auth != null;
+
+      // Therapist or admin can do anything to the doc.
+      allow create, delete: if request.auth != null
+          && (myEmail() == therapistEmail || isAdmin());
+
+      allow update: if request.auth != null && (
+        // Therapist manages their own connection list.
+        myEmail() == therapistEmail
+        || isAdmin()
+        // Patient connecting: they may only add entries to the patients array,
+        // never remove existing ones, and must include their own email.
+        || (
+          request.resource.data.patients.hasAll(resource.data.patients)
+          && request.resource.data.patients.hasAny([myEmail()])
+        )
+      );
+
+      // Edge case: patient connecting to a therapist who has no connections doc yet.
+      // The set+merge becomes a create. Allow if the new doc only contains their email.
+      allow create: if request.auth != null
+          && request.resource.data.patients.hasOnly([myEmail()]);
+    }
+
+    // ── protocols/{patientEmail} ─────────────────────────────────────────────
+    // PHI: exercise assignments reference patient identity.
+    match /protocols/{patientEmail} {
+      allow read: if request.auth != null && (
+        myEmail() == patientEmail
+        || isConnectedTherapist(patientEmail)
+        || isAdmin()
+      );
+      // Only connected therapist (or admin) assigns/removes protocols.
+      allow write: if request.auth != null && (
+        isConnectedTherapist(patientEmail)
+        || isAdmin()
+      );
+    }
+
+    // ── sessions/{sessionId} ────────────────────────────────────────────────
+    // PHI: ROM, pain scores, joint angles, rep counts — core health data.
+    match /sessions/{sessionId} {
+      allow read: if request.auth != null && (
+        resource.data.patientEmail == myEmail()
+        || isConnectedTherapist(resource.data.patientEmail)
+        || isAdmin()
+      );
+      // Only the patient creates their own session records.
+      allow create: if request.auth != null
+          && request.resource.data.patientEmail == myEmail();
+      // Sessions are immutable after creation — no update or delete.
+    }
+
+    // ── messages/{messageId} ────────────────────────────────────────────────
+    // PHI: messages between patient and therapist may contain health information.
+    match /messages/{messageId} {
+      // Only participants in the thread can read.
+      allow read: if request.auth != null && (
+        myEmail() in resource.data.participants
+        || isAdmin()
+      );
+      // Sender must be the current user and must be listed as a participant.
+      allow create: if request.auth != null
+          && request.resource.data.from == myEmail()
+          && myEmail() in request.resource.data.participants;
+      // Only allow marking messages as read — no other fields may change.
+      allow update: if request.auth != null
+          && myEmail() in resource.data.participants
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+
+    // ── auditLog/{logId} ─────────────────────────────────────────────────────
+    // Append-only by any authenticated user (the app writes here on PHI events).
+    // Only admins can read (for HIPAA compliance audits). No updates or deletes.
+    match /auditLog/{logId} {
+      allow create: if request.auth != null;
+      allow read:   if request.auth != null && isAdmin();
+    }
+
+    // ── jointTracking/{patientEmail} ─────────────────────────────────────────
+    // PHI: joint selection reflects clinical assessment by the therapist.
+    match /jointTracking/{patientEmail} {
+      allow read: if request.auth != null && (
+        myEmail() == patientEmail
+        || isConnectedTherapist(patientEmail)
+        || isAdmin()
+      );
+      // Only the connected therapist writes joint tracking configuration.
+      allow write: if request.auth != null && (
+        isConnectedTherapist(patientEmail)
+        || isAdmin()
+      );
+    }
+  }
+}

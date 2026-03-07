@@ -244,8 +244,21 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 
 ## Pre-Launch Checklist
 
-- [ ] **Tighten Firestore security rules** — current rules allow any authenticated user to read/write everything. Before launch, scope rules so patients can only read/write their own data, therapists can only access their connected patients, and admins can only access the `users` collection.
-- [ ] **Delete demo accounts** — remove `sarah.chen@mayoclinic.org` and `james.park@gmail.com` from Firebase Auth and Firestore, or change their passwords.
+### HIPAA / PHI Compliance — BLOCKING. Do not onboard real patients until all of these are done.
+
+- [ ] **CRITICAL: Set up Google Workspace + Google Cloud Organization** — The Firebase project is currently on a personal Google account. Google will NOT sign a HIPAA Business Associate Agreement (BAA) for personal accounts. You MUST migrate to a Google Cloud Organization (requires Google Workspace, ~$6/user/month) before handling any real patient data. Without a BAA, storing PHI in Firestore is a HIPAA violation regardless of security rules. Steps: (1) Create a Google Workspace account for your org. (2) Move or recreate the Firebase project under that org. (3) Accept the Google Cloud BAA at console.cloud.google.com → IAM & Admin → Settings.
+- [ ] **Sign the Google Cloud BAA** — Once on a Cloud Organization, accept the BAA in GCP Console. This is a legal contract with Google; without it no technical safeguard is sufficient for HIPAA.
+- [x] **Tighten Firestore security rules** — Done. `firestore.rules` deployed. Patients can only access their own data; therapists can only access connected patients.
+- [x] **Add audit logging** — Implemented. `logAudit()` writes to `auditLog` collection on: session save, early session end, protocol assign/delete, patient record viewed, message sent, consent accepted. Append-only; only admins can read via Firestore rules.
+- [x] **Add patient consent screen** — Implemented. `consentScreen` shown to patients on first login. Acceptance writes `consentGiven: true` + `consentTimestamp` to `users/{email}`. Stored in Firestore, logged to `auditLog`.
+- [x] **Add session timeout** — Implemented. 15-minute inactivity timer via `startInactivityTimer()` / `stopInactivityTimer()`. Resets on click, keypress, mousemove, touchstart, scroll. Timer starts on login, clears on logout.
+- [ ] **Enable MFA** — Turn on multi-factor authentication in Firebase Auth Console for all users.
+- [ ] **Notice of Privacy Practices** — Legal document explaining PHI use. Must be drafted by a healthcare attorney and shown to every patient.
+- [ ] **Breach notification procedure** — Written plan for responding to data exposure (72-hour HHS notification requirement). Must be documented.
+- [ ] **Delete demo accounts** — Remove `sarah.chen@mayoclinic.org` and `james.park@gmail.com` from Firebase Auth and Firestore before any real users are onboarded.
+
+### General
+
 - [ ] **Create first real admin account** — follow the manual steps in the Firestore Role Values section above.
 - [x] **Test on HTTPS / mobile** — tested via ngrok + VS Code port forwarding on iOS Safari and Chrome. Mobile uses direct `getUserMedia` path (not MediaPipe `Camera` class). `startCamera()` must be called before any `await` in session-start functions to preserve iOS gesture context. iOS Safari requires `hands.send({ image: canvas })` — passing the video element directly does not work; video must be drawn to a canvas first.
 - [ ] **Review Firebase Auth settings** — disable any sign-in providers you're not using.
