@@ -1479,6 +1479,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .tob-subtitle {
   font-size: 0.82rem;
+  color: #fff;
   opacity: 0.85;
   margin: 0;
 }
