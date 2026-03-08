@@ -149,19 +149,24 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 
 A one-time modal (`#therapistOnboardingModal`) is shown to every therapist on their **first login**. It is dismissed by clicking "Got it — let's go", which sets `onboardingDone: true` on `users/{email}` in Firestore. Subsequent logins skip the modal.
 
-### What the modal tells the therapist
+### What the modal tells the therapist (exact order)
 
-**Step 1 — Share your clinic code**
-Your 6-digit clinic code is shown at the top of your sidebar. Give it to your patient — they enter it on their first login to link to you.
+**Step 1 — Connect your patient to you**
+Look at the left sidebar — you'll see a large number under "YOUR CLINIC CODE". Tell your patient to create a patient account and enter that code when prompted. Once they do, their name will appear in your sidebar.
 
-**Step 2 — Assign an exercise protocol**
-Click a patient's name → open **Add Exercise to Protocol** → choose an exercise type, set reps/sets/frequency, and save. The patient sees it immediately in their home screen.
+**Step 2 — Calibrate their hand angles** *(do this in-person first)*
+Click the patient's name → click **Calibrate Patient** at the top of their panel. Walk through 3 poses:
+- Extension — hand held flat and straight
+- Mid-range — fingers bent halfway
+- Full flexion — fingers bent as far as possible
 
-**Step 3 — Calibrate the patient's hand**
-Click **Calibrate Patient** at the top of any patient panel. Walk through 3 poses with the patient (extension → mid-range → full flexion). At each pose, hit **Capture 3s Sample**, then enter the true goniometer reading for each joint in the **True °** column. Hit **Next Pose** twice, then **Save Calibration**. From that point on, all angle readings during sessions are automatically corrected for that patient.
+At each pose: hit **Capture 3s Sample**, type the goniometer reading for each joint into the **True °** column, hit **Next Pose**. After the third pose hit **Save Calibration**. All future session angles are automatically corrected for this patient.
 
-**Step 4 — Track progress over time**
-After each session, open the patient panel to view ROM and pain charts, per-joint angle history (Joint Monitoring), and session logs. Use **Joint Monitoring** to select which joints you want tracked each session.
+**Step 3 — Assign an exercise protocol**
+In the patient panel, open **Add Exercise to Protocol**. Choose exercise type, reps, sets, frequency → **Save Protocol**. The patient sees it immediately on their home screen.
+
+**Step 4 — Monitor their progress**
+After sessions: open the patient panel to review ROM/pain charts, Joint Monitoring (per-joint peak angles per session), and full session history.
 
 ### Implementation notes
 - `showTherapistOnboarding()` — called from `loginSuccess()` when `!currentUser.onboardingDone`

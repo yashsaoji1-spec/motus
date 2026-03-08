@@ -1531,6 +1531,27 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   letter-spacing: 0.02em;
 }
 .tob-confirm-btn:hover { background: #004a93; }
+.tob-badge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  vertical-align: middle;
+  margin-left: 6px;
+  letter-spacing: 0.02em;
+}
+.tob-list {
+  margin: 8px 0 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tob-list li { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
+.tob-list li strong { color: var(--text); }
 
 /* ── Calibrate Patient button (therapist panel) ─────────────────────────────── */
 .tp-calibrate-btn {

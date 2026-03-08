@@ -630,37 +630,67 @@
     </div>
 
     <ol class="tob-steps">
+
       <li class="tob-step">
         <div class="tob-step-num">1</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Share your clinic code</div>
-          <div class="tob-step-desc">Your 6-digit clinic code is shown at the top of your sidebar. Give it to your patient — they enter it on their first login to link to you.</div>
+          <div class="tob-step-title">Connect your patient to you</div>
+          <div class="tob-step-desc">
+            Look at the <strong>left sidebar</strong> — you'll see a large number under "YOUR CLINIC CODE". That's your unique code.
+            <br><br>
+            Tell your patient to download phalanX, create a patient account, and enter that code when prompted. Once they do, their name will appear in your sidebar.
+          </div>
         </div>
       </li>
+
       <li class="tob-step">
         <div class="tob-step-num">2</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Assign an exercise protocol</div>
-          <div class="tob-step-desc">Click a patient's name → open <strong>Add Exercise to Protocol</strong> → choose an exercise type, set reps/sets/frequency, and save. The patient will see it immediately in their home screen.</div>
+          <div class="tob-step-title">Calibrate their hand angles <span class="tob-badge">Do this in-person</span></div>
+          <div class="tob-step-desc">
+            Click the patient's name in the sidebar. At the top of their panel, click <strong>Calibrate Patient</strong>.
+            <br><br>
+            You'll see a live camera view. Walk the patient through <strong>3 hand poses</strong>:
+            <ul class="tob-list">
+              <li><strong>Extension</strong> — hand held flat and straight</li>
+              <li><strong>Mid-range</strong> — fingers bent halfway</li>
+              <li><strong>Full flexion</strong> — fingers bent as far as possible</li>
+            </ul>
+            At each pose, hit <strong>Capture 3s Sample</strong>, then type the angle your goniometer reads for each joint into the <strong>True °</strong> column. Hit <strong>Next Pose</strong> after each one, then <strong>Save Calibration</strong>. This corrects the camera's measurement errors for this patient's specific hand.
+          </div>
         </div>
       </li>
+
       <li class="tob-step">
         <div class="tob-step-num">3</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Calibrate the patient's hand</div>
-          <div class="tob-step-desc">Click <strong>Calibrate Patient</strong> at the top of any patient panel. Walk through 3 poses (extension → mid-range → full flexion). Enter the true goniometer readings. This corrects MediaPipe's angle errors for that patient's specific hand.</div>
+          <div class="tob-step-title">Assign an exercise protocol</div>
+          <div class="tob-step-desc">
+            In the patient panel, scroll down and open <strong>Add Exercise to Protocol</strong>. Choose an exercise type (e.g. Full Fist, Finger Extension), set the number of reps, sets, and how often. Hit <strong>Save Protocol</strong>.
+            <br><br>
+            The patient's app will immediately show the exercise on their home screen with a <strong>Start a Session</strong> button.
+          </div>
         </div>
       </li>
+
       <li class="tob-step">
         <div class="tob-step-num">4</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Track progress over time</div>
-          <div class="tob-step-desc">After each session, open the patient panel to view ROM and pain charts, per-joint angle history (Joint Monitoring), and session logs. Use <strong>Joint Monitoring</strong> to select which joints you want tracked each session.</div>
+          <div class="tob-step-title">Monitor their progress</div>
+          <div class="tob-step-desc">
+            After the patient completes sessions, come back to their panel to review:
+            <ul class="tob-list">
+              <li><strong>ROM and Pain charts</strong> — range of motion and pain rating over time</li>
+              <li><strong>Joint Monitoring</strong> — toggle which joints you want tracked; peak angles are recorded each session and plotted as a chart</li>
+              <li><strong>Session History</strong> — full log of every session with reps, ROM, TAM, and pain</li>
+            </ul>
+          </div>
         </div>
       </li>
+
     </ol>
 
-    <button class="tob-confirm-btn" onclick="dismissTherapistOnboarding()">Got it — let's go</button>
+    <button class="tob-confirm-btn" onclick="dismissTherapistOnboarding()">Got it — let's start</button>
   </div>
 </div>
 
