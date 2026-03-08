@@ -531,6 +531,57 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     PATIENT CALIBRATION SCREEN
+═══════════════════════════════════════════════════════ -->
+<div id="patientCalibrationScreen" class="screen">
+
+  <header class="pcalib-header">
+    <div class="pcalib-logo">phalanX<span>.dev</span></div>
+    <div class="pcalib-title">Patient Calibration</div>
+    <div class="pcalib-patient-name" id="pcalibPatientName"></div>
+    <div class="pcalib-step-label" id="pcalibStepLabel">Step 1 of 3</div>
+    <button class="pcalib-back-btn" onclick="pcalibBack()">← Back</button>
+  </header>
+
+  <div class="pcalib-main">
+
+    <!-- LEFT: camera + pose instruction -->
+    <div class="pcalib-camera-col">
+      <div class="pcalib-camera-wrap">
+        <video id="pcalibVideo" playsinline autoplay muted></video>
+        <canvas id="pcalibCanvas"></canvas>
+      </div>
+      <div class="pcalib-pose-card">
+        <div class="pcalib-pose-name" id="pcalibPoseName">Extension</div>
+        <div class="pcalib-pose-instruction" id="pcalibPoseInstruction">Hold your hand as flat and straight as possible.</div>
+        <button class="pcalib-capture-btn" id="pcalibCaptureBtn" onclick="pcalibCapture()">Capture 3s Sample</button>
+        <div class="pcalib-capture-status" id="pcalibCaptureStatus"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: readings table -->
+    <div class="pcalib-readings-col">
+      <div class="pcalib-readings-header">
+        <span>Joint</span>
+        <span>MP °</span>
+        <span>True °</span>
+      </div>
+      <div id="pcalibReadingsBody" class="pcalib-readings-body">
+        <!-- Populated by JS -->
+      </div>
+      <div class="pcalib-actions">
+        <button class="pcalib-next-btn" id="pcalibNextBtn" onclick="pcalibNextPose()" disabled>Next Pose →</button>
+        <button class="pcalib-save-btn" id="pcalibSaveBtn" onclick="pcalibSave()" style="display:none">Save Calibration</button>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="pcalib-footer">phalanX — Per-patient angle calibration</footer>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      SESSION SUMMARY OVERLAY
 ═══════════════════════════════════════════════════════ -->
 <div id="sessionSummaryOverlay" class="session-summary-overlay" style="display:none;">
@@ -565,6 +616,52 @@
     <div id="summaryMessage" class="summary-message-text"></div>
   </div>
   <button class="reset-btn summary-home-btn" onclick="dismissSummary()">Back to Home</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     THERAPIST ONBOARDING MODAL
+═══════════════════════════════════════════════════════ -->
+<div id="therapistOnboardingModal" class="modal-overlay" style="display:none">
+  <div class="modal-box tob-box">
+    <div class="tob-header">
+      <div class="tob-logo">phalanX<span>.dev</span></div>
+      <h2 class="tob-title">Welcome to phalanX</h2>
+      <p class="tob-subtitle">Here's how to get your first patient up and running.</p>
+    </div>
+
+    <ol class="tob-steps">
+      <li class="tob-step">
+        <div class="tob-step-num">1</div>
+        <div class="tob-step-body">
+          <div class="tob-step-title">Share your clinic code</div>
+          <div class="tob-step-desc">Your 6-digit clinic code is shown at the top of your sidebar. Give it to your patient — they enter it on their first login to link to you.</div>
+        </div>
+      </li>
+      <li class="tob-step">
+        <div class="tob-step-num">2</div>
+        <div class="tob-step-body">
+          <div class="tob-step-title">Assign an exercise protocol</div>
+          <div class="tob-step-desc">Click a patient's name → open <strong>Add Exercise to Protocol</strong> → choose an exercise type, set reps/sets/frequency, and save. The patient will see it immediately in their home screen.</div>
+        </div>
+      </li>
+      <li class="tob-step">
+        <div class="tob-step-num">3</div>
+        <div class="tob-step-body">
+          <div class="tob-step-title">Calibrate the patient's hand</div>
+          <div class="tob-step-desc">Click <strong>Calibrate Patient</strong> at the top of any patient panel. Walk through 3 poses (extension → mid-range → full flexion). Enter the true goniometer readings. This corrects MediaPipe's angle errors for that patient's specific hand.</div>
+        </div>
+      </li>
+      <li class="tob-step">
+        <div class="tob-step-num">4</div>
+        <div class="tob-step-body">
+          <div class="tob-step-title">Track progress over time</div>
+          <div class="tob-step-desc">After each session, open the patient panel to view ROM and pain charts, per-joint angle history (Joint Monitoring), and session logs. Use <strong>Joint Monitoring</strong> to select which joints you want tracked each session.</div>
+        </div>
+      </li>
+    </ol>
+
+    <button class="tob-confirm-btn" onclick="dismissTherapistOnboarding()">Got it — let's go</button>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════

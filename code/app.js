@@ -23,6 +23,7 @@ let selectedProtocol = null;
 let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
+let currentCalibration = null; // loaded at session start from calibration/{patientEmail}
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -112,7 +113,8 @@ const screenTitles = {
   therapistScreen:    'PhalanX — Therapist Dashboard',
   exercisesScreen:    'PhalanX — My Exercises',
   progressScreen:     'PhalanX — My Progress',
-  calibrationScreen:  'PhalanX — Calibration',
+  calibrationScreen:          'PhalanX — Calibration',
+  patientCalibrationScreen:   'PhalanX — Patient Calibration',
   pendingScreen:      'PhalanX — Pending Approval',
   adminScreen:        'PhalanX — Admin Panel',
 };
@@ -265,6 +267,7 @@ async function loginSuccess() {
     showScreen('therapistScreen');
     document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
     await loadConnectedPatients();
+    if (!currentUser.onboardingDone) showTherapistOnboarding();
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
@@ -477,7 +480,10 @@ function calcStreak(sessions) {
 
 async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
-  trackedJoints  = await loadTrackedJoints(currentUser.email);
+  [trackedJoints, currentCalibration] = await Promise.all([
+    loadTrackedJoints(currentUser.email),
+    loadCalibration(currentUser.email),
+  ]);
   jointMaxAngles = {};
   showScreen('cameraScreen');
   loadPatientProtocol();
@@ -494,7 +500,10 @@ async function startScanSession() {
     return;
   }
   selectedProtocol = protocols[0];
-  trackedJoints  = await loadTrackedJoints(currentUser.email);
+  [trackedJoints, currentCalibration] = await Promise.all([
+    loadTrackedJoints(currentUser.email),
+    loadCalibration(currentUser.email),
+  ]);
   jointMaxAngles = {};
   showScreen('cameraScreen');
   await loadPatientProtocol();
@@ -853,6 +862,21 @@ async function showExercisesScreen() {
    SECTION 8: THERAPIST PANEL
    ══════════════════════════════════════════════════════════════════════════ */
 
+// ── Therapist onboarding modal — shown once on first login ────────────────────
+function showTherapistOnboarding() {
+  document.getElementById('therapistOnboardingModal').style.display = 'flex';
+}
+
+async function dismissTherapistOnboarding() {
+  document.getElementById('therapistOnboardingModal').style.display = 'none';
+  try {
+    await db.collection('users').doc(currentUser.email).update({ onboardingDone: true });
+    currentUser.onboardingDone = true;
+  } catch (e) {
+    console.warn('dismissTherapistOnboarding Firestore write failed', e);
+  }
+}
+
 async function loadConnectedPatients() {
   document.querySelectorAll('.patient-item').forEach(el => el.remove());
   const existing = document.getElementById('noPatientsMsg');
@@ -977,7 +1001,10 @@ async function showRealPatient(patient) {
 
   if (sessions.length === 0) {
     panel.innerHTML = `
-      <h3>${patient.name}</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+        <h3 style="margin:0">${patient.name}</h3>
+        <button class="tp-calibrate-btn" onclick="startPatientCalibration('${patient.email}','${patient.name.replace(/'/g, "\\'")}')">Calibrate Patient</button>
+      </div>
       <p class="subtitle">Connected Patient</p>
       <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
@@ -1014,7 +1041,10 @@ async function showRealPatient(patient) {
   });
 
   panel.innerHTML = `
-    <h3>${patient.name}</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+      <h3 style="margin:0">${patient.name}</h3>
+      <button class="tp-calibrate-btn" onclick="startPatientCalibration('${patient.email}','${patient.name.replace(/'/g, "\\'")}')">Calibrate Patient</button>
+    </div>
     <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value" style="color:${complianceColor}">${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
@@ -1299,14 +1329,16 @@ function getMiddleFingerAngle(landmarks) {
   return 180 - Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * (180 / Math.PI);
 }
 
-// Generic 2D joint angle — 0° = straight, higher = more bent (matches calibration tool)
+// Generic 2D joint angle — 0° = straight, higher = more bent, negative = hyperextension
 function getJointAngle(landmarks, triplet) {
   const A = landmarks[triplet[0]], B = landmarks[triplet[1]], C = landmarks[triplet[2]];
   const v1 = { x: A.x - B.x, y: A.y - B.y }, v2 = { x: C.x - B.x, y: C.y - B.y };
   const dot = v1.x * v2.x + v1.y * v2.y;
   const m1 = Math.sqrt(v1.x ** 2 + v1.y ** 2), m2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
   if (m1 === 0 || m2 === 0) return 0;
-  return 180 - Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2)))) * (180 / Math.PI);
+  const angle = 180 - Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2)))) * (180 / Math.PI);
+  const cross_z = v1.x * v2.y - v1.y * v2.x;
+  return cross_z > 0 ? -angle : angle;
 }
 
 // Normalized tip-to-tip distance (wrist→middle-MCP as scale reference)
@@ -1349,7 +1381,8 @@ function checkExerciseState(landmarks) {
   const results = p.conditions.map(cond => {
     const triplet = FINGER_LANDMARK_MAP[cond.finger]?.[cond.joint];
     if (!triplet) return null;
-    const angle = Math.round(getJointAngle(landmarks, triplet));
+    const rawAngle = Math.round(getJointAngle(landmarks, triplet));
+    const angle = Math.round(applyCalibrationCorrection(rawAngle, `${cond.finger}-${cond.joint}`));
     return {
       finger:     cond.finger,
       joint:      cond.joint,
@@ -1465,7 +1498,8 @@ function updateRepCount(landmarks) {
       const [finger, joint] = key.split('-');
       const triplet = FINGER_LANDMARK_MAP[finger]?.[joint];
       if (!triplet) return;
-      const angle = Math.round(getJointAngle(landmarks, triplet));
+      const rawAngle = Math.round(getJointAngle(landmarks, triplet));
+      const angle = Math.round(applyCalibrationCorrection(rawAngle, key));
       if (angle > (jointMaxAngles[key] || 0)) jointMaxAngles[key] = angle;
     });
   }
@@ -2518,6 +2552,7 @@ function calibLandmarkJumped(index, lm, threshold) {
 }
 
 // ── Angle calculation ─────────────────────────────────────────────────────────
+// 0° = straight, higher = more bent, negative = hyperextension (cross product sign check)
 function calibGetAngle(a, b, c) {
   const ba = { x: a.x-b.x, y: a.y-b.y, z: (a.z||0)-(b.z||0) };
   const bc = { x: c.x-b.x, y: c.y-b.y, z: (c.z||0)-(b.z||0) };
@@ -2526,7 +2561,9 @@ function calibGetAngle(a, b, c) {
   const magBC  = Math.sqrt(bc.x**2 + bc.y**2 + bc.z**2);
   if (magBA === 0 || magBC === 0) return 0;
   const cos = Math.max(-1, Math.min(1, dotVal / (magBA * magBC)));
-  return Math.round(180 - Math.acos(cos) * (180 / Math.PI));
+  const angle = Math.round(180 - Math.acos(cos) * (180 / Math.PI));
+  const cross_z = ba.x * bc.y - ba.y * bc.x;
+  return cross_z > 0 ? -angle : angle;
 }
 
 // ── Compute one joint ─────────────────────────────────────────────────────────
@@ -2936,6 +2973,331 @@ function buildMessagePanel(patientEmail) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   SECTION 16: PATIENT CALIBRATION
+   Therapist-initiated 3-pose calibration flow that stores per-joint correction
+   data in Firestore (calibration/{patientEmail}). Applied at session start via
+   applyCalibrationCorrection().
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// ── Calibration load / correction ─────────────────────────────────────────────
+
+async function loadCalibration(patientEmail) {
+  try {
+    const snap = await db.collection('calibration').doc(patientEmail).get();
+    if (!snap.exists) return null;
+    return snap.data();
+  } catch (e) {
+    console.warn('loadCalibration error', e);
+    return null;
+  }
+}
+
+// Piecewise linear interpolation/extrapolation using stored calibration points.
+// Returns rawAngle unchanged if no calibration exists for this joint.
+function applyCalibrationCorrection(rawAngle, jointKey) {
+  if (!currentCalibration || !currentCalibration.joints) return rawAngle;
+  const jd = currentCalibration.joints[jointKey];
+  if (!jd || !jd.points || jd.points.length < 2) return rawAngle;
+  const pts = jd.points.slice().sort((a, b) => a.raw - b.raw);
+  if (rawAngle <= pts[0].raw) {
+    const [p0, p1] = pts;
+    if (p1.raw === p0.raw) return p0.trueVal;
+    return Math.round(p0.trueVal + (rawAngle - p0.raw) * (p1.trueVal - p0.trueVal) / (p1.raw - p0.raw));
+  }
+  if (rawAngle >= pts[pts.length - 1].raw) {
+    const [p0, p1] = pts.slice(-2);
+    if (p1.raw === p0.raw) return p1.trueVal;
+    return Math.round(p0.trueVal + (rawAngle - p0.raw) * (p1.trueVal - p0.trueVal) / (p1.raw - p0.raw));
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (rawAngle >= pts[i].raw && rawAngle <= pts[i + 1].raw) {
+      const t = (rawAngle - pts[i].raw) / (pts[i + 1].raw - pts[i].raw);
+      return Math.round(pts[i].trueVal + t * (pts[i + 1].trueVal - pts[i].trueVal));
+    }
+  }
+  return rawAngle;
+}
+
+// ── Patient calibration screen state ─────────────────────────────────────────
+
+const PCALIB_POSES = [
+  { name: 'Extension',    instruction: 'Hold your hand as flat and straight as possible.' },
+  { name: 'Mid-Range',    instruction: 'Bend your fingers to about half their total range.' },
+  { name: 'Full Flexion', instruction: 'Bend your fingers as far as is comfortable.' },
+];
+
+// All joints covered by the calibration (thumb DIP excluded — not measurable reliably)
+const PCALIB_JOINTS = [
+  { key: 'thumb-mcp',  label: 'Thumb MP',   finger: 'thumb',  joint: 'mcp' },
+  { key: 'thumb-pip',  label: 'Thumb IP',   finger: 'thumb',  joint: 'pip' },
+  { key: 'index-mcp',  label: 'Index MCP',  finger: 'index',  joint: 'mcp' },
+  { key: 'index-pip',  label: 'Index PIP',  finger: 'index',  joint: 'pip' },
+  { key: 'index-dip',  label: 'Index DIP',  finger: 'index',  joint: 'dip' },
+  { key: 'middle-mcp', label: 'Middle MCP', finger: 'middle', joint: 'mcp' },
+  { key: 'middle-pip', label: 'Middle PIP', finger: 'middle', joint: 'pip' },
+  { key: 'middle-dip', label: 'Middle DIP', finger: 'middle', joint: 'dip' },
+  { key: 'ring-mcp',   label: 'Ring MCP',   finger: 'ring',   joint: 'mcp' },
+  { key: 'ring-pip',   label: 'Ring PIP',   finger: 'ring',   joint: 'pip' },
+  { key: 'ring-dip',   label: 'Ring DIP',   finger: 'ring',   joint: 'dip' },
+  { key: 'pinky-mcp',  label: 'Pinky MCP',  finger: 'pinky',  joint: 'mcp' },
+  { key: 'pinky-pip',  label: 'Pinky PIP',  finger: 'pinky',  joint: 'pip' },
+  { key: 'pinky-dip',  label: 'Pinky DIP',  finger: 'pinky',  joint: 'dip' },
+];
+
+let pcalibPatientEmail = null;
+let pcalibPatientName  = null;
+let pcalibPose         = 0;
+let pcalibData         = {};   // { 'index-pip': { points: [{raw, trueVal}, ...] } }
+let pcalibFrameBuffer  = [];
+let pcalibCapturing    = false;
+let pcalibMedianAngles = {};
+let pcalibHands        = null;
+let pcalibMpCamera     = null;
+let pcalibLandmarks    = null;
+
+// ── Entry point (called from therapist panel) ─────────────────────────────────
+
+function startPatientCalibration(email, name) {
+  pcalibPatientEmail = email;
+  pcalibPatientName  = name;
+  pcalibPose         = 0;
+  pcalibData         = {};
+  pcalibFrameBuffer  = [];
+  pcalibCapturing    = false;
+  pcalibMedianAngles = {};
+  pcalibLandmarks    = null;
+
+  document.getElementById('pcalibPatientName').textContent = name || email;
+  pcalibRenderPose();
+  pcalibRenderReadings();
+  showScreen('patientCalibrationScreen');
+  pcalibStartCamera();
+}
+
+function pcalibRenderPose() {
+  const pose   = PCALIB_POSES[pcalibPose];
+  const isLast = pcalibPose === PCALIB_POSES.length - 1;
+  document.getElementById('pcalibStepLabel').textContent        = `Step ${pcalibPose + 1} of ${PCALIB_POSES.length}`;
+  document.getElementById('pcalibPoseName').textContent         = pose.name;
+  document.getElementById('pcalibPoseInstruction').textContent  = pose.instruction;
+  document.getElementById('pcalibCaptureStatus').textContent    = '';
+  document.getElementById('pcalibCaptureBtn').disabled          = false;
+  document.getElementById('pcalibNextBtn').disabled             = true;
+  document.getElementById('pcalibNextBtn').style.display        = isLast ? 'none' : 'inline-block';
+  document.getElementById('pcalibSaveBtn').style.display        = 'none';
+  pcalibMedianAngles = {};
+}
+
+function pcalibRenderReadings() {
+  const container = document.getElementById('pcalibReadingsBody');
+  if (!container) return;
+  container.innerHTML = PCALIB_JOINTS.map(({ key, label }) => {
+    const rawVal = pcalibMedianAngles[key] !== undefined ? `${pcalibMedianAngles[key]}°` : '—';
+    const existing = pcalibData[key]?.points?.[pcalibPose];
+    const trueVal  = existing !== undefined && existing !== null ? existing.trueVal : '';
+    return `<div class="pcalib-reading-row">
+      <span class="pcalib-reading-label">${label}</span>
+      <span class="pcalib-reading-raw" id="pcalib-raw-${key}">${rawVal}</span>
+      <input class="pcalib-reading-input" type="number" id="pcalib-true-${key}"
+             value="${trueVal}" placeholder="—" min="-30" max="180" step="1">
+    </div>`;
+  }).join('');
+}
+
+function pcalibCapture() {
+  if (pcalibCapturing) return;
+  pcalibCapturing   = true;
+  pcalibFrameBuffer = [];
+  const btn    = document.getElementById('pcalibCaptureBtn');
+  const status = document.getElementById('pcalibCaptureStatus');
+  btn.disabled = true;
+
+  let countdown = 3;
+  status.textContent = `Capturing… ${countdown}s`;
+  const interval = setInterval(() => {
+    countdown--;
+    if (countdown > 0) {
+      status.textContent = `Capturing… ${countdown}s`;
+    } else {
+      clearInterval(interval);
+      pcalibCapturing = false;
+      pcalibComputeMedians();
+      btn.disabled = false;
+    }
+  }, 1000);
+}
+
+function pcalibComputeMedians() {
+  const byJoint = {};
+  PCALIB_JOINTS.forEach(({ key }) => { byJoint[key] = []; });
+
+  pcalibFrameBuffer.forEach(lm => {
+    PCALIB_JOINTS.forEach(({ key, finger, joint }) => {
+      const jd = CALIB_FINGERS[finger]?.[joint];
+      if (!jd) return;
+      const angle = calibGetAngle(lm[jd.a], lm[jd.b], lm[jd.c]);
+      byJoint[key].push(angle);
+    });
+  });
+
+  pcalibMedianAngles = {};
+  PCALIB_JOINTS.forEach(({ key }) => {
+    const vals = byJoint[key].filter(v => isFinite(v));
+    if (vals.length === 0) { pcalibMedianAngles[key] = 0; return; }
+    vals.sort((a, b) => a - b);
+    const mid = Math.floor(vals.length / 2);
+    pcalibMedianAngles[key] = Math.round(
+      vals.length % 2 !== 0 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2
+    );
+  });
+
+  // Update raw display cells
+  PCALIB_JOINTS.forEach(({ key }) => {
+    const el = document.getElementById(`pcalib-raw-${key}`);
+    if (el) el.textContent = `${pcalibMedianAngles[key]}°`;
+  });
+
+  const isLast = pcalibPose === PCALIB_POSES.length - 1;
+  const status = document.getElementById('pcalibCaptureStatus');
+  status.textContent = pcalibFrameBuffer.length > 0
+    ? `Done (${pcalibFrameBuffer.length} frames). Enter goniometer values, then ${isLast ? 'save' : 'advance'}.`
+    : 'No hand detected. Try again.';
+
+  if (pcalibFrameBuffer.length > 0) {
+    document.getElementById('pcalibNextBtn').disabled = false;
+    if (isLast) document.getElementById('pcalibSaveBtn').style.display = 'inline-block';
+  }
+}
+
+function pcalibRecordCurrentPose() {
+  PCALIB_JOINTS.forEach(({ key }) => {
+    const raw  = pcalibMedianAngles[key];
+    if (raw === undefined) return;
+    const inputEl  = document.getElementById(`pcalib-true-${key}`);
+    const trueVal  = inputEl && inputEl.value !== '' ? parseFloat(inputEl.value) : raw;
+    if (!pcalibData[key]) pcalibData[key] = { points: [] };
+    while (pcalibData[key].points.length <= pcalibPose) pcalibData[key].points.push(null);
+    pcalibData[key].points[pcalibPose] = { raw, trueVal: isNaN(trueVal) ? raw : trueVal };
+  });
+}
+
+function pcalibNextPose() {
+  pcalibRecordCurrentPose();
+  pcalibPose++;
+  if (pcalibPose >= PCALIB_POSES.length) {
+    pcalibPose = PCALIB_POSES.length - 1;
+    return;
+  }
+  const isLast = pcalibPose === PCALIB_POSES.length - 1;
+  document.getElementById('pcalibNextBtn').style.display = isLast ? 'none' : 'inline-block';
+  document.getElementById('pcalibSaveBtn').style.display = 'none';
+  pcalibRenderPose();
+  pcalibRenderReadings();
+}
+
+async function pcalibSave() {
+  pcalibRecordCurrentPose();
+  const saveBtn = document.getElementById('pcalibSaveBtn');
+  saveBtn.disabled  = true;
+  saveBtn.textContent = 'Saving…';
+  try {
+    const joints = {};
+    Object.entries(pcalibData).forEach(([key, val]) => {
+      const pts = (val.points || []).filter(p => p !== null);
+      if (pts.length >= 2) joints[key] = { points: pts };
+    });
+    await db.collection('calibration').doc(pcalibPatientEmail).set({
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: currentUser.email,
+      joints,
+    });
+    saveBtn.textContent = 'Saved!';
+    setTimeout(() => pcalibBack(), 1400);
+  } catch (e) {
+    console.error('pcalibSave error', e);
+    saveBtn.textContent  = 'Error — try again';
+    saveBtn.disabled     = false;
+  }
+}
+
+function pcalibBack() {
+  if (pcalibMpCamera) { try { pcalibMpCamera.stop(); } catch (e) {} pcalibMpCamera = null; }
+  if (pcalibHands)    { try { pcalibHands.close();   } catch (e) {} pcalibHands    = null; }
+  const vid = document.getElementById('pcalibVideo');
+  if (vid && vid.srcObject) { vid.srcObject.getTracks().forEach(t => t.stop()); vid.srcObject = null; }
+  showScreen('therapistScreen');
+}
+
+// ── Camera ────────────────────────────────────────────────────────────────────
+
+function pcalibStartCamera() {
+  const video  = document.getElementById('pcalibVideo');
+  const canvas = document.getElementById('pcalibCanvas');
+
+  pcalibHands = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  pcalibHands.setOptions({
+    modelComplexity:        1,
+    minDetectionConfidence: 0.75,
+    minTrackingConfidence:  0.75,
+    maxNumHands:            1,
+  });
+  pcalibHands.onResults(pcalibOnResults);
+
+  if (!isMobile() && window.Camera) {
+    pcalibMpCamera = new window.Camera(video, {
+      onFrame: async () => { await pcalibHands.send({ image: video }); },
+      width: 640, height: 480,
+    });
+    pcalibMpCamera.start();
+  } else {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } })
+      .then(stream => {
+        video.srcObject = stream;
+        video.play();
+        const loop = async () => {
+          if (!document.getElementById('patientCalibrationScreen')?.classList.contains('active')) return;
+          if (video.readyState >= 2) {
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const tmp = document.createElement('canvas');
+            tmp.width  = video.videoWidth;
+            tmp.height = video.videoHeight;
+            tmp.getContext('2d').drawImage(video, 0, 0);
+            await pcalibHands.send({ image: tmp });
+          }
+          requestAnimationFrame(loop);
+        };
+        video.onloadedmetadata = () => requestAnimationFrame(loop);
+      })
+      .catch(err => console.error('pcalibStartCamera getUserMedia error', err));
+  }
+}
+
+function pcalibOnResults(results) {
+  const canvas = document.getElementById('pcalibCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width  = results.image.width;
+  canvas.height = results.image.height;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const lm = results.multiHandLandmarks[0];
+    if (window.drawConnectors && window.drawLandmarks && window.HAND_CONNECTIONS) {
+      drawConnectors(ctx, lm, window.HAND_CONNECTIONS, { color: '#00BFFF', lineWidth: 2 });
+      drawLandmarks(ctx, lm,  { color: '#FF0090', lineWidth: 1, radius: 3 });
+    }
+    pcalibLandmarks = lm;
+    if (pcalibCapturing) {
+      pcalibFrameBuffer.push(lm.map(p => ({ x: p.x, y: p.y, z: p.z || 0 })));
+    }
+  } else {
+    pcalibLandmarks = null;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -2959,6 +3321,8 @@ Object.assign(window, {
 
   // Therapist panel
   startCalibration, calibBack,
+  dismissTherapistOnboarding,
+  startPatientCalibration, pcalibCapture, pcalibNextPose, pcalibSave, pcalibBack,
   backToPatientList, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,

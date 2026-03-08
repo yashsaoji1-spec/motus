@@ -1,4 +1,4 @@
-# Last updated: 2026-03-07 (Calibration table readout; MediaPipe tracking improvements; landmark smoothing + tip shift)
+# Last updated: 2026-03-08 (Per-patient angle calibration; therapist onboarding modal; hyperextension sign fix)
 
 # PhalanX — Claude Code Guide
 
@@ -40,9 +40,9 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 
 ```
 code/
-  index.html      — ALL source: HTML screens + inline CSS (<style>) + inline JS (<script type="module">) — 5013 lines
-  app.js          — DEAD FILE (not used by Vite build — do not edit)
-  styles.css      — DEAD FILE (not used by Vite build — do not edit)
+  index.html      — HTML screens only (~680 lines)
+  app.js          — All JS as ES module (~3200 lines)
+  styles.css      — All CSS (~1800 lines)
 vite.config.mjs   — Vite config (outDir: dist)
 firestore.rules   — Firestore security rules
 public/
@@ -91,6 +91,7 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 | `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles? }` |
 | `messages`      | auto-id              | `{ from, to, participants, text, timestamp, read }` |
 | `jointTracking` | `{patientEmail}`     | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
+| `calibration`   | `{patientEmail}`     | `{ createdAt, createdBy, joints: { 'index-pip': { points: [{raw, trueVal}, …] }, … } }` — per-patient angle calibration |
 
 **Backward compat:** old `protocols` docs with a flat object (no `items` array) are transparently wrapped by `getProtocols()` as `[{ id: 'legacy', ...data }]`.
 
@@ -141,7 +142,32 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `therapistScreen`   | Therapist dashboard (patient list + collapsible sections: charts, joint monitoring, session history, protocol form, messages) |
 | `progressScreen`    | Patient progress history                                       |
 | `messagingScreen`   | In-app patient↔therapist messaging thread                      |
-| `calibrationScreen` | Joint angle calibration (MediaPipe read-out)                   |
+| `calibrationScreen`        | Joint angle calibration tool (MediaPipe read-out, therapist-facing) |
+| `patientCalibrationScreen` | 3-pose per-patient calibration flow (therapist-initiated from patient panel) |
+
+## Therapist Onboarding
+
+A one-time modal (`#therapistOnboardingModal`) is shown to every therapist on their **first login**. It is dismissed by clicking "Got it — let's go", which sets `onboardingDone: true` on `users/{email}` in Firestore. Subsequent logins skip the modal.
+
+### What the modal tells the therapist
+
+**Step 1 — Share your clinic code**
+Your 6-digit clinic code is shown at the top of your sidebar. Give it to your patient — they enter it on their first login to link to you.
+
+**Step 2 — Assign an exercise protocol**
+Click a patient's name → open **Add Exercise to Protocol** → choose an exercise type, set reps/sets/frequency, and save. The patient sees it immediately in their home screen.
+
+**Step 3 — Calibrate the patient's hand**
+Click **Calibrate Patient** at the top of any patient panel. Walk through 3 poses with the patient (extension → mid-range → full flexion). At each pose, hit **Capture 3s Sample**, then enter the true goniometer reading for each joint in the **True °** column. Hit **Next Pose** twice, then **Save Calibration**. From that point on, all angle readings during sessions are automatically corrected for that patient.
+
+**Step 4 — Track progress over time**
+After each session, open the patient panel to view ROM and pain charts, per-joint angle history (Joint Monitoring), and session logs. Use **Joint Monitoring** to select which joints you want tracked each session.
+
+### Implementation notes
+- `showTherapistOnboarding()` — called from `loginSuccess()` when `!currentUser.onboardingDone`
+- `dismissTherapistOnboarding()` — hides modal, writes `{ onboardingDone: true }` to `users/{email}`
+- Modal is an overlay (`display:none` → `display:flex`) sitting above all screens, same z-index pattern as `#logoutModal`
+- `users/{email}` now has an optional `onboardingDone: boolean` field (old docs without it are treated as `false`)
 
 ## Role Split
 
@@ -198,7 +224,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 5b  | Admin Panel — `loadAdminScreen()`, `approveTherapist()`, `rejectTherapist()` |
 | 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionWithProtocol` (async — loads `trackedJoints`), `startScanSession` |
 | 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends), `deleteProtocol` (removes by id), `normalizeExerciseParams`, `loadTrackedJoints`, `saveTrackedJoints` |
-| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button) |
+| 8   | Therapist Panel — `showTherapistOnboarding` / `dismissTherapistOnboarding` (first-login modal, sets `onboardingDone: true` in Firestore); `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button) |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS); MediaPipe options: `modelComplexity:1` always, `minDetectionConfidence:0.75`, `minTrackingConfidence:0.75`; per-landmark EMA smoother (`sessionSmoothLandmarks`, alpha 0.25 tips / 0.45 joints) + `shiftTipsTowardPalm` (10% toward DIP) applied to draw landmarks only — raw landmarks passed to `updateRepCount`, `flipCamera`, `isMobile` |
@@ -206,6 +232,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 13  | Joint Selector — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, and related helpers |
 | 14  | Calibration Screen — `startCalibration`; MediaPipe options: `modelComplexity:1`, `minDetectionConfidence:0.75`, `minTrackingConfidence:0.75`; readout panel is a static HTML table (columns=fingers THB/IDX/MID/RNG/PNK, rows=MCP/PIP/DIP) updated at 500ms throttle via `calibLastDisplayUpdate`; `calibRebuildReadouts` toggles `cat-active`/`cat-inactive` CSS classes on static table cells; `calibSmoothLandmarks` (EMA, alpha 0.25 tips / 0.45 joints) + `shiftTipsTowardPalm` (10% toward DIP) applied to draw landmarks only; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
+| 16  | Patient Calibration — `loadCalibration`, `applyCalibrationCorrection` (piecewise linear interpolation), `startPatientCalibration`, `pcalibCapture` (3s frame buffer → median), `pcalibNextPose`, `pcalibSave` (writes to `calibration/{patientEmail}`), `pcalibBack`, `pcalibStartCamera`, `pcalibOnResults`; globals: `pcalibPatientEmail`, `pcalibPose`, `pcalibData`, `pcalibFrameBuffer`, `pcalibMedianAngles`, `PCALIB_POSES`, `PCALIB_JOINTS` |
 
 ## Firestore Role Values
 

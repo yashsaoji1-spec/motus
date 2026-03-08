@@ -1445,3 +1445,353 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .therapist-msg-send { padding: 8px 16px; background: #005EB8; color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-family: inherit; font-weight: 600; }
 
+/* ── Therapist onboarding modal ─────────────────────────────────────────────── */
+.tob-box {
+  max-width: 560px;
+  width: calc(100% - 32px);
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.tob-header {
+  padding: 28px 28px 20px;
+  background: var(--accent);
+  color: #fff;
+}
+.tob-logo {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+.tob-logo span { opacity: 0.7; }
+.tob-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: #fff;
+}
+.tob-subtitle {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  margin: 0;
+}
+.tob-steps {
+  list-style: none;
+  margin: 0;
+  padding: 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: var(--surface);
+}
+.tob-step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.tob-step-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.tob-step-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.tob-step-desc {
+  font-size: 0.83rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.tob-step-desc strong { color: var(--text); }
+.tob-confirm-btn {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+.tob-confirm-btn:hover { background: #004a93; }
+
+/* ── Calibrate Patient button (therapist panel) ─────────────────────────────── */
+.tp-calibrate-btn {
+  padding: 6px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.tp-calibrate-btn:hover { background: #004a93; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PATIENT CALIBRATION SCREEN  (#patientCalibrationScreen)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+#patientCalibrationScreen {
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.pcalib-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.pcalib-logo {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.pcalib-logo span { color: var(--accent); }
+.pcalib-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.pcalib-patient-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.pcalib-step-label {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pcalib-back-btn {
+  padding: 6px 14px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+}
+.pcalib-back-btn:hover { background: var(--accent-dim); }
+
+/* ── Main layout: camera (left, big) + readings panel (right) ────────────── */
+.pcalib-main {
+  display: flex;
+  flex: 1;
+  gap: 0;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Camera column — takes 60% width, fills full height */
+.pcalib-camera-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 60%;
+  min-width: 0;
+  background: #000;
+}
+.pcalib-camera-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.pcalib-camera-wrap video,
+.pcalib-camera-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Mirror the canvas so it feels like a mirror */
+.pcalib-camera-wrap canvas { transform: scaleX(-1); }
+
+/* Pose instruction bar — sits at the bottom of the camera column */
+.pcalib-pose-card {
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(6px);
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.pcalib-pose-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+.pcalib-pose-instruction {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.75);
+  flex: 1;
+  min-width: 160px;
+}
+.pcalib-capture-btn {
+  padding: 9px 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pcalib-capture-btn:disabled { opacity: 0.5; cursor: default; }
+.pcalib-capture-btn:not(:disabled):hover { background: #004a93; }
+.pcalib-capture-status {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.65);
+  width: 100%;
+  min-height: 1em;
+}
+
+/* Readings column — right side, scrollable */
+.pcalib-readings-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+}
+.pcalib-readings-header {
+  display: grid;
+  grid-template-columns: 1fr 64px 96px;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+.pcalib-readings-header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcalib-readings-body {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--surface);
+}
+.pcalib-reading-row {
+  display: grid;
+  grid-template-columns: 1fr 64px 96px;
+  gap: 6px;
+  align-items: center;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.pcalib-reading-row:last-child { border-bottom: none; }
+.pcalib-reading-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.pcalib-reading-raw {
+  font-size: 0.82rem;
+  color: var(--accent);
+  font-family: 'DM Mono', monospace;
+  text-align: center;
+}
+.pcalib-reading-input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: 'DM Mono', monospace;
+  color: var(--text);
+  background: var(--bg);
+  box-sizing: border-box;
+  text-align: center;
+}
+.pcalib-reading-input:focus { outline: none; border-color: var(--accent); background: #fff; }
+
+/* Action buttons row */
+.pcalib-actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.pcalib-next-btn,
+.pcalib-save-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.pcalib-next-btn { background: var(--accent); color: #fff; }
+.pcalib-next-btn:disabled { opacity: 0.4; cursor: default; }
+.pcalib-next-btn:not(:disabled):hover { background: #004a93; }
+.pcalib-save-btn { background: #22c55e; color: #fff; }
+.pcalib-save-btn:disabled { opacity: 0.5; cursor: default; }
+.pcalib-save-btn:not(:disabled):hover { background: #16a34a; }
+
+/* Footer */
+.pcalib-footer {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding: 6px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  #patientCalibrationScreen { height: auto; min-height: 100vh; overflow-y: auto; }
+  .pcalib-main { flex-direction: column; overflow: visible; }
+  .pcalib-camera-col { flex: none; height: 55vw; min-height: 240px; }
+  .pcalib-readings-col { flex: none; border-left: none; border-top: 1px solid var(--border); max-height: 60vh; overflow-y: auto; }
+}
+
