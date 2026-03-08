@@ -1,4 +1,4 @@
-# Last updated: 2026-03-07 (Fix login: force token refresh + sign-out on Firestore auth error; revert to simple Firestore rules)
+# Last updated: 2026-03-07 (Calibration table readout; MediaPipe tracking improvements; landmark smoothing + tip shift)
 
 # PhalanX — Claude Code Guide
 
@@ -40,9 +40,9 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 
 ```
 code/
-  index.html      — all HTML screens (4951 lines)
-  app.js          — all JS logic (15 sections + Section 5b + window exports block, 3096 lines)
-  styles.css      — all styles (1456 lines)
+  index.html      — ALL source: HTML screens + inline CSS (<style>) + inline JS (<script type="module">) — 5013 lines
+  app.js          — DEAD FILE (not used by Vite build — do not edit)
+  styles.css      — DEAD FILE (not used by Vite build — do not edit)
 vite.config.mjs   — Vite config (outDir: dist)
 firestore.rules   — Firestore security rules
 public/
@@ -201,10 +201,10 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button) |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`) |
-| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS), `flipCamera`, `isMobile` |
+| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS); MediaPipe options: `modelComplexity:1` always, `minDetectionConfidence:0.75`, `minTrackingConfidence:0.75`; per-landmark EMA smoother (`sessionSmoothLandmarks`, alpha 0.25 tips / 0.45 joints) + `shiftTipsTowardPalm` (10% toward DIP) applied to draw landmarks only — raw landmarks passed to `updateRepCount`, `flipCamera`, `isMobile` |
 | 12  | Progress Screen — session history display |
 | 13  | Joint Selector — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, and related helpers |
-| 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })` |
+| 14  | Calibration Screen — `startCalibration`; MediaPipe options: `modelComplexity:1`, `minDetectionConfidence:0.75`, `minTrackingConfidence:0.75`; readout panel is a static HTML table (columns=fingers THB/IDX/MID/RNG/PNK, rows=MCP/PIP/DIP) updated at 500ms throttle via `calibLastDisplayUpdate`; `calibRebuildReadouts` toggles `cat-active`/`cat-inactive` CSS classes on static table cells; `calibSmoothLandmarks` (EMA, alpha 0.25 tips / 0.45 joints) + `shiftTipsTowardPalm` (10% toward DIP) applied to draw landmarks only; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 
 ## Firestore Role Values

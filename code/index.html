@@ -1239,74 +1239,72 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 10px;
+  padding: 16px 12px;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   min-height: 0;
-}
-
-.calib-readout-row {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  justify-content: center;
 }
 
-.calib-readout-group-label {
+/* Angle readout table */
+.calib-angle-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+.cat-joint-hdr { width: 52px; }
+.cat-sep-col { width: 2px; padding: 0; background: var(--accent-glow); }
+.cat-finger-hdr {
   font-family: 'Space Mono', monospace;
-  font-size: 0.5rem;
-  color: var(--muted);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding-bottom: 3px;
-  border-bottom: 1px solid var(--border);
-  margin-top: 3px;
-}
-.calib-readout-group-label:first-child { margin-top: 0; }
-.calib-readout-group-label strong { color: var(--text); font-weight: 700; }
-
-.calib-readout-label {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.52rem;
-  color: var(--muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-
-.calib-readout-val {
-  font-size: 0.75rem;
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.calib-readout-bar-wrap {
-  height: 3px;
-  background: var(--bg);
-  border-radius: 3px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-
-.calib-readout-bar {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, var(--accent), rgba(0,94,184,0.4));
-  border-radius: 3px;
-  transition: width 0.08s ease-out;
-}
-
-.calib-readout-empty {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.62rem;
+  font-size: 0.65rem;
   color: var(--muted);
   text-align: center;
-  padding: 20px 0;
-  opacity: 0.5;
+  padding: 0 2px 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 400;
 }
+.cat-thumb-hdr { color: var(--accent); font-weight: 700; }
+.cat-joint-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  padding: 14px 10px 14px 0;
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.cat-joint-sub {
+  display: block;
+  font-size: 0.5rem;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.calib-angle-table tbody tr:not(:last-child) .cat-joint-lbl,
+.calib-angle-table tbody tr:not(:last-child) .cat-val,
+.calib-angle-table tbody tr:not(:last-child) .cat-sep-col {
+  border-bottom: 1px solid var(--border);
+}
+.cat-val {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--border);
+  padding: 12px 4px;
+  border-radius: 4px;
+  transition: color 0.08s ease-out, background 0.08s ease-out;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+.cat-thumb-col { padding-right: 8px; }
+.cat-val.cat-active { color: var(--accent); background: var(--accent-dim); }
+.cat-val.cat-inactive { color: var(--border); background: transparent; }
+.cat-val.cat-disabled { color: var(--border); opacity: 0.25; pointer-events: none; }
 
 /* Calibration footer */
 .calib-footer {
@@ -1927,9 +1925,50 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         </div>
       </div>
 
-      <!-- Readout list -->
+      <!-- Readout table -->
       <div class="calib-readout-panel" id="calibReadoutPanel">
-        <!-- Populated by JS -->
+        <table class="calib-angle-table">
+          <thead>
+            <tr>
+              <th class="cat-joint-hdr"></th>
+              <th class="cat-finger-hdr cat-thumb-hdr">THB</th>
+              <th class="cat-sep-col"></th>
+              <th class="cat-finger-hdr">IDX</th>
+              <th class="cat-finger-hdr">MID</th>
+              <th class="cat-finger-hdr">RNG</th>
+              <th class="cat-finger-hdr">PNK</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cat-joint-lbl">MCP<span class="cat-joint-sub">MP</span></td>
+              <td class="cat-val cat-thumb-col" id="calib-rval-thumb-mcp">—</td>
+              <td class="cat-sep-col"></td>
+              <td class="cat-val" id="calib-rval-index-mcp">—</td>
+              <td class="cat-val" id="calib-rval-middle-mcp">—</td>
+              <td class="cat-val" id="calib-rval-ring-mcp">—</td>
+              <td class="cat-val" id="calib-rval-pinky-mcp">—</td>
+            </tr>
+            <tr>
+              <td class="cat-joint-lbl">PIP<span class="cat-joint-sub">IP</span></td>
+              <td class="cat-val cat-thumb-col" id="calib-rval-thumb-pip">—</td>
+              <td class="cat-sep-col"></td>
+              <td class="cat-val" id="calib-rval-index-pip">—</td>
+              <td class="cat-val" id="calib-rval-middle-pip">—</td>
+              <td class="cat-val" id="calib-rval-ring-pip">—</td>
+              <td class="cat-val" id="calib-rval-pinky-pip">—</td>
+            </tr>
+            <tr>
+              <td class="cat-joint-lbl">DIP</td>
+              <td class="cat-val cat-thumb-col cat-disabled" id="calib-rval-thumb-dip">—</td>
+              <td class="cat-sep-col"></td>
+              <td class="cat-val" id="calib-rval-index-dip">—</td>
+              <td class="cat-val" id="calib-rval-middle-dip">—</td>
+              <td class="cat-val" id="calib-rval-ring-dip">—</td>
+              <td class="cat-val" id="calib-rval-pinky-dip">—</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
     </div>
@@ -3748,20 +3787,38 @@ function startCamera() {
     alert('Hands init error: ' + e.message);
     return;
   }
-  hands.setOptions({ maxNumHands: 1, modelComplexity: isMobile() ? 0 : 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
+  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.75 });
+
+  // Per-landmark EMA smoother for drawing — tips use alpha=0.25, joints alpha=0.45
+  const sessionTipIndices = new Set([4, 8, 12, 16, 20]);
+  const sessionLmSmooth = {};
+  function sessionSmoothLandmarks(landmarks) {
+    return landmarks.map((lm, i) => {
+      const alpha = sessionTipIndices.has(i) ? 0.25 : 0.45;
+      const prev  = sessionLmSmooth[i];
+      if (!prev) { sessionLmSmooth[i] = { x: lm.x, y: lm.y }; return lm; }
+      const x = alpha * lm.x + (1 - alpha) * prev.x;
+      const y = alpha * lm.y + (1 - alpha) * prev.y;
+      sessionLmSmooth[i] = { x, y };
+      return { ...lm, x, y };
+    });
+  }
+
   hands.onResults(results => {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (const landmarks of results.multiHandLandmarks) {
-        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
-        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
-        updateRepCount(landmarks);
+        const drawLm = shiftTipsTowardPalm(sessionSmoothLandmarks(landmarks));
+        window.drawConnectors(sessionCtx, drawLm, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
+        window.drawLandmarks(sessionCtx, drawLm, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
+        updateRepCount(landmarks); // raw landmarks for angle math
       }
     } else {
       // No hand detected — reset live TAM display
       const tamValEl = document.getElementById('tamValue');
       if (tamValEl) tamValEl.textContent = '—';
+      for (const k of Object.keys(sessionLmSmooth)) delete sessionLmSmooth[k];
     }
   });
 
@@ -4424,6 +4481,36 @@ const CALIB_FINGER_THRESHOLDS = {
 
 const CALIB_TIP_INDICES = new Set([4, 8, 12, 16, 20]);
 
+// ── Landmark position EMA smoother (calib) ────────────────────────────────────
+// Tips (4,8,12,16,20) use alpha=0.25 (more smoothing); joints use alpha=0.45.
+const calibLmSmooth = {};
+function calibSmoothLandmarks(landmarks) {
+  return landmarks.map((lm, i) => {
+    const alpha = CALIB_TIP_INDICES.has(i) ? 0.25 : 0.45;
+    const prev  = calibLmSmooth[i];
+    if (!prev) { calibLmSmooth[i] = { x: lm.x, y: lm.y }; return lm; }
+    const x = alpha * lm.x + (1 - alpha) * prev.x;
+    const y = alpha * lm.y + (1 - alpha) * prev.y;
+    calibLmSmooth[i] = { x, y };
+    return { ...lm, x, y };
+  });
+}
+function calibClearLmSmooth() { for (const k of Object.keys(calibLmSmooth)) delete calibLmSmooth[k]; }
+
+// ── Shift tip display positions toward palm side ───────────────────────────────
+// Interpolates 35% from tip toward DIP — moves dot off the nail toward the pad.
+// Applied to display landmarks only — angle math uses raw positions.
+const TIP_TO_DIP_IDX = { 4: 3, 8: 7, 12: 11, 16: 15, 20: 19 };
+const TIP_PALM_SHIFT = 0.1;
+function shiftTipsTowardPalm(landmarks) {
+  return landmarks.map((lm, i) => {
+    const dipIdx = TIP_TO_DIP_IDX[i];
+    if (dipIdx === undefined) return lm;
+    const dip = landmarks[dipIdx];
+    return { ...lm, x: lm.x + TIP_PALM_SHIFT * (dip.x - lm.x), y: lm.y + TIP_PALM_SHIFT * (dip.y - lm.y) };
+  });
+}
+
 // ── One Euro Filter (calib-scoped) ────────────────────────────────────────────
 const CALIB_ONE_EURO_MINCUTOFF = 0.3;
 const CALIB_ONE_EURO_BETA      = 0.1;
@@ -4516,50 +4603,26 @@ function calibUpdateFingerToggles() {
 
 // ── Rebuild readout DOM ───────────────────────────────────────────────────────
 function calibRebuildReadouts() {
-  const panel = document.getElementById('calibReadoutPanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  let count = 0;
-
   for (const finger of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
-    const hasActive = ['mcp','pip','dip'].some(j =>
-      calibActiveJoints[finger][j] && !(finger === 'thumb' && j === 'dip') && CALIB_FINGERS[finger][j]
-    );
-    if (!hasActive) continue;
-
-    const label = document.createElement('div');
-    label.className = 'calib-readout-group-label';
-    label.innerHTML = `<strong>${CALIB_FINGER_FULL[finger]}</strong>`;
-    panel.appendChild(label);
-
     for (const joint of ['mcp', 'pip', 'dip']) {
-      if (!calibActiveJoints[finger][joint]) continue;
-      if (finger === 'thumb' && joint === 'dip') continue;
-
-      const row = document.createElement('div');
-      row.className = 'calib-readout-row';
-      row.id = `calib-readout-${finger}-${joint}`;
-      row.innerHTML = `
-        <div class="calib-readout-label">
-          <span>${CALIB_FINGER_FULL[finger]} ${calibJointLabel(finger, joint)}</span>
-          <span class="calib-readout-val" id="calib-rval-${finger}-${joint}">—</span>
-        </div>
-        <div class="calib-readout-bar-wrap">
-          <div class="calib-readout-bar" id="calib-rbar-${finger}-${joint}"></div>
-        </div>`;
-      panel.appendChild(row);
-      count++;
+      const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
+      if (!valEl) continue;
+      if (finger === 'thumb' && joint === 'dip') continue; // always disabled
+      const isActive = calibActiveJoints[finger][joint];
+      valEl.classList.toggle('cat-active', isActive);
+      valEl.classList.toggle('cat-inactive', !isActive);
+      if (!isActive) valEl.textContent = '—';
     }
-  }
-
-  if (count === 0) {
-    panel.innerHTML = '<div class="calib-readout-empty">No joints selected</div>';
   }
   calibUpdateFingerToggles();
 }
 
-// ── Update readouts ───────────────────────────────────────────────────────────
+// ── Update readouts (throttled to 1 Hz for readability) ──────────────────────
+let calibLastDisplayUpdate = 0;
 function calibUpdateReadouts(landmarks) {
+  const now = performance.now();
+  if (now - calibLastDisplayUpdate < 500) return;
+  calibLastDisplayUpdate = now;
   for (const finger of Object.keys(CALIB_FINGERS)) {
     const threshold = CALIB_FINGER_THRESHOLDS[finger];
     for (const joint of ['mcp', 'pip', 'dip']) {
@@ -4567,11 +4630,9 @@ function calibUpdateReadouts(landmarks) {
       const jDef = CALIB_FINGERS[finger][joint];
       if (!jDef) continue;
       const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
-      if (!valEl || !barEl) continue;
+      if (!valEl) continue;
       const smoothed = calibComputeJoint(jDef, landmarks, threshold);
       valEl.textContent = Math.min(smoothed, CALIB_JOINT_MAX[joint]) + '°';
-      barEl.style.width = Math.min(100, (smoothed / CALIB_JOINT_MAX[joint]) * 100) + '%';
     }
   }
 }
@@ -4580,10 +4641,9 @@ function calibUpdateReadouts(landmarks) {
 function calibClearReadouts() {
   for (const finger of Object.keys(CALIB_FINGERS)) {
     for (const joint of ['mcp', 'pip', 'dip']) {
+      if (!calibActiveJoints[finger][joint]) continue;
       const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
       if (valEl) valEl.textContent = '—';
-      if (barEl) barEl.style.width = '0%';
     }
   }
   calibClearBuffers();
@@ -4598,9 +4658,9 @@ function calibDrawLandmarks(ctx, landmarks) {
     const x = lm.x * ctx.canvas.width;
     const y = lm.y * ctx.canvas.height;
     ctx.beginPath();
-    ctx.arc(x, y, CALIB_TIP_INDICES.has(i) ? 7 : 4, 0, Math.PI * 2);
-    ctx.fillStyle   = CALIB_TIP_INDICES.has(i) ? '#00e5c0' : 'rgba(0,229,192,0.7)';
-    ctx.shadowBlur  = CALIB_TIP_INDICES.has(i) ? 14 : 5;
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle   = 'rgba(0,229,192,0.7)';
+    ctx.shadowBlur  = 5;
     ctx.shadowColor = '#00e5c0';
     ctx.fill();
     ctx.shadowBlur  = 0;
@@ -4645,8 +4705,9 @@ function calibOnResults(results) {
     calibSetStatus('Tracking active', 'active');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
     for (const landmarks of results.multiHandLandmarks) {
-      // Remap landmarks into cropped square coordinate space for drawing
-      const drawLandmarks = landmarks.map(lm => ({
+      // Smooth → shift tips toward palm → remap into cropped square space for drawing
+      const smoothed = shiftTipsTowardPalm(calibSmoothLandmarks(landmarks));
+      const drawLandmarks = smoothed.map(lm => ({
         ...lm,
         x: (lm.x * srcW - cropX) / size,
         y: (lm.y * srcH - cropY) / size,
@@ -4658,6 +4719,7 @@ function calibOnResults(results) {
     calibSetStatus('Point camera at hand', 'idle');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.remove('scanning');
     calibClearReadouts();
+    calibClearLmSmooth();
   }
 
   calibCtx.restore();
@@ -4688,7 +4750,7 @@ async function startCalibration() {
   hands.setOptions({
     maxNumHands: 2,
     modelComplexity: 1,
-    minDetectionConfidence: 0.85,
+    minDetectionConfidence: 0.75,
     minTrackingConfidence: 0.75,
   });
 
