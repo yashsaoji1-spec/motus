@@ -1245,15 +1245,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   border-spacing: 0;
   table-layout: fixed;
 }
-
 .cat-joint-hdr { width: 52px; }
-
-.cat-sep-col {
-  width: 2px;
-  padding: 0;
-  background: var(--accent-glow);
-}
-
+.cat-sep-col { width: 2px; padding: 0; background: var(--accent-glow); }
 .cat-finger-hdr {
   font-family: 'Space Mono', monospace;
   font-size: 0.65rem;
@@ -1264,12 +1257,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   text-transform: uppercase;
   font-weight: 400;
 }
-
-.cat-thumb-hdr {
-  color: var(--accent);
-  font-weight: 700;
-}
-
+.cat-thumb-hdr { color: var(--accent); font-weight: 700; }
 .cat-joint-lbl {
   font-family: 'Space Mono', monospace;
   font-size: 0.75rem;
@@ -1280,7 +1268,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
-
 .cat-joint-sub {
   display: block;
   font-size: 0.5rem;
@@ -1289,13 +1276,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   letter-spacing: 0.06em;
   margin-top: 2px;
 }
-
 .calib-angle-table tbody tr:not(:last-child) .cat-joint-lbl,
 .calib-angle-table tbody tr:not(:last-child) .cat-val,
 .calib-angle-table tbody tr:not(:last-child) .cat-sep-col {
   border-bottom: 1px solid var(--border);
 }
-
 .cat-val {
   font-size: 1.5rem;
   font-weight: 700;
@@ -1307,24 +1292,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   vertical-align: middle;
   font-variant-numeric: tabular-nums;
 }
-
 .cat-thumb-col { padding-right: 8px; }
-
-.cat-val.cat-active {
-  color: var(--accent);
-  background: var(--accent-dim);
-}
-
-.cat-val.cat-inactive {
-  color: var(--border);
-  background: transparent;
-}
-
-.cat-val.cat-disabled {
-  color: var(--border);
-  opacity: 0.25;
-  pointer-events: none;
-}
+.cat-val.cat-active { color: var(--accent); background: var(--accent-dim); }
+.cat-val.cat-inactive { color: var(--border); background: transparent; }
+.cat-val.cat-disabled { color: var(--border); opacity: 0.25; pointer-events: none; }
 
 /* Calibration footer */
 .calib-footer {
@@ -1399,15 +1370,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .calib-right-col { overflow: visible; flex: none; }
   .calib-readout-panel { overflow-y: visible; flex: none; }
   .calib-camera-col { flex: none; width: 100%; height: auto; }
-  /* On mobile the video is drawn to canvas; let canvas define the height naturally */
-  .calib-camera-wrap { height: auto; overflow: hidden; }
-  #calibVideo { display: none; }
-  #calibCanvas {
-    position: static;
-    width: 100%; height: auto;
-    display: block;
-    transform: scaleX(-1);
-  }
+  .calib-camera-wrap { height: auto; aspect-ratio: 4/3; }
 }
 
 /* ── Messaging screen ─────────────────────────────────────────────────────── */
@@ -1481,3 +1444,4 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   line-height: 1.5;
 }
 .therapist-msg-send { padding: 8px 16px; background: #005EB8; color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-family: inherit; font-weight: 600; }
+

@@ -23,7 +23,6 @@ let selectedProtocol = null;
 let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
-let inactivityTimer = null;
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -44,48 +43,6 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const db   = firebase.firestore();
 const auth = firebase.auth();
 
-// ── Audit logging — append-only PHI access/write log ──────────────────────
-async function logAudit(action, details = {}) {
-  try {
-    await db.collection('auditLog').add({
-      user:      currentUser?.email || 'unknown',
-      action,
-      details,
-      timestamp: new Date().toISOString()
-    });
-  } catch (e) {
-    // Never let audit failures break the app; silently warn in console
-    console.warn('Audit log write failed:', e);
-  }
-}
-
-// ── Session timeout — auto-logout after 15 min inactivity ─────────────────
-const INACTIVITY_MS = 15 * 60 * 1000; // 15 minutes
-
-function resetInactivityTimer() {
-  if (!currentUser) return;
-  clearTimeout(inactivityTimer);
-  inactivityTimer = setTimeout(() => {
-    console.info('PhalanX: session timed out due to inactivity');
-    logout();
-  }, INACTIVITY_MS);
-}
-
-function startInactivityTimer() {
-  resetInactivityTimer();
-  ['click', 'keypress', 'mousemove', 'touchstart', 'scroll'].forEach(evt =>
-    document.addEventListener(evt, resetInactivityTimer, { passive: true })
-  );
-}
-
-function stopInactivityTimer() {
-  clearTimeout(inactivityTimer);
-  inactivityTimer = null;
-  ['click', 'keypress', 'mousemove', 'touchstart', 'scroll'].forEach(evt =>
-    document.removeEventListener(evt, resetInactivityTimer)
-  );
-}
-
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
   if (!firebaseUser) {
@@ -95,14 +52,12 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     return;
   }
   try {
-    await firebaseUser.getIdToken(true); // ensure auth token is propagated to Firestore
     const snap = await db.collection('users').doc(firebaseUser.email).get();
     currentUser = { email: firebaseUser.email, ...snap.data() };
     currentRole = currentUser.role;
     await loginSuccess();
   } catch (e) {
     console.error('onAuthStateChanged error:', e);
-    await auth.signOut(); // clear stale session so user can log in fresh
     showScreen('loginScreen');
   }
 });
@@ -303,7 +258,6 @@ async function skipConnect() {
    ══════════════════════════════════════════════════════════════════════════ */
 
 async function loginSuccess() {
-  startInactivityTimer();
   if (currentRole === 'admin') {
     showScreen('adminScreen');
     await loadAdminScreen();
@@ -314,41 +268,19 @@ async function loginSuccess() {
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
-    // patient — require consent before any PHI screen
-    if (!currentUser.consentGiven) {
-      showScreen('consentScreen');
-      return;
+    // patient
+    const therapistEmail = await getConnectedTherapist();
+    if (therapistEmail) {
+      showScreen('patientScreen');
+      await updatePatientHomeScreen();
+      await initSetTracker();
+    } else {
+      showScreen('connectScreen');
     }
-    await routePatient();
   }
-}
-
-// Shared patient routing (called after consent is confirmed)
-async function routePatient() {
-  const therapistEmail = await getConnectedTherapist();
-  if (therapistEmail) {
-    showScreen('patientScreen');
-    await updatePatientHomeScreen();
-    await initSetTracker();
-  } else {
-    showScreen('connectScreen');
-  }
-}
-
-async function acceptConsent() {
-  const timestamp = new Date().toISOString();
-  await db.collection('users').doc(currentUser.email).update({
-    consentGiven:     true,
-    consentTimestamp: timestamp
-  });
-  currentUser.consentGiven     = true;
-  currentUser.consentTimestamp = timestamp;
-  await logAudit('consent_accepted', { patientEmail: currentUser.email });
-  await routePatient();
 }
 
 function logout() {
-  stopInactivityTimer();
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
   if (restTimerInterval) { clearInterval(restTimerInterval); restTimerInterval = null; }
@@ -649,7 +581,6 @@ async function deleteProtocol(patientEmail, protocolId) {
   } else {
     await db.collection('protocols').doc(patientEmail).set({ items: updated });
   }
-  await logAudit('protocol_deleted', { patientEmail, protocolId });
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
@@ -799,7 +730,6 @@ async function assignProtocol(patientEmail) {
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
-  await logAudit('protocol_assigned', { patientEmail, exerciseType });
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
@@ -1039,7 +969,6 @@ function toggleTpSection(id) {
 }
 
 async function showRealPatient(patient) {
-  await logAudit('patient_record_viewed', { patientEmail: patient.email });
   const [sessions, protocols] = await Promise.all([
     getPatientSessions(patient.email),
     getProtocols(patient.email)
@@ -1591,7 +1520,6 @@ async function saveSession() {
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
   await db.collection('sessions').add(doc);
-  await logAudit('session_saved', { patientEmail: doc.patientEmail, exerciseType: doc.exerciseType, protocolId: doc.protocolId });
   jointMaxAngles = {}; // reset after save so each set starts fresh
 }
 
@@ -1786,7 +1714,6 @@ async function completeSessionEarly() {
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
     await db.collection('sessions').add(doc);
-    await logAudit('session_saved_early', { patientEmail: doc.patientEmail, exerciseType: doc.exerciseType, protocolId: doc.protocolId });
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -1822,20 +1749,38 @@ function startCamera() {
     alert('Hands init error: ' + e.message);
     return;
   }
-  hands.setOptions({ maxNumHands: 1, modelComplexity: isMobile() ? 0 : 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
+  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.75 });
+
+  // Per-landmark EMA smoother for drawing — tips use alpha=0.25, joints alpha=0.45
+  const sessionTipIndices = new Set([4, 8, 12, 16, 20]);
+  const sessionLmSmooth = {};
+  function sessionSmoothLandmarks(landmarks) {
+    return landmarks.map((lm, i) => {
+      const alpha = sessionTipIndices.has(i) ? 0.25 : 0.45;
+      const prev  = sessionLmSmooth[i];
+      if (!prev) { sessionLmSmooth[i] = { x: lm.x, y: lm.y }; return lm; }
+      const x = alpha * lm.x + (1 - alpha) * prev.x;
+      const y = alpha * lm.y + (1 - alpha) * prev.y;
+      sessionLmSmooth[i] = { x, y };
+      return { ...lm, x, y };
+    });
+  }
+
   hands.onResults(results => {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (const landmarks of results.multiHandLandmarks) {
-        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
-        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
-        updateRepCount(landmarks);
+        const drawLm = shiftTipsTowardPalm(sessionSmoothLandmarks(landmarks));
+        window.drawConnectors(sessionCtx, drawLm, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
+        window.drawLandmarks(sessionCtx, drawLm, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
+        updateRepCount(landmarks); // raw landmarks for angle math
       }
     } else {
       // No hand detected — reset live TAM display
       const tamValEl = document.getElementById('tamValue');
       if (tamValEl) tamValEl.textContent = '—';
+      for (const k of Object.keys(sessionLmSmooth)) delete sessionLmSmooth[k];
     }
   });
 
@@ -2498,6 +2443,36 @@ const CALIB_FINGER_THRESHOLDS = {
 
 const CALIB_TIP_INDICES = new Set([4, 8, 12, 16, 20]);
 
+// ── Landmark position EMA smoother (calib) ────────────────────────────────────
+// Tips (4,8,12,16,20) use alpha=0.25 (more smoothing); joints use alpha=0.45.
+const calibLmSmooth = {};
+function calibSmoothLandmarks(landmarks) {
+  return landmarks.map((lm, i) => {
+    const alpha = CALIB_TIP_INDICES.has(i) ? 0.25 : 0.45;
+    const prev  = calibLmSmooth[i];
+    if (!prev) { calibLmSmooth[i] = { x: lm.x, y: lm.y }; return lm; }
+    const x = alpha * lm.x + (1 - alpha) * prev.x;
+    const y = alpha * lm.y + (1 - alpha) * prev.y;
+    calibLmSmooth[i] = { x, y };
+    return { ...lm, x, y };
+  });
+}
+function calibClearLmSmooth() { for (const k of Object.keys(calibLmSmooth)) delete calibLmSmooth[k]; }
+
+// ── Shift tip display positions toward palm side ───────────────────────────────
+// Interpolates 35% from tip toward DIP — moves dot off the nail toward the pad.
+// Applied to display landmarks only — angle math uses raw positions.
+const TIP_TO_DIP_IDX = { 4: 3, 8: 7, 12: 11, 16: 15, 20: 19 };
+const TIP_PALM_SHIFT = 0.1;
+function shiftTipsTowardPalm(landmarks) {
+  return landmarks.map((lm, i) => {
+    const dipIdx = TIP_TO_DIP_IDX[i];
+    if (dipIdx === undefined) return lm;
+    const dip = landmarks[dipIdx];
+    return { ...lm, x: lm.x + TIP_PALM_SHIFT * (dip.x - lm.x), y: lm.y + TIP_PALM_SHIFT * (dip.y - lm.y) };
+  });
+}
+
 // ── One Euro Filter (calib-scoped) ────────────────────────────────────────────
 const CALIB_ONE_EURO_MINCUTOFF = 0.3;
 const CALIB_ONE_EURO_BETA      = 0.1;
@@ -2588,7 +2563,7 @@ function calibUpdateFingerToggles() {
   }
 }
 
-// ── Rebuild readout table state ───────────────────────────────────────────────
+// ── Rebuild readout DOM ───────────────────────────────────────────────────────
 function calibRebuildReadouts() {
   for (const finger of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
     for (const joint of ['mcp', 'pip', 'dip']) {
@@ -2604,8 +2579,12 @@ function calibRebuildReadouts() {
   calibUpdateFingerToggles();
 }
 
-// ── Update readouts ───────────────────────────────────────────────────────────
+// ── Update readouts (throttled to 1 Hz for readability) ──────────────────────
+let calibLastDisplayUpdate = 0;
 function calibUpdateReadouts(landmarks) {
+  const now = performance.now();
+  if (now - calibLastDisplayUpdate < 500) return;
+  calibLastDisplayUpdate = now;
   for (const finger of Object.keys(CALIB_FINGERS)) {
     const threshold = CALIB_FINGER_THRESHOLDS[finger];
     for (const joint of ['mcp', 'pip', 'dip']) {
@@ -2641,9 +2620,9 @@ function calibDrawLandmarks(ctx, landmarks) {
     const x = lm.x * ctx.canvas.width;
     const y = lm.y * ctx.canvas.height;
     ctx.beginPath();
-    ctx.arc(x, y, CALIB_TIP_INDICES.has(i) ? 7 : 4, 0, Math.PI * 2);
-    ctx.fillStyle   = CALIB_TIP_INDICES.has(i) ? '#00e5c0' : 'rgba(0,229,192,0.7)';
-    ctx.shadowBlur  = CALIB_TIP_INDICES.has(i) ? 14 : 5;
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle   = 'rgba(0,229,192,0.7)';
+    ctx.shadowBlur  = 5;
     ctx.shadowColor = '#00e5c0';
     ctx.fill();
     ctx.shadowBlur  = 0;
@@ -2667,25 +2646,19 @@ function calibOnResults(results) {
   const calibHandCount = document.getElementById('calibHandCount');
   const calibCameraWrapEl = document.getElementById('calibCameraWrap');
 
+  // Center-crop to square (matches video's object-fit:cover) — from feature/ui
   const srcW = results.image.width;
   const srcH = results.image.height;
+  const size  = Math.min(srcW, srcH);
+  const cropX = (srcW - size) / 2;
+  const cropY = (srcH - size) / 2;
+
+  calibCanvas.width  = size;
+  calibCanvas.height = size;
 
   calibCtx.save();
-
-  if (isMobile()) {
-    // Mobile: canvas is pre-sized from video dimensions — draw full frame, no crop
-    calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
-    calibCtx.drawImage(results.image, 0, 0, calibCanvas.width, calibCanvas.height);
-  } else {
-    // Desktop: center-crop to square (matches object-fit:cover)
-    const size  = Math.min(srcW, srcH);
-    const cropX = (srcW - size) / 2;
-    const cropY = (srcH - size) / 2;
-    calibCanvas.width  = size;
-    calibCanvas.height = size;
-    calibCtx.clearRect(0, 0, size, size);
-    calibCtx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
-  }
+  calibCtx.clearRect(0, 0, size, size);
+  calibCtx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
 
   const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
   if (calibHandCount) calibHandCount.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
@@ -2694,27 +2667,21 @@ function calibOnResults(results) {
     calibSetStatus('Tracking active', 'active');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
     for (const landmarks of results.multiHandLandmarks) {
-      if (isMobile()) {
-        // Landmarks are normalized to full frame — draw directly
-        calibDrawLandmarks(calibCtx, landmarks);
-      } else {
-        // Remap landmarks into cropped square coordinate space for drawing
-        const size  = Math.min(srcW, srcH);
-        const cropX = (srcW - size) / 2;
-        const cropY = (srcH - size) / 2;
-        const drawLandmarks = landmarks.map(lm => ({
-          ...lm,
-          x: (lm.x * srcW - cropX) / size,
-          y: (lm.y * srcH - cropY) / size,
-        }));
-        calibDrawLandmarks(calibCtx, drawLandmarks);
-      }
+      // Smooth → shift tips toward palm → remap into cropped square space for drawing
+      const smoothed = shiftTipsTowardPalm(calibSmoothLandmarks(landmarks));
+      const drawLandmarks = smoothed.map(lm => ({
+        ...lm,
+        x: (lm.x * srcW - cropX) / size,
+        y: (lm.y * srcH - cropY) / size,
+      }));
+      calibDrawLandmarks(calibCtx, drawLandmarks);
       calibUpdateReadouts(landmarks); // original coords for angle math
     }
   } else {
     calibSetStatus('Point camera at hand', 'idle');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.remove('scanning');
     calibClearReadouts();
+    calibClearLmSmooth();
   }
 
   calibCtx.restore();
@@ -2731,12 +2698,9 @@ async function startCalibration() {
 
   if (calibMpCamera) return; // already running
 
-  const calibVideo      = document.getElementById('calibVideo');
-  const calibCanvas     = document.getElementById('calibCanvas');
-  const calibCtx        = calibCanvas.getContext('2d');
-  const calibOverlay    = document.getElementById('calibOverlay');
+  const calibVideo   = document.getElementById('calibVideo');
+  const calibOverlay = document.getElementById('calibOverlay');
   const calibOverlayMsg = document.getElementById('calibOverlayMsg');
-  const wrap            = document.getElementById('calibCameraWrap');
 
   calibSetStatus('Loading...', 'idle');
   if (calibOverlayMsg) calibOverlayMsg.textContent = 'LOADING MEDIAPIPE...';
@@ -2747,8 +2711,8 @@ async function startCalibration() {
 
   hands.setOptions({
     maxNumHands: 2,
-    modelComplexity: isMobile() ? 0 : 1,
-    minDetectionConfidence: 0.85,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.75,
     minTrackingConfidence: 0.75,
   });
 
@@ -2756,87 +2720,31 @@ async function startCalibration() {
 
   if (calibOverlayMsg) calibOverlayMsg.textContent = 'REQUESTING CAMERA...';
 
-  if (isMobile()) {
-    // ── Mobile path: getUserMedia + rAF loop, canvas send (iOS Safari fix) ──
-    let active = true;
-    calibMpCamera = { stop: () => { active = false; } };
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: 1280, height: 720 },
+    });
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      });
+    calibVideo.srcObject = stream;
+    calibVideo.onloadedmetadata = () => calibVideo.play();
+    calibVideo.onplaying = () => {
+      calibVideo.classList.add('ready');
+      if (calibOverlay) calibOverlay.classList.add('hidden');
+      calibSetStatus('Point camera at hand', 'idle');
+    };
 
-      calibVideo.srcObject = stream;
+    calibMpCamera = new window.Camera(calibVideo, {
+      onFrame: async () => { await hands.send({ image: calibVideo }); },
+      width: 1280, height: 720,
+    });
 
-      const TARGET_FPS = 15;
-      const FRAME_MS   = 1000 / TARGET_FPS;
-      let lastFrameTime = 0;
+    calibMpCamera.start();
 
-      const processFrame = async (timestamp) => {
-        if (!active) return;
-        if (timestamp - lastFrameTime >= FRAME_MS && calibVideo.readyState >= 2) {
-          lastFrameTime = timestamp;
-          calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
-          calibCtx.drawImage(calibVideo, 0, 0, calibCanvas.width, calibCanvas.height);
-          try { await hands.send({ image: calibCanvas }); } catch (e) {}
-        }
-        if (active) requestAnimationFrame(processFrame);
-      };
-
-      calibVideo.onloadedmetadata = () => {
-        // Size canvas from actual video — drives natural aspect ratio via CSS height:auto
-        calibCanvas.width  = calibVideo.videoWidth;
-        calibCanvas.height = calibVideo.videoHeight;
-        calibVideo.play();
-        if (calibOverlay) calibOverlay.classList.add('hidden');
-        calibSetStatus('Point camera at hand', 'idle');
-        requestAnimationFrame(processFrame);
-      };
-
-      calibMpCamera = {
-        stop: () => {
-          active = false;
-          stream.getTracks().forEach(t => t.stop());
-          calibVideo.srcObject = null;
-        },
-      };
-
-    } catch (err) {
-      if (calibOverlay) calibOverlay.classList.remove('hidden');
-      if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
-      calibSetStatus('Camera denied', 'error');
-      console.error(err);
-    }
-
-  } else {
-    // ── Desktop path: MediaPipe Camera class ──
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 1280, height: 720 },
-      });
-
-      calibVideo.srcObject = stream;
-      calibVideo.onloadedmetadata = () => calibVideo.play();
-      calibVideo.onplaying = () => {
-        calibVideo.classList.add('ready');
-        if (calibOverlay) calibOverlay.classList.add('hidden');
-        calibSetStatus('Point camera at hand', 'idle');
-      };
-
-      calibMpCamera = new window.Camera(calibVideo, {
-        onFrame: async () => { await hands.send({ image: calibVideo }); },
-        width: 1280, height: 720,
-      });
-
-      calibMpCamera.start();
-
-    } catch (err) {
-      if (calibOverlay) calibOverlay.classList.remove('hidden');
-      if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
-      calibSetStatus('Camera denied', 'error');
-      console.error(err);
-    }
+  } catch (err) {
+    if (calibOverlay) calibOverlay.classList.remove('hidden');
+    if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
+    calibSetStatus('Camera denied', 'error');
+    console.error(err);
   }
 }
 
@@ -2956,7 +2864,6 @@ async function sendMessage(from, to, text) {
     from, to, participants: [from, to],
     text: text.trim(), timestamp: new Date().toISOString(), read: false
   });
-  await logAudit('message_sent', { from, to });
 }
 
 async function markRead(toEmail, fromEmail) {
@@ -3037,7 +2944,6 @@ Object.assign(window, {
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
   logout, requestLogout, closeLogoutModal, confirmLogout,
-  acceptConsent,
   approveTherapist, rejectTherapist,
 
   // Navigation
