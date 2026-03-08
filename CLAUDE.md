@@ -1,4 +1,4 @@
-# Last updated: 2026-03-08 (Per-patient angle calibration; therapist onboarding modal; hyperextension sign fix)
+# Last updated: 2026-03-08 (Per-patient angle calibration; therapist onboarding modal + in-page guide; hyperextension sign fix)
 
 # PhalanX — Claude Code Guide
 
@@ -40,9 +40,9 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 
 ```
 code/
-  index.html      — HTML screens only (~680 lines)
-  app.js          — All JS as ES module (~3200 lines)
-  styles.css      — All CSS (~1800 lines)
+  index.html      — HTML screens only (743 lines)
+  app.js          — All JS as ES module (3336 lines)
+  styles.css      — All CSS (1923 lines)
 vite.config.mjs   — Vite config (outDir: dist)
 firestore.rules   — Firestore security rules
 public/
@@ -85,7 +85,7 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 
 | Collection      | Document ID          | Fields |
 |-----------------|----------------------|--------|
-| `users`         | `{email}`            | `{ name, role }` |
+| `users`         | `{email}`            | `{ name, role, onboardingDone? }` |
 | `connections`   | `{therapistEmail}`   | `{ patients: [email, …] }` |
 | `protocols`     | `{patientEmail}`     | `{ items: [{ id, exerciseType, reps, sets, frequency, assignedBy, notes?, exerciseParams? }, …] }` |
 | `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles? }` |
@@ -168,10 +168,16 @@ In the patient panel, open **Add Exercise to Protocol**. Choose exercise type, r
 **Step 4 — Monitor their progress**
 After sessions: open the patient panel to review ROM/pain charts, Joint Monitoring (per-joint peak angles per session), and full session history.
 
+### In-page guide (always visible)
+When no patient is selected the main panel shows a full **Getting Started** card (`div.tp-empty-guide`) with 4 numbered steps and word-for-word instructions including exact button names. This is the primary reference — the modal is just a quick orientation.
+
+### Sidebar button
+A **"? Tutorial"** button sits in `sidebar-footer` directly above "Switch User". Calls `showTherapistOnboarding()` to reopen the modal at any time.
+
 ### Implementation notes
-- `showTherapistOnboarding()` — called from `loginSuccess()` when `!currentUser.onboardingDone`
+- `showTherapistOnboarding()` — called from `loginSuccess()` when `!currentUser.onboardingDone`; also exported for sidebar onclick
 - `dismissTherapistOnboarding()` — hides modal, writes `{ onboardingDone: true }` to `users/{email}`
-- Modal is an overlay (`display:none` → `display:flex`) sitting above all screens, same z-index pattern as `#logoutModal`
+- Modal is an overlay (`display:none` → `display:flex`) capped at `max-height: calc(100vh - 48px)` so it never overflows the viewport
 - `users/{email}` now has an optional `onboardingDone: boolean` field (old docs without it are treated as `false`)
 
 ## Role Split
