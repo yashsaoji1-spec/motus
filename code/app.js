@@ -95,12 +95,14 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     return;
   }
   try {
+    await firebaseUser.getIdToken(true); // ensure auth token is propagated to Firestore
     const snap = await db.collection('users').doc(firebaseUser.email).get();
     currentUser = { email: firebaseUser.email, ...snap.data() };
     currentRole = currentUser.role;
     await loginSuccess();
   } catch (e) {
     console.error('onAuthStateChanged error:', e);
+    await auth.signOut(); // clear stale session so user can log in fresh
     showScreen('loginScreen');
   }
 });

@@ -1,4 +1,4 @@
-# Last updated: 2026-03-03 (iOS Safari hand tracking fix — canvas instead of video)
+# Last updated: 2026-03-07 (Fix login: force token refresh + sign-out on Firestore auth error; revert to simple Firestore rules)
 
 # PhalanX — Claude Code Guide
 
@@ -39,10 +39,12 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 ## File Structure
 
 ```
-index.html        — all HTML screens (485 lines)
-app.js            — all JS logic (15 sections + Section 5b + window exports block, 2721 lines)
-styles.css        — all styles (1107 lines)
+code/
+  index.html      — all HTML screens (4951 lines)
+  app.js          — all JS logic (15 sections + Section 5b + window exports block, 3096 lines)
+  styles.css      — all styles (1456 lines)
 vite.config.mjs   — Vite config (outDir: dist)
+firestore.rules   — Firestore security rules
 public/
   404.html        — Firebase 404 page (copied verbatim to dist/ by Vite)
 dist/             — build output (gitignored); deploy this to Firebase Hosting
@@ -188,7 +190,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 
 | Section | Topic |
 |---------|-------|
-| 1   | Auth & State — Firebase init, `onAuthStateChanged`, async Firestore helpers; globals: `selectedProtocol`, `_exercisesProtocols`, `trackedJoints`, `jointMaxAngles` |
+| 1   | Auth & State — Firebase init, `onAuthStateChanged` (calls `getIdToken(true)` before Firestore read to fix auth token race condition; calls `auth.signOut()` in catch to clear stale sessions), async Firestore helpers; globals: `selectedProtocol`, `_exercisesProtocols`, `trackedJoints`, `jointMaxAngles` |
 | 2   | Navigation — `showScreen()` (also stops `mpCamera` on leave), `screenTitles` map |
 | 3   | Login / Signup / Forgot — async Firebase Auth handlers; therapist signup writes `therapist_pending` role |
 | 4   | Connect — therapist code linking flow (async Firestore) |
@@ -248,7 +250,7 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 
 - [ ] **CRITICAL: Set up Google Workspace + Google Cloud Organization** — The Firebase project is currently on a personal Google account. Google will NOT sign a HIPAA Business Associate Agreement (BAA) for personal accounts. You MUST migrate to a Google Cloud Organization (requires Google Workspace, ~$6/user/month) before handling any real patient data. Without a BAA, storing PHI in Firestore is a HIPAA violation regardless of security rules. Steps: (1) Create a Google Workspace account for your org. (2) Move or recreate the Firebase project under that org. (3) Accept the Google Cloud BAA at console.cloud.google.com → IAM & Admin → Settings.
 - [ ] **Sign the Google Cloud BAA** — Once on a Cloud Organization, accept the BAA in GCP Console. This is a legal contract with Google; without it no technical safeguard is sufficient for HIPAA.
-- [x] **Tighten Firestore security rules** — Done. `firestore.rules` deployed. Patients can only access their own data; therapists can only access connected patients.
+- [ ] **Tighten Firestore security rules** — Reverted to simple permissive rules (`allow read, write: if request.auth != null`) after the tightened rules caused a login breakage (Firestore permission errors on `users/{email}` read — root cause unresolved). Must be re-investigated and re-deployed before going to production.
 - [x] **Add audit logging** — Implemented. `logAudit()` writes to `auditLog` collection on: session save, early session end, protocol assign/delete, patient record viewed, message sent, consent accepted. Append-only; only admins can read via Firestore rules.
 - [x] **Add patient consent screen** — Implemented. `consentScreen` shown to patients on first login. Acceptance writes `consentGiven: true` + `consentTimestamp` to `users/{email}`. Stored in Firestore, logged to `auditLog`.
 - [x] **Add session timeout** — Implemented. 15-minute inactivity timer via `startInactivityTimer()` / `stopInactivityTimer()`. Resets on click, keypress, mousemove, touchstart, scroll. Timer starts on login, clears on logout.
