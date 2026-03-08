@@ -2588,46 +2588,18 @@ function calibUpdateFingerToggles() {
   }
 }
 
-// ── Rebuild readout DOM ───────────────────────────────────────────────────────
+// ── Rebuild readout table state ───────────────────────────────────────────────
 function calibRebuildReadouts() {
-  const panel = document.getElementById('calibReadoutPanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  let count = 0;
-
   for (const finger of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
-    const hasActive = ['mcp','pip','dip'].some(j =>
-      calibActiveJoints[finger][j] && !(finger === 'thumb' && j === 'dip') && CALIB_FINGERS[finger][j]
-    );
-    if (!hasActive) continue;
-
-    const label = document.createElement('div');
-    label.className = 'calib-readout-group-label';
-    label.innerHTML = `<strong>${CALIB_FINGER_FULL[finger]}</strong>`;
-    panel.appendChild(label);
-
     for (const joint of ['mcp', 'pip', 'dip']) {
-      if (!calibActiveJoints[finger][joint]) continue;
-      if (finger === 'thumb' && joint === 'dip') continue;
-
-      const row = document.createElement('div');
-      row.className = 'calib-readout-row';
-      row.id = `calib-readout-${finger}-${joint}`;
-      row.innerHTML = `
-        <div class="calib-readout-label">
-          <span>${CALIB_FINGER_FULL[finger]} ${calibJointLabel(finger, joint)}</span>
-          <span class="calib-readout-val" id="calib-rval-${finger}-${joint}">—</span>
-        </div>
-        <div class="calib-readout-bar-wrap">
-          <div class="calib-readout-bar" id="calib-rbar-${finger}-${joint}"></div>
-        </div>`;
-      panel.appendChild(row);
-      count++;
+      const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
+      if (!valEl) continue;
+      if (finger === 'thumb' && joint === 'dip') continue; // always disabled
+      const isActive = calibActiveJoints[finger][joint];
+      valEl.classList.toggle('cat-active', isActive);
+      valEl.classList.toggle('cat-inactive', !isActive);
+      if (!isActive) valEl.textContent = '—';
     }
-  }
-
-  if (count === 0) {
-    panel.innerHTML = '<div class="calib-readout-empty">No joints selected</div>';
   }
   calibUpdateFingerToggles();
 }
@@ -2641,11 +2613,9 @@ function calibUpdateReadouts(landmarks) {
       const jDef = CALIB_FINGERS[finger][joint];
       if (!jDef) continue;
       const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
-      if (!valEl || !barEl) continue;
+      if (!valEl) continue;
       const smoothed = calibComputeJoint(jDef, landmarks, threshold);
       valEl.textContent = Math.min(smoothed, CALIB_JOINT_MAX[joint]) + '°';
-      barEl.style.width = Math.min(100, (smoothed / CALIB_JOINT_MAX[joint]) * 100) + '%';
     }
   }
 }
@@ -2654,10 +2624,9 @@ function calibUpdateReadouts(landmarks) {
 function calibClearReadouts() {
   for (const finger of Object.keys(CALIB_FINGERS)) {
     for (const joint of ['mcp', 'pip', 'dip']) {
+      if (!calibActiveJoints[finger][joint]) continue;
       const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
       if (valEl) valEl.textContent = '—';
-      if (barEl) barEl.style.width = '0%';
     }
   }
   calibClearBuffers();
