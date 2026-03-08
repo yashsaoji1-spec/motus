@@ -361,13 +361,60 @@
       <span class="calib-icon">🔬</span>
       Joint Angle Calibration
     </button>
+    <button class="tp-how-to-btn" onclick="showTherapistOnboarding()">? How to use phalanX</button>
     <div class="sidebar-footer">
       <button class="logout-btn" onclick="requestLogout()" style="width:100%">Switch User</button>
     </div>
   </div>
   <div class="main-panel" id="mainPanel">
-    <div class="empty-state">
-      <p>← Select a patient to view their progress</p>
+    <div class="tp-empty-guide">
+      <div class="tp-eg-header">
+        <div class="tp-eg-title">Getting Started</div>
+        <div class="tp-eg-subtitle">Follow these steps with each new patient.</div>
+      </div>
+      <div class="tp-eg-steps">
+
+        <div class="tp-eg-step">
+          <div class="tp-eg-num">1</div>
+          <div class="tp-eg-body">
+            <div class="tp-eg-step-title">Give your patient your clinic code</div>
+            <div class="tp-eg-step-desc">Your code is displayed on the left under <strong>YOUR CLINIC CODE</strong>. Have your patient open phalanX, create a patient account, and type in that code. Their name will appear in your sidebar once they've connected.</div>
+          </div>
+        </div>
+
+        <div class="tp-eg-step">
+          <div class="tp-eg-num">2</div>
+          <div class="tp-eg-body">
+            <div class="tp-eg-step-title">Calibrate their hand — do this in person before the first session</div>
+            <div class="tp-eg-step-desc">Click the patient's name in the sidebar. At the top of their panel, press <strong>Calibrate Patient</strong>. The camera will open. Guide the patient through 3 poses one at a time:<br><br>
+              <strong>Pose 1 — Extension:</strong> Patient holds their hand completely flat and straight.<br>
+              <strong>Pose 2 — Mid-range:</strong> Patient bends all fingers to about halfway.<br>
+              <strong>Pose 3 — Full flexion:</strong> Patient curls fingers in as far as they can go.<br><br>
+              At each pose: press <strong>Capture 3s Sample</strong>, wait 3 seconds, then type your goniometer reading for each joint into the <strong>True °</strong> column. Press <strong>Next Pose</strong>. After the third pose, press <strong>Save Calibration</strong>. Done — the app will now correct its own angle errors for this patient automatically.</div>
+          </div>
+        </div>
+
+        <div class="tp-eg-step">
+          <div class="tp-eg-num">3</div>
+          <div class="tp-eg-body">
+            <div class="tp-eg-step-title">Assign an exercise</div>
+            <div class="tp-eg-step-desc">In the patient panel, scroll down and click <strong>Add Exercise to Protocol</strong> to expand it. Choose an exercise type from the dropdown, set the number of reps, sets, and how often (e.g. daily). Press <strong>Save Protocol</strong>. The patient will immediately see a <strong>Start a Session</strong> button on their home screen.</div>
+          </div>
+        </div>
+
+        <div class="tp-eg-step">
+          <div class="tp-eg-num">4</div>
+          <div class="tp-eg-body">
+            <div class="tp-eg-step-title">Track their progress after each session</div>
+            <div class="tp-eg-step-desc">Click the patient's name any time to open their panel. You'll see:<br><br>
+              <strong>ROM chart</strong> — range of motion over time<br>
+              <strong>Pain chart</strong> — self-reported pain after each session<br>
+              <strong>Joint Monitoring</strong> — click to expand, select which joints to track; peak angles are recorded every session<br>
+              <strong>Session History</strong> — full log of every completed session</div>
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
 </div>
@@ -625,8 +672,8 @@
   <div class="modal-box tob-box">
     <div class="tob-header">
       <div class="tob-logo">phalanX<span>.dev</span></div>
-      <h2 class="tob-title">Welcome to phalanX</h2>
-      <p class="tob-subtitle">Here's how to get your first patient up and running.</p>
+      <h2 class="tob-title">Welcome. Here's exactly what to do.</h2>
+      <p class="tob-subtitle">A full guide is always available on your dashboard. This is a quick overview.</p>
     </div>
 
     <ol class="tob-steps">
@@ -634,11 +681,9 @@
       <li class="tob-step">
         <div class="tob-step-num">1</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Connect your patient to you</div>
+          <div class="tob-step-title">Give your patient your clinic code</div>
           <div class="tob-step-desc">
-            Look at the <strong>left sidebar</strong> — you'll see a large number under "YOUR CLINIC CODE". That's your unique code.
-            <br><br>
-            Tell your patient to download phalanX, create a patient account, and enter that code when prompted. Once they do, their name will appear in your sidebar.
+            Your code is the big number on the left sidebar. Tell your patient to open phalanX, make a <em>patient</em> account, and type in your code. Their name will then appear in your sidebar.
           </div>
         </div>
       </li>
@@ -646,17 +691,11 @@
       <li class="tob-step">
         <div class="tob-step-num">2</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Calibrate their hand angles <span class="tob-badge">Do this in-person</span></div>
+          <div class="tob-step-title">Calibrate their hand <span class="tob-badge">In-person · Do first</span></div>
           <div class="tob-step-desc">
-            Click the patient's name in the sidebar. At the top of their panel, click <strong>Calibrate Patient</strong>.
-            <br><br>
-            You'll see a live camera view. Walk the patient through <strong>3 hand poses</strong>:
-            <ul class="tob-list">
-              <li><strong>Extension</strong> — hand held flat and straight</li>
-              <li><strong>Mid-range</strong> — fingers bent halfway</li>
-              <li><strong>Full flexion</strong> — fingers bent as far as possible</li>
-            </ul>
-            At each pose, hit <strong>Capture 3s Sample</strong>, then type the angle your goniometer reads for each joint into the <strong>True °</strong> column. Hit <strong>Next Pose</strong> after each one, then <strong>Save Calibration</strong>. This corrects the camera's measurement errors for this patient's specific hand.
+            Click their name → press <strong>Calibrate Patient</strong> → camera opens.<br>
+            Guide them through 3 poses. At each one, press <strong>Capture 3s Sample</strong>, then enter your goniometer reading for each joint in the <strong>True °</strong> column, then press <strong>Next Pose</strong>.<br>
+            After pose 3, press <strong>Save Calibration</strong>. The app will now automatically correct its angle readings for this patient.
           </div>
         </div>
       </li>
@@ -664,11 +703,9 @@
       <li class="tob-step">
         <div class="tob-step-num">3</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Assign an exercise protocol</div>
+          <div class="tob-step-title">Assign an exercise</div>
           <div class="tob-step-desc">
-            In the patient panel, scroll down and open <strong>Add Exercise to Protocol</strong>. Choose an exercise type (e.g. Full Fist, Finger Extension), set the number of reps, sets, and how often. Hit <strong>Save Protocol</strong>.
-            <br><br>
-            The patient's app will immediately show the exercise on their home screen with a <strong>Start a Session</strong> button.
+            In their panel, open <strong>Add Exercise to Protocol</strong> → pick exercise, set reps/sets/frequency → <strong>Save Protocol</strong>. The patient sees it instantly on their home screen.
           </div>
         </div>
       </li>
@@ -676,21 +713,18 @@
       <li class="tob-step">
         <div class="tob-step-num">4</div>
         <div class="tob-step-body">
-          <div class="tob-step-title">Monitor their progress</div>
+          <div class="tob-step-title">Check progress after sessions</div>
           <div class="tob-step-desc">
-            After the patient completes sessions, come back to their panel to review:
-            <ul class="tob-list">
-              <li><strong>ROM and Pain charts</strong> — range of motion and pain rating over time</li>
-              <li><strong>Joint Monitoring</strong> — toggle which joints you want tracked; peak angles are recorded each session and plotted as a chart</li>
-              <li><strong>Session History</strong> — full log of every session with reps, ROM, TAM, and pain</li>
-            </ul>
+            Open any patient panel to see ROM chart, Pain chart, Joint Monitoring (per-joint peak angles), and full Session History.
           </div>
         </div>
       </li>
 
     </ol>
 
-    <button class="tob-confirm-btn" onclick="dismissTherapistOnboarding()">Got it — let's start</button>
+    <div class="tob-tip">The full step-by-step guide with exact instructions is on your dashboard — press <strong>? How to use phalanX</strong> in the sidebar any time.</div>
+
+    <button class="tob-confirm-btn" onclick="dismissTherapistOnboarding()">Got it — take me to my dashboard</button>
   </div>
 </div>
 

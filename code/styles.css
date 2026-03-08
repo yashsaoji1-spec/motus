@@ -1552,6 +1552,102 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .tob-list li { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
 .tob-list li strong { color: var(--text); }
+.tob-tip {
+  padding: 12px 28px;
+  background: #f0f7ff;
+  font-size: 0.82rem;
+  color: #1e40af;
+  line-height: 1.5;
+  border-top: 1px solid #bfdbfe;
+}
+.tob-tip strong { color: #1e3a8a; }
+
+/* ── How to use button in sidebar ───────────────────────────────────────────── */
+.tp-how-to-btn {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 8px 16px 0;
+  padding: 10px 14px;
+  background: none;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tp-how-to-btn:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Empty state guide (shown before any patient is selected) ───────────────── */
+.tp-empty-guide {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+.tp-eg-header {
+  margin-bottom: 24px;
+}
+.tp-eg-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.tp-eg-subtitle {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.tp-eg-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.tp-eg-step {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.tp-eg-step:last-child { border-bottom: none; }
+.tp-eg-num {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.tp-eg-step-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.tp-eg-step-desc {
+  font-size: 0.84rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+.tp-eg-step-desc strong { color: var(--text); }
 
 /* ── Calibrate Patient button (therapist panel) ─────────────────────────────── */
 .tp-calibrate-btn {

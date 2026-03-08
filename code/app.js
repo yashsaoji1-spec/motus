@@ -3321,7 +3321,7 @@ Object.assign(window, {
 
   // Therapist panel
   startCalibration, calibBack,
-  dismissTherapistOnboarding,
+  showTherapistOnboarding, dismissTherapistOnboarding,
   startPatientCalibration, pcalibCapture, pcalibNextPose, pcalibSave, pcalibBack,
   backToPatientList, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
