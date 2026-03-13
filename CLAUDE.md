@@ -1,4 +1,4 @@
-# Last updated: 2026-03-08 (Per-patient angle calibration; therapist onboarding modal + in-page guide; hyperextension sign fix)
+# Last updated: 2026-03-03 (iOS Safari hand tracking fix — canvas instead of video)
 
 # PhalanX — Claude Code Guide
 
@@ -39,12 +39,10 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 ## File Structure
 
 ```
-code/
-  index.html      — HTML screens only (743 lines)
-  app.js          — All JS as ES module (3336 lines)
-  styles.css      — All CSS (1923 lines)
+index.html        — all HTML screens (485 lines)
+app.js            — all JS logic (15 sections + Section 5b + window exports block, 2721 lines)
+styles.css        — all styles (1107 lines)
 vite.config.mjs   — Vite config (outDir: dist)
-firestore.rules   — Firestore security rules
 public/
   404.html        — Firebase 404 page (copied verbatim to dist/ by Vite)
 dist/             — build output (gitignored); deploy this to Firebase Hosting
@@ -85,13 +83,12 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 
 | Collection      | Document ID          | Fields |
 |-----------------|----------------------|--------|
-| `users`         | `{email}`            | `{ name, role, onboardingDone? }` |
+| `users`         | `{email}`            | `{ name, role }` |
 | `connections`   | `{therapistEmail}`   | `{ patients: [email, …] }` |
 | `protocols`     | `{patientEmail}`     | `{ items: [{ id, exerciseType, reps, sets, frequency, assignedBy, notes?, exerciseParams? }, …] }` |
 | `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles? }` |
 | `messages`      | auto-id              | `{ from, to, participants, text, timestamp, read }` |
 | `jointTracking` | `{patientEmail}`     | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
-| `calibration`   | `{patientEmail}`     | `{ createdAt, createdBy, joints: { 'index-pip': { points: [{raw, trueVal}, …] }, … } }` — per-patient angle calibration |
 
 **Backward compat:** old `protocols` docs with a flat object (no `items` array) are transparently wrapped by `getProtocols()` as `[{ id: 'legacy', ...data }]`.
 
@@ -142,43 +139,7 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `therapistScreen`   | Therapist dashboard (patient list + collapsible sections: charts, joint monitoring, session history, protocol form, messages) |
 | `progressScreen`    | Patient progress history                                       |
 | `messagingScreen`   | In-app patient↔therapist messaging thread                      |
-| `calibrationScreen`        | Joint angle calibration tool (MediaPipe read-out, therapist-facing) |
-| `patientCalibrationScreen` | 3-pose per-patient calibration flow (therapist-initiated from patient panel) |
-
-## Therapist Onboarding
-
-A one-time modal (`#therapistOnboardingModal`) is shown to every therapist on their **first login**. It is dismissed by clicking "Got it — let's go", which sets `onboardingDone: true` on `users/{email}` in Firestore. Subsequent logins skip the modal.
-
-### What the modal tells the therapist (exact order)
-
-**Step 1 — Connect your patient to you**
-Look at the left sidebar — you'll see a large number under "YOUR CLINIC CODE". Tell your patient to create a patient account and enter that code when prompted. Once they do, their name will appear in your sidebar.
-
-**Step 2 — Calibrate their hand angles** *(do this in-person first)*
-Click the patient's name → click **Calibrate Patient** at the top of their panel. Walk through 3 poses:
-- Extension — hand held flat and straight
-- Mid-range — fingers bent halfway
-- Full flexion — fingers bent as far as possible
-
-At each pose: hit **Capture 3s Sample**, type the goniometer reading for each joint into the **True °** column, hit **Next Pose**. After the third pose hit **Save Calibration**. All future session angles are automatically corrected for this patient.
-
-**Step 3 — Assign an exercise protocol**
-In the patient panel, open **Add Exercise to Protocol**. Choose exercise type, reps, sets, frequency → **Save Protocol**. The patient sees it immediately on their home screen.
-
-**Step 4 — Monitor their progress**
-After sessions: open the patient panel to review ROM/pain charts, Joint Monitoring (per-joint peak angles per session), and full session history.
-
-### In-page guide (always visible)
-When no patient is selected the main panel shows a full **Getting Started** card (`div.tp-empty-guide`) with 4 numbered steps and word-for-word instructions including exact button names. This is the primary reference — the modal is just a quick orientation.
-
-### Sidebar button
-A **"? Tutorial"** button sits in `sidebar-footer` directly above "Switch User". Calls `showTherapistOnboarding()` to reopen the modal at any time.
-
-### Implementation notes
-- `showTherapistOnboarding()` — called from `loginSuccess()` when `!currentUser.onboardingDone`; also exported for sidebar onclick
-- `dismissTherapistOnboarding()` — hides modal, writes `{ onboardingDone: true }` to `users/{email}`
-- Modal is an overlay (`display:none` → `display:flex`) capped at `max-height: calc(100vh - 48px)` so it never overflows the viewport
-- `users/{email}` now has an optional `onboardingDone: boolean` field (old docs without it are treated as `false`)
+| `calibrationScreen` | Joint angle calibration (MediaPipe read-out)                   |
 
 ## Role Split
 
@@ -227,7 +188,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 
 | Section | Topic |
 |---------|-------|
-| 1   | Auth & State — Firebase init, `onAuthStateChanged` (calls `getIdToken(true)` before Firestore read to fix auth token race condition; calls `auth.signOut()` in catch to clear stale sessions), async Firestore helpers; globals: `selectedProtocol`, `_exercisesProtocols`, `trackedJoints`, `jointMaxAngles` |
+| 1   | Auth & State — Firebase init, `onAuthStateChanged`, async Firestore helpers; globals: `selectedProtocol`, `_exercisesProtocols`, `trackedJoints`, `jointMaxAngles` |
 | 2   | Navigation — `showScreen()` (also stops `mpCamera` on leave), `screenTitles` map |
 | 3   | Login / Signup / Forgot — async Firebase Auth handlers; therapist signup writes `therapist_pending` role |
 | 4   | Connect — therapist code linking flow (async Firestore) |
@@ -235,15 +196,14 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 5b  | Admin Panel — `loadAdminScreen()`, `approveTherapist()`, `rejectTherapist()` |
 | 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionWithProtocol` (async — loads `trackedJoints`), `startScanSession` |
 | 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends), `deleteProtocol` (removes by id), `normalizeExerciseParams`, `loadTrackedJoints`, `saveTrackedJoints` |
-| 8   | Therapist Panel — `showTherapistOnboarding` / `dismissTherapistOnboarding` (first-login modal, sets `onboardingDone: true` in Firestore); `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button) |
+| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory`, `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button) |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`) |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`) |
-| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS); MediaPipe options: `modelComplexity:1` always, `minDetectionConfidence:0.75`, `minTrackingConfidence:0.75`; per-landmark EMA smoother (`sessionSmoothLandmarks`, alpha 0.25 tips / 0.45 joints) + `shiftTipsTowardPalm` (10% toward DIP) applied to draw landmarks only — raw landmarks passed to `updateRepCount`, `flipCamera`, `isMobile` |
+| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS), `flipCamera`, `isMobile` |
 | 12  | Progress Screen — session history display |
 | 13  | Joint Selector — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, and related helpers |
-| 14  | Calibration Screen — `startCalibration`; MediaPipe options: `modelComplexity:1`, `minDetectionConfidence:0.75`, `minTrackingConfidence:0.75`; readout panel is a static HTML table (columns=fingers THB/IDX/MID/RNG/PNK, rows=MCP/PIP/DIP) updated at 500ms throttle via `calibLastDisplayUpdate`; `calibRebuildReadouts` toggles `cat-active`/`cat-inactive` CSS classes on static table cells; `calibSmoothLandmarks` (EMA, alpha 0.25 tips / 0.45 joints) + `shiftTipsTowardPalm` (10% toward DIP) applied to draw landmarks only; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })` |
+| 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
-| 16  | Patient Calibration — `loadCalibration`, `applyCalibrationCorrection` (piecewise linear interpolation), `startPatientCalibration`, `pcalibCapture` (3s frame buffer → median), `pcalibNextPose`, `pcalibSave` (writes to `calibration/{patientEmail}`), `pcalibBack`, `pcalibStartCamera`, `pcalibOnResults`; globals: `pcalibPatientEmail`, `pcalibPose`, `pcalibData`, `pcalibFrameBuffer`, `pcalibMedianAngles`, `PCALIB_POSES`, `PCALIB_JOINTS` |
 
 ## Firestore Role Values
 
@@ -284,21 +244,8 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 
 ## Pre-Launch Checklist
 
-### HIPAA / PHI Compliance — BLOCKING. Do not onboard real patients until all of these are done.
-
-- [ ] **CRITICAL: Set up Google Workspace + Google Cloud Organization** — The Firebase project is currently on a personal Google account. Google will NOT sign a HIPAA Business Associate Agreement (BAA) for personal accounts. You MUST migrate to a Google Cloud Organization (requires Google Workspace, ~$6/user/month) before handling any real patient data. Without a BAA, storing PHI in Firestore is a HIPAA violation regardless of security rules. Steps: (1) Create a Google Workspace account for your org. (2) Move or recreate the Firebase project under that org. (3) Accept the Google Cloud BAA at console.cloud.google.com → IAM & Admin → Settings.
-- [ ] **Sign the Google Cloud BAA** — Once on a Cloud Organization, accept the BAA in GCP Console. This is a legal contract with Google; without it no technical safeguard is sufficient for HIPAA.
-- [ ] **Tighten Firestore security rules** — Reverted to simple permissive rules (`allow read, write: if request.auth != null`) after the tightened rules caused a login breakage (Firestore permission errors on `users/{email}` read — root cause unresolved). Must be re-investigated and re-deployed before going to production.
-- [x] **Add audit logging** — Implemented. `logAudit()` writes to `auditLog` collection on: session save, early session end, protocol assign/delete, patient record viewed, message sent, consent accepted. Append-only; only admins can read via Firestore rules.
-- [x] **Add patient consent screen** — Implemented. `consentScreen` shown to patients on first login. Acceptance writes `consentGiven: true` + `consentTimestamp` to `users/{email}`. Stored in Firestore, logged to `auditLog`.
-- [x] **Add session timeout** — Implemented. 15-minute inactivity timer via `startInactivityTimer()` / `stopInactivityTimer()`. Resets on click, keypress, mousemove, touchstart, scroll. Timer starts on login, clears on logout.
-- [ ] **Enable MFA** — Turn on multi-factor authentication in Firebase Auth Console for all users.
-- [ ] **Notice of Privacy Practices** — Legal document explaining PHI use. Must be drafted by a healthcare attorney and shown to every patient.
-- [ ] **Breach notification procedure** — Written plan for responding to data exposure (72-hour HHS notification requirement). Must be documented.
-- [ ] **Delete demo accounts** — Remove `sarah.chen@mayoclinic.org` and `james.park@gmail.com` from Firebase Auth and Firestore before any real users are onboarded.
-
-### General
-
+- [ ] **Tighten Firestore security rules** — current rules allow any authenticated user to read/write everything. Before launch, scope rules so patients can only read/write their own data, therapists can only access their connected patients, and admins can only access the `users` collection.
+- [ ] **Delete demo accounts** — remove `sarah.chen@mayoclinic.org` and `james.park@gmail.com` from Firebase Auth and Firestore, or change their passwords.
 - [ ] **Create first real admin account** — follow the manual steps in the Firestore Role Values section above.
 - [x] **Test on HTTPS / mobile** — tested via ngrok + VS Code port forwarding on iOS Safari and Chrome. Mobile uses direct `getUserMedia` path (not MediaPipe `Camera` class). `startCamera()` must be called before any `await` in session-start functions to preserve iOS gesture context. iOS Safari requires `hands.send({ image: canvas })` — passing the video element directly does not work; video must be drawn to a canvas first.
 - [ ] **Review Firebase Auth settings** — disable any sign-in providers you're not using.
