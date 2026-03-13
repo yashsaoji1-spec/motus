@@ -1,0 +1,55 @@
+name: Claude Fact-Check & Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git diff origin/${{ github.base_ref }}...origin/${{ github.head_ref }} > pr_diff.txt
+          echo "Diff saved"
+
+      - name: Claude Fact-Check Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          DIFF=$(cat pr_diff.txt)
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "{
+              \"model\": \"claude-opus-4-6\",
+              \"max_tokens\": 1024,
+              \"messages\": [{
+                \"role\": \"user\",
+                \"content\": \"You are a code reviewer and fact-checker for a web app called phalanX. Review the following pull request diff carefully.\n\nCheck for:\n1. Logic errors or bugs\n2. Incorrect assumptions or facts in comments/docs\n3. Inconsistencies between the two branches being merged\n4. Any code that looks incomplete or contradictory\n5. Security issues\n\nBe specific and constructive. Format your response in clear sections.\n\nHere is the diff:\n\n$(echo "$DIFF" | head -c 3000)\"
+              }]
+            }")
+
+          COMMENT=$(echo $RESPONSE | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          text = data['content'][0]['text']
+          print('## 🤖 Claude Fact-Check Review\n\n' + text)
+          ")
+
+          gh pr comment $PR_NUMBER --repo $REPO --body "$COMMENT"
