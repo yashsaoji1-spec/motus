@@ -24,6 +24,12 @@ let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
 
+// ── Video recording state ──
+let mediaRecorder        = null;   // active MediaRecorder during a session
+let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
+let recordingSupported   = false;  // false on iOS/unsupported browsers — skip all recording logic
+let _pendingSessionDocId = null;   // Firestore doc ID to patch with videoUrl after upload completes
+
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
 // Required Firestore composite indexes (create in Firebase console → Firestore → Indexes):
@@ -42,6 +48,9 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const db   = firebase.firestore();
 const auth = firebase.auth();
+
+const CLOUDINARY_CLOUD  = 'dslbugsdg';
+const CLOUDINARY_PRESET = 'phalanx-videos';
 
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
@@ -128,6 +137,9 @@ function showScreen(screenId) {
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop(); mediaRecorder = null; recordedChunks = [];
+    }
     currentFacingMode = 'user';
   }
 
@@ -975,7 +987,7 @@ async function showRealPatient(patient) {
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
       ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
-      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
@@ -1021,7 +1033,7 @@ async function showRealPatient(patient) {
     ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="100"></canvas>', true)}
     </div>
     ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
-    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
+    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
@@ -1049,10 +1061,12 @@ async function showRealPatient(patient) {
   updateExerciseParamsUI('full_fist', null);
 }
 
-function buildSessionHistory(sessions) {
+function buildSessionHistory(sessions, patientName) {
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session History</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
+  const VIDEO_EXPIRY_DAYS = 30;
+  const nameSafe = (patientName || '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
   const rows = [...sessions].reverse().map(s => {
     const d       = new Date(s.date);
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -1062,6 +1076,12 @@ function buildSessionHistory(sessions) {
     const painColor = pain <= 3 ? 'var(--green)' : pain <= 6 ? '#f59e0b' : 'var(--danger)';
     const romColor  = rom >= 120 ? 'var(--green)' : rom >= 80 ? '#f59e0b' : 'var(--muted)';
     const exLabel   = s.exerciseType ? (exerciseLabels[s.exerciseType] || s.exerciseType) : '';
+    const sessionAge = (Date.now() - new Date(s.date).getTime()) / (1000 * 60 * 60 * 24);
+    const videoCell = s.videoUrl && sessionAge <= VIDEO_EXPIRY_DAYS
+      ? `<td class="sh-cell sh-video"><span class="session-video-actions"><button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}','${s.date}','${nameSafe}')">▶ Watch</button><button class="session-video-btn session-video-btn--dl" onclick="downloadSessionVideo('${s.videoUrl}','${s.date}','${nameSafe}')">↓</button></span></td>`
+      : s.videoUrl && sessionAge > VIDEO_EXPIRY_DAYS
+        ? `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--expired">Expired</span></span></td>`
+        : `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--none">No video</span></span></td>`;
     return `
       <tr class="sh-row">
         <td class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></td>
@@ -1069,6 +1089,7 @@ function buildSessionHistory(sessions) {
         <td class="sh-cell sh-reps">${s.reps || 0}</td>
         <td class="sh-cell sh-rom" style="color:${romColor}">${rom}°</td>
         <td class="sh-cell sh-pain"><span class="session-pain-dot" style="background:${painColor}"></span><span style="color:${painColor}">${pain}/10</span></td>
+        ${videoCell}
       </tr>`;
   }).join('');
   return `
@@ -1082,6 +1103,7 @@ function buildSessionHistory(sessions) {
             <th class="sh-th">Reps</th>
             <th class="sh-th">ROM</th>
             <th class="sh-th">Pain</th>
+            <th class="sh-th">Video</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -1506,8 +1528,15 @@ async function saveSession() {
     protocolId:     selectedProtocol?.id || ''
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-  await db.collection('sessions').add(doc);
+  const docRef = await db.collection('sessions').add(doc);
+  _pendingSessionDocId = docRef.id;
   jointMaxAngles = {}; // reset after save so each set starts fresh
+
+  if (recordingSupported) {
+    const blob = await stopRecording();
+    uploadSessionVideo(blob, docRef.id, currentUser.email);
+    startRecording(document.getElementById('patientCanvas'));
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1701,7 +1730,13 @@ async function completeSessionEarly() {
       protocolId:     selectedProtocol?.id || ''
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-    await db.collection('sessions').add(doc);
+    const docRef = await db.collection('sessions').add(doc);
+    _pendingSessionDocId = docRef.id;
+  }
+
+  if (recordingSupported) {
+    const blob = await stopRecording();
+    if (_pendingSessionDocId) uploadSessionVideo(blob, _pendingSessionDocId, currentUser.email);
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -1713,9 +1748,13 @@ async function completeSessionEarly() {
 
 let currentFacingMode = 'user';
 
-function flipCamera() {
+async function flipCamera() {
   currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    await stopRecording();
+    recordedChunks = [];
+  }
   startCamera();
 }
 
@@ -1727,6 +1766,7 @@ let mpCamera = null;
 
 function startCamera() {
   if (mpCamera) return;
+  mediaRecorder = null; recordedChunks = []; recordingSupported = false; _pendingSessionDocId = null;
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
@@ -1775,6 +1815,7 @@ function startCamera() {
             sessionCanvas.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
             document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
             processFrame();
+            startRecording(sessionCanvas);
           };
           mpCamera = {
             stop: () => {
@@ -1796,6 +1837,7 @@ function startCamera() {
       width: 640, height: 480,
     });
     mpCamera.start();
+    startRecording(sessionCanvas);
   }
 }
 
@@ -2897,11 +2939,122 @@ function buildMessagePanel(patientEmail) {
   </div>`;
 }
 
+// ── Video Recording Utilities ────────────────────────────────────────────────
+
+function getRecordingMimeType() {
+  const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
+  for (const mime of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return null;
+}
+
+function startRecording(canvas) {
+  const mime = getRecordingMimeType();
+  if (!mime || typeof MediaRecorder === 'undefined') { recordingSupported = false; return; }
+  recordingSupported = true;
+  recordedChunks = [];
+  let stream;
+  try { stream = canvas.captureStream(30); } catch(e) { recordingSupported = false; return; }
+  try {
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 400_000 });
+  } catch(e) { recordingSupported = false; return; }
+  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+  mediaRecorder.start(1000);
+  showRecordingIndicator();
+}
+
+function stopRecording() {
+  return new Promise(resolve => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+      hideRecordingIndicator(); resolve(null); return;
+    }
+    mediaRecorder.onstop = () => {
+      hideRecordingIndicator();
+      if (recordedChunks.length === 0) { resolve(null); return; }
+      const mime = mediaRecorder.mimeType || 'video/webm';
+      const blob = new Blob(recordedChunks, { type: mime });
+      recordedChunks = []; mediaRecorder = null;
+      resolve(blob);
+    };
+    mediaRecorder.stop();
+  });
+}
+
+async function uploadSessionVideo(blob, docId, patientEmail) {
+  if (!blob || !docId) return;
+  try {
+    const form = new FormData();
+    form.append('file', blob);
+    form.append('upload_preset', CLOUDINARY_PRESET);
+    form.append('public_id', `sessions/${patientEmail}/${docId}`);
+    const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
+  } catch(e) {
+    console.error('Session video upload failed:', e?.message || e);
+  }
+}
+
+function showRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'flex';
+}
+
+function hideRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'none';
+}
+
+async function downloadSessionVideo(url, date, patientName) {
+  const d    = new Date(date);
+  const ts   = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const ext  = url.includes('.mp4') ? 'mp4' : 'webm';
+  const name = patientName ? `${patientName}-${ts}` : ts;
+  try {
+    const res  = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = blobUrl;
+    a.download = `phalanx-session-${name}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  } catch(e) {
+    window.open(url, '_blank');
+  }
+}
+
+function openVideoModal(videoUrl, sessionDate, patientName) {
+  const modal  = document.getElementById('videoModal');
+  const player = document.getElementById('videoModalPlayer');
+  const dlBtn  = document.getElementById('videoModalDownload');
+  player.src = videoUrl;
+  if (dlBtn) {
+    dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate || new Date().toISOString(), patientName);
+  }
+  modal.style.display = 'flex';
+  player.play().catch(() => {});
+}
+
+function closeVideoModal() {
+  const modal  = document.getElementById('videoModal');
+  const player = document.getElementById('videoModalPlayer');
+  player.pause(); player.src = '';
+  modal.style.display = 'none';
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
 Object.assign(window, {
+  // Video modal
+  openVideoModal, closeVideoModal, downloadSessionVideo,
+
   // Auth
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,

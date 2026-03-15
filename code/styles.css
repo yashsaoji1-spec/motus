@@ -1852,3 +1852,40 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   line-height: 1.5;
 }
 .therapist-msg-send { padding: 8px 16px; background: var(--accent); color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-family: inherit; font-weight: 600; }
+
+/* ── Recording indicator ─────────────────────────────────────────────────── */
+.recording-indicator {
+  position: absolute; bottom: 12px; left: 12px; z-index: 11;
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(0,0,0,0.45); backdrop-filter: blur(6px);
+  border: 1px solid rgba(204,41,54,0.4);
+  border-radius: 99px; padding: 4px 10px; pointer-events: none;
+}
+.rec-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--danger);
+  animation: recBlink 1.4s ease-in-out infinite; flex-shrink: 0;
+}
+@keyframes recBlink { 0%,100% { opacity:1; } 50% { opacity:0.25; } }
+.rec-label { font-size: 0.65rem; font-weight: 700; color: var(--danger); font-family: 'DM Mono', monospace; letter-spacing: 1px; }
+
+/* ── Video playback modal ────────────────────────────────────────────────── */
+.video-modal-box { background: #0f172a; border-radius: 16px; padding: 20px; width: min(680px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px; border: 1px solid rgba(255,255,255,0.1); }
+.video-modal-header { display: flex; align-items: center; justify-content: space-between; }
+.video-modal-title { font-size: 0.9rem; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 1px; }
+.video-modal-close { background: none; border: none; color: rgba(255,255,255,0.45); font-size: 1.1rem; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.2s; }
+.video-modal-close:hover { color: rgba(255,255,255,0.9); }
+.video-modal-player { width: 100%; border-radius: 10px; background: #000; max-height: 60vh; object-fit: contain; }
+.video-modal-hint { font-size: 0.75rem; color: rgba(255,255,255,0.3); text-align: center; margin: 0; }
+
+/* ── Session history video button ────────────────────────────────────────── */
+.session-video-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.session-video-btn { font-size: 0.78rem; font-weight: 600; padding: 4px 10px; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap; }
+.session-video-btn:hover { background: var(--accent); color: #fff; }
+.session-video-btn--none { font-size: 0.75rem; color: var(--muted); cursor: default; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; }
+.session-video-btn--expired { font-size: 0.75rem; color: var(--muted); cursor: default; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; opacity: 0.5; }
+.session-video-btn--dl { padding: 4px 8px; font-size: 0.78rem; background: rgba(16,185,129,0.08); color: var(--green); border: 1px solid var(--green); border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.session-video-btn--dl:hover { background: var(--green); color: #fff; }
+.video-modal-dl-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); font-size: 0.8rem; font-weight: 600; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.video-modal-dl-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+@media (max-width: 700px) { .video-modal-player { max-height: 45vh; } }
