@@ -1024,7 +1024,7 @@ async function showRealPatient(patient) {
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
       ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
-      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
@@ -1071,7 +1071,7 @@ async function showRealPatient(patient) {
     ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="100"></canvas>', true)}
     ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="100"></canvas>', true)}
     ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
-    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
+    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
@@ -1099,7 +1099,7 @@ async function showRealPatient(patient) {
   updateExerciseParamsUI('full_fist', null);
 }
 
-function buildSessionHistory(sessions) {
+function buildSessionHistory(sessions, patientName) {
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session History</h4><div style="color:#334155; font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
@@ -1112,24 +1112,34 @@ function buildSessionHistory(sessions) {
     const painColor = pain <= 3 ? '#22c55e' : pain <= 6 ? '#f59e0b' : '#ef4444';
     const romColor  = rom  >= 120 ? '#22c55e' : rom >= 80 ? '#f59e0b' : '#94a3b8';
     const exLabel   = s.exerciseType ? (exerciseLabels[s.exerciseType] || s.exerciseType) : '';
-    const videoBtn  = s.videoUrl
-      ? `<button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}')">▶ Watch</button>`
-      : `<span class="session-video-btn session-video-btn--none">No video</span>`;
+    const VIDEO_EXPIRY_DAYS = 30;
+    const sessionAge = (Date.now() - new Date(s.date).getTime()) / (1000 * 60 * 60 * 24);
+    const nameSafe  = (patientName || '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+    const videoBtn = s.videoUrl && sessionAge <= VIDEO_EXPIRY_DAYS
+      ? `<span class="session-video-actions">
+           <button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}','${s.date}','${nameSafe}')">▶ Watch</button>
+           <button class="session-video-btn session-video-btn--dl" onclick="downloadSessionVideo('${s.videoUrl}','${s.date}','${nameSafe}')">↓</button>
+         </span>`
+      : s.videoUrl && sessionAge > VIDEO_EXPIRY_DAYS
+        ? `<span class="session-video-actions"><span class="session-video-btn session-video-btn--expired">Expired</span></span>`
+        : `<span class="session-video-actions"><span class="session-video-btn session-video-btn--none">No video</span></span>`;
     return `
       <div class="session-history-row">
-        <div class="session-date">
-          <div style="color:var(--text); font-weight:600; font-size:0.85rem;">${dateStr}</div>
-          <div style="font-size:0.7rem; color:var(--muted);">${timeStr}</div>
-          ${exLabel ? `<div class="session-exercise-label">${exLabel}</div>` : ''}
+        <div class="session-card-top">
+          <div class="session-date">
+            <div style="color:var(--text); font-weight:600; font-size:0.85rem;">${dateStr}</div>
+            <div style="font-size:0.7rem; color:var(--muted);">${timeStr}</div>
+            ${exLabel ? `<div class="session-exercise-label">${exLabel}</div>` : ''}
+          </div>
+          ${videoBtn}
         </div>
-        <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;">
+        <div style="display:flex;gap:10px;align-items:center;">
           <div class="session-stat" style="color:#0B6CB0;">${s.reps || 0} reps</div>
           <div class="session-stat" style="color:${romColor};">${rom}°</div>
           <div class="session-stat">
             <span class="session-pain-dot" style="background:${painColor}"></span>
             <span style="color:${painColor}">${pain}/10</span>
           </div>
-          ${videoBtn}
         </div>
       </div>`;
   }).join('');
@@ -1924,7 +1934,7 @@ function startRecording(canvas) {
   let stream;
   try { stream = canvas.captureStream(30); } catch(e) { recordingSupported = false; return; }
   try {
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1_000_000 });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 400_000 });
   } catch(e) { recordingSupported = false; return; }
   mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
   mediaRecorder.start(1000); // collect a chunk every second
@@ -1974,10 +1984,36 @@ function hideRecordingIndicator() {
   if (el) el.style.display = 'none';
 }
 
-function openVideoModal(videoUrl) {
+async function downloadSessionVideo(url, date, patientName) {
+  const d    = new Date(date);
+  const ts   = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const ext  = url.includes('.mp4') ? 'mp4' : 'webm';
+  const name = patientName ? `${patientName}-${ts}` : ts;
+  try {
+    const res  = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = blobUrl;
+    a.download = `phalanx-session-${name}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  } catch(e) {
+    // Fallback: open in new tab if fetch blocked
+    window.open(url, '_blank');
+  }
+}
+
+function openVideoModal(videoUrl, sessionDate, patientName) {
   const modal  = document.getElementById('videoModal');
   const player = document.getElementById('videoModalPlayer');
+  const dlBtn  = document.getElementById('videoModalDownload');
   player.src = videoUrl;
+  if (dlBtn) {
+    dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate || new Date().toISOString(), patientName);
+  }
   modal.style.display = 'flex';
   player.play().catch(() => {});
 }
@@ -3455,7 +3491,7 @@ Object.assign(window, {
   ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
 
   // Video modal (therapist session review)
-  openVideoModal, closeVideoModal,
+  openVideoModal, closeVideoModal, downloadSessionVideo,
 
   // Exposed array for exercises screen start buttons
   get _exercisesProtocols() { return _exercisesProtocols; },

@@ -741,7 +741,10 @@
   <div class="video-modal-box">
     <div class="video-modal-header">
       <span class="video-modal-title">Session Recording</span>
-      <button class="video-modal-close" onclick="closeVideoModal()">✕</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="videoModalDownload" class="video-modal-dl-btn">↓ Download</button>
+        <button class="video-modal-close" onclick="closeVideoModal()">✕</button>
+      </div>
     </div>
     <video id="videoModalPlayer" class="video-modal-player" controls playsinline></video>
     <p class="video-modal-hint">Recorded during live session with hand tracking overlay.</p>

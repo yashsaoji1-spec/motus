@@ -669,6 +669,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .session-history-row:hover { background: var(--surface); border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
 .session-history-row.header-row { display: none; }
+.session-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.session-video-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 .session-date { font-size: 0.82rem; color: var(--muted); }
 .session-stat { font-size: 0.9rem; font-weight: 700; text-align: center; }
 .session-pain-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
@@ -1983,5 +1985,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   border: 1px solid var(--border); background: none;
   border-radius: 8px; padding: 4px 10px;
 }
+.session-video-btn--expired {
+  font-size: 0.75rem; color: var(--muted); cursor: default;
+  border: 1px solid var(--border); background: none;
+  border-radius: 8px; padding: 4px 10px; opacity: 0.5;
+}
+.session-video-btn--dl {
+  padding: 4px 8px; font-size: 0.78rem;
+  background: rgba(16,185,129,0.08); color: var(--green);
+  border: 1px solid var(--green); border-radius: 8px;
+  cursor: pointer; font-family: inherit; transition: all 0.2s;
+}
+.session-video-btn--dl:hover { background: var(--green); color: #fff; }
+.video-modal-dl-btn {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.7); font-size: 0.8rem; font-weight: 600;
+  padding: 5px 12px; border-radius: 8px; cursor: pointer;
+  font-family: inherit; transition: all 0.2s;
+}
+.video-modal-dl-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 @media (max-width: 700px) { .video-modal-player { max-height: 45vh; } }
 

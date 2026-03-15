@@ -1,4 +1,4 @@
-# Last updated: 2026-03-15 (session video recording via Cloudinary, video modal in therapist session history, session summary layout fix)
+# Last updated: 2026-03-15 (video bitrate 400 kbps, 30-day soft expiry, download button in session history + video modal)
 
 # PhalanX — Claude Code Guide
 
@@ -40,11 +40,12 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 
 ```
 code/
-  index.html      — all HTML screens (759 lines)
-  app.js          — all JS logic (16 sections + Section 5b + window exports block, 3462 lines)
-  styles.css      — all styles (1987 lines)
+  index.html      — all HTML screens
+  app.js          — all JS logic (16 sections + Section 5b + window exports block)
+  styles.css      — all styles
 vite.config.mjs   — Vite config (root: code/, outDir: ../dist)
 firestore.rules   — Firestore security rules
+.gitignore        — ignores dist/, node_modules/, .vscode/
 public/
   404.html        — Firebase 404 page (copied verbatim to dist/ by Vite)
 dist/             — build output (gitignored); deploy this to Firebase Hosting
@@ -60,7 +61,7 @@ node_modules/     — npm packages (vite, firebase, chart.js, prompt-sync)
 - **vite** `^5.0.0` (devDependency) — build tool
 
 ### External APIs (no SDK — plain fetch)
-- **Cloudinary** — session video storage; unsigned uploads via `phalanx-videos` preset to cloud `dslbugsdg`; free tier 25 GB. Constants `CLOUDINARY_CLOUD` / `CLOUDINARY_PRESET` at top of Section 1.
+- **Cloudinary** — session video storage; unsigned uploads via `phalanx-videos` preset to cloud `dslbugsdg`; free tier 25 GB. Constants `CLOUDINARY_CLOUD` / `CLOUDINARY_PRESET` at top of Section 1. Bitrate: **400 kbps** (~3 MB/min). At typical 5-min sessions (~15 MB each), the 25 GB free tier holds ~1,600 sessions.
 
 ### CDN (loaded at runtime — kept on CDN due to WASM complexity)
 - **MediaPipe Hands** + `camera_utils` + `drawing_utils` — hand tracking
@@ -102,7 +103,7 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 
 **Joint tracking:** `jointAngles` is only present if at least one joint was tracked during the session. Format: `{ 'index-pip': 72, 'middle-mcp': 45, … }` — peak angle (degrees) observed for each tracked joint during that set.
 
-**Video recording:** `videoUrl` is only present if the session was recorded and successfully uploaded. Points to a Cloudinary `https://res.cloudinary.com/…` URL. Sessions recorded on unsupported browsers (iOS Safari) or before the feature was added have no `videoUrl` field — shown as "No video" in session history.
+**Video recording:** `videoUrl` is only present if the session was recorded and successfully uploaded. Points to a Cloudinary `https://res.cloudinary.com/…` URL. Sessions recorded on unsupported browsers (iOS Safari) or before the feature was added have no `videoUrl` field — shown as "No video" in session history. After 30 days the UI shows "Expired" and removes access — the Cloudinary file still exists but is inaccessible through the app. See Pre-Launch Checklist for actual server-side deletion setup.
 
 ### Required Firestore composite indexes
 
@@ -206,10 +207,10 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 5b  | Admin Panel — `loadAdminScreen()`, `approveTherapist()`, `rejectTherapist()` |
 | 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionWithProtocol` (async — loads `trackedJoints`), `startScanSession`, `sendMessageFromPatient` |
 | 7   | Protocol System — `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends), `deleteProtocol` (removes by id), `editProtocol`, `cancelEditProtocol`, `normalizeExerciseParams`, `loadTrackedJoints`, `saveTrackedJoints` |
-| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory` (session rows include "▶ Watch" button if `videoUrl` present, "No video" otherwise), `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button); `showTherapistOnboarding`, `dismissTherapistOnboarding` |
+| 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient` (calls `await ejsInit(patient.email, sessions)`), `buildSessionHistory(sessions, patientName)` (session cards: date/exercise top-left, "▶ Watch" + "↓" buttons top-right, stats row below; videos >30 days old show "Expired"; download filename includes patient name), `buildProtocolForm`, `updateExerciseParamsUI`, `epAddCondition`, `epRemoveCondition`; `backToPatientList` (mobile back button); `showTherapistOnboarding`, `dismissTherapistOnboarding` |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`; applies `applyCalibrationCorrection()`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`; two-step: Firestore first, then Cloudinary upload in background, then `update({videoUrl})`); `toggleSound`, `skipRest`, `dismissSummary` |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`; same two-step video pattern as `saveSession`) |
-| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS); calls `startRecording(sessionCanvas)` after camera starts; `flipCamera` discards pre-flip footage and restarts recording; `isMobile`; recording utilities: `getRecordingMimeType`, `startRecording`, `stopRecording`, `uploadSessionVideo` (Cloudinary fetch), `showRecordingIndicator`, `hideRecordingIndicator`, `openVideoModal`, `closeVideoModal` |
+| 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS); calls `startRecording(sessionCanvas)` after camera starts; `flipCamera` discards pre-flip footage and restarts recording; `isMobile`; recording utilities: `getRecordingMimeType`, `startRecording` (**400 kbps** via `videoBitsPerSecond: 400_000`), `stopRecording`, `uploadSessionVideo` (Cloudinary fetch), `showRecordingIndicator`, `hideRecordingIndicator`, `openVideoModal(videoUrl, sessionDate, patientName)` (wires modal download button), `closeVideoModal`, `downloadSessionVideo(url, date, patientName)` (fetches blob → triggers download as `phalanx-session-{PatientName}-{YYYY-MM-DD}.{ext}`; falls back to `window.open` if fetch blocked by CORS) |
 | 12  | Progress Screen — session history display |
 | 13  | Joint Selector (Enhanced) — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, `ejsDotClick`, `ejsSelectCard`, `ejsToggleFromInfo`, `ejsRemoveChip`, `ejsQuickSelectFinger`, `ejsSelectAll`, `ejsClearAll` |
 | 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })`; `calibBack` |
@@ -255,12 +256,12 @@ Admin accounts are created **manually** by Yash:
 
 ## Maintenance Instructions
 
-Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), Claude must:
-1. Read the current `CLAUDE.md`
+Whenever the user says anything resembling "update claude-functionality.md" (or equivalent), Claude must:
+1. Read the current `claude-functionality.md`
 2. Read and audit `app.js`, `index.html`, and `styles.css` for any changes
 3. Update ALL stale sections — file line counts, section map, screen list, localStorage keys, CSS variables, file structure, etc.
 4. Replace the date on the top line with today's date
-5. Only update `/Users/alpanajoshi/Documents/Yash - Projects/phalanX-feature-functionality/CLAUDE.md` — the user handles pushing to git
+5. Only update `/Users/alpanajoshi/Documents/Yash - Projects/phalanX-feature-functionality/claude-functionality.md` — the user handles pushing to git
 6. **Never commit or push to GitHub unless the user explicitly asks**
 
 ## Pre-Launch Checklist
@@ -270,6 +271,7 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 - [ ] **Create first real admin account** — follow the manual steps in the Firestore Role Values section above.
 - [x] **Test on HTTPS / mobile** — tested via ngrok + VS Code port forwarding on iOS Safari and Chrome. Mobile uses direct `getUserMedia` path (not MediaPipe `Camera` class). `startCamera()` must be called before any `await` in session-start functions to preserve iOS gesture context. iOS Safari requires `hands.send({ image: canvas })` — passing the video element directly does not work; video must be drawn to a canvas first.
 - [ ] **Review Firebase Auth settings** — disable any sign-in providers you're not using.
+- [ ] **Set up video expiry Cloud Function** — currently the 30-day expiry is UI-only (files remain on Cloudinary but are inaccessible through the app). For actual deletion at launch: (1) upgrade Firebase project `phalanx-firebase-database` to Blaze plan at https://console.firebase.google.com/project/phalanx-firebase-database/usage/details — free in practice, just requires a billing account attached; (2) tell Claude "set up the video expiry Cloud Function" — it will create `functions/index.js` with a daily scheduled job that deletes Cloudinary videos older than 30 days and clears `videoUrl` from Firestore. Cloudinary credentials: cloud `dslbugsdg`, API key `853184729123867`, API secret in Yash's password manager.
 
 ## Key Constraints
 
@@ -278,7 +280,7 @@ Whenever the user says anything resembling "update CLAUDE.md" (or equivalent), C
 - **No test framework** — manual browser testing only
 - **MediaPipe stays on CDN** — WASM model files make bundling fragile; accessed via `window.Hands`, `window.Camera`, etc. directly at call sites (not at module init — avoids CDN timing race on mobile)
 - **Firebase + Chart.js via npm** — imported at top of `app.js` using `firebase/compat` API (zero refactor needed)
-- **Cloudinary via plain fetch** — no SDK; `uploadSessionVideo` POSTs a `FormData` blob to `https://api.cloudinary.com/v1_1/{cloud}/video/upload` with an unsigned preset. No auth required.
+- **Cloudinary via plain fetch** — no SDK; `uploadSessionVideo` POSTs a `FormData` blob to `https://api.cloudinary.com/v1_1/{cloud}/video/upload` with an unsigned preset. No auth required. Deletion requires signed API call with secret — done server-side only (Cloud Function).
 - **Window exports block** — app.js ends with `Object.assign(window, {...})` exposing all functions called from HTML `onclick` attrs (required because app.js is an ES module)
 - **Firebase backend** — all user data in Firestore; no localStorage keys remain
 - **Single file per layer** — keep all HTML in `index.html`, all JS in `app.js`, all CSS in `styles.css`
