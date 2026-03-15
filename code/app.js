@@ -25,6 +25,12 @@ let editingProtocolId = null;  // non-null when therapist is editing an existing
 let editingPatientEmail = null;
 let currentCalibration = null; // loaded at session start from calibration/{patientEmail}
 
+// ── Video recording state ──
+let mediaRecorder        = null;   // active MediaRecorder during a session
+let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
+let recordingSupported   = false;  // false on iOS/unsupported browsers — skip all recording logic
+let _pendingSessionDocId = null;   // Firestore doc ID to patch with videoUrl after upload completes
+
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
 // Required Firestore composite indexes (create in Firebase console → Firestore → Indexes):
@@ -43,6 +49,9 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const db   = firebase.firestore();
 const auth = firebase.auth();
+
+const CLOUDINARY_CLOUD  = 'dslbugsdg';
+const CLOUDINARY_PRESET = 'phalanx-videos';
 
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
@@ -131,6 +140,11 @@ function showScreen(screenId) {
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
     currentFacingMode = 'user';
+    // Discard any in-progress recording (user navigated away mid-session)
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop(); mediaRecorder = null; recordedChunks = [];
+    }
+    hideRecordingIndicator();
   }
 
   // Stop calibration camera when leaving calibration screen
@@ -1010,7 +1024,7 @@ async function showRealPatient(patient) {
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
       ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
-      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
@@ -1057,7 +1071,7 @@ async function showRealPatient(patient) {
     ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="100"></canvas>', true)}
     ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="100"></canvas>', true)}
     ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
-    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
+    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
@@ -1085,7 +1099,7 @@ async function showRealPatient(patient) {
   updateExerciseParamsUI('full_fist', null);
 }
 
-function buildSessionHistory(sessions) {
+function buildSessionHistory(sessions, patientName) {
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session History</h4><div style="color:#334155; font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
@@ -1098,14 +1112,28 @@ function buildSessionHistory(sessions) {
     const painColor = pain <= 3 ? '#22c55e' : pain <= 6 ? '#f59e0b' : '#ef4444';
     const romColor  = rom  >= 120 ? '#22c55e' : rom >= 80 ? '#f59e0b' : '#94a3b8';
     const exLabel   = s.exerciseType ? (exerciseLabels[s.exerciseType] || s.exerciseType) : '';
+    const VIDEO_EXPIRY_DAYS = 30;
+    const sessionAge = (Date.now() - new Date(s.date).getTime()) / (1000 * 60 * 60 * 24);
+    const nameSafe  = (patientName || '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+    const videoBtn = s.videoUrl && sessionAge <= VIDEO_EXPIRY_DAYS
+      ? `<span class="session-video-actions">
+           <button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}','${s.date}','${nameSafe}')">▶ Watch</button>
+           <button class="session-video-btn session-video-btn--dl" onclick="downloadSessionVideo('${s.videoUrl}','${s.date}','${nameSafe}')">↓</button>
+         </span>`
+      : s.videoUrl && sessionAge > VIDEO_EXPIRY_DAYS
+        ? `<span class="session-video-actions"><span class="session-video-btn session-video-btn--expired">Expired</span></span>`
+        : `<span class="session-video-actions"><span class="session-video-btn session-video-btn--none">No video</span></span>`;
     return `
       <div class="session-history-row">
-        <div class="session-date">
-          <div style="color:var(--text); font-weight:600; font-size:0.85rem;">${dateStr}</div>
-          <div style="font-size:0.7rem; color:var(--muted);">${timeStr}</div>
-          ${exLabel ? `<div class="session-exercise-label">${exLabel}</div>` : ''}
+        <div class="session-card-top">
+          <div class="session-date">
+            <div style="color:var(--text); font-weight:600; font-size:0.85rem;">${dateStr}</div>
+            <div style="font-size:0.7rem; color:var(--muted);">${timeStr}</div>
+            ${exLabel ? `<div class="session-exercise-label">${exLabel}</div>` : ''}
+          </div>
+          ${videoBtn}
         </div>
-        <div style="display:flex;gap:10px;justify-content:space-between;">
+        <div style="display:flex;gap:10px;align-items:center;">
           <div class="session-stat" style="color:#0B6CB0;">${s.reps || 0} reps</div>
           <div class="session-stat" style="color:${romColor};">${rom}°</div>
           <div class="session-stat">
@@ -1553,8 +1581,15 @@ async function saveSession() {
     protocolId:     selectedProtocol?.id || ''
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-  await db.collection('sessions').add(doc);
+  const docRef = await db.collection('sessions').add(doc); // capture ref for video linking
+  _pendingSessionDocId = docRef.id;
   jointMaxAngles = {}; // reset after save so each set starts fresh
+
+  if (recordingSupported) {
+    const blob = await stopRecording();                                          // fast — just finalizes the Blob
+    uploadSessionVideo(blob, docRef.id, currentUser.email);                     // fire-and-forget, never blocks UI
+    startRecording(document.getElementById('patientCanvas'));                   // restart recording for next set
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1747,7 +1782,13 @@ async function completeSessionEarly() {
       protocolId:     selectedProtocol?.id || ''
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-    await db.collection('sessions').add(doc);
+    const docRef = await db.collection('sessions').add(doc);
+    _pendingSessionDocId = docRef.id;
+  }
+
+  if (recordingSupported) {
+    const blob = await stopRecording();
+    if (_pendingSessionDocId) uploadSessionVideo(blob, _pendingSessionDocId, currentUser.email);
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -1759,9 +1800,14 @@ async function completeSessionEarly() {
 
 let currentFacingMode = 'user';
 
-function flipCamera() {
+async function flipCamera() {
   currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+  // Discard pre-flip footage — startCamera() will restart recording once canvas is ready
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    await stopRecording();
+    recordedChunks = [];
+  }
   startCamera();
 }
 
@@ -1773,6 +1819,8 @@ let mpCamera = null;
 
 function startCamera() {
   if (mpCamera) return;
+  // Reset recording state for a fresh session
+  mediaRecorder = null; recordedChunks = []; recordingSupported = false; _pendingSessionDocId = null;
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
@@ -1842,6 +1890,7 @@ function startCamera() {
             sessionCanvas.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
             document.querySelector('.camera-box').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
             processFrame();
+            startRecording(sessionCanvas);
           };
           mpCamera = {
             stop: () => {
@@ -1863,7 +1912,117 @@ function startCamera() {
       width: 640, height: 480,
     });
     mpCamera.start();
+    startRecording(sessionCanvas);
   }
+}
+
+// ── Video Recording Utilities ────────────────────────────────────────────────
+
+function getRecordingMimeType() {
+  const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
+  for (const mime of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return null;
+}
+
+function startRecording(canvas) {
+  const mime = getRecordingMimeType();
+  if (!mime || typeof MediaRecorder === 'undefined') { recordingSupported = false; return; }
+  recordingSupported = true;
+  recordedChunks = [];
+  let stream;
+  try { stream = canvas.captureStream(30); } catch(e) { recordingSupported = false; return; }
+  try {
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 400_000 });
+  } catch(e) { recordingSupported = false; return; }
+  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+  mediaRecorder.start(1000); // collect a chunk every second
+  showRecordingIndicator();
+}
+
+function stopRecording() {
+  return new Promise(resolve => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+      hideRecordingIndicator(); resolve(null); return;
+    }
+    mediaRecorder.onstop = () => {
+      hideRecordingIndicator();
+      if (recordedChunks.length === 0) { resolve(null); return; }
+      const mime = mediaRecorder.mimeType || 'video/webm';
+      const blob = new Blob(recordedChunks, { type: mime });
+      recordedChunks = []; mediaRecorder = null;
+      resolve(blob);
+    };
+    mediaRecorder.stop();
+  });
+}
+
+async function uploadSessionVideo(blob, docId, patientEmail) {
+  if (!blob || !docId) return;
+  try {
+    const form = new FormData();
+    form.append('file', blob);
+    form.append('upload_preset', CLOUDINARY_PRESET);
+    form.append('public_id', `sessions/${patientEmail}/${docId}`);
+    const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
+  } catch(e) {
+    console.error('Session video upload failed:', e?.message || e);
+  }
+}
+
+function showRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'flex';
+}
+
+function hideRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'none';
+}
+
+async function downloadSessionVideo(url, date, patientName) {
+  const d    = new Date(date);
+  const ts   = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const ext  = url.includes('.mp4') ? 'mp4' : 'webm';
+  const name = patientName ? `${patientName}-${ts}` : ts;
+  try {
+    const res  = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = blobUrl;
+    a.download = `phalanx-session-${name}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  } catch(e) {
+    // Fallback: open in new tab if fetch blocked
+    window.open(url, '_blank');
+  }
+}
+
+function openVideoModal(videoUrl, sessionDate, patientName) {
+  const modal  = document.getElementById('videoModal');
+  const player = document.getElementById('videoModalPlayer');
+  const dlBtn  = document.getElementById('videoModalDownload');
+  player.src = videoUrl;
+  if (dlBtn) {
+    dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate || new Date().toISOString(), patientName);
+  }
+  modal.style.display = 'flex';
+  player.play().catch(() => {});
+}
+
+function closeVideoModal() {
+  const modal  = document.getElementById('videoModal');
+  const player = document.getElementById('videoModalPlayer');
+  player.pause(); player.src = '';
+  modal.style.display = 'none';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3330,6 +3489,9 @@ Object.assign(window, {
   // Joint selector
   ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
   ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
+
+  // Video modal (therapist session review)
+  openVideoModal, closeVideoModal, downloadSessionVideo,
 
   // Exposed array for exercises screen start buttons
   get _exercisesProtocols() { return _exercisesProtocols; },
