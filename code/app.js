@@ -23,7 +23,6 @@ let selectedProtocol = null;
 let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
-let currentCalibration = null; // loaded at session start from calibration/{patientEmail}
 
 // ── Video recording state ──
 let mediaRecorder        = null;   // active MediaRecorder during a session
@@ -122,8 +121,7 @@ const screenTitles = {
   therapistScreen:    'PhalanX — Therapist Dashboard',
   exercisesScreen:    'PhalanX — My Exercises',
   progressScreen:     'PhalanX — My Progress',
-  calibrationScreen:          'PhalanX — Calibration',
-  patientCalibrationScreen:   'PhalanX — Patient Calibration',
+  calibrationScreen:  'PhalanX — Calibration',
   pendingScreen:      'PhalanX — Pending Approval',
   adminScreen:        'PhalanX — Admin Panel',
 };
@@ -139,12 +137,10 @@ function showScreen(screenId) {
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-    currentFacingMode = 'user';
-    // Discard any in-progress recording (user navigated away mid-session)
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop(); mediaRecorder = null; recordedChunks = [];
     }
-    hideRecordingIndicator();
+    currentFacingMode = 'user';
   }
 
   // Stop calibration camera when leaving calibration screen
@@ -281,7 +277,6 @@ async function loginSuccess() {
     showScreen('therapistScreen');
     document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
     await loadConnectedPatients();
-    if (!currentUser.onboardingDone) showTherapistOnboarding();
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
@@ -494,10 +489,7 @@ function calcStreak(sessions) {
 
 async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
-  [trackedJoints, currentCalibration] = await Promise.all([
-    loadTrackedJoints(currentUser.email),
-    loadCalibration(currentUser.email),
-  ]);
+  trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
   showScreen('cameraScreen');
   loadPatientProtocol();
@@ -514,10 +506,7 @@ async function startScanSession() {
     return;
   }
   selectedProtocol = protocols[0];
-  [trackedJoints, currentCalibration] = await Promise.all([
-    loadTrackedJoints(currentUser.email),
-    loadCalibration(currentUser.email),
-  ]);
+  trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
   showScreen('cameraScreen');
   await loadPatientProtocol();
@@ -543,7 +532,9 @@ const exerciseLabels = {
   finger_flexion:         'Finger Flexion',
   finger_extension:       'Finger Extension',
   grip_squeeze:           'Grip Squeeze',
-  finger_abduction:       'Finger Abduction'
+  finger_abduction:       'Finger Abduction',
+  wrist_flexion:          'Wrist Flexion',
+  wrist_extension:        'Wrist Extension'
 };
 
 const frequencyLabels = {
@@ -766,52 +757,41 @@ function formatProtocol(p) {
   const ep = p.exerciseParams;
   if (ep && ep.metric === 'angle' && ep.conditions) {
     const condStrs = ep.conditions.map(c =>
-      `${c.finger.charAt(0).toUpperCase() + c.finger.slice(1)} ${c.joint.toUpperCase()}: flex ${c.flexAt}° → extend ${c.extendAt}°`
+      `<div class="proto-cond-row">
+        <span class="proto-cond-finger">${c.finger.charAt(0).toUpperCase() + c.finger.slice(1)}</span>
+        <span class="proto-cond-joint">${c.joint.toUpperCase()}</span>
+        <span class="proto-cond-range"><span class="proto-range-flex">${c.flexAt}°</span> → <span class="proto-range-ext">${c.extendAt}°</span></span>
+      </div>`
     );
-    paramsHTML = `<div class="protocol-params-detail">
-      <div class="protocol-params-label">Tracking Parameters</div>
-      ${condStrs.map(s => `<div class="protocol-param-row">${s}</div>`).join('')}
-      ${ep.conditions.length > 1 ? `<div class="protocol-param-row" style="color:var(--accent);font-weight:600">${ep.requireAll ? 'All joints required' : 'Any joint counts'}</div>` : ''}
+    paramsHTML = `<div class="proto-params-box">
+      <div class="proto-params-title">Joint Conditions</div>
+      ${condStrs.join('')}
+      ${ep.conditions.length > 1 ? `<div class="proto-require-note">${ep.requireAll ? 'All joints required simultaneously' : 'Any single joint counts'}</div>` : ''}
     </div>`;
   } else if (ep && ep.metric === 'distance') {
-    paramsHTML = `<div class="protocol-params-detail"><div class="protocol-params-label">Distance-based rep counting</div></div>`;
+    paramsHTML = `<div class="proto-params-box"><div class="proto-params-title">Distance-based rep counting</div></div>`;
   } else if (ep && ep.metric === 'abduction') {
-    paramsHTML = `<div class="protocol-params-detail"><div class="protocol-params-label">Abduction/spread measurement</div></div>`;
+    paramsHTML = `<div class="proto-params-box"><div class="proto-params-title">Abduction / spread measurement</div></div>`;
   }
 
   return `
-    <div class="protocol-existing-detail">
-      <div class="protocol-tag"><strong>Reps:</strong> ${p.reps} per set</div>
-      <div class="protocol-tag"><strong>Sets:</strong> ${p.sets} per session</div>
-      <div class="protocol-tag"><strong>Frequency:</strong> ${frequencyLabels[p.frequency] || p.frequency}</div>
-    </div>
+    <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
     ${paramsHTML}
-    ${p.notes ? `<p class="protocol-notes-display">"${p.notes}"</p>` : ''}
-    <p class="protocol-meta">Assigned by ${p.assignedBy}${dateStr ? ` on ${dateStr}` : ''}${editedStr}</p>`;
+    ${p.notes ? `<p class="proto-notes">"${p.notes}"</p>` : ''}
+    <p class="proto-meta">${p.assignedBy}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
 }
 
 async function loadPatientProtocol() {
   if (!currentUser) return;
   const protocol  = selectedProtocol || await getExistingProtocol(currentUser.email);
-  const container = document.getElementById('assignedProtocol');
-  const inner     = document.getElementById('assignedProtocolInner');
-  if (!container || !inner) return;
-  if (!protocol) { container.style.display = 'none'; return; }
+  if (!protocol) return;
   TARGET_REPS = protocol.reps;
   totalSets   = protocol.sets || 3;
-  container.style.display = 'block';
-  inner.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <span class="protocol-title">Your Assigned Protocol</span>
-      <span style="font-size:0.75rem; color:#475569;">from ${protocol.assignedBy}</span>
-    </div>
-    <div class="protocol-exercise-name">${exerciseLabels[protocol.exerciseType] || protocol.exerciseType}</div>
-    <div class="protocol-meta">
-      <span class="protocol-meta-item"><strong>Reps:</strong> ${protocol.reps}</span>
-      <span class="protocol-meta-item"><strong>Sets:</strong> ${protocol.sets}</span>
-      <span class="protocol-meta-item"><strong>Frequency:</strong> ${frequencyLabels[protocol.frequency] || protocol.frequency}</span>
-    </div>
-    ${protocol.notes ? `<p class="protocol-patient-notes">"${protocol.notes}"</p>` : ''}`;
+  // Populate camera header with exercise info
+  const nameEl = document.getElementById('camExerciseName');
+  const setEl  = document.getElementById('camSetLabel');
+  if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
+  if (setEl)  setEl.textContent  = `Set 1 of ${totalSets}`;
 }
 
 async function showExercisesScreen() {
@@ -851,20 +831,13 @@ async function showExercisesScreen() {
         ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
         : '';
     return `
-    <div class="exs-hero-card">
-      <div class="exs-hero-label">Assigned Exercise</div>
+    <div class="exs-hero-card ${isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : ''}">
       <div class="exs-hero-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
-      <div class="exs-stats-row">
-        <div class="exs-stat"><div class="exs-stat-value">${p.reps}</div><div class="exs-stat-label">Reps per Set</div></div>
-        <div class="exs-stat-divider"></div>
-        <div class="exs-stat"><div class="exs-stat-value">${p.sets}</div><div class="exs-stat-label">Sets</div></div>
-        <div class="exs-stat-divider"></div>
-        <div class="exs-stat"><div class="exs-stat-value exs-stat-freq">${frequencyLabels[p.frequency] || p.frequency}</div><div class="exs-stat-label">Frequency</div></div>
-      </div>
+      <div class="exs-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
       <div class="exs-assigned-by">Prescribed by ${p.assignedBy}</div>
-      ${p.notes ? `<p class="exs-notes-text" style="margin-top:0.5rem">"${p.notes}"</p>` : ''}
+      ${p.notes ? `<p class="exs-notes-text">"${p.notes}"</p>` : ''}
       ${progressText}
-      <button class="auth-btn" style="width:100%;margin-top:auto;padding-top:0.75rem"
+      <button class="exs-start-btn"
         onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
     </div>`;
   }).join('')}</div>`;
@@ -875,21 +848,6 @@ async function showExercisesScreen() {
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 8: THERAPIST PANEL
    ══════════════════════════════════════════════════════════════════════════ */
-
-// ── Therapist onboarding modal — shown once on first login ────────────────────
-function showTherapistOnboarding() {
-  document.getElementById('therapistOnboardingModal').style.display = 'flex';
-}
-
-async function dismissTherapistOnboarding() {
-  document.getElementById('therapistOnboardingModal').style.display = 'none';
-  try {
-    await db.collection('users').doc(currentUser.email).update({ onboardingDone: true });
-    currentUser.onboardingDone = true;
-  } catch (e) {
-    console.warn('dismissTherapistOnboarding Firestore write failed', e);
-  }
-}
 
 async function loadConnectedPatients() {
   document.querySelectorAll('.patient-item').forEach(el => el.remove());
@@ -931,8 +889,16 @@ function backToPatientList() {
   document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
 }
 
+function filterPatients(query) {
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('.patient-item').forEach(item => {
+    const name = item.querySelector('.patient-name')?.textContent.toLowerCase() || '';
+    item.style.display = !q || name.includes(q) ? '' : 'none';
+  });
+}
+
 function enableMobilePatientDetail(panel) {
-  if (!isMobile()) return;
+  if (window.innerWidth >= 1024) return;
   document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
   panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">🔬 Calibrate</button></div>');
 }
@@ -1015,10 +981,7 @@ async function showRealPatient(patient) {
 
   if (sessions.length === 0) {
     panel.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
-        <h3 style="margin:0">${patient.name}</h3>
-        <button class="tp-calibrate-btn" onclick="startPatientCalibration('${patient.email}','${patient.name.replace(/'/g, "\\'")}')">Calibrate Patient</button>
-      </div>
+      <h3>${patient.name}</h3>
       <p class="subtitle">Connected Patient</p>
       <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
@@ -1055,21 +1018,20 @@ async function showRealPatient(patient) {
   });
 
   panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
-      <h3 style="margin:0">${patient.name}</h3>
-      <button class="tp-calibrate-btn" onclick="startPatientCalibration('${patient.email}','${patient.name.replace(/'/g, "\\'")}')">Calibrate Patient</button>
-    </div>
+    <h3>${patient.name}</h3>
     <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value" style="color:${complianceColor}">${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
       <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain Rating</div></div>
     </div>
-    <div class="stats-row" style="margin-top:-8px;">
-      <div class="stat-card" style="grid-column:span 3;"><div class="stat-value" style="font-size:1.4rem">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
+    <div class="stats-row stats-row-full">
+      <div class="stat-card stat-card-full"><div class="stat-value stat-value-sm">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
     </div>
+    <div class="tp-charts-grid">
     ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="100"></canvas>', true)}
     ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="100"></canvas>', true)}
+    </div>
     ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
     ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
@@ -1101,69 +1063,62 @@ async function showRealPatient(patient) {
 
 function buildSessionHistory(sessions, patientName) {
   if (sessions.length === 0) {
-    return `<div class="session-history-card"><h4>Session History</h4><div style="color:#334155; font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
+    return `<div class="session-history-card"><h4>Session History</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
+  const VIDEO_EXPIRY_DAYS = 30;
+  const nameSafe = (patientName || '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
   const rows = [...sessions].reverse().map(s => {
-    const d         = new Date(s.date);
-    const dateStr   = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const timeStr   = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const d       = new Date(s.date);
+    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const pain      = s.pain || 0;
     const rom       = s.rom  || 0;
-    const painColor = pain <= 3 ? '#22c55e' : pain <= 6 ? '#f59e0b' : '#ef4444';
-    const romColor  = rom  >= 120 ? '#22c55e' : rom >= 80 ? '#f59e0b' : '#94a3b8';
+    const painColor = pain <= 3 ? 'var(--green)' : pain <= 6 ? '#f59e0b' : 'var(--danger)';
+    const romColor  = rom >= 120 ? 'var(--green)' : rom >= 80 ? '#f59e0b' : 'var(--muted)';
     const exLabel   = s.exerciseType ? (exerciseLabels[s.exerciseType] || s.exerciseType) : '';
-    const VIDEO_EXPIRY_DAYS = 30;
     const sessionAge = (Date.now() - new Date(s.date).getTime()) / (1000 * 60 * 60 * 24);
-    const nameSafe  = (patientName || '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
-    const videoBtn = s.videoUrl && sessionAge <= VIDEO_EXPIRY_DAYS
-      ? `<span class="session-video-actions">
-           <button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}','${s.date}','${nameSafe}')">▶ Watch</button>
-           <button class="session-video-btn session-video-btn--dl" onclick="downloadSessionVideo('${s.videoUrl}','${s.date}','${nameSafe}')">↓</button>
-         </span>`
+    const videoCell = s.videoUrl && sessionAge <= VIDEO_EXPIRY_DAYS
+      ? `<td class="sh-cell sh-video"><span class="session-video-actions"><button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}','${s.date}','${nameSafe}')">▶ Watch</button><button class="session-video-btn session-video-btn--dl" onclick="downloadSessionVideo('${s.videoUrl}','${s.date}','${nameSafe}')">↓</button></span></td>`
       : s.videoUrl && sessionAge > VIDEO_EXPIRY_DAYS
-        ? `<span class="session-video-actions"><span class="session-video-btn session-video-btn--expired">Expired</span></span>`
-        : `<span class="session-video-actions"><span class="session-video-btn session-video-btn--none">No video</span></span>`;
+        ? `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--expired">Expired</span></span></td>`
+        : `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--none">No video</span></span></td>`;
     return `
-      <div class="session-history-row">
-        <div class="session-card-top">
-          <div class="session-date">
-            <div style="color:var(--text); font-weight:600; font-size:0.85rem;">${dateStr}</div>
-            <div style="font-size:0.7rem; color:var(--muted);">${timeStr}</div>
-            ${exLabel ? `<div class="session-exercise-label">${exLabel}</div>` : ''}
-          </div>
-          ${videoBtn}
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;">
-          <div class="session-stat" style="color:#0B6CB0;">${s.reps || 0} reps</div>
-          <div class="session-stat" style="color:${romColor};">${rom}°</div>
-          <div class="session-stat">
-            <span class="session-pain-dot" style="background:${painColor}"></span>
-            <span style="color:${painColor}">${pain}/10</span>
-          </div>
-        </div>
-      </div>`;
+      <tr class="sh-row">
+        <td class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></td>
+        <td class="sh-cell sh-exercise">${exLabel}</td>
+        <td class="sh-cell sh-reps">${s.reps || 0}</td>
+        <td class="sh-cell sh-rom" style="color:${romColor}">${rom}°</td>
+        <td class="sh-cell sh-pain"><span class="session-pain-dot" style="background:${painColor}"></span><span style="color:${painColor}">${pain}/10</span></td>
+        ${videoCell}
+      </tr>`;
   }).join('');
   return `
     <div class="session-history-card">
       <h4>Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}</h4>
-      <div class="session-history-list">
-        <div class="session-history-row header-row">
-          <span>Date & Time</span><span style="text-align:center">Reps</span>
-          <span style="text-align:center">ROM</span><span style="text-align:center">Pain</span>
-        </div>
-        ${rows}
+      <div class="sh-table-wrap">
+        <table class="sh-table">
+          <thead><tr>
+            <th class="sh-th">Date</th>
+            <th class="sh-th">Exercise</th>
+            <th class="sh-th">Reps</th>
+            <th class="sh-th">ROM</th>
+            <th class="sh-th">Pain</th>
+            <th class="sh-th">Video</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     </div>`;
 }
 
 function buildProtocolForm(patientEmail, protocols) {
   const existingHTML = protocols.length > 0 ? `
-    <div class="protocol-existing">
-      <p class="protocol-existing-label">Assigned Protocols (${protocols.length})</p>
+    <div class="proto-existing-section">
+      <div class="proto-existing-title">Current Protocol · ${protocols.length} exercise${protocols.length !== 1 ? 's' : ''}</div>
       ${protocols.map(p => `
-        <div class="protocol-existing-item">
-          <div class="protocol-existing-header">
-            <span style="font-weight:600;color:var(--text)">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+        <div class="proto-card">
+          <div class="proto-card-header">
+            <span class="proto-card-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
             <div class="protocol-action-btns">
               <button class="protocol-edit-btn" onclick="editProtocol('${patientEmail}', '${p.id}')">Edit</button>
               <button class="protocol-delete-btn" onclick="deleteProtocol('${patientEmail}', '${p.id}')">Remove</button>
@@ -1204,13 +1159,13 @@ function buildProtocolForm(patientEmail, protocols) {
           </select>
         </div>
         <div id="exerciseParamsSection" class="ep-container"></div>
-        <div class="protocol-row">
+        <div class="proto-dosage-row">
           <div class="protocol-field">
-            <label>Reps per Set</label>
+            <label>Reps</label>
             <input type="number" id="protocolReps" value="10" min="1" max="50" />
           </div>
           <div class="protocol-field">
-            <label>Sets per Session</label>
+            <label>Sets</label>
             <input type="number" id="protocolSets" value="3" min="1" max="10" />
           </div>
           <div class="protocol-field">
@@ -1225,7 +1180,7 @@ function buildProtocolForm(patientEmail, protocols) {
         </div>
         <div class="protocol-field">
           <label>Notes for Patient</label>
-          <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="3"></textarea>
+          <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="2"></textarea>
         </div>
         <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Add to Protocol</button>
         <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">✓ Protocol assigned successfully</div>
@@ -1295,18 +1250,18 @@ function updateExerciseParamsUI(exerciseType, savedParams) {
     <div class="ep-section">
       <span class="ep-section-label">Joint Conditions</span>
       <div class="ep-condition-header">
-        <span>Finger</span><span>Joint</span><span>Flex °</span><span>Extend °</span><span></span>
+        <span>Finger</span><span>Joint</span><span>Flex°</span><span>Extend°</span><span></span>
       </div>
       <div id="epConditionsList"></div>
-      <button class="ep-add-btn" onclick="epAddCondition()">+ Add Condition</button>
+      <button class="ep-add-btn" onclick="epAddCondition()">+ Add Joint</button>
     </div>
     <div class="ep-require-all-row" id="epRequireAllRow" style="display:none">
       <label class="ep-checkbox-label">
         <input type="checkbox" id="epRequireAll" ${requireAllChecked}>
-        Require ALL conditions to be met simultaneously
+        Require all joints simultaneously
       </label>
     </div>
-    <p class="ep-threshold-hint">0° = straight. Flex at: joint must bend to or past this angle. Extend at: joint must straighten to or below this angle.</p>`;
+    <p class="ep-threshold-hint">0° = straight finger. Higher values = more bent.</p>`;
 
   normalized.conditions.forEach(c => epAddCondition(c.finger, c.joint, c.flexAt, c.extendAt));
 }
@@ -1357,16 +1312,14 @@ function getMiddleFingerAngle(landmarks) {
   return 180 - Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * (180 / Math.PI);
 }
 
-// Generic 2D joint angle — 0° = straight, higher = more bent, negative = hyperextension
+// Generic 2D joint angle — 0° = straight, higher = more bent (matches calibration tool)
 function getJointAngle(landmarks, triplet) {
   const A = landmarks[triplet[0]], B = landmarks[triplet[1]], C = landmarks[triplet[2]];
   const v1 = { x: A.x - B.x, y: A.y - B.y }, v2 = { x: C.x - B.x, y: C.y - B.y };
   const dot = v1.x * v2.x + v1.y * v2.y;
   const m1 = Math.sqrt(v1.x ** 2 + v1.y ** 2), m2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
   if (m1 === 0 || m2 === 0) return 0;
-  const angle = 180 - Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2)))) * (180 / Math.PI);
-  const cross_z = v1.x * v2.y - v1.y * v2.x;
-  return cross_z > 0 ? -angle : angle;
+  return 180 - Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2)))) * (180 / Math.PI);
 }
 
 // Normalized tip-to-tip distance (wrist→middle-MCP as scale reference)
@@ -1409,8 +1362,7 @@ function checkExerciseState(landmarks) {
   const results = p.conditions.map(cond => {
     const triplet = FINGER_LANDMARK_MAP[cond.finger]?.[cond.joint];
     if (!triplet) return null;
-    const rawAngle = Math.round(getJointAngle(landmarks, triplet));
-    const angle = Math.round(applyCalibrationCorrection(rawAngle, `${cond.finger}-${cond.joint}`));
+    const angle = Math.round(getJointAngle(landmarks, triplet));
     return {
       finger:     cond.finger,
       joint:      cond.joint,
@@ -1512,13 +1464,9 @@ function updateRepCount(landmarks) {
 
   if (repAngle > maxROMThisSession) { maxROMThisSession = repAngle; lastROM = repAngle; }
 
-  // ── TAM tracking ──
+  // ── TAM tracking (data only, no live display) ──
   const tam = calcTAM(landmarks);
   if (tam > maxTAMThisSession) { maxTAMThisSession = tam; lastTAM = Math.round(tam); }
-  const tamEl = document.getElementById('tamDisplay');
-  const tamValEl = document.getElementById('tamValue');
-  if (tamEl) tamEl.style.display = 'block';
-  if (tamValEl) tamValEl.textContent = Math.round(tam) + '°';
 
   // Track per-joint max angles for joint monitoring charts
   if (trackedJoints.length > 0) {
@@ -1526,8 +1474,7 @@ function updateRepCount(landmarks) {
       const [finger, joint] = key.split('-');
       const triplet = FINGER_LANDMARK_MAP[finger]?.[joint];
       if (!triplet) return;
-      const rawAngle = Math.round(getJointAngle(landmarks, triplet));
-      const angle = Math.round(applyCalibrationCorrection(rawAngle, key));
+      const angle = Math.round(getJointAngle(landmarks, triplet));
       if (angle > (jointMaxAngles[key] || 0)) jointMaxAngles[key] = angle;
     });
   }
@@ -1581,14 +1528,14 @@ async function saveSession() {
     protocolId:     selectedProtocol?.id || ''
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-  const docRef = await db.collection('sessions').add(doc); // capture ref for video linking
+  const docRef = await db.collection('sessions').add(doc);
   _pendingSessionDocId = docRef.id;
   jointMaxAngles = {}; // reset after save so each set starts fresh
 
   if (recordingSupported) {
-    const blob = await stopRecording();                                          // fast — just finalizes the Blob
-    uploadSessionVideo(blob, docRef.id, currentUser.email);                     // fire-and-forget, never blocks UI
-    startRecording(document.getElementById('patientCanvas'));                   // restart recording for next set
+    const blob = await stopRecording();
+    uploadSessionVideo(blob, docRef.id, currentUser.email);
+    startRecording(document.getElementById('patientCanvas'));
   }
 }
 
@@ -1691,6 +1638,9 @@ async function advanceSet() {
   lastTAM = 0;
   maxROMThisSession = 0;
   maxTAMThisSession = 0;
+  // Update camera header set label
+  const setEl = document.getElementById('camSetLabel');
+  if (setEl) setEl.textContent = `Set ${currentSet} of ${totalSets}`;
   renderSetDots();
   updateRepUI();
   startRestTimer();
@@ -1731,14 +1681,12 @@ function showSessionSummary(partialReps = 0) {
   document.getElementById('summarySets').textContent      = setsComplete;
   document.getElementById('summaryMaxROM').textContent    = maxROM + '°';
   document.getElementById('summaryAvgPain').textContent   = avgPain;
-  const tamEl = document.getElementById('summaryMaxTAM');
-  if (tamEl) tamEl.textContent = maxTAM + '°';
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
     message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
-  } else if (maxTAM >= 220 || maxROM >= 120) {
+  } else if (maxROM >= 120) {
     message = '💪 Excellent range of motion today! You\'re making great progress.';
-  } else if (maxTAM >= 160 || maxROM >= 80) {
+  } else if (maxROM >= 80) {
     message = '👍 Good session. Consistency is key — keep it up!';
   } else if (totalRepsCompleted === 0) {
     message = '📋 Session recorded. Start moving to track your range of motion next time.';
@@ -1803,7 +1751,6 @@ let currentFacingMode = 'user';
 async function flipCamera() {
   currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-  // Discard pre-flip footage — startCamera() will restart recording once canvas is ready
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     await stopRecording();
     recordedChunks = [];
@@ -1819,7 +1766,6 @@ let mpCamera = null;
 
 function startCamera() {
   if (mpCamera) return;
-  // Reset recording state for a fresh session
   mediaRecorder = null; recordedChunks = []; recordingSupported = false; _pendingSessionDocId = null;
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
@@ -1831,39 +1777,18 @@ function startCamera() {
     alert('Hands init error: ' + e.message);
     return;
   }
-  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.75 });
-
-  // Per-landmark EMA smoother for drawing — tips use alpha=0.25, joints alpha=0.45
-  const sessionTipIndices = new Set([4, 8, 12, 16, 20]);
-  const sessionLmSmooth = {};
-  function sessionSmoothLandmarks(landmarks) {
-    return landmarks.map((lm, i) => {
-      const alpha = sessionTipIndices.has(i) ? 0.25 : 0.45;
-      const prev  = sessionLmSmooth[i];
-      if (!prev) { sessionLmSmooth[i] = { x: lm.x, y: lm.y }; return lm; }
-      const x = alpha * lm.x + (1 - alpha) * prev.x;
-      const y = alpha * lm.y + (1 - alpha) * prev.y;
-      sessionLmSmooth[i] = { x, y };
-      return { ...lm, x, y };
-    });
-  }
-
+  hands.setOptions({ maxNumHands: 1, modelComplexity: isMobile() ? 0 : 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
   hands.onResults(results => {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (const landmarks of results.multiHandLandmarks) {
-        const drawLm = shiftTipsTowardPalm(sessionSmoothLandmarks(landmarks));
-        window.drawConnectors(sessionCtx, drawLm, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
-        window.drawLandmarks(sessionCtx, drawLm, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
-        updateRepCount(landmarks); // raw landmarks for angle math
+        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
+        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
+        updateRepCount(landmarks);
       }
-    } else {
-      // No hand detected — reset live TAM display
-      const tamValEl = document.getElementById('tamValue');
-      if (tamValEl) tamValEl.textContent = '—';
-      for (const k of Object.keys(sessionLmSmooth)) delete sessionLmSmooth[k];
     }
+
   });
 
   if (isMobile()) {
@@ -1888,7 +1813,7 @@ function startCamera() {
             sessionCanvas.width  = sessionVideo.videoWidth;
             sessionCanvas.height = sessionVideo.videoHeight;
             sessionCanvas.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
-            document.querySelector('.camera-box').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
+            document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
             processFrame();
             startRecording(sessionCanvas);
           };
@@ -1914,115 +1839,6 @@ function startCamera() {
     mpCamera.start();
     startRecording(sessionCanvas);
   }
-}
-
-// ── Video Recording Utilities ────────────────────────────────────────────────
-
-function getRecordingMimeType() {
-  const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
-  for (const mime of candidates) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) return mime;
-  }
-  return null;
-}
-
-function startRecording(canvas) {
-  const mime = getRecordingMimeType();
-  if (!mime || typeof MediaRecorder === 'undefined') { recordingSupported = false; return; }
-  recordingSupported = true;
-  recordedChunks = [];
-  let stream;
-  try { stream = canvas.captureStream(30); } catch(e) { recordingSupported = false; return; }
-  try {
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 400_000 });
-  } catch(e) { recordingSupported = false; return; }
-  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
-  mediaRecorder.start(1000); // collect a chunk every second
-  showRecordingIndicator();
-}
-
-function stopRecording() {
-  return new Promise(resolve => {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-      hideRecordingIndicator(); resolve(null); return;
-    }
-    mediaRecorder.onstop = () => {
-      hideRecordingIndicator();
-      if (recordedChunks.length === 0) { resolve(null); return; }
-      const mime = mediaRecorder.mimeType || 'video/webm';
-      const blob = new Blob(recordedChunks, { type: mime });
-      recordedChunks = []; mediaRecorder = null;
-      resolve(blob);
-    };
-    mediaRecorder.stop();
-  });
-}
-
-async function uploadSessionVideo(blob, docId, patientEmail) {
-  if (!blob || !docId) return;
-  try {
-    const form = new FormData();
-    form.append('file', blob);
-    form.append('upload_preset', CLOUDINARY_PRESET);
-    form.append('public_id', `sessions/${patientEmail}/${docId}`);
-    const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
-  } catch(e) {
-    console.error('Session video upload failed:', e?.message || e);
-  }
-}
-
-function showRecordingIndicator() {
-  const el = document.getElementById('recordingIndicator');
-  if (el) el.style.display = 'flex';
-}
-
-function hideRecordingIndicator() {
-  const el = document.getElementById('recordingIndicator');
-  if (el) el.style.display = 'none';
-}
-
-async function downloadSessionVideo(url, date, patientName) {
-  const d    = new Date(date);
-  const ts   = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const ext  = url.includes('.mp4') ? 'mp4' : 'webm';
-  const name = patientName ? `${patientName}-${ts}` : ts;
-  try {
-    const res  = await fetch(url);
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href     = blobUrl;
-    a.download = `phalanx-session-${name}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-  } catch(e) {
-    // Fallback: open in new tab if fetch blocked
-    window.open(url, '_blank');
-  }
-}
-
-function openVideoModal(videoUrl, sessionDate, patientName) {
-  const modal  = document.getElementById('videoModal');
-  const player = document.getElementById('videoModalPlayer');
-  const dlBtn  = document.getElementById('videoModalDownload');
-  player.src = videoUrl;
-  if (dlBtn) {
-    dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate || new Date().toISOString(), patientName);
-  }
-  modal.style.display = 'flex';
-  player.play().catch(() => {});
-}
-
-function closeVideoModal() {
-  const modal  = document.getElementById('videoModal');
-  const player = document.getElementById('videoModalPlayer');
-  player.pause(); player.src = '';
-  modal.style.display = 'none';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -2636,36 +2452,6 @@ const CALIB_FINGER_THRESHOLDS = {
 
 const CALIB_TIP_INDICES = new Set([4, 8, 12, 16, 20]);
 
-// ── Landmark position EMA smoother (calib) ────────────────────────────────────
-// Tips (4,8,12,16,20) use alpha=0.25 (more smoothing); joints use alpha=0.45.
-const calibLmSmooth = {};
-function calibSmoothLandmarks(landmarks) {
-  return landmarks.map((lm, i) => {
-    const alpha = CALIB_TIP_INDICES.has(i) ? 0.25 : 0.45;
-    const prev  = calibLmSmooth[i];
-    if (!prev) { calibLmSmooth[i] = { x: lm.x, y: lm.y }; return lm; }
-    const x = alpha * lm.x + (1 - alpha) * prev.x;
-    const y = alpha * lm.y + (1 - alpha) * prev.y;
-    calibLmSmooth[i] = { x, y };
-    return { ...lm, x, y };
-  });
-}
-function calibClearLmSmooth() { for (const k of Object.keys(calibLmSmooth)) delete calibLmSmooth[k]; }
-
-// ── Shift tip display positions toward palm side ───────────────────────────────
-// Interpolates 35% from tip toward DIP — moves dot off the nail toward the pad.
-// Applied to display landmarks only — angle math uses raw positions.
-const TIP_TO_DIP_IDX = { 4: 3, 8: 7, 12: 11, 16: 15, 20: 19 };
-const TIP_PALM_SHIFT = 0.1;
-function shiftTipsTowardPalm(landmarks) {
-  return landmarks.map((lm, i) => {
-    const dipIdx = TIP_TO_DIP_IDX[i];
-    if (dipIdx === undefined) return lm;
-    const dip = landmarks[dipIdx];
-    return { ...lm, x: lm.x + TIP_PALM_SHIFT * (dip.x - lm.x), y: lm.y + TIP_PALM_SHIFT * (dip.y - lm.y) };
-  });
-}
-
 // ── One Euro Filter (calib-scoped) ────────────────────────────────────────────
 const CALIB_ONE_EURO_MINCUTOFF = 0.3;
 const CALIB_ONE_EURO_BETA      = 0.1;
@@ -2711,7 +2497,6 @@ function calibLandmarkJumped(index, lm, threshold) {
 }
 
 // ── Angle calculation ─────────────────────────────────────────────────────────
-// 0° = straight, higher = more bent, negative = hyperextension (cross product sign check)
 function calibGetAngle(a, b, c) {
   const ba = { x: a.x-b.x, y: a.y-b.y, z: (a.z||0)-(b.z||0) };
   const bc = { x: c.x-b.x, y: c.y-b.y, z: (c.z||0)-(b.z||0) };
@@ -2720,9 +2505,7 @@ function calibGetAngle(a, b, c) {
   const magBC  = Math.sqrt(bc.x**2 + bc.y**2 + bc.z**2);
   if (magBA === 0 || magBC === 0) return 0;
   const cos = Math.max(-1, Math.min(1, dotVal / (magBA * magBC)));
-  const angle = Math.round(180 - Math.acos(cos) * (180 / Math.PI));
-  const cross_z = ba.x * bc.y - ba.y * bc.x;
-  return cross_z > 0 ? -angle : angle;
+  return Math.round(180 - Math.acos(cos) * (180 / Math.PI));
 }
 
 // ── Compute one joint ─────────────────────────────────────────────────────────
@@ -2761,26 +2544,50 @@ function calibUpdateFingerToggles() {
 
 // ── Rebuild readout DOM ───────────────────────────────────────────────────────
 function calibRebuildReadouts() {
+  const panel = document.getElementById('calibReadoutPanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  let count = 0;
+
   for (const finger of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
+    const hasActive = ['mcp','pip','dip'].some(j =>
+      calibActiveJoints[finger][j] && !(finger === 'thumb' && j === 'dip') && CALIB_FINGERS[finger][j]
+    );
+    if (!hasActive) continue;
+
+    const label = document.createElement('div');
+    label.className = 'calib-readout-group-label';
+    label.innerHTML = `<strong>${CALIB_FINGER_FULL[finger]}</strong>`;
+    panel.appendChild(label);
+
     for (const joint of ['mcp', 'pip', 'dip']) {
-      const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      if (!valEl) continue;
-      if (finger === 'thumb' && joint === 'dip') continue; // always disabled
-      const isActive = calibActiveJoints[finger][joint];
-      valEl.classList.toggle('cat-active', isActive);
-      valEl.classList.toggle('cat-inactive', !isActive);
-      if (!isActive) valEl.textContent = '—';
+      if (!calibActiveJoints[finger][joint]) continue;
+      if (finger === 'thumb' && joint === 'dip') continue;
+
+      const row = document.createElement('div');
+      row.className = 'calib-readout-row';
+      row.id = `calib-readout-${finger}-${joint}`;
+      row.innerHTML = `
+        <div class="calib-readout-label">
+          <span>${CALIB_FINGER_FULL[finger]} ${calibJointLabel(finger, joint)}</span>
+          <span class="calib-readout-val" id="calib-rval-${finger}-${joint}">—</span>
+        </div>
+        <div class="calib-readout-bar-wrap">
+          <div class="calib-readout-bar" id="calib-rbar-${finger}-${joint}"></div>
+        </div>`;
+      panel.appendChild(row);
+      count++;
     }
+  }
+
+  if (count === 0) {
+    panel.innerHTML = '<div class="calib-readout-empty">No joints selected</div>';
   }
   calibUpdateFingerToggles();
 }
 
-// ── Update readouts (throttled to 1 Hz for readability) ──────────────────────
-let calibLastDisplayUpdate = 0;
+// ── Update readouts ───────────────────────────────────────────────────────────
 function calibUpdateReadouts(landmarks) {
-  const now = performance.now();
-  if (now - calibLastDisplayUpdate < 500) return;
-  calibLastDisplayUpdate = now;
   for (const finger of Object.keys(CALIB_FINGERS)) {
     const threshold = CALIB_FINGER_THRESHOLDS[finger];
     for (const joint of ['mcp', 'pip', 'dip']) {
@@ -2788,9 +2595,11 @@ function calibUpdateReadouts(landmarks) {
       const jDef = CALIB_FINGERS[finger][joint];
       if (!jDef) continue;
       const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      if (!valEl) continue;
+      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
+      if (!valEl || !barEl) continue;
       const smoothed = calibComputeJoint(jDef, landmarks, threshold);
       valEl.textContent = Math.min(smoothed, CALIB_JOINT_MAX[joint]) + '°';
+      barEl.style.width = Math.min(100, (smoothed / CALIB_JOINT_MAX[joint]) * 100) + '%';
     }
   }
 }
@@ -2799,9 +2608,10 @@ function calibUpdateReadouts(landmarks) {
 function calibClearReadouts() {
   for (const finger of Object.keys(CALIB_FINGERS)) {
     for (const joint of ['mcp', 'pip', 'dip']) {
-      if (!calibActiveJoints[finger][joint]) continue;
       const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
+      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
       if (valEl) valEl.textContent = '—';
+      if (barEl) barEl.style.width = '0%';
     }
   }
   calibClearBuffers();
@@ -2816,9 +2626,9 @@ function calibDrawLandmarks(ctx, landmarks) {
     const x = lm.x * ctx.canvas.width;
     const y = lm.y * ctx.canvas.height;
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle   = 'rgba(0,229,192,0.7)';
-    ctx.shadowBlur  = 5;
+    ctx.arc(x, y, CALIB_TIP_INDICES.has(i) ? 7 : 4, 0, Math.PI * 2);
+    ctx.fillStyle   = CALIB_TIP_INDICES.has(i) ? '#00e5c0' : 'rgba(0,229,192,0.7)';
+    ctx.shadowBlur  = CALIB_TIP_INDICES.has(i) ? 14 : 5;
     ctx.shadowColor = '#00e5c0';
     ctx.fill();
     ctx.shadowBlur  = 0;
@@ -2863,9 +2673,8 @@ function calibOnResults(results) {
     calibSetStatus('Tracking active', 'active');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
     for (const landmarks of results.multiHandLandmarks) {
-      // Smooth → shift tips toward palm → remap into cropped square space for drawing
-      const smoothed = shiftTipsTowardPalm(calibSmoothLandmarks(landmarks));
-      const drawLandmarks = smoothed.map(lm => ({
+      // Remap landmarks into cropped square coordinate space for drawing
+      const drawLandmarks = landmarks.map(lm => ({
         ...lm,
         x: (lm.x * srcW - cropX) / size,
         y: (lm.y * srcH - cropY) / size,
@@ -2877,7 +2686,6 @@ function calibOnResults(results) {
     calibSetStatus('Point camera at hand', 'idle');
     if (calibCameraWrapEl) calibCameraWrapEl.classList.remove('scanning');
     calibClearReadouts();
-    calibClearLmSmooth();
   }
 
   calibCtx.restore();
@@ -2908,7 +2716,7 @@ async function startCalibration() {
   hands.setOptions({
     maxNumHands: 2,
     modelComplexity: 1,
-    minDetectionConfidence: 0.75,
+    minDetectionConfidence: 0.85,
     minTrackingConfidence: 0.75,
   });
 
@@ -3131,329 +2939,112 @@ function buildMessagePanel(patientEmail) {
   </div>`;
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   SECTION 16: PATIENT CALIBRATION
-   Therapist-initiated 3-pose calibration flow that stores per-joint correction
-   data in Firestore (calibration/{patientEmail}). Applied at session start via
-   applyCalibrationCorrection().
-   ══════════════════════════════════════════════════════════════════════════ */
+// ── Video Recording Utilities ────────────────────────────────────────────────
 
-// ── Calibration load / correction ─────────────────────────────────────────────
+function getRecordingMimeType() {
+  const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
+  for (const mime of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return null;
+}
 
-async function loadCalibration(patientEmail) {
+function startRecording(canvas) {
+  const mime = getRecordingMimeType();
+  if (!mime || typeof MediaRecorder === 'undefined') { recordingSupported = false; return; }
+  recordingSupported = true;
+  recordedChunks = [];
+  let stream;
+  try { stream = canvas.captureStream(30); } catch(e) { recordingSupported = false; return; }
   try {
-    const snap = await db.collection('calibration').doc(patientEmail).get();
-    if (!snap.exists) return null;
-    return snap.data();
-  } catch (e) {
-    console.warn('loadCalibration error', e);
-    return null;
-  }
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 400_000 });
+  } catch(e) { recordingSupported = false; return; }
+  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+  mediaRecorder.start(1000);
+  showRecordingIndicator();
 }
 
-// Piecewise linear interpolation/extrapolation using stored calibration points.
-// Returns rawAngle unchanged if no calibration exists for this joint.
-function applyCalibrationCorrection(rawAngle, jointKey) {
-  if (!currentCalibration || !currentCalibration.joints) return rawAngle;
-  const jd = currentCalibration.joints[jointKey];
-  if (!jd || !jd.points || jd.points.length < 2) return rawAngle;
-  const pts = jd.points.slice().sort((a, b) => a.raw - b.raw);
-  if (rawAngle <= pts[0].raw) {
-    const [p0, p1] = pts;
-    if (p1.raw === p0.raw) return p0.trueVal;
-    return Math.round(p0.trueVal + (rawAngle - p0.raw) * (p1.trueVal - p0.trueVal) / (p1.raw - p0.raw));
-  }
-  if (rawAngle >= pts[pts.length - 1].raw) {
-    const [p0, p1] = pts.slice(-2);
-    if (p1.raw === p0.raw) return p1.trueVal;
-    return Math.round(p0.trueVal + (rawAngle - p0.raw) * (p1.trueVal - p0.trueVal) / (p1.raw - p0.raw));
-  }
-  for (let i = 0; i < pts.length - 1; i++) {
-    if (rawAngle >= pts[i].raw && rawAngle <= pts[i + 1].raw) {
-      const t = (rawAngle - pts[i].raw) / (pts[i + 1].raw - pts[i].raw);
-      return Math.round(pts[i].trueVal + t * (pts[i + 1].trueVal - pts[i].trueVal));
+function stopRecording() {
+  return new Promise(resolve => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+      hideRecordingIndicator(); resolve(null); return;
     }
-  }
-  return rawAngle;
-}
-
-// ── Patient calibration screen state ─────────────────────────────────────────
-
-const PCALIB_POSES = [
-  { name: 'Extension',    instruction: 'Hold your hand as flat and straight as possible.' },
-  { name: 'Mid-Range',    instruction: 'Bend your fingers to about half their total range.' },
-  { name: 'Full Flexion', instruction: 'Bend your fingers as far as is comfortable.' },
-];
-
-// All joints covered by the calibration (thumb DIP excluded — not measurable reliably)
-const PCALIB_JOINTS = [
-  { key: 'thumb-mcp',  label: 'Thumb MP',   finger: 'thumb',  joint: 'mcp' },
-  { key: 'thumb-pip',  label: 'Thumb IP',   finger: 'thumb',  joint: 'pip' },
-  { key: 'index-mcp',  label: 'Index MCP',  finger: 'index',  joint: 'mcp' },
-  { key: 'index-pip',  label: 'Index PIP',  finger: 'index',  joint: 'pip' },
-  { key: 'index-dip',  label: 'Index DIP',  finger: 'index',  joint: 'dip' },
-  { key: 'middle-mcp', label: 'Middle MCP', finger: 'middle', joint: 'mcp' },
-  { key: 'middle-pip', label: 'Middle PIP', finger: 'middle', joint: 'pip' },
-  { key: 'middle-dip', label: 'Middle DIP', finger: 'middle', joint: 'dip' },
-  { key: 'ring-mcp',   label: 'Ring MCP',   finger: 'ring',   joint: 'mcp' },
-  { key: 'ring-pip',   label: 'Ring PIP',   finger: 'ring',   joint: 'pip' },
-  { key: 'ring-dip',   label: 'Ring DIP',   finger: 'ring',   joint: 'dip' },
-  { key: 'pinky-mcp',  label: 'Pinky MCP',  finger: 'pinky',  joint: 'mcp' },
-  { key: 'pinky-pip',  label: 'Pinky PIP',  finger: 'pinky',  joint: 'pip' },
-  { key: 'pinky-dip',  label: 'Pinky DIP',  finger: 'pinky',  joint: 'dip' },
-];
-
-let pcalibPatientEmail = null;
-let pcalibPatientName  = null;
-let pcalibPose         = 0;
-let pcalibData         = {};   // { 'index-pip': { points: [{raw, trueVal}, ...] } }
-let pcalibFrameBuffer  = [];
-let pcalibCapturing    = false;
-let pcalibMedianAngles = {};
-let pcalibHands        = null;
-let pcalibMpCamera     = null;
-let pcalibLandmarks    = null;
-
-// ── Entry point (called from therapist panel) ─────────────────────────────────
-
-function startPatientCalibration(email, name) {
-  pcalibPatientEmail = email;
-  pcalibPatientName  = name;
-  pcalibPose         = 0;
-  pcalibData         = {};
-  pcalibFrameBuffer  = [];
-  pcalibCapturing    = false;
-  pcalibMedianAngles = {};
-  pcalibLandmarks    = null;
-
-  document.getElementById('pcalibPatientName').textContent = name || email;
-  pcalibRenderPose();
-  pcalibRenderReadings();
-  showScreen('patientCalibrationScreen');
-  pcalibStartCamera();
-}
-
-function pcalibRenderPose() {
-  const pose   = PCALIB_POSES[pcalibPose];
-  const isLast = pcalibPose === PCALIB_POSES.length - 1;
-  document.getElementById('pcalibStepLabel').textContent        = `Step ${pcalibPose + 1} of ${PCALIB_POSES.length}`;
-  document.getElementById('pcalibPoseName').textContent         = pose.name;
-  document.getElementById('pcalibPoseInstruction').textContent  = pose.instruction;
-  document.getElementById('pcalibCaptureStatus').textContent    = '';
-  document.getElementById('pcalibCaptureBtn').disabled          = false;
-  document.getElementById('pcalibNextBtn').disabled             = true;
-  document.getElementById('pcalibNextBtn').style.display        = isLast ? 'none' : 'inline-block';
-  document.getElementById('pcalibSaveBtn').style.display        = 'none';
-  pcalibMedianAngles = {};
-}
-
-function pcalibRenderReadings() {
-  const container = document.getElementById('pcalibReadingsBody');
-  if (!container) return;
-  container.innerHTML = PCALIB_JOINTS.map(({ key, label }) => {
-    const rawVal = pcalibMedianAngles[key] !== undefined ? `${pcalibMedianAngles[key]}°` : '—';
-    const existing = pcalibData[key]?.points?.[pcalibPose];
-    const trueVal  = existing !== undefined && existing !== null ? existing.trueVal : '';
-    return `<div class="pcalib-reading-row">
-      <span class="pcalib-reading-label">${label}</span>
-      <span class="pcalib-reading-raw" id="pcalib-raw-${key}">${rawVal}</span>
-      <input class="pcalib-reading-input" type="number" id="pcalib-true-${key}"
-             value="${trueVal}" placeholder="—" min="-30" max="180" step="1">
-    </div>`;
-  }).join('');
-}
-
-function pcalibCapture() {
-  if (pcalibCapturing) return;
-  pcalibCapturing   = true;
-  pcalibFrameBuffer = [];
-  const btn    = document.getElementById('pcalibCaptureBtn');
-  const status = document.getElementById('pcalibCaptureStatus');
-  btn.disabled = true;
-
-  let countdown = 3;
-  status.textContent = `Capturing… ${countdown}s`;
-  const interval = setInterval(() => {
-    countdown--;
-    if (countdown > 0) {
-      status.textContent = `Capturing… ${countdown}s`;
-    } else {
-      clearInterval(interval);
-      pcalibCapturing = false;
-      pcalibComputeMedians();
-      btn.disabled = false;
-    }
-  }, 1000);
-}
-
-function pcalibComputeMedians() {
-  const byJoint = {};
-  PCALIB_JOINTS.forEach(({ key }) => { byJoint[key] = []; });
-
-  pcalibFrameBuffer.forEach(lm => {
-    PCALIB_JOINTS.forEach(({ key, finger, joint }) => {
-      const jd = CALIB_FINGERS[finger]?.[joint];
-      if (!jd) return;
-      const angle = calibGetAngle(lm[jd.a], lm[jd.b], lm[jd.c]);
-      byJoint[key].push(angle);
-    });
-  });
-
-  pcalibMedianAngles = {};
-  PCALIB_JOINTS.forEach(({ key }) => {
-    const vals = byJoint[key].filter(v => isFinite(v));
-    if (vals.length === 0) { pcalibMedianAngles[key] = 0; return; }
-    vals.sort((a, b) => a - b);
-    const mid = Math.floor(vals.length / 2);
-    pcalibMedianAngles[key] = Math.round(
-      vals.length % 2 !== 0 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2
-    );
-  });
-
-  // Update raw display cells
-  PCALIB_JOINTS.forEach(({ key }) => {
-    const el = document.getElementById(`pcalib-raw-${key}`);
-    if (el) el.textContent = `${pcalibMedianAngles[key]}°`;
-  });
-
-  const isLast = pcalibPose === PCALIB_POSES.length - 1;
-  const status = document.getElementById('pcalibCaptureStatus');
-  status.textContent = pcalibFrameBuffer.length > 0
-    ? `Done (${pcalibFrameBuffer.length} frames). Enter goniometer values, then ${isLast ? 'save' : 'advance'}.`
-    : 'No hand detected. Try again.';
-
-  if (pcalibFrameBuffer.length > 0) {
-    document.getElementById('pcalibNextBtn').disabled = false;
-    if (isLast) document.getElementById('pcalibSaveBtn').style.display = 'inline-block';
-  }
-}
-
-function pcalibRecordCurrentPose() {
-  PCALIB_JOINTS.forEach(({ key }) => {
-    const raw  = pcalibMedianAngles[key];
-    if (raw === undefined) return;
-    const inputEl  = document.getElementById(`pcalib-true-${key}`);
-    const trueVal  = inputEl && inputEl.value !== '' ? parseFloat(inputEl.value) : raw;
-    if (!pcalibData[key]) pcalibData[key] = { points: [] };
-    while (pcalibData[key].points.length <= pcalibPose) pcalibData[key].points.push(null);
-    pcalibData[key].points[pcalibPose] = { raw, trueVal: isNaN(trueVal) ? raw : trueVal };
+    mediaRecorder.onstop = () => {
+      hideRecordingIndicator();
+      if (recordedChunks.length === 0) { resolve(null); return; }
+      const mime = mediaRecorder.mimeType || 'video/webm';
+      const blob = new Blob(recordedChunks, { type: mime });
+      recordedChunks = []; mediaRecorder = null;
+      resolve(blob);
+    };
+    mediaRecorder.stop();
   });
 }
 
-function pcalibNextPose() {
-  pcalibRecordCurrentPose();
-  pcalibPose++;
-  if (pcalibPose >= PCALIB_POSES.length) {
-    pcalibPose = PCALIB_POSES.length - 1;
-    return;
-  }
-  const isLast = pcalibPose === PCALIB_POSES.length - 1;
-  document.getElementById('pcalibNextBtn').style.display = isLast ? 'none' : 'inline-block';
-  document.getElementById('pcalibSaveBtn').style.display = 'none';
-  pcalibRenderPose();
-  pcalibRenderReadings();
-}
-
-async function pcalibSave() {
-  pcalibRecordCurrentPose();
-  const saveBtn = document.getElementById('pcalibSaveBtn');
-  saveBtn.disabled  = true;
-  saveBtn.textContent = 'Saving…';
+async function uploadSessionVideo(blob, docId, patientEmail) {
+  if (!blob || !docId) return;
   try {
-    const joints = {};
-    Object.entries(pcalibData).forEach(([key, val]) => {
-      const pts = (val.points || []).filter(p => p !== null);
-      if (pts.length >= 2) joints[key] = { points: pts };
-    });
-    await db.collection('calibration').doc(pcalibPatientEmail).set({
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      createdBy: currentUser.email,
-      joints,
-    });
-    saveBtn.textContent = 'Saved!';
-    setTimeout(() => pcalibBack(), 1400);
-  } catch (e) {
-    console.error('pcalibSave error', e);
-    saveBtn.textContent  = 'Error — try again';
-    saveBtn.disabled     = false;
+    const form = new FormData();
+    form.append('file', blob);
+    form.append('upload_preset', CLOUDINARY_PRESET);
+    form.append('public_id', `sessions/${patientEmail}/${docId}`);
+    const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
+  } catch(e) {
+    console.error('Session video upload failed:', e?.message || e);
   }
 }
 
-function pcalibBack() {
-  if (pcalibMpCamera) { try { pcalibMpCamera.stop(); } catch (e) {} pcalibMpCamera = null; }
-  if (pcalibHands)    { try { pcalibHands.close();   } catch (e) {} pcalibHands    = null; }
-  const vid = document.getElementById('pcalibVideo');
-  if (vid && vid.srcObject) { vid.srcObject.getTracks().forEach(t => t.stop()); vid.srcObject = null; }
-  showScreen('therapistScreen');
+function showRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'flex';
 }
 
-// ── Camera ────────────────────────────────────────────────────────────────────
+function hideRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'none';
+}
 
-function pcalibStartCamera() {
-  const video  = document.getElementById('pcalibVideo');
-  const canvas = document.getElementById('pcalibCanvas');
-
-  pcalibHands = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-  pcalibHands.setOptions({
-    modelComplexity:        1,
-    minDetectionConfidence: 0.75,
-    minTrackingConfidence:  0.75,
-    maxNumHands:            1,
-  });
-  pcalibHands.onResults(pcalibOnResults);
-
-  if (!isMobile() && window.Camera) {
-    pcalibMpCamera = new window.Camera(video, {
-      onFrame: async () => { await pcalibHands.send({ image: video }); },
-      width: 640, height: 480,
-    });
-    pcalibMpCamera.start();
-  } else {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } })
-      .then(stream => {
-        video.srcObject = stream;
-        video.play();
-        const loop = async () => {
-          if (!document.getElementById('patientCalibrationScreen')?.classList.contains('active')) return;
-          if (video.readyState >= 2) {
-            canvas.width  = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const tmp = document.createElement('canvas');
-            tmp.width  = video.videoWidth;
-            tmp.height = video.videoHeight;
-            tmp.getContext('2d').drawImage(video, 0, 0);
-            await pcalibHands.send({ image: tmp });
-          }
-          requestAnimationFrame(loop);
-        };
-        video.onloadedmetadata = () => requestAnimationFrame(loop);
-      })
-      .catch(err => console.error('pcalibStartCamera getUserMedia error', err));
+async function downloadSessionVideo(url, date, patientName) {
+  const d    = new Date(date);
+  const ts   = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const ext  = url.includes('.mp4') ? 'mp4' : 'webm';
+  const name = patientName ? `${patientName}-${ts}` : ts;
+  try {
+    const res  = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = blobUrl;
+    a.download = `phalanx-session-${name}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  } catch(e) {
+    window.open(url, '_blank');
   }
 }
 
-function pcalibOnResults(results) {
-  const canvas = document.getElementById('pcalibCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  canvas.width  = results.image.width;
-  canvas.height = results.image.height;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-    const lm = results.multiHandLandmarks[0];
-    if (window.drawConnectors && window.drawLandmarks && window.HAND_CONNECTIONS) {
-      drawConnectors(ctx, lm, window.HAND_CONNECTIONS, { color: '#00BFFF', lineWidth: 2 });
-      drawLandmarks(ctx, lm,  { color: '#FF0090', lineWidth: 1, radius: 3 });
-    }
-    pcalibLandmarks = lm;
-    if (pcalibCapturing) {
-      pcalibFrameBuffer.push(lm.map(p => ({ x: p.x, y: p.y, z: p.z || 0 })));
-    }
-  } else {
-    pcalibLandmarks = null;
+function openVideoModal(videoUrl, sessionDate, patientName) {
+  const modal  = document.getElementById('videoModal');
+  const player = document.getElementById('videoModalPlayer');
+  const dlBtn  = document.getElementById('videoModalDownload');
+  player.src = videoUrl;
+  if (dlBtn) {
+    dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate || new Date().toISOString(), patientName);
   }
+  modal.style.display = 'flex';
+  player.play().catch(() => {});
+}
+
+function closeVideoModal() {
+  const modal  = document.getElementById('videoModal');
+  const player = document.getElementById('videoModalPlayer');
+  player.pause(); player.src = '';
+  modal.style.display = 'none';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3461,6 +3052,9 @@ function pcalibOnResults(results) {
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
 Object.assign(window, {
+  // Video modal
+  openVideoModal, closeVideoModal, downloadSessionVideo,
+
   // Auth
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
@@ -3480,18 +3074,13 @@ Object.assign(window, {
 
   // Therapist panel
   startCalibration, calibBack,
-  showTherapistOnboarding, dismissTherapistOnboarding,
-  startPatientCalibration, pcalibCapture, pcalibNextPose, pcalibSave, pcalibBack,
-  backToPatientList, toggleTpSection, showRealPatient,
+  backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
 
   // Joint selector
   ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
   ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
-
-  // Video modal (therapist session review)
-  openVideoModal, closeVideoModal, downloadSessionVideo,
 
   // Exposed array for exercises screen start buttons
   get _exercisesProtocols() { return _exercisesProtocols; },
