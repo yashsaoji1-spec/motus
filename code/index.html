@@ -295,6 +295,10 @@
       </div>
     </div>
     <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
+    <div id="recordingIndicator" class="recording-indicator" style="display:none;">
+      <span class="rec-dot"></span>
+      <span class="rec-label">REC</span>
+    </div>
     <!-- TAM live display (from feature/ui) -->
     <div id="tamDisplay" style="display:none; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(167,139,250,0.4); border-radius:10px; padding:6px 14px; z-index:10; pointer-events:none;">
       <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1px;">TAM</div>
@@ -633,7 +637,7 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="sessionSummaryOverlay" class="session-summary-overlay" style="display:none;">
   <div style="text-align:center;">
-    <div style="font-size:3rem; margin-bottom:8px;">🏆</div>
+    <div style="font-size:2rem; margin-bottom:6px;">🏆</div>
     <h2 class="summary-title">Session Complete!</h2>
     <p class="summary-subtitle">Great work today. Here's how you did:</p>
   </div>
@@ -650,13 +654,13 @@
       <div id="summaryMaxROM" class="summary-stat-value" style="color:#0B6CB0;">0°</div>
       <div class="summary-stat-label">Max ROM</div>
     </div>
-    <div class="summary-stat-card" style="grid-column: 1 / -1;">
-      <div id="summaryMaxTAM" class="summary-stat-value" style="color:#10B981;">0°</div>
-      <div class="summary-stat-label">Max TAM</div>
-    </div>
     <div class="summary-stat-card">
       <div id="summaryAvgPain" class="summary-stat-value" style="color:#f59e0b;">0</div>
       <div class="summary-stat-label">Avg Pain</div>
+    </div>
+    <div class="summary-stat-card" style="grid-column: 1 / -1;">
+      <div id="summaryMaxTAM" class="summary-stat-value" style="color:#10B981;">0°</div>
+      <div class="summary-stat-label">Max TAM (Total Active Motion)</div>
     </div>
   </div>
   <div class="summary-message-card">
@@ -729,6 +733,18 @@
       <button class="modal-cancel" onclick="closeLogoutModal()">Cancel</button>
       <button class="modal-confirm" onclick="confirmLogout()">Sign Out</button>
     </div>
+  </div>
+</div>
+
+<!-- Video playback modal (therapist session review) -->
+<div id="videoModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeVideoModal()">
+  <div class="video-modal-box">
+    <div class="video-modal-header">
+      <span class="video-modal-title">Session Recording</span>
+      <button class="video-modal-close" onclick="closeVideoModal()">✕</button>
+    </div>
+    <video id="videoModalPlayer" class="video-modal-player" controls playsinline></video>
+    <p class="video-modal-hint">Recorded during live session with hand tracking overlay.</p>
   </div>
 </div>
 
