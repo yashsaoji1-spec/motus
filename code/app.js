@@ -223,7 +223,7 @@ async function handleForgot() {
   try {
     await auth.sendPasswordResetEmail(email);
     const successEl = document.getElementById('forgotSuccess');
-    successEl.textContent = '✓ Password reset email sent! Check your inbox.';
+    successEl.textContent = 'Password reset email sent! Check your inbox.';
     successEl.style.display = 'block';
     setTimeout(() => {
       successEl.style.display = 'none';
@@ -250,7 +250,7 @@ async function handleConnect() {
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   await saveConnection(therapist.email, currentUser.email);
   const successEl = document.getElementById('connectSuccess');
-  successEl.textContent = `✓ Connected to ${therapist.name}! Loading your exercises...`;
+  successEl.textContent = `Connected to ${therapist.name}! Loading your exercises...`;
   successEl.style.display = 'block';
   setTimeout(async () => {
     showScreen('patientScreen');
@@ -426,7 +426,7 @@ async function updatePatientHomeScreen() {
   const bestEl  = document.getElementById('streakBest');
   if (badgeEl && streak.current > 0) {
     badgeEl.style.display = 'flex';
-    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame">🔥</span>');
+    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame"></span>');
     countEl.textContent   = streak.current;
     labelEl.textContent   = 'day streak';
     if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
@@ -804,7 +804,7 @@ async function showExercisesScreen() {
   if (protocols.length === 0) {
     inner.innerHTML = `
       <div class="exs-empty">
-        <div class="exs-empty-icon">💪</div>
+        <div class="exs-empty-icon"></div>
         <p class="exs-empty-title">No protocol yet</p>
         <p class="exs-empty-sub">Your therapist has not assigned any exercises for you.</p>
       </div>`;
@@ -826,7 +826,7 @@ async function showExercisesScreen() {
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
     const progressText = isDone
-      ? `<span class="exs-done-badge">Done today ✓</span>`
+      ? `<span class="exs-done-badge">Done today</span>`
       : doneSets > 0
         ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
         : '';
@@ -900,7 +900,7 @@ function filterPatients(query) {
 function enableMobilePatientDetail(panel) {
   if (window.innerWidth >= 1024) return;
   document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
-  panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">🔬 Calibrate</button></div>');
+  panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">Calibrate</button></div>');
 }
 
 // ── Calibration back button (named so Vite module can export it) ──────────────
@@ -1183,7 +1183,7 @@ function buildProtocolForm(patientEmail, protocols) {
           <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="2"></textarea>
         </div>
         <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Add to Protocol</button>
-        <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">✓ Protocol assigned successfully</div>
+        <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">Protocol assigned successfully</div>
       </div>
       ${existingHTML}
     </div>`;
@@ -1508,7 +1508,7 @@ function updateRepUI() {
     document.getElementById('totalSetsDisplay').textContent   = totalSets;
     if (currentSet >= totalSets) {
       document.getElementById('allSetsComplete').style.display = 'block';
-      document.getElementById('nextSetBtn').textContent = '🏆 Finish Session';
+      document.getElementById('nextSetBtn').textContent = 'Finish Session';
     }
     document.getElementById('congratsOverlay').classList.add('show');
     sessionPaused = true;
@@ -1598,7 +1598,7 @@ function renderSetDots() {
   for (let i = 1; i <= totalSets; i++) {
     const dot = document.createElement('div');
     dot.className = 'set-dot';
-    if (i < currentSet)   { dot.classList.add('complete'); dot.textContent = '✓'; }
+    if (i < currentSet)   { dot.classList.add('complete'); dot.textContent = i; }
     else if (i === currentSet) { dot.classList.add('active'); dot.textContent = i; }
     else                  { dot.textContent = i; }
     tracker.appendChild(dot);
@@ -1683,15 +1683,15 @@ function showSessionSummary(partialReps = 0) {
   document.getElementById('summaryAvgPain').textContent   = avgPain;
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
-    message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
+    message = 'Pain was high today. Consider mentioning this to your therapist.';
   } else if (maxROM >= 120) {
-    message = '💪 Excellent range of motion today! You\'re making great progress.';
+    message = 'Excellent range of motion today! You\'re making great progress.';
   } else if (maxROM >= 80) {
-    message = '👍 Good session. Consistency is key — keep it up!';
+    message = 'Good session. Consistency is key — keep it up!';
   } else if (totalRepsCompleted === 0) {
-    message = '📋 Session recorded. Start moving to track your range of motion next time.';
+    message = 'Session recorded. Start moving to track your range of motion next time.';
   } else {
-    message = '✅ Session logged. Every rep counts toward your recovery.';
+    message = 'Session logged. Every rep counts toward your recovery.';
   }
   document.getElementById('summaryMessage').textContent = message;
   document.getElementById('sessionSummaryOverlay').style.display = 'flex';
@@ -1783,8 +1783,9 @@ function startCamera() {
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (const landmarks of results.multiHandLandmarks) {
-        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
-        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
+        const mobile = isMobile();
+        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: mobile ? 4 : 2 });
+        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: mobile ? 2 : 1, radius: mobile ? 4 : 2 });
         updateRepCount(landmarks);
       }
     }
@@ -2052,7 +2053,7 @@ function buildJointSelector(patientEmail) {
       <!-- RIGHT: Info panel -->
       <div class="ejs-info-col">
         <div class="ejs-info-empty" id="ejsInfoEmpty">
-          <div class="ejs-info-empty-icon">🦴</div>
+          <div class="ejs-info-empty-icon"></div>
           <div class="ejs-info-empty-text">Tap any joint on the diagram or in the grid to view clinical details and toggle tracking.</div>
         </div>
         <div class="ejs-info-detail" id="ejsInfoDetail">
@@ -2082,7 +2083,7 @@ function buildJointSelector(patientEmail) {
           </div>
           <div class="ejs-info-desc"><div id="ejsInfoDesc" class="ejs-info-desc-text">—</div></div>
           <div class="ejs-info-actions">
-            <button class="ejs-track-btn ejs-track-add" id="ejsTrackBtn" onclick="ejsToggleFromInfo()">＋ Track This Joint</button>
+            <button class="ejs-track-btn ejs-track-add" id="ejsTrackBtn" onclick="ejsToggleFromInfo()">+ Track This Joint</button>
           </div>
         </div>
         <div class="ejs-tracked-summary">
@@ -2282,10 +2283,10 @@ function ejsShowInfo(key) {
   const btn = document.getElementById('ejsTrackBtn');
   if (selectedJoints.has(key)) {
     btn.className   = 'ejs-track-btn ejs-track-remove';
-    btn.textContent = '✕ Remove from Tracking';
+    btn.textContent = '- Remove from Tracking';
   } else {
     btn.className   = 'ejs-track-btn ejs-track-add';
-    btn.textContent = '＋ Track This Joint';
+    btn.textContent = '+ Track This Joint';
     btn.style.background = EJS_FINGER_COLORS[data.finger];
   }
 
@@ -2357,10 +2358,10 @@ function ejsRefreshUI() {
     if (btn && data) {
       if (selectedJoints.has(ejsActiveInfoKey)) {
         btn.className   = 'ejs-track-btn ejs-track-remove';
-        btn.textContent = '✕ Remove from Tracking';
+        btn.textContent = '- Remove from Tracking';
       } else {
         btn.className   = 'ejs-track-btn ejs-track-add';
-        btn.textContent = '＋ Track This Joint';
+        btn.textContent = '+ Track This Joint';
         btn.style.background = EJS_FINGER_COLORS[data.finger];
       }
     }

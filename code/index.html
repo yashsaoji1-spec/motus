@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>phalanX</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤚</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>P</text></svg>">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="styles.css"/>
 </head>
@@ -167,11 +167,11 @@
 
   <div class="patient-nav-grid">
     <button class="patient-nav-card" onclick="showProgressScreen()">
-      <span class="patient-nav-icon">📈</span>
+      <span class="patient-nav-icon"></span>
       <span class="patient-nav-label">My Progress</span>
     </button>
     <button class="patient-nav-card" id="therapistContactBtn" onclick="openPatientMessaging()">
-      <span class="patient-nav-icon">💬</span>
+      <span class="patient-nav-icon"></span>
       <span class="patient-nav-label"><span id="therapistBtnLabel">Messages</span> <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></span>
       <span class="patient-nav-sub" id="therapistContactName"></span>
     </button>
@@ -232,7 +232,7 @@
         <span class="rep-target" id="repTargetDisplay">/ 10</span>
       </div>
     </div>
-    <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
+    <div class="speed-warning" id="speedWarning">Slow down — control the movement</div>
     <div id="recordingIndicator" class="recording-indicator" style="display:none;">
       <span class="rec-dot"></span>
       <span class="rec-label">REC</span>
@@ -294,7 +294,7 @@
            oninput="filterPatients(this.value)" />
     <!-- Calibration button in therapist sidebar -->
     <button class="calib-launch-btn" onclick="startCalibration()">
-      <span class="calib-icon">🔬</span>
+      <span class="calib-icon"></span>
       Joint Angle Calibration
     </button>
     <div class="sidebar-footer">
@@ -430,7 +430,7 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="sessionSummaryOverlay" class="session-summary-overlay" style="display:none;">
   <div class="summary-top">
-    <div class="summary-trophy">🏆</div>
+    <div class="summary-trophy"></div>
     <h2 class="summary-title">Session Complete!</h2>
     <p class="summary-subtitle">Great work today. Here's how you did:</p>
   </div>
@@ -479,7 +479,7 @@
       <span class="video-modal-title">Session Recording</span>
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="videoModalDownload" class="video-modal-dl-btn">↓ Download</button>
-        <button class="video-modal-close" onclick="closeVideoModal()">✕</button>
+        <button class="video-modal-close" onclick="closeVideoModal()">x</button>
       </div>
     </div>
     <video id="videoModalPlayer" class="video-modal-player" controls playsinline></video>

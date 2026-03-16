@@ -580,7 +580,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   overflow: hidden; background: #000;
   border: 2px solid var(--border);
   box-shadow: var(--shadow-md);
-  flex: 1; min-height: 0;
+  flex-shrink: 0;
   aspect-ratio: 4/3;
 }
 .cam-viewport video, .cam-viewport canvas {
@@ -598,7 +598,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .cam-controls {
   width: 100%; max-width: var(--max-content);
   display: flex; flex-direction: column; gap: var(--space-2);
-  flex-shrink: 0;
+  flex-shrink: 1; overflow-y: auto;
 }
 .cam-feedback {
   text-align: center; font-size: 1rem; font-weight: 600;

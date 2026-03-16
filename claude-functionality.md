@@ -323,6 +323,10 @@ When the user says anything like "merge", "Oliver is done", "integrate Oliver's 
 - [ ] **Review Firebase Auth settings** — disable any sign-in providers you're not using.
 - [ ] **Set up video expiry Cloud Function** — currently the 30-day expiry is UI-only (files remain on Cloudinary but are inaccessible through the app). For actual deletion at launch: (1) upgrade Firebase project `phalanx-firebase-database` to Blaze plan at https://console.firebase.google.com/project/phalanx-firebase-database/usage/details — free in practice, just requires a billing account attached; (2) tell Claude "set up the video expiry Cloud Function" — it will create `functions/index.js` with a daily scheduled job that deletes Cloudinary videos older than 30 days and clears `videoUrl` from Firestore. Cloudinary credentials: cloud `dslbugsdg`, API key `853184729123867`, API secret in Yash's password manager.
 
+## UI Rules
+
+- **No emojis — ever.** Do not add emojis anywhere in the app: HTML, JS strings, CSS content, button labels, messages, icons, or favicons. Use plain text or standard ASCII symbols (e.g. `+`, `-`, `x`) instead.
+
 ## Key Constraints
 
 - **Vite build step** — run `npm run dev` for local dev; `npm run build` before deploy. No other bundler/compiler.
