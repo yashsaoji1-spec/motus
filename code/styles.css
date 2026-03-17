@@ -277,18 +277,34 @@ body {
   font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -0.5px;
   align-self: flex-start; width: 100%; max-width: 680px; margin-bottom: 4px;
 }
-.protocol-strip {
-  width: 100%; max-width: 680px; padding: 14px 18px;
-  background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
-  border: 1px solid rgba(16,185,129,0.2); border-left: 3px solid var(--green);
-  border-radius: 12px; display: flex; justify-content: space-between; align-items: center;
+/* ── Patient exercise cards (home screen) ──────────────────────────────── */
+.patient-exercise-list {
+  width: 100%; max-width: 680px;
+  display: flex; flex-direction: column; gap: 8px;
 }
-.protocol-strip-label { font-size: 0.65rem; font-weight: 600; color: var(--green-dark); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 3px; }
-.protocol-strip-exercise { font-size: 0.95rem; font-weight: 600; color: var(--text); }
-.protocol-strip-meta { font-size: 0.75rem; color: var(--placeholder); margin-top: 2px; }
-.protocol-strip-sets { font-family: 'DM Mono', monospace; font-size: 1.4rem; font-weight: 500; color: var(--accent); line-height: 1; text-align: right; }
-.protocol-strip-sets-label { font-size: 0.65rem; color: var(--placeholder); text-transform: uppercase; letter-spacing: 1px; text-align: right; }
-.protocol-strip-status { font-size: 0.78rem; font-weight: 700; padding: 5px 11px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.pel-card {
+  width: 100%; padding: 14px 18px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--green); border-radius: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  cursor: pointer; font-family: inherit; text-align: left;
+  transition: all 0.2s;
+}
+.pel-card:hover {
+  border-color: var(--green); transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16,185,129,0.1);
+}
+.pel-info { flex: 1; min-width: 0; }
+.pel-name { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+.pel-meta { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+.pel-status {
+  font-size: 0.72rem; font-weight: 700; padding: 5px 12px;
+  border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+  background: var(--bg); color: var(--muted);
+}
+.pel-done .pel-status { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #15803d; }
+.pel-partial .pel-status { background: linear-gradient(135deg, #fef9c3, #fde68a); color: #a16207; }
+.pel-done { opacity: 0.7; border-left-color: #22c55e; }
 .status-done    { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: var(--success-dark); font-weight: 700; }
 .status-partial { background: linear-gradient(135deg, #fef9c3, #fde68a); color: var(--warning-text); }
 .status-pending { background: var(--bg); color: var(--muted); }
@@ -406,21 +422,22 @@ body {
 .patient-nav-icon { font-size: 1.4rem; line-height: 1; }
 .patient-nav-label { font-size: 0.95rem; font-weight: 600; color: var(--text); line-height: 1.3; }
 .patient-nav-sub { font-size: 0.75rem; color: var(--placeholder); margin-top: 2px; }
-.patient-footer-row {
+/* ── My Exercises card button ──────────────────────────────────────────── */
+.patient-exercises-card {
   width: 100%; max-width: var(--max-content);
-  display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2);
+  padding: 16px 20px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; font-family: inherit; text-align: left;
+  transition: all 0.2s;
 }
-.patient-footer-row .xp-bar-container {
-  padding: 12px 16px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+.patient-exercises-card:hover {
+  border-color: var(--accent); transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(11,108,176,0.08);
 }
-.patient-exercises-link {
-  background: none; border: none; color: var(--accent);
-  font-size: 0.88rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; padding: var(--space-2) 0; white-space: nowrap;
-  text-align: center;
-}
-.patient-exercises-link:hover { text-decoration: underline; }
+.patient-exercises-card-label { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.patient-exercises-card-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+.patient-exercises-card-arrow { font-size: 1.4rem; color: var(--accent); font-weight: 300; }
 .patient-logout-link {
   background: none; border: none;
   color: var(--placeholder); font-size: 0.78rem; font-weight: 500;
@@ -910,8 +927,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .sh-exercise { font-size: 0.72rem; font-weight: 600; color: var(--green); text-transform: uppercase; letter-spacing: 0.3px; }
 .sh-reps { text-align: center; font-weight: 700; color: var(--accent); }
 .sh-rom { text-align: center; font-weight: 700; }
+.sh-sets { text-align: center; font-weight: 700; color: var(--accent); }
 .sh-pain { text-align: center; font-weight: 700; white-space: nowrap; }
 .session-pain-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+
+/* Expandable session rows (therapist) */
+.sh-row-expandable { cursor: pointer; }
+.sh-row-expandable:hover { background: var(--accent-dim); }
+.sh-detail-row { display: none; }
+.sh-row-expandable.sh-expanded + .sh-detail-row { display: table-row; }
+.sh-detail-cell { padding: 0 !important; border-bottom: 1px solid var(--border); }
+.sh-detail-inner { padding: 12px 16px; background: var(--bg); border-top: 1px dashed var(--border-light); }
+.sh-detail-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.sh-meta-chip { font-size: 0.7rem; font-weight: 600; background: var(--surface); border: 1px solid var(--border-light); border-radius: 99px; padding: 2px 10px; color: var(--text-secondary); }
+.sh-set-detail-list { display: flex; flex-direction: column; gap: 4px; }
+.sh-set-detail-row { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 6px; background: var(--surface); font-size: 0.76rem; }
+.sh-set-label { font-weight: 700; color: var(--accent); min-width: 40px; font-size: 0.7rem; }
+.sh-set-time { color: var(--muted); font-size: 0.68rem; min-width: 60px; }
+.sh-set-val { font-weight: 600; min-width: 50px; }
 
 /* ── Enhanced Joint Selector (EJS) ───────────────────────────────────────── */
 .ejs-panel { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 20px; }
@@ -1024,19 +1057,38 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .progress-container { max-width: 700px; margin: 0 auto; padding: var(--space-8) var(--space-6); width: 100%; }
 .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-7); }
 .progress-title { color: var(--accent); font-size: var(--text-2xl); font-weight: var(--font-extrabold); }
-.progress-history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.progress-session-card {
-  background: var(--surface); border-radius: 14px; padding: 16px;
-  border: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px;
-  transition: all 0.2s; position: relative; overflow: hidden;
-}
-.progress-session-card::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: var(--gradient-cta); opacity: 0.5; }
-.progress-session-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-.progress-session-date { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
-.progress-session-stats { display: flex; gap: 12px; flex-wrap: wrap; }
-.progress-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.progress-stat-value { font-size: 1.3rem; font-weight: 800; color: var(--accent); }
-.progress-stat-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+/* ── Patient Progress — Expandable Session Cards ─────────────────────────── */
+.psc-list { display: flex; flex-direction: column; gap: 8px; }
+.psc-card { background: var(--surface); border-radius: 14px; border: 1px solid var(--border); overflow: hidden; transition: box-shadow 0.2s; }
+.psc-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.psc-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; user-select: none; }
+.psc-header-left { min-width: 80px; }
+.psc-date { font-size: 0.82rem; font-weight: 700; color: var(--text); }
+.psc-time { font-size: 0.68rem; color: var(--muted); }
+.psc-header-stats { display: flex; align-items: center; gap: 14px; flex: 1; }
+.psc-stat-group { display: flex; flex-direction: column; align-items: center; min-width: 42px; }
+.psc-stat-val { font-size: 1rem; font-weight: 800; color: var(--accent); line-height: 1.2; }
+.psc-stat-lbl { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
+.psc-chevron { font-size: 0.9rem; color: var(--muted); transition: transform 0.25s; margin-left: auto; }
+.psc-card.expanded .psc-chevron { transform: rotate(180deg); }
+.psc-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 16px; }
+.psc-card.expanded .psc-body { max-height: 500px; padding: 0 16px 16px; }
+.psc-detail-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; padding-top: 12px; border-top: 1px solid var(--border-light); }
+.psc-detail-item { display: flex; flex-direction: column; gap: 2px; }
+.psc-detail-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.psc-detail-val { font-size: 0.82rem; font-weight: 700; color: var(--text); }
+.psc-exercise-tag { color: var(--green); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.3px; }
+.psc-pain-flag { background: var(--danger-dim); border-radius: 6px; padding: 4px 8px; }
+.psc-sets-header { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 6px; }
+.psc-sets-list { display: flex; flex-direction: column; gap: 4px; }
+.ses-set-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 6px; background: var(--bg); font-size: 0.78rem; }
+.ses-set-num { font-weight: 700; color: var(--accent); min-width: 40px; font-size: 0.72rem; }
+.ses-set-stat { font-weight: 600; min-width: 50px; }
+.ses-trend { font-size: 0.68rem; font-weight: 700; margin-left: 2px; }
+.ses-trend--up { color: var(--green); }
+.ses-trend--down { color: var(--danger); }
+.ses-trend--flat { color: var(--muted); }
+.stats-row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .no-progress-msg { text-align: center; color: var(--placeholder); padding: 60px 20px; font-size: 0.95rem; line-height: 1.8; }
 
 /* ── Rep dots / speed warning / streak ───────────────────────────────────── */
@@ -1640,7 +1692,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* Progress */
 .progress-container { padding: 20px 16px; }
-.progress-history-grid { grid-template-columns: 1fr; }
+.stats-row-4 { grid-template-columns: repeat(2, 1fr); }
+.ph-exercise { font-size: 0.78rem; }
+.ph-time { min-width: 60px; font-size: 0.72rem; }
+.ph-stat { min-width: 42px; font-size: 0.75rem; }
 
 /* Therapist dashboard — mobile: stacked, sidebar takes full width */
 #therapistScreen { flex-direction: column; height: 100vh; overflow: hidden; }
@@ -1722,7 +1777,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
   /* Progress */
   .progress-container { padding: var(--space-8) var(--space-6); }
-  .progress-history-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .stats-row-4 { grid-template-columns: repeat(4, 1fr); }
 
   /* Stats */
   .stats-row { grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -1852,40 +1907,3 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   line-height: 1.5;
 }
 .therapist-msg-send { padding: 8px 16px; background: var(--accent); color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-family: inherit; font-weight: 600; }
-
-/* ── Recording indicator ─────────────────────────────────────────────────── */
-.recording-indicator {
-  position: absolute; bottom: 12px; left: 12px; z-index: 11;
-  display: flex; align-items: center; gap: 5px;
-  background: rgba(0,0,0,0.45); backdrop-filter: blur(6px);
-  border: 1px solid rgba(204,41,54,0.4);
-  border-radius: 99px; padding: 4px 10px; pointer-events: none;
-}
-.rec-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--danger);
-  animation: recBlink 1.4s ease-in-out infinite; flex-shrink: 0;
-}
-@keyframes recBlink { 0%,100% { opacity:1; } 50% { opacity:0.25; } }
-.rec-label { font-size: 0.65rem; font-weight: 700; color: var(--danger); font-family: 'DM Mono', monospace; letter-spacing: 1px; }
-
-/* ── Video playback modal ────────────────────────────────────────────────── */
-.video-modal-box { background: #0f172a; border-radius: 16px; padding: 20px; width: min(680px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px; border: 1px solid rgba(255,255,255,0.1); }
-.video-modal-header { display: flex; align-items: center; justify-content: space-between; }
-.video-modal-title { font-size: 0.9rem; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 1px; }
-.video-modal-close { background: none; border: none; color: rgba(255,255,255,0.45); font-size: 1.1rem; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.2s; }
-.video-modal-close:hover { color: rgba(255,255,255,0.9); }
-.video-modal-player { width: 100%; border-radius: 10px; background: #000; max-height: 60vh; object-fit: contain; }
-.video-modal-hint { font-size: 0.75rem; color: rgba(255,255,255,0.3); text-align: center; margin: 0; }
-
-/* ── Session history video button ────────────────────────────────────────── */
-.session-video-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
-.session-video-btn { font-size: 0.78rem; font-weight: 600; padding: 4px 10px; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; white-space: nowrap; }
-.session-video-btn:hover { background: var(--accent); color: #fff; }
-.session-video-btn--none { font-size: 0.75rem; color: var(--muted); cursor: default; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; }
-.session-video-btn--expired { font-size: 0.75rem; color: var(--muted); cursor: default; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; opacity: 0.5; }
-.session-video-btn--dl { padding: 4px 8px; font-size: 0.78rem; background: rgba(16,185,129,0.08); color: var(--green); border: 1px solid var(--green); border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
-.session-video-btn--dl:hover { background: var(--green); color: #fff; }
-.video-modal-dl-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); font-size: 0.8rem; font-weight: 600; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
-.video-modal-dl-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
-@media (max-width: 700px) { .video-modal-player { max-height: 45vh; } }

@@ -154,14 +154,7 @@
     </div>
   </div>
 
-  <div class="protocol-strip" id="patientProtocolStrip" style="display:none;">
-    <div>
-      <div class="protocol-strip-label">Today's Protocol</div>
-      <div class="protocol-strip-exercise" id="protocolStripExercise">—</div>
-      <div class="protocol-strip-meta" id="protocolStripMeta">—</div>
-    </div>
-    <div id="protocolStripStatus" class="protocol-strip-status status-pending">—</div>
-  </div>
+  <div class="patient-exercise-list" id="patientExerciseList" style="display:none;"></div>
 
   <button class="patient-hero-btn" onclick="startScanSession()">Start a Session</button>
 
@@ -177,17 +170,22 @@
     </button>
   </div>
 
-  <div class="patient-footer-row">
-    <div class="xp-bar-container" id="xpBarContainer" style="display:none;">
-      <div class="xp-bar-header">
-        <span class="xp-level" id="xpLevel">Level 1</span>
-        <span class="xp-progress-text" id="xpProgressText">0/10</span>
-      </div>
-      <div class="xp-bar-track">
-        <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
-      </div>
+  <button class="patient-exercises-card" onclick="showExercisesScreen()">
+    <div>
+      <div class="patient-exercises-card-label">My Exercises</div>
+      <div class="patient-exercises-card-sub">View all assigned protocols</div>
     </div>
-    <button class="patient-exercises-link" onclick="showExercisesScreen()">My Exercises ›</button>
+    <span class="patient-exercises-card-arrow">›</span>
+  </button>
+
+  <div class="xp-bar-container" id="xpBarContainer" style="display:none;">
+    <div class="xp-bar-header">
+      <span class="xp-level" id="xpLevel">Level 1</span>
+      <span class="xp-progress-text" id="xpProgressText">0/10</span>
+    </div>
+    <div class="xp-bar-track">
+      <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
+    </div>
   </div>
 
   <div class="patient-bottom-row">
@@ -232,16 +230,7 @@
         <span class="rep-target" id="repTargetDisplay">/ 10</span>
       </div>
     </div>
-    <div class="speed-warning" id="speedWarning">⚠️ Slow down — control the movement</div>
-    <div id="recordingIndicator" class="recording-indicator" style="display:none;">
-      <span class="rec-dot"></span>
-      <span class="rec-label">REC</span>
-    </div>
-    <!-- TAM live display -->
-    <div id="tamDisplay" style="display:none; position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); border:1px solid rgba(167,139,250,0.4); border-radius:10px; padding:6px 14px; z-index:10; pointer-events:none;">
-      <div style="font-size:0.6rem; color:#94a3b8; text-transform:uppercase; letter-spacing:1px;">TAM</div>
-      <div id="tamValue" style="font-size:1.4rem; font-weight:900; color:#a78bfa; font-family:'DM Mono',monospace;">0°</div>
-    </div>
+    <div class="speed-warning" id="speedWarning">Slow down — control the movement</div>
     <div id="congratsOverlay">
       <h2>Great work!</h2>
       <p>Set <strong id="currentSetDisplay">1</strong> of <strong id="totalSetsDisplay">3</strong> complete!</p>
@@ -469,21 +458,6 @@
       <button class="modal-cancel" onclick="closeLogoutModal()">Cancel</button>
       <button class="modal-confirm" onclick="confirmLogout()">Sign Out</button>
     </div>
-  </div>
-</div>
-
-<!-- Video playback modal (therapist session review) -->
-<div id="videoModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeVideoModal()">
-  <div class="video-modal-box">
-    <div class="video-modal-header">
-      <span class="video-modal-title">Session Recording</span>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button id="videoModalDownload" class="video-modal-dl-btn">↓ Download</button>
-        <button class="video-modal-close" onclick="closeVideoModal()">✕</button>
-      </div>
-    </div>
-    <video id="videoModalPlayer" class="video-modal-player" controls playsinline></video>
-    <p class="video-modal-hint">Recorded during live session with hand tracking overlay.</p>
   </div>
 </div>
 

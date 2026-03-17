@@ -24,12 +24,6 @@ let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
 
-// ── Video recording state ──
-let mediaRecorder        = null;   // active MediaRecorder during a session
-let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
-let recordingSupported   = false;  // false on iOS/unsupported browsers — skip all recording logic
-let _pendingSessionDocId = null;   // Firestore doc ID to patch with videoUrl after upload completes
-
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
 // Required Firestore composite indexes (create in Firebase console → Firestore → Indexes):
@@ -48,9 +42,6 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const db   = firebase.firestore();
 const auth = firebase.auth();
-
-const CLOUDINARY_CLOUD  = 'dslbugsdg';
-const CLOUDINARY_PRESET = 'phalanx-videos';
 
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
@@ -137,9 +128,6 @@ function showScreen(screenId) {
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop(); mediaRecorder = null; recordedChunks = [];
-    }
     currentFacingMode = 'user';
   }
 
@@ -379,38 +367,32 @@ async function updatePatientHomeScreen() {
     getConnectedTherapist()
   ]);
 
-  const strip = document.getElementById('patientProtocolStrip');
-  if (protocols.length > 0 && strip) {
-    strip.style.display = 'flex';
-    document.getElementById('protocolStripExercise').textContent =
-      protocols.length === 1
-        ? (exerciseLabels[protocols[0].exerciseType] || protocols[0].exerciseType)
-        : `${protocols.length} exercises assigned`;
-    document.getElementById('protocolStripMeta').textContent =
-      protocols.length === 1
-        ? 'Assigned by ' + protocols[0].assignedBy
-        : 'Tap "My Exercises" to choose';
-
-    const today         = new Date().toDateString();
+  const listEl = document.getElementById('patientExerciseList');
+  if (protocols.length > 0 && listEl) {
+    listEl.style.display = 'flex';
+    _exercisesProtocols = protocols;
+    const today = new Date().toDateString();
     const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
-    const currentIds    = new Set(protocols.map(p => p.id).filter(Boolean));
-    const done          = todaySessions.filter(s => s.protocolId && currentIds.has(s.protocolId)).length;
-    const required      = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
-    const statusEl = document.getElementById('protocolStripStatus');
-    if (statusEl) {
-      if (done >= required) {
-        statusEl.textContent = 'Done';
-        statusEl.className   = 'protocol-strip-status status-done';
-      } else if (done > 0) {
-        statusEl.textContent = `${done} / ${required} sets`;
-        statusEl.className   = 'protocol-strip-status status-partial';
-      } else {
-        statusEl.textContent = `${required} sets`;
-        statusEl.className   = 'protocol-strip-status status-pending';
-      }
-    }
-  } else if (strip) {
-    strip.style.display = 'none';
+    const doneById = {};
+    todaySessions.filter(s => s.protocolId).forEach(s => {
+      doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1;
+    });
+    listEl.innerHTML = protocols.map((p, i) => {
+      const done = doneById[p.id] || 0;
+      const total = p.sets || 3;
+      const isDone = done >= total;
+      const cls = isDone ? 'pel-done' : done > 0 ? 'pel-partial' : '';
+      const statusText = isDone ? '✓ Done' : done > 0 ? `${done}/${total} sets` : `${total} sets`;
+      return `<button class="pel-card ${cls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
+        <div class="pel-info">
+          <div class="pel-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
+          <div class="pel-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
+        </div>
+        <div class="pel-status">${statusText}</div>
+      </button>`;
+    }).join('');
+  } else if (listEl) {
+    listEl.style.display = 'none';
   }
 
   if (therapistEmail) {
@@ -987,7 +969,7 @@ async function showRealPatient(patient) {
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
       ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
-      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
       ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
@@ -1012,10 +994,7 @@ async function showRealPatient(patient) {
   const recent          = sessions.slice(-8);
   const romData         = recent.map(s => s.rom  || 0);
   const painData        = recent.map(s => s.pain || 0);
-  const labels          = recent.map(s => {
-    const d = new Date(s.date);
-    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-  });
+  const labels          = buildChartLabels(recent);
 
   panel.innerHTML = `
     <h3>${patient.name}</h3>
@@ -1029,23 +1008,21 @@ async function showRealPatient(patient) {
       <div class="stat-card stat-card-full"><div class="stat-value stat-value-sm">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
     </div>
     <div class="tp-charts-grid">
-    ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="100"></canvas>', true)}
-    ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="100"></canvas>', true)}
+    ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="160"></canvas>', true)}
+    ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="160"></canvas>', true)}
     </div>
     ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
-    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
+    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
+  const tRomCfg = buildChartConfig(romData, { type: 'rom', color: '#3b82f6', fillColor: 'rgba(59,130,246,0.06)' });
   new Chart(document.getElementById('romChart').getContext('2d'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: romData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 } } }
+    type: 'line', data: { labels, datasets: [tRomCfg.dataset] }, options: tRomCfg.options
   });
+  const tPainCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
   new Chart(document.getElementById('painChart').getContext('2d'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 4, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 } } }
+    type: 'line', data: { labels, datasets: [tPainCfg.dataset] }, options: tPainCfg.options
   });
 
   await markRead(currentUser.email, patient.email);
@@ -1061,49 +1038,96 @@ async function showRealPatient(patient) {
   updateExerciseParamsUI('full_fist', null);
 }
 
-function buildSessionHistory(sessions, patientName) {
+function groupSetsIntoSessions(sets) {
+  if (sets.length === 0) return [];
+  const sorted = [...sets].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const groups = [];
+  let cur = { sets: [sorted[0]], protocolId: sorted[0].protocolId || '' };
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = (new Date(sorted[i].date) - new Date(sorted[i - 1].date)) / 60000;
+    const sameProto = (sorted[i].protocolId || '') === cur.protocolId;
+    if (gap <= 30 && sameProto) { cur.sets.push(sorted[i]); }
+    else { groups.push(cur); cur = { sets: [sorted[i]], protocolId: sorted[i].protocolId || '' }; }
+  }
+  groups.push(cur);
+  return groups.map(g => {
+    const s = g.sets;
+    const totalReps = s.reduce((sum, x) => sum + (x.reps || 0), 0);
+    const maxROM = Math.max(...s.map(x => x.rom || 0));
+    const avgPain = s.length ? s.reduce((sum, x) => sum + (x.pain || 0), 0) / s.length : 0;
+    const dur = Math.round((new Date(s[s.length - 1].date) - new Date(s[0].date)) / 60000);
+    return {
+      date: s[0].date, sets: s, setsCompleted: s.length,
+      totalReps, maxROM, avgPain, durationMin: dur,
+      exerciseType: s[0].exerciseType || '', protocolId: g.protocolId
+    };
+  });
+}
+
+function toggleShExpand(id) {
+  document.getElementById(id)?.classList.toggle('sh-expanded');
+}
+
+function buildSessionHistory(sessions) {
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session History</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
-  const VIDEO_EXPIRY_DAYS = 30;
-  const nameSafe = (patientName || '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
-  const rows = [...sessions].reverse().map(s => {
-    const d       = new Date(s.date);
+  const grouped = groupSetsIntoSessions(sessions);
+  const rows = [...grouped].reverse().map((g, gi) => {
+    const d = new Date(g.date);
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const pain      = s.pain || 0;
-    const rom       = s.rom  || 0;
-    const painColor = pain <= 3 ? 'var(--green)' : pain <= 6 ? '#f59e0b' : 'var(--danger)';
-    const romColor  = rom >= 120 ? 'var(--green)' : rom >= 80 ? '#f59e0b' : 'var(--muted)';
-    const exLabel   = s.exerciseType ? (exerciseLabels[s.exerciseType] || s.exerciseType) : '';
-    const sessionAge = (Date.now() - new Date(s.date).getTime()) / (1000 * 60 * 60 * 24);
-    const videoCell = s.videoUrl && sessionAge <= VIDEO_EXPIRY_DAYS
-      ? `<td class="sh-cell sh-video"><span class="session-video-actions"><button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}','${s.date}','${nameSafe}')">▶ Watch</button><button class="session-video-btn session-video-btn--dl" onclick="downloadSessionVideo('${s.videoUrl}','${s.date}','${nameSafe}')">↓</button></span></td>`
-      : s.videoUrl && sessionAge > VIDEO_EXPIRY_DAYS
-        ? `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--expired">Expired</span></span></td>`
-        : `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--none">No video</span></span></td>`;
+    const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : '';
+    const romColor = g.maxROM >= 120 ? 'var(--green)' : g.maxROM >= 80 ? '#f59e0b' : 'var(--muted)';
+    const painColor = g.avgPain <= 3 ? 'var(--green)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
+    const rowId = `sh-exp-${gi}`;
+    const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
+    const setDetail = g.sets.map((s, si) => {
+      const sp = s.pain || 0, sr = s.rom || 0;
+      const spc = sp <= 3 ? 'var(--green)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
+      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? '#f59e0b' : 'var(--muted)';
+      const t = new Date(s.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      return `<div class="sh-set-detail-row">
+        <span class="sh-set-label">Set ${si + 1}</span>
+        <span class="sh-set-time">${t}</span>
+        <span class="sh-set-val">${s.reps || 0} reps</span>
+        <span class="sh-set-val" style="color:${src}">${sr}°</span>
+        <span class="sh-set-val" style="color:${spc}"><span class="session-pain-dot" style="background:${spc}"></span>${sp}/10</span>
+      </div>`;
+    }).join('');
     return `
-      <tr class="sh-row">
+      <tr class="sh-row sh-row-expandable" id="${rowId}" onclick="toggleShExpand('${rowId}')">
         <td class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></td>
         <td class="sh-cell sh-exercise">${exLabel}</td>
-        <td class="sh-cell sh-reps">${s.reps || 0}</td>
-        <td class="sh-cell sh-rom" style="color:${romColor}">${rom}°</td>
-        <td class="sh-cell sh-pain"><span class="session-pain-dot" style="background:${painColor}"></span><span style="color:${painColor}">${pain}/10</span></td>
-        ${videoCell}
+        <td class="sh-cell sh-sets">${g.setsCompleted}</td>
+        <td class="sh-cell sh-reps">${g.totalReps}</td>
+        <td class="sh-cell sh-rom" style="color:${romColor}">${g.maxROM}°</td>
+        <td class="sh-cell sh-pain"><span class="session-pain-dot" style="background:${painColor}"></span><span style="color:${painColor}">${g.avgPain.toFixed(1)}/10</span></td>
+      </tr>
+      <tr class="sh-detail-row" id="${rowId}-detail">
+        <td colspan="7" class="sh-detail-cell">
+          <div class="sh-detail-inner">
+            <div class="sh-detail-meta">
+              <span class="sh-meta-chip">${g.setsCompleted} set${g.setsCompleted !== 1 ? 's' : ''}</span>
+              <span class="sh-meta-chip">${durLabel}</span>
+            </div>
+            <div class="sh-set-detail-list">${setDetail}</div>
+          </div>
+        </td>
       </tr>`;
   }).join('');
   return `
     <div class="session-history-card">
-      <h4>Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}</h4>
+      <h4>Session History — ${grouped.length} session${grouped.length !== 1 ? 's' : ''}</h4>
       <div class="sh-table-wrap">
         <table class="sh-table">
           <thead><tr>
             <th class="sh-th">Date</th>
             <th class="sh-th">Exercise</th>
+            <th class="sh-th">Sets</th>
             <th class="sh-th">Reps</th>
             <th class="sh-th">ROM</th>
             <th class="sh-th">Pain</th>
-            <th class="sh-th">Video</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -1528,15 +1552,8 @@ async function saveSession() {
     protocolId:     selectedProtocol?.id || ''
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-  const docRef = await db.collection('sessions').add(doc);
-  _pendingSessionDocId = docRef.id;
+  await db.collection('sessions').add(doc);
   jointMaxAngles = {}; // reset after save so each set starts fresh
-
-  if (recordingSupported) {
-    const blob = await stopRecording();
-    uploadSessionVideo(blob, docRef.id, currentUser.email);
-    startRecording(document.getElementById('patientCanvas'));
-  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1730,13 +1747,7 @@ async function completeSessionEarly() {
       protocolId:     selectedProtocol?.id || ''
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-    const docRef = await db.collection('sessions').add(doc);
-    _pendingSessionDocId = docRef.id;
-  }
-
-  if (recordingSupported) {
-    const blob = await stopRecording();
-    if (_pendingSessionDocId) uploadSessionVideo(blob, _pendingSessionDocId, currentUser.email);
+    await db.collection('sessions').add(doc);
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -1748,13 +1759,9 @@ async function completeSessionEarly() {
 
 let currentFacingMode = 'user';
 
-async function flipCamera() {
+function flipCamera() {
   currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    await stopRecording();
-    recordedChunks = [];
-  }
   startCamera();
 }
 
@@ -1766,7 +1773,6 @@ let mpCamera = null;
 
 function startCamera() {
   if (mpCamera) return;
-  mediaRecorder = null; recordedChunks = []; recordingSupported = false; _pendingSessionDocId = null;
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
@@ -1815,7 +1821,6 @@ function startCamera() {
             sessionCanvas.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
             document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
             processFrame();
-            startRecording(sessionCanvas);
           };
           mpCamera = {
             stop: () => {
@@ -1837,13 +1842,64 @@ function startCamera() {
       width: 640, height: 480,
     });
     mpCamera.start();
-    startRecording(sessionCanvas);
   }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 12: PROGRESS SCREEN
    ══════════════════════════════════════════════════════════════════════════ */
+
+function buildChartLabels(sessions) {
+  const dates = sessions.map(s => new Date(s.date));
+  const uniqueDays = new Set(dates.map(d => d.toDateString()));
+  if (uniqueDays.size <= 1) {
+    return dates.map(d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+  }
+  const dayCounts = {};
+  dates.forEach(d => { const k = d.toDateString(); dayCounts[k] = (dayCounts[k] || 0) + 1; });
+  return dates.map(d => {
+    const dayStr = `${d.getMonth() + 1}/${d.getDate()}`;
+    return dayCounts[d.toDateString()] > 1
+      ? `${dayStr} ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+      : dayStr;
+  });
+}
+
+function buildChartConfig(data, { type, color, fillColor }) {
+  const vals = data.filter(v => v != null && v !== 0);
+  const dataMin = vals.length ? Math.min(...vals) : 0;
+  const dataMax = vals.length ? Math.max(...vals) : (type === 'pain' ? 10 : 180);
+  const range = dataMax - dataMin || 10;
+  const pad = range * 0.2;
+  const yMin = Math.max(0, Math.floor((dataMin - pad) / 5) * 5);
+  const yMax = type === 'pain'
+    ? Math.min(10, Math.ceil((dataMax + pad)))
+    : Math.ceil((dataMax + pad) / 10) * 10;
+  return {
+    dataset: {
+      data, borderColor: color, backgroundColor: fillColor,
+      borderWidth: 2, pointBackgroundColor: color,
+      pointRadius: 4, pointHoverRadius: 6,
+      pointBorderColor: '#fff', pointBorderWidth: 1.5,
+      tension: 0.35, fill: true
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          ticks: { color: '#6B7A99', maxRotation: 0, autoSkip: true, maxTicksLimit: 6 },
+          grid: { color: 'rgba(200,216,212,0.5)', drawBorder: false }
+        },
+        y: {
+          min: yMin, max: yMax,
+          ticks: { color: '#6B7A99', stepSize: type === 'pain' ? 1 : undefined },
+          grid: { color: 'rgba(200,216,212,0.5)', drawBorder: false }
+        }
+      }
+    }
+  };
+}
 
 async function showProgressScreen() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
@@ -1865,47 +1921,89 @@ async function renderProgressScreen() {
   const recent    = sessions.slice(-10);
   const romData   = recent.map(s => s.rom || 0);
   const painData  = recent.map(s => s.pain || 0);
-  const labels    = recent.map(s => { const d = new Date(s.date); return `${d.getMonth()+1}/${d.getDate()}`; });
-  const historyHTML = [...sessions].reverse().map(s => {
-    const d       = new Date(s.date);
-    const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const labels    = buildChartLabels(recent);
+  const grouped = groupSetsIntoSessions(sessions);
+
+  const historyHTML = [...grouped].reverse().map((g, idx) => {
+    const d = new Date(g.date);
+    const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'Session';
+    const painColor = g.avgPain <= 3 ? 'var(--green)' : g.avgPain <= 6 ? 'var(--warning)' : 'var(--danger)';
+    const prevGroup = grouped[grouped.length - 1 - idx - 1];
+    const trendHTML = (() => {
+      if (!prevGroup) return '';
+      const diff = g.maxROM - prevGroup.maxROM;
+      if (Math.abs(diff) < 2) return '<span class="ses-trend ses-trend--flat">&rarr;</span>';
+      return diff > 0
+        ? `<span class="ses-trend ses-trend--up">&uarr;${diff}&deg;</span>`
+        : `<span class="ses-trend ses-trend--down">&darr;${Math.abs(diff)}&deg;</span>`;
+    })();
+    const cardId = `psc-${idx}`;
+    const setRows = g.sets.map((s, si) => {
+      const sp = s.pain || 0, sr = s.rom || 0;
+      const spc = sp <= 3 ? 'var(--green)' : sp <= 6 ? 'var(--warning)' : 'var(--danger)';
+      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? 'var(--warning)' : 'var(--muted)';
+      return `<div class="ses-set-row">
+        <span class="ses-set-num">Set ${si + 1}</span>
+        <span class="ses-set-stat">${s.reps || 0} reps</span>
+        <span class="ses-set-stat" style="color:${src}">${sr}&deg;</span>
+        <span class="ses-set-stat" style="color:${spc}"><span class="session-pain-dot" style="background:${spc}"></span>${sp}/10</span>
+      </div>`;
+    }).join('');
+    const highPain = g.sets.reduce((mx, s, i) => (s.pain || 0) > (mx.p || 0) ? { p: s.pain, i: i + 1 } : mx, { p: 0, i: 0 });
+    const durLabel = g.durationMin > 0 ? g.durationMin + ' min' : '< 1 min';
     return `
-      <div class="progress-session-card">
-        <div><div class="progress-session-date">${dateStr}</div></div>
-        <div class="progress-session-stats">
-          <div class="progress-stat"><div class="progress-stat-value">${s.reps || 0}</div><div class="progress-stat-label">Reps</div></div>
-          <div class="progress-stat"><div class="progress-stat-value">${s.rom || 0}°</div><div class="progress-stat-label">ROM</div></div>
-          <div class="progress-stat"><div class="progress-stat-value" style="color:#ef4444">${s.pain || 0}</div><div class="progress-stat-label">Pain</div></div>
+      <div class="psc-card" id="${cardId}">
+        <div class="psc-header" onclick="document.getElementById('${cardId}').classList.toggle('expanded')">
+          <div class="psc-header-left">
+            <div class="psc-date">${dateStr}</div>
+            <div class="psc-time">${timeStr}</div>
+          </div>
+          <div class="psc-header-stats">
+            <div class="psc-stat-group"><span class="psc-stat-val">${g.setsCompleted}</span><span class="psc-stat-lbl">sets</span></div>
+            <div class="psc-stat-group"><span class="psc-stat-val">${g.totalReps}</span><span class="psc-stat-lbl">reps</span></div>
+            <div class="psc-stat-group"><span class="psc-stat-val">${g.maxROM}&deg;</span>${trendHTML}<span class="psc-stat-lbl">ROM</span></div>
+            <div class="psc-stat-group"><span class="psc-stat-val" style="color:${painColor}">${g.avgPain.toFixed(1)}</span><span class="psc-stat-lbl">pain</span></div>
+          </div>
+          <span class="psc-chevron">&#x25BE;</span>
+        </div>
+        <div class="psc-body">
+          <div class="psc-detail-row">
+            <div class="psc-detail-item"><span class="psc-detail-label">Exercise</span><span class="psc-detail-val psc-exercise-tag">${exLabel}</span></div>
+            <div class="psc-detail-item"><span class="psc-detail-label">Duration</span><span class="psc-detail-val">${durLabel}</span></div>
+            ${highPain.p > 5 ? `<div class="psc-detail-item psc-pain-flag"><span class="psc-detail-label">Peak Pain</span><span class="psc-detail-val" style="color:var(--danger)">${highPain.p}/10 in Set ${highPain.i}</span></div>` : ''}
+          </div>
+          <div class="psc-sets-header">Per-Set Breakdown</div>
+          <div class="psc-sets-list">${setRows}</div>
         </div>
       </div>`;
   }).join('');
+
   content.innerHTML = `
-    <div class="stats-row" style="margin-bottom:24px;">
-      <div class="stat-card"><div class="stat-value">${sessions.length}</div><div class="stat-label">Total Sessions</div></div>
-      <div class="stat-card"><div class="stat-value">${totalReps}</div><div class="stat-label">Total Reps</div></div>
-      <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg ROM</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:#0B6CB0">${bestROM}°</div><div class="stat-label">Best ROM</div></div>
+    <div class="stats-row stats-row-4" style="margin-bottom:24px;">
+      <div class="stat-card"><div class="stat-value">${grouped.length}</div><div class="stat-label">Sessions</div></div>
+      <div class="stat-card"><div class="stat-value">${avgROM}&deg;</div><div class="stat-label">Avg ROM</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#0B6CB0">${bestROM}&deg;</div><div class="stat-label">Best ROM</div></div>
       <div class="stat-card"><div class="stat-value" style="color:#ef4444">${avgPain}</div><div class="stat-label">Avg Pain</div></div>
     </div>
     <div class="chart-card" style="margin-bottom:24px;">
       <h4>Range of Motion Over Time</h4>
-      <canvas id="patientRomChart" height="100"></canvas>
+      <canvas id="patientRomChart" height="160"></canvas>
     </div>
     <div class="chart-card" style="margin-bottom:24px;">
       <h4>Pain Level Over Time</h4>
-      <canvas id="patientPainChart" height="100"></canvas>
+      <canvas id="patientPainChart" height="160"></canvas>
     </div>
     <p style="font-size:0.8rem; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Session History</p>
-    <div class="progress-history-grid">${historyHTML}</div>`;
+    <div class="psc-list">${historyHTML}</div>`;
+  const romCfg = buildChartConfig(romData, { type: 'rom', color: '#0B6CB0', fillColor: 'rgba(11,108,176,0.06)' });
   new Chart(document.getElementById('patientRomChart').getContext('2d'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: romData, borderColor: '#0B6CB0', backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 2, pointBackgroundColor: '#10B981', pointRadius: 5, pointBorderColor: '#0B6CB0', pointBorderWidth: 2, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' } }, y: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' }, min: 0, max: 180 } } }
+    type: 'line', data: { labels, datasets: [romCfg.dataset] }, options: romCfg.options
   });
+  const painCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
   new Chart(document.getElementById('patientPainChart').getContext('2d'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 5, pointBorderColor: '#CC2936', pointBorderWidth: 2, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' } }, y: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' }, min: 0, max: 10 } } }
+    type: 'line', data: { labels, datasets: [painCfg.dataset] }, options: painCfg.options
   });
 }
 
@@ -2939,122 +3037,11 @@ function buildMessagePanel(patientEmail) {
   </div>`;
 }
 
-// ── Video Recording Utilities ────────────────────────────────────────────────
-
-function getRecordingMimeType() {
-  const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
-  for (const mime of candidates) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) return mime;
-  }
-  return null;
-}
-
-function startRecording(canvas) {
-  const mime = getRecordingMimeType();
-  if (!mime || typeof MediaRecorder === 'undefined') { recordingSupported = false; return; }
-  recordingSupported = true;
-  recordedChunks = [];
-  let stream;
-  try { stream = canvas.captureStream(30); } catch(e) { recordingSupported = false; return; }
-  try {
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 400_000 });
-  } catch(e) { recordingSupported = false; return; }
-  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
-  mediaRecorder.start(1000);
-  showRecordingIndicator();
-}
-
-function stopRecording() {
-  return new Promise(resolve => {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-      hideRecordingIndicator(); resolve(null); return;
-    }
-    mediaRecorder.onstop = () => {
-      hideRecordingIndicator();
-      if (recordedChunks.length === 0) { resolve(null); return; }
-      const mime = mediaRecorder.mimeType || 'video/webm';
-      const blob = new Blob(recordedChunks, { type: mime });
-      recordedChunks = []; mediaRecorder = null;
-      resolve(blob);
-    };
-    mediaRecorder.stop();
-  });
-}
-
-async function uploadSessionVideo(blob, docId, patientEmail) {
-  if (!blob || !docId) return;
-  try {
-    const form = new FormData();
-    form.append('file', blob);
-    form.append('upload_preset', CLOUDINARY_PRESET);
-    form.append('public_id', `sessions/${patientEmail}/${docId}`);
-    const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
-  } catch(e) {
-    console.error('Session video upload failed:', e?.message || e);
-  }
-}
-
-function showRecordingIndicator() {
-  const el = document.getElementById('recordingIndicator');
-  if (el) el.style.display = 'flex';
-}
-
-function hideRecordingIndicator() {
-  const el = document.getElementById('recordingIndicator');
-  if (el) el.style.display = 'none';
-}
-
-async function downloadSessionVideo(url, date, patientName) {
-  const d    = new Date(date);
-  const ts   = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const ext  = url.includes('.mp4') ? 'mp4' : 'webm';
-  const name = patientName ? `${patientName}-${ts}` : ts;
-  try {
-    const res  = await fetch(url);
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href     = blobUrl;
-    a.download = `phalanx-session-${name}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-  } catch(e) {
-    window.open(url, '_blank');
-  }
-}
-
-function openVideoModal(videoUrl, sessionDate, patientName) {
-  const modal  = document.getElementById('videoModal');
-  const player = document.getElementById('videoModalPlayer');
-  const dlBtn  = document.getElementById('videoModalDownload');
-  player.src = videoUrl;
-  if (dlBtn) {
-    dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate || new Date().toISOString(), patientName);
-  }
-  modal.style.display = 'flex';
-  player.play().catch(() => {});
-}
-
-function closeVideoModal() {
-  const modal  = document.getElementById('videoModal');
-  const player = document.getElementById('videoModalPlayer');
-  player.pause(); player.src = '';
-  modal.style.display = 'none';
-}
-
 /* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
 Object.assign(window, {
-  // Video modal
-  openVideoModal, closeVideoModal, downloadSessionVideo,
-
   // Auth
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
