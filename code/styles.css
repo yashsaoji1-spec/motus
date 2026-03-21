@@ -1829,6 +1829,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   border: 1px solid var(--border);
   background: var(--bg);
   transition: all 0.2s;
+  cursor: pointer;
 }
 .sweep-dot.untuned {
   background: var(--bg);
@@ -1843,6 +1844,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: var(--green);
   border-color: var(--green-dark);
   box-shadow: 0 0 6px var(--green-glow);
+}
+.sweep-dot.cooldown {
+  background: #555;
+  border-color: #444;
+  opacity: 0.5;
+  animation: sweep-dot-pulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes sweep-dot-pulse {
+  from { opacity: 0.3; }
+  to   { opacity: 0.6; }
 }
 .sweep-dot-disabled {
   width: 18px;
@@ -1920,22 +1931,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   border-color: var(--accent);
 }
 
-/* Sweep video — mirror applied via JS based on facing mode */
+/* Sweep video/canvas — mirrored by default (corrects front webcam on desktop).
+   Mobile rear camera overrides to none via JS. Same pattern as patient session. */
 #sweepVideo {
   position: absolute;
   inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
+  transform: scaleX(-1);
   opacity: 0;
   transition: opacity 0.4s;
 }
 #sweepVideo.ready { opacity: 1; }
 
-/* Sweep canvas — overlays video, mirror applied via JS to match video */
 #sweepCanvas {
   position: absolute;
   inset: 0;
   width: 100%; height: 100%;
+  transform: scaleX(-1);
 }
 
 /* Save button */

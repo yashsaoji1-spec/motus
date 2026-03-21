@@ -1,4 +1,4 @@
-# Last updated: 2026-03-21 (Section 16: sweepStartCamera extracted with mobile RAF loop pattern; sweepFlipCamera fixed; mirror applied dynamically per facing mode)
+# Last updated: 2026-03-21 (Section 16: SWEEP_JOINT_RULES fully populated with empirically-derived orientation rules for all 13 recordable joints; rules use OR-logic arrays; Start Capture button gates recording; dot-click resets joint with 3s cooldown)
 
 # PhalanX — Claude Code Guide
 
@@ -150,7 +150,7 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `progressScreen`           | Patient progress history                                       |
 | `messagingScreen`          | In-app patient↔therapist messaging thread                      |
 | `calibrationScreen`        | Therapist-facing live joint angle diagnostic (Section 14); in HTML/JS but not accessible from UI currently |
-| `sweepCalibrationScreen`   | Sweep calibration — therapist sweeps rear camera around patient's stationary hand (Section 16); wired to UI via "Sweep Calibration" button in `showRealPatient()` (both zero-sessions and has-sessions views); records joint angles only when camera orientation satisfies per-joint rules in `SWEEP_JOINT_RULES`; all rules currently `null` (no angles recorded until Yash fills in thresholds from goniometer testing) |
+| `sweepCalibrationScreen`   | Sweep calibration — therapist sweeps rear camera around patient's stationary hand (Section 16); wired to UI via "Sweep Calibration" button in `showRealPatient()`; records joint angles only when **Start Capture** is pressed AND camera orientation satisfies per-joint rules in `SWEEP_JOINT_RULES`; 13 of 14 joints have empirically-derived rules (ring-dip left null — MediaPipe landmarks unreliable for that joint); clicking a dot resets that joint with a 3s cooldown |
 
 ## Role Split
 
@@ -232,15 +232,34 @@ const SWEEP_REQUIRED_FRAMES = 5;      // how many consecutive in-rule frames mus
 
 ### Per-Joint Orientation Rules
 
+Each entry is an **array** of `{ metric, min, max }` — OR logic, any one passing = joint is valid for recording. `null` = joint will never be recorded.
+
 ```js
 const SWEEP_JOINT_RULES = {
-  'thumb-mcp': null,  // null = not yet tuned; joint will NEVER be recorded until filled in
-  'thumb-pip': null,
-  'index-mcp': null,
-  // ... (all 14 joints; thumb-dip does not exist — skipped via CALIB_FINGERS)
+  'thumb-mcp':  [{ metric: 'palmNormalZ',    min: 0.70, max: 1.0 }],
+  'thumb-pip':  [{ metric: 'palmNormalZ',    min: 0.70, max: 1.0 }],
+  'index-mcp':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
+  'index-pip':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
+  'index-dip':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
+  'middle-mcp': [{ metric: 'fingerZ_middle', min: 0.55, max: 1.0 }],
+  'middle-pip': [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
+  'middle-dip': [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
+  'ring-mcp':   [{ metric: 'fingerZ_ring',   min: 0.35, max: 1.0 }],
+  'ring-pip':   [{ metric: 'fingerZ_ring',   min: 0.25, max: 1.0 }],
+  'ring-dip':   null,  // MediaPipe landmarks unreliably skewed — no trustworthy pose found
+  'pinky-mcp':  [{ metric: 'fingerZ_pinky',  min: 0.25, max: 1.0 }],
+  'pinky-pip':  [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
+  'pinky-dip':  [{ metric: 'palmNormalZ',    min: 0.20, max: 1.0 }],
 };
 ```
-Format once tuned: `{ metric: 'fingerZ_index', min: 0.65, max: 1.0 }`. `metric` must be one of the keys returned by `sweepComputeMetrics()`.
+
+Rules were derived empirically: for each joint, held at max flexion and swept camera until reading was accurate, then logged the DEBUG METRICS panel values. The `min` threshold is set ~0.05–0.15 below the lowest observed accurate value as a buffer.
+
+**OR-logic check:** `rules.some(r => metrics[r.metric] >= r.min && metrics[r.metric] <= r.max)`
+
+**All metrics use `Math.abs()`** — rules are symmetric for left and right hand.
+
+**Multiple windows:** joints can have multiple rules if they're accurate in different orientations. `middle-mcp` currently has one window (`fingerZ_middle >= 0.55`) but may get a second (`lateralZ >= 0.70`) once confirmed.
 
 ---
 
@@ -575,27 +594,30 @@ sweepUpdateLiveAngles(landmarks);
 // For each of the 14 joints: calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c])
 ```
 
-**9. Per-joint recording loop**
+**9. Per-joint recording loop** (only runs after therapist presses "Start Capture")
 ```js
-for (const { key, def } of SWEEP_JOINTS) {
-  const rule = SWEEP_JOINT_RULES[key];
-  if (!rule) { _sweepFrameCount[key] = 0; continue; }  // null rule = skip entirely
+for (const { key, joint, def } of SWEEP_JOINTS) {
+  const rules = SWEEP_JOINT_RULES[key];
+  if (!rules || !_sweepCapturing) { _sweepFrameCount[key] = 0; continue; }
+  if (_sweepCooldowns[key] && performance.now() < _sweepCooldowns[key]) { _sweepFrameCount[key] = 0; continue; }
 
-  const val     = metrics[rule.metric];           // read the metric this rule cares about
-  const inRange = val >= rule.min && val <= rule.max;  // is current orientation valid?
+  // OR logic: any rule passing = orientation is valid
+  const passing = rules.find(r => metrics[r.metric] >= r.min && metrics[r.metric] <= r.max);
 
-  if (inRange) {
+  if (passing) {
+    const val   = metrics[passing.metric];
+    const angle = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+    const [minA, maxA] = SWEEP_ANGLE_LIMITS[joint] || SWEEP_ANGLE_LIMITS.pip;
+    if (angle < minA || angle > maxA) { _sweepFrameCount[key] = 0; continue; }  // anatomically impossible — bad frame
     _sweepFrameCount[key] = (_sweepFrameCount[key] || 0) + 1;
-    if (_sweepFrameCount[key] >= SWEEP_REQUIRED_FRAMES) {  // 5 consecutive frames required
-      const angle = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
-      // Only overwrite if metric value is better than previously recorded (seek best orientation)
+    if (_sweepFrameCount[key] >= SWEEP_REQUIRED_FRAMES) {
       if (_sweepJointState[key].bestAngle === null || val > _sweepJointState[key].bestMetricVal) {
         _sweepJointState[key].bestMetricVal = val;
         _sweepJointState[key].bestAngle     = angle;
       }
     }
   } else {
-    _sweepFrameCount[key] = 0;  // reset consecutive count if orientation leaves valid range
+    _sweepFrameCount[key] = 0;
   }
 }
 ```
@@ -642,33 +664,55 @@ function calibDrawLandmarks(ctx, landmarks) {
 ### State Management
 
 ```js
-// Per-joint recording state — reset on each new sweep session
 const _sweepJointState = {};   // { [key]: { bestMetricVal: 0, bestAngle: null } }
 const _sweepFrameCount = {};   // { [key]: number } — consecutive in-rule frame counter
-const _sweepFilterStates = {}; // One Euro Filter state per landmark-axis ('0-x', '0-y', '0-z', ..., '20-z')
+const _sweepCooldowns  = {};   // { [key]: ms timestamp } — when per-joint cooldown expires
+const _sweepFilterStates = {}; // One Euro Filter state per landmark-axis
+let   _sweepCapturing  = false; // true only after therapist presses "Start Capture"
 
 function sweepResetState() {
   for (const { key } of SWEEP_JOINTS) {
     _sweepJointState[key] = { bestMetricVal: 0, bestAngle: null };
     _sweepFrameCount[key] = 0;
+    delete _sweepCooldowns[key];
   }
-  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);  // clear filter history
+  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);
+  _sweepCapturing = false;
+  // hides Save button, shows Start Capture button
+}
+
+// Called when therapist clicks "Start Capture"
+function sweepStartCapture() {
+  _sweepCapturing = true;
+  // swaps Start Capture button for Save button
+}
+
+// Called when therapist clicks a joint dot — resets that joint + 3s cooldown
+function sweepResetJoint(key) {
+  _sweepJointState[key] = { bestMetricVal: 0, bestAngle: null };
+  _sweepFrameCount[key] = 0;
+  _sweepCooldowns[key]  = performance.now() + 3000;
+  // dot shows pulsing gray during cooldown
 }
 ```
+
+**Dot states:** untuned (gray, no rule) / in-range (yellow, rule passing) / captured (green, angle recorded) / cooldown (pulsing gray, 3s after click-reset). Dots are clickable to reset individual joints.
 
 ---
 
 ### How to Tune `SWEEP_JOINT_RULES`
 
-1. Set `SWEEP_DEBUG = true` (already true)
-2. Hold a joint at a known angle (measured with goniometer)
-3. Sweep camera around the hand — watch METRICS panel live values
-4. When the live angle reading matches the known true angle, note the metric values shown
-5. Click DEBUG → COPY → export JSON; find frames where `angles[joint]` matches known angle; read their metric values
-6. Set `SWEEP_JOINT_RULES['finger-joint'] = { metric: 'chosen_metric', min: observed_min, max: 1.0 }`
-7. Repeat for each joint
+Rules are fully populated for 13/14 joints (ring-dip is null). To refine or add orientation windows:
+
+1. `SWEEP_DEBUG = true` (already true) — shows METRICS panel live
+2. Hold a joint at a known angle, press "Start Capture"
+3. Watch METRICS panel; when the live reading looks accurate, note which metric is high
+4. `min = lowest_observed_accurate_value − 0.05` (buffer), `max = 1.0`
+5. Add `{ metric: 'chosen_metric', min, max }` to the joint's array in `SWEEP_JOINT_RULES`
 
 Available metric keys: `lateralZ`, `palmNormalZ`, `fingerZ_thumb`, `fingerZ_index`, `fingerZ_middle`, `fingerZ_ring`, `fingerZ_pinky`
+
+To add a second orientation window for a joint: just push a second object to its array — OR logic means either window can trigger a capture.
 
 ---
 
