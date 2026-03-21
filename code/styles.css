@@ -1183,7 +1183,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    CALIBRATION SCREEN  (from index.html + style.css tracker layout)
    ══════════════════════════════════════════════════════════════════════════ */
 
-#calibrationScreen {
+#calibrationScreen,
+#sweepCalibrationScreen {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
@@ -1596,6 +1597,271 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tp-charts-grid .tp-colsec { margin-bottom: 0; }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   SWEEP CALIBRATION SCREEN
+   Reuses .calib-* for camera layout, header, overlay, scan line.
+   New rules only for sweep-specific controls.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Shared panel card */
+.sweep-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  flex-shrink: 0;
+}
+.sweep-panel-grow { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.sweep-panel-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sweep-panel-val {
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-weight: 700;
+  font-family: 'Space Mono', monospace;
+  margin-left: auto;
+}
+
+/* Distance bar */
+.sweep-distance-bar {
+  display: flex;
+  gap: 3px;
+}
+.sweep-dist-seg {
+  flex: 1;
+  text-align: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.48rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 4px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--bg);
+  transition: all 0.15s;
+}
+.sweep-dist-seg.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+#sweepDistGood.active {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green-dark);
+}
+#sweepDistTooClose.active,
+#sweepDistTooFar.active {
+  background: rgba(204, 41, 54, 0.07);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Metrics readout (debug mode) */
+.sweep-metrics-panel { display: none; }
+.sweep-metrics-readout {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre;
+}
+
+/* Joint completion grid */
+.sweep-grid {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.sweep-grid-row {
+  display: grid;
+  grid-template-columns: 36px repeat(5, 1fr);
+  gap: 4px;
+  align-items: start;
+}
+.sweep-grid-row:not(.sweep-grid-header) {
+  flex: 1;
+}
+.sweep-grid-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 100%;
+}
+.sweep-cell-data {
+  justify-content: center;
+  gap: 6px;
+}
+.sweep-grid-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: right;
+  padding-right: 6px;
+}
+.sweep-grid-col-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-align: center;
+  padding-bottom: 4px;
+}
+.sweep-grid-header { margin-bottom: 1px; }
+
+/* Joint dots */
+.sweep-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  transition: all 0.2s;
+}
+.sweep-dot.untuned {
+  background: var(--bg);
+  border-color: var(--border);
+  opacity: 0.4;
+}
+.sweep-dot.in-range {
+  background: #d4a017;
+  border-color: #a07800;
+}
+.sweep-dot.captured {
+  background: var(--green);
+  border-color: var(--green-dark);
+  box-shadow: 0 0 6px var(--green-glow);
+}
+.sweep-dot-disabled {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  opacity: 0.2;
+}
+/* Live angle (current frame) */
+.sweep-live-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+/* Best recorded angle */
+.sweep-best-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--green-dark);
+  line-height: 1.2;
+}
+
+/* Guidance text */
+.sweep-guidance {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  text-align: center;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+/* Debug panel */
+.sweep-debug-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+.sweep-debug-log {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.42rem;
+  color: var(--muted);
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* Launch button in therapist patient panel */
+.sweep-launch-btn {
+  display: inline-block;
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--accent-glow);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sweep-launch-btn:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+/* Sweep video — same positioning as #calibVideo, mirrored for front camera */
+#sweepVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+#sweepVideo.ready { opacity: 1; }
+
+/* Sweep canvas — overlays video, mirrored to match */
+#sweepCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  transform: scaleX(-1);
+}
+
+/* Save button */
+.sweep-save-btn {
+  width: 100%;
+  padding: 11px;
+  background: var(--gradient-cta);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.sweep-save-btn:hover { background: var(--gradient-cta-hover); }
+.sweep-save-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ══════════════════════════════════════════════════════════════════════════
    RESPONSIVE BREAKPOINTS
    Mobile-first: base styles are mobile (<640px).
    Tablet: min-width 640px.  Desktop: min-width 1024px.
@@ -1666,7 +1932,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .modal-box { width: calc(100% - 32px); }
 
 /* Calibration — mobile: stack columns */
-#calibrationScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
+#calibrationScreen,
+#sweepCalibrationScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
 .calib-main { flex-direction: column; overflow: visible; }
 .calib-right-col { overflow: visible; flex: none; }
 .calib-readout-panel { overflow-y: visible; flex: none; }
@@ -1769,12 +2036,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .tp-mobile-back-btn { display: none; }
 
   /* Calibration — side by side */
-  #calibrationScreen { height: 100vh; overflow: hidden; }
+  #calibrationScreen,
+  #sweepCalibrationScreen { height: 100vh; overflow: hidden; }
   .calib-main { flex-direction: row; overflow: hidden; }
   .calib-right-col { overflow: auto; flex: 1; }
   .calib-readout-panel { overflow-y: auto; flex: 1; }
   .calib-camera-col { flex: 1; width: auto; height: 100%; }
   .calib-camera-wrap { height: 100%; aspect-ratio: auto; }
+  /* Sweep: give right column more space for controls */
+  #sweepCalibrationScreen .calib-camera-col { flex: 0 0 44%; }
+  #sweepCalibrationScreen .calib-right-col { flex: 1; min-width: 300px; overflow-y: auto; }
 
   /* Charts side-by-side at desktop */
   .tp-charts-grid { grid-template-columns: 1fr 1fr; }

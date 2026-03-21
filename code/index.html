@@ -292,11 +292,6 @@
     </div>
     <input type="text" id="patientSearch" class="sidebar-search" placeholder="Search patients…"
            oninput="filterPatients(this.value)" />
-    <!-- Calibration button in therapist sidebar -->
-    <button class="calib-launch-btn" onclick="startCalibration()">
-      <span class="calib-icon"></span>
-      Joint Angle Calibration
-    </button>
     <div class="sidebar-footer">
       <button class="logout-btn sidebar-logout-btn" onclick="requestLogout()">Switch User</button>
     </div>
@@ -417,6 +412,85 @@
       <div class="calib-readout-panel" id="calibReadoutPanel">
         <!-- Populated by JS -->
       </div>
+
+    </div>
+  </div>
+
+  <footer class="calib-footer">phalanX — Built with MediaPipe by Google (Apache 2.0)</footer>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SWEEP CALIBRATION SCREEN
+     NOT wired to app UI yet — set SWEEP_DEBUG=true and call
+     startSweepCalibration(email) directly to test.
+═══════════════════════════════════════════════════════ -->
+<div id="sweepCalibrationScreen" class="screen">
+
+  <header class="calib-header">
+    <div class="calib-logo">phalanX<span>.dev</span></div>
+    <div class="calib-phase-tag">Sweep — Joint Angles</div>
+    <div class="calib-spacer"></div>
+    <div class="calib-status-pill">
+      <div class="dot" id="sweepDot"></div>
+      <span id="sweepStatusText">Initializing...</span>
+      <span id="sweepHandCount">0 hands</span>
+    </div>
+    <button class="calib-back-btn" id="sweepDebugBtn" onclick="sweepToggleDebug()" style="display:none">DEBUG</button>
+    <button class="calib-back-btn" onclick="sweepBack()">← Back</button>
+  </header>
+
+  <div class="calib-main">
+
+    <!-- LEFT: Camera -->
+    <div class="calib-camera-col">
+      <div class="calib-camera-wrap" id="sweepCameraWrap">
+        <div class="calib-scan-line"></div>
+        <video id="sweepVideo" playsinline autoplay muted></video>
+        <canvas id="sweepCanvas"></canvas>
+        <div class="calib-overlay" id="sweepOverlay">
+          <div class="calib-spinner"></div>
+          <div class="calib-overlay-text" id="sweepOverlayMsg">LOADING MEDIAPIPE...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Controls -->
+    <div class="calib-right-col">
+
+      <!-- Distance indicator -->
+      <div class="sweep-panel">
+        <div class="sweep-panel-title">DISTANCE</div>
+        <div class="sweep-distance-bar">
+          <div class="sweep-dist-seg" id="sweepDistTooClose">too close</div>
+          <div class="sweep-dist-seg" id="sweepDistGood">good</div>
+          <div class="sweep-dist-seg" id="sweepDistTooFar">too far</div>
+        </div>
+      </div>
+
+      <!-- Metrics readout (debug mode only) -->
+      <div class="sweep-panel sweep-metrics-panel" id="sweepMetricsPanel">
+        <div class="sweep-panel-title">METRICS</div>
+        <pre class="sweep-metrics-readout" id="sweepMetricsReadout"></pre>
+      </div>
+
+      <!-- Joint completion grid -->
+      <div class="sweep-panel sweep-panel-grow">
+        <div class="sweep-panel-title">JOINTS</div>
+        <div class="sweep-grid" id="sweepGrid">
+          <!-- Populated by JS -->
+        </div>
+        <div class="sweep-guidance" id="sweepGuidance">Point camera at hand</div>
+      </div>
+
+      <!-- Debug log panel -->
+      <div class="sweep-debug-panel" id="sweepDebugPanel" style="display:none">
+        <div class="sweep-panel-title">DEBUG LOG <button class="calib-all-btn" onclick="sweepCopyLog()">COPY</button></div>
+        <pre class="sweep-debug-log" id="sweepDebugLog"></pre>
+      </div>
+
+      <!-- Save -->
+      <button class="sweep-save-btn" id="sweepSaveBtn" onclick="sweepSave()">Save — 0/14 captured</button>
 
     </div>
   </div>

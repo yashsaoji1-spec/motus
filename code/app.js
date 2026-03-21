@@ -983,6 +983,7 @@ async function showRealPatient(patient) {
     panel.innerHTML = `
       <h3>${patient.name}</h3>
       <p class="subtitle">Connected Patient</p>
+      <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
       <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
@@ -1020,6 +1021,7 @@ async function showRealPatient(patient) {
   panel.innerHTML = `
     <h3>${patient.name}</h3>
     <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
+    <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value" style="color:${complianceColor}">${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
@@ -3049,6 +3051,513 @@ function closeVideoModal() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   SECTION 16: SWEEP CALIBRATION
+   Therapist sweeps camera around patient's stationary hand. Algorithm records
+   a joint's angle only when the camera orientation satisfies Yash's rule for
+   that joint — rules derived from empirical goniometer testing.
+
+   Workflow:
+   1. Set SWEEP_DEBUG = true, run sweep, hold joints at known angles.
+   2. Click COPY LOG → export JSON with all orientation metrics + angles.
+   3. Find frames where angles[joint] matches known true angle → read metrics.
+   4. Fill in SWEEP_JOINT_RULES[joint] = { metric, min, max }.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const SWEEP_DEBUG           = true;  // shows METRICS panel and debug log
+const SWEEP_REQUIRED_FRAMES = 5;     // consecutive in-rule frames before recording
+
+// Per-joint orientation rules. null = not yet tuned → joint will NOT be recorded.
+// metric must be one of the keys returned by sweepComputeMetrics().
+// Example once tested: 'index-pip': { metric: 'fingerZ_index', min: 0.65, max: 1.0 }
+const SWEEP_JOINT_RULES = {
+  'thumb-mcp':  null,
+  'thumb-pip':  null,
+  'index-mcp':  null,
+  'index-pip':  null,
+  'index-dip':  null,
+  'middle-mcp': null,
+  'middle-pip': null,
+  'middle-dip': null,
+  'ring-mcp':   null,
+  'ring-pip':   null,
+  'ring-dip':   null,
+  'pinky-mcp':  null,
+  'pinky-pip':  null,
+  'pinky-dip':  null,
+};
+
+// ── One Euro Filter for landmarks ─────────────────────────────────────────
+// Reuses calibAlphaFor() from Section 14. Separate state and no Math.round
+// since landmark coords are normalized floats, not integer angles.
+const SWEEP_ONE_EURO_MINCUTOFF = 1.0;
+const SWEEP_ONE_EURO_BETA      = 0.1;
+const SWEEP_ONE_EURO_DCUTOFF   = 1.0;
+const _sweepFilterStates = {};
+
+function sweepOneEuroFilter(id, rawValue, timestamp) {
+  if (!_sweepFilterStates[id]) {
+    _sweepFilterStates[id] = { prevValue: rawValue, prevDeriv: 0, prevTime: timestamp };
+    return rawValue;
+  }
+  const state   = _sweepFilterStates[id];
+  const dt      = (timestamp - state.prevTime) || (1 / 60);
+  const alpha_d = calibAlphaFor(SWEEP_ONE_EURO_DCUTOFF, dt);
+  const deriv   = alpha_d * ((rawValue - state.prevValue) / dt) + (1 - alpha_d) * state.prevDeriv;
+  const cutoff  = SWEEP_ONE_EURO_MINCUTOFF + SWEEP_ONE_EURO_BETA * Math.abs(deriv);
+  const alpha   = calibAlphaFor(cutoff, dt);
+  const value   = alpha * rawValue + (1 - alpha) * state.prevValue;
+  state.prevValue = value;
+  state.prevDeriv = deriv;
+  state.prevTime  = timestamp;
+  return value;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let _sweepPatientEmail = '';
+let _sweepMpHands      = null;
+let _sweepMpCamera     = null;
+let _sweepDebugLog     = [];   // circular buffer, last 60 frames
+
+// All 14 joints derived from CALIB_FINGERS (Section 14): thumb MP/IP,
+// index/middle/ring/pinky MCP/PIP/DIP. Thumb DIP is null in CALIB_FINGERS
+// so it is naturally skipped.
+const SWEEP_JOINTS = (() => {
+  const out = [];
+  for (const [finger, joints] of Object.entries(CALIB_FINGERS)) {
+    for (const [joint, def] of Object.entries(joints)) {
+      if (!def) continue;
+      out.push({ key: `${finger}-${joint}`, finger, joint, def });
+    }
+  }
+  return out;
+})();
+
+// Per-joint state: best metric value seen when angle was recorded
+const _sweepJointState = {};
+const _sweepFrameCount = {};  // consecutive in-rule frames per joint
+
+function sweepResetState() {
+  for (const { key } of SWEEP_JOINTS) {
+    _sweepJointState[key] = { bestMetricVal: 0, bestAngle: null };
+    _sweepFrameCount[key] = 0;
+  }
+  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);
+}
+
+// ── Orientation metrics ────────────────────────────────────────────────────
+// Returns all measurable camera-orientation metrics from 3D landmarks.
+// Yash references these keys in SWEEP_JOINT_RULES after goniometer testing.
+function sweepComputeMetrics(landmarks) {
+  const lateralZ   = Math.abs(normZ(landmarks[5], landmarks[17]));
+  const palmNormalZ = Math.abs(sweepPalmNormalZ(landmarks));
+  return {
+    lateralZ,
+    palmNormalZ,
+    fingerZ_thumb:  Math.abs(normZ(landmarks[2],  landmarks[3])),
+    fingerZ_index:  Math.abs(normZ(landmarks[5],  landmarks[6])),
+    fingerZ_middle: Math.abs(normZ(landmarks[9],  landmarks[10])),
+    fingerZ_ring:   Math.abs(normZ(landmarks[13], landmarks[14])),
+    fingerZ_pinky:  Math.abs(normZ(landmarks[17], landmarks[18])),
+  };
+}
+
+function normZ(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, dz = (b.z || 0) - (a.z || 0);
+  const mag = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  return mag === 0 ? 0 : dz / mag;
+}
+
+function sweepPalmNormalZ(landmarks) {
+  const w = landmarks[0], p1 = landmarks[5], p5 = landmarks[17];
+  const ax = p5.x - w.x, ay = p5.y - w.y, az = (p5.z || 0) - (w.z || 0);
+  const bx = p1.x - w.x, by = p1.y - w.y, bz = (p1.z || 0) - (w.z || 0);
+  const cz = ax * by - ay * bx;
+  const mag = Math.sqrt((ay * bz - az * by) ** 2 + (az * bx - ax * bz) ** 2 + cz ** 2);
+  return mag === 0 ? 0 : cz / mag;
+}
+
+// ── Real hand sanity check ─────────────────────────────────────────────────
+// Verifies that detected landmarks look like a real hand, not a face or object.
+// For each of the 4 fingers, the MCP→PIP segment should be at least as long
+// as the PIP→DIP segment (real hand anatomy). Face false-positives fail this.
+function sweepIsRealHand(landmarks) {
+  const fingers = [
+    [5, 6, 7],   // index  MCP, PIP, DIP
+    [9, 10, 11], // middle
+    [13, 14, 15], // ring
+    [17, 18, 19], // pinky
+  ];
+  let passes = 0;
+  for (const [a, b, c] of fingers) {
+    const d1 = Math.hypot(landmarks[b].x - landmarks[a].x, landmarks[b].y - landmarks[a].y);
+    const d2 = Math.hypot(landmarks[c].x - landmarks[b].x, landmarks[c].y - landmarks[b].y);
+    if (d1 > 0.01 && d2 > 0.005 && d1 >= d2 * 0.5 && d2 >= d1 * 0.25) passes++;
+  }
+  return passes >= 3;
+}
+
+// ── Distance detection ─────────────────────────────────────────────────────
+// Wrist (landmark 0) → middle MCP (landmark 9) in normalised coords scales
+// inversely with real distance. Thresholds from testing at ~30–50 cm.
+function sweepDistanceStatus(landmarks) {
+  const w = landmarks[0], m = landmarks[9];
+  const d = Math.sqrt((w.x - m.x) ** 2 + (w.y - m.y) ** 2);
+  if (d < 0.12) return 'too_far';
+  if (d > 0.38) return 'too_close';
+  return 'good';
+}
+
+// ── Guidance text ──────────────────────────────────────────────────────────
+function sweepGuidanceText() {
+  const untuned = SWEEP_JOINTS.filter(({ key }) => !SWEEP_JOINT_RULES[key]);
+  if (untuned.length > 0) return `${untuned.length} joint${untuned.length > 1 ? 's' : ''} have no rules set yet.`;
+  const missing = SWEEP_JOINTS.filter(({ key }) => _sweepJointState[key].bestAngle === null);
+  if (missing.length === 0) return 'All joints captured.';
+  const ulnar  = missing.filter(({ finger }) => finger === 'ring' || finger === 'pinky');
+  const radial = missing.filter(({ finger }) => finger === 'thumb' || finger === 'index' || finger === 'middle');
+  if (ulnar.length > radial.length)  return 'Tilt camera toward pinky side.';
+  if (radial.length > ulnar.length)  return 'Tilt camera toward thumb side.';
+  return 'Keep sweeping around the hand.';
+}
+
+// ── Build completion grid ──────────────────────────────────────────────────
+// Each cell shows: status dot, live angle (current frame), best recorded angle
+function sweepBuildGrid() {
+  const grid = document.getElementById('sweepGrid');
+  if (!grid) return;
+  const fingers      = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+  const fingerLabels = { thumb: 'THB', index: 'IDX', middle: 'MID', ring: 'RNG', pinky: 'PNK' };
+  const joints       = ['mcp', 'pip', 'dip'];
+  const jointLabels  = { mcp: 'MCP', pip: 'PIP', dip: 'DIP' };
+
+  let html = '<div class="sweep-grid-row sweep-grid-header"><div class="sweep-grid-cell sweep-grid-label"></div>';
+  for (const f of fingers) html += `<div class="sweep-grid-cell sweep-grid-col-label">${fingerLabels[f]}</div>`;
+  html += '</div>';
+
+  for (const j of joints) {
+    html += `<div class="sweep-grid-row"><div class="sweep-grid-cell sweep-grid-label">${jointLabels[j]}</div>`;
+    for (const f of fingers) {
+      const disabled = f === 'thumb' && j === 'dip';
+      const key = `${f}-${j}`;
+      if (disabled) {
+        html += `<div class="sweep-grid-cell sweep-cell-data"><div class="sweep-dot sweep-dot-disabled"></div></div>`;
+      } else {
+        html += `<div class="sweep-grid-cell sweep-cell-data">
+          <div class="sweep-dot" id="sweep-dot-${key}"></div>
+          <div class="sweep-live-val" id="sweep-live-${key}">—</div>
+          <div class="sweep-best-val" id="sweep-best-${key}">—</div>
+        </div>`;
+      }
+    }
+    html += '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+// ── Update grid UI ─────────────────────────────────────────────────────────
+// Three states per dot: untuned (gray, default) / in-range (yellow) / captured (green)
+function sweepUpdateGrid(metrics) {
+  let captured = 0;
+  for (const { key } of SWEEP_JOINTS) {
+    const state  = _sweepJointState[key];
+    const rule   = SWEEP_JOINT_RULES[key];
+    const dot    = document.getElementById(`sweep-dot-${key}`);
+    const bestEl = document.getElementById(`sweep-best-${key}`);
+
+    if (dot) {
+      dot.classList.remove('untuned', 'in-range', 'captured');
+      if (state.bestAngle !== null) {
+        dot.classList.add('captured');
+      } else if (!rule) {
+        dot.classList.add('untuned');
+      } else if (metrics) {
+        const val = metrics[rule.metric];
+        if (val >= rule.min && val <= rule.max) dot.classList.add('in-range');
+      }
+    }
+
+    if (bestEl) bestEl.textContent = state.bestAngle !== null ? `${state.bestAngle}°` : '—';
+    if (state.bestAngle !== null) captured++;
+  }
+  const btn = document.getElementById('sweepSaveBtn');
+  if (btn) btn.textContent = `Save — ${captured}/14 captured`;
+}
+
+// ── Update live angle display (current frame) ──────────────────────────────
+function sweepUpdateLiveAngles(landmarks) {
+  for (const { key, def } of SWEEP_JOINTS) {
+    const el = document.getElementById(`sweep-live-${key}`);
+    if (el) el.textContent = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c])) + '°';
+  }
+}
+
+function sweepClearLiveAngles() {
+  for (const { key } of SWEEP_JOINTS) {
+    const el = document.getElementById(`sweep-live-${key}`);
+    if (el) el.textContent = '—';
+  }
+}
+
+// ── Update distance indicator UI ───────────────────────────────────────────
+function sweepUpdateDistance(status) {
+  const ids = { too_close: 'sweepDistTooClose', good: 'sweepDistGood', too_far: 'sweepDistTooFar' };
+  for (const [k, id] of Object.entries(ids)) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', k === status);
+  }
+}
+
+// ── Update metrics readout (debug only) ───────────────────────────────────
+function sweepUpdateMetrics(metrics) {
+  if (!SWEEP_DEBUG || !metrics) return;
+  const el = document.getElementById('sweepMetricsReadout');
+  if (!el) return;
+  el.textContent = Object.entries(metrics)
+    .map(([k, v]) => `${k}: ${v.toFixed(3)}`).join('\n');
+}
+
+// ── MediaPipe results callback ─────────────────────────────────────────────
+function sweepOnResults(results) {
+  const canvas  = document.getElementById('sweepCanvas');
+  const wrap    = document.getElementById('sweepCameraWrap');
+  const dotEl   = document.getElementById('sweepDot');
+  const countEl = document.getElementById('sweepHandCount');
+  const statusEl = document.getElementById('sweepStatusText');
+  const guidEl  = document.getElementById('sweepGuidance');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+
+  // Center-crop to square (same pattern as calibOnResults)
+  const srcW = results.image.width;
+  const srcH = results.image.height;
+  const size = Math.min(srcW, srcH);
+  const cropX = (srcW - size) / 2;
+  const cropY = (srcH - size) / 2;
+  canvas.width  = size;
+  canvas.height = size;
+  ctx.save();
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
+
+  const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+  if (countEl) countEl.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
+
+  if (count === 0) {
+    if (dotEl)   { dotEl.className = 'dot'; }
+    if (statusEl){ statusEl.textContent = 'Point camera at hand'; statusEl.className = ''; }
+    if (wrap)    wrap.classList.remove('scanning');
+    sweepUpdateDistance('none');
+    sweepUpdateMetrics(null);
+    sweepClearLiveAngles();
+    if (guidEl)  guidEl.textContent = 'Point camera at hand';
+    ctx.restore();
+    return;
+  }
+
+  const rawLandmarks = results.multiHandLandmarks[0];
+
+  // Sanity check on raw landmarks — reject non-hand detections (face, objects, etc.)
+  if (!sweepIsRealHand(rawLandmarks)) {
+    if (dotEl)   { dotEl.className = 'dot'; }
+    if (statusEl){ statusEl.textContent = 'No hand detected'; statusEl.className = ''; }
+    if (wrap)    wrap.classList.remove('scanning');
+    sweepUpdateDistance('none');
+    sweepUpdateMetrics(null);
+    sweepClearLiveAngles();
+    for (const { key } of SWEEP_JOINTS) _sweepFrameCount[key] = 0;
+    ctx.restore();
+    return;
+  }
+
+  if (dotEl)   dotEl.className = 'dot active';
+  if (statusEl){ statusEl.textContent = 'Tracking active'; statusEl.className = 'active'; }
+  if (wrap)    wrap.classList.add('scanning');
+
+  // Smooth landmarks with One Euro Filter before any computation or drawing
+  const t = performance.now() / 1000;
+  const landmarks = rawLandmarks.map((lm, i) => ({
+    ...lm,
+    x: sweepOneEuroFilter(`${i}-x`, lm.x, t),
+    y: sweepOneEuroFilter(`${i}-y`, lm.y, t),
+    z: sweepOneEuroFilter(`${i}-z`, lm.z || 0, t),
+  }));
+
+  // Remap to cropped-square coords for drawing
+  const drawLandmarks = landmarks.map(lm => ({
+    ...lm,
+    x: (lm.x * srcW - cropX) / size,
+    y: (lm.y * srcH - cropY) / size,
+  }));
+  calibDrawLandmarks(ctx, drawLandmarks);
+  ctx.restore();
+
+  // Distance indicator — informational only, does not block recording
+  sweepUpdateDistance(sweepDistanceStatus(landmarks));
+
+  // Compute all orientation metrics
+  const metrics = sweepComputeMetrics(landmarks);
+  sweepUpdateMetrics(metrics);
+
+  // Update live angle display every frame
+  sweepUpdateLiveAngles(landmarks);
+
+  // Per-joint recording: only record when rule is satisfied for SWEEP_REQUIRED_FRAMES consecutive frames
+  for (const { key, def } of SWEEP_JOINTS) {
+    const rule = SWEEP_JOINT_RULES[key];
+    if (!rule) { _sweepFrameCount[key] = 0; continue; }
+
+    const val     = metrics[rule.metric];
+    const inRange = val >= rule.min && val <= rule.max;
+
+    if (inRange) {
+      _sweepFrameCount[key] = (_sweepFrameCount[key] || 0) + 1;
+      if (_sweepFrameCount[key] >= SWEEP_REQUIRED_FRAMES) {
+        const angle = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+        if (_sweepJointState[key].bestAngle === null || val > _sweepJointState[key].bestMetricVal) {
+          _sweepJointState[key].bestMetricVal = val;
+          _sweepJointState[key].bestAngle     = angle;
+        }
+      }
+    } else {
+      _sweepFrameCount[key] = 0;
+    }
+  }
+
+  sweepUpdateGrid(metrics);
+  if (guidEl) guidEl.textContent = sweepGuidanceText();
+
+  // Debug frame logging — all metrics + all joint angles per frame
+  if (SWEEP_DEBUG) {
+    const frame = { t: performance.now().toFixed(0), ...Object.fromEntries(Object.entries(metrics).map(([k, v]) => [k, parseFloat(v.toFixed(3))])), angles: {} };
+    for (const { key, def } of SWEEP_JOINTS) {
+      frame.angles[key] = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+    }
+    _sweepDebugLog.push(frame);
+    if (_sweepDebugLog.length > 60) _sweepDebugLog.shift();
+    const logEl = document.getElementById('sweepDebugLog');
+    if (logEl) {
+      logEl.textContent = _sweepDebugLog.slice(-5).map(f =>
+        Object.entries(f).filter(([k]) => k !== 't' && k !== 'angles').map(([k, v]) => `${k}:${v}`).join(' ')
+      ).join('\n');
+    }
+  }
+}
+
+// ── sweepToggleDebug / sweepCopyLog ────────────────────────────────────────
+function sweepToggleDebug() {
+  const panel = document.getElementById('sweepDebugPanel');
+  if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+}
+
+function sweepCopyLog() {
+  navigator.clipboard.writeText(JSON.stringify(_sweepDebugLog, null, 2)).catch(() => {});
+}
+
+// ── startSweepCalibration ──────────────────────────────────────────────────
+async function startSweepCalibration(patientEmail) {
+  _sweepPatientEmail = patientEmail;
+  _sweepDebugLog     = [];
+  sweepResetState();
+
+  showScreen('sweepCalibrationScreen');
+  sweepBuildGrid();
+  sweepUpdateGrid(null);
+  sweepUpdateDistance('none');
+
+  const video      = document.getElementById('sweepVideo');
+  const overlay    = document.getElementById('sweepOverlay');
+  const overlayMsg = document.getElementById('sweepOverlayMsg');
+  const statusEl   = document.getElementById('sweepStatusText');
+  const dbgBtn     = document.getElementById('sweepDebugBtn');
+
+  if (statusEl)  { statusEl.textContent = 'Loading...'; statusEl.className = ''; }
+  if (overlayMsg)  overlayMsg.textContent = 'LOADING MEDIAPIPE...';
+  if (dbgBtn)      dbgBtn.style.display = SWEEP_DEBUG ? '' : 'none';
+  const metricsPanel = document.getElementById('sweepMetricsPanel');
+  if (metricsPanel)  metricsPanel.style.display = SWEEP_DEBUG ? '' : 'none';
+
+  if (_sweepMpCamera) return; // already running
+
+  const hands = new window.Hands({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+  });
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.85,
+    minTrackingConfidence: 0.75,
+  });
+  hands.onResults(sweepOnResults);
+  _sweepMpHands = hands;
+
+  if (overlayMsg) overlayMsg.textContent = 'REQUESTING CAMERA...';
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: 1280, height: 720 },
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => video.play();
+    video.onplaying = () => {
+      video.classList.add('ready');
+      if (overlay)   overlay.classList.add('hidden');
+      if (statusEl)  statusEl.textContent = 'Point camera at hand';
+    };
+    _sweepMpCamera = new window.Camera(video, {
+      onFrame: async () => { await hands.send({ image: video }); },
+      width: 1280, height: 720,
+    });
+    _sweepMpCamera.start();
+  } catch (err) {
+    if (overlay)   overlay.classList.remove('hidden');
+    if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
+    if (statusEl)  { statusEl.textContent = 'Camera denied'; statusEl.className = 'error'; }
+    console.error(err);
+  }
+}
+
+// ── sweepBack ──────────────────────────────────────────────────────────────
+function sweepBack() {
+  if (_sweepMpCamera) { _sweepMpCamera.stop(); _sweepMpCamera = null; }
+  _sweepMpHands = null;
+  const video = document.getElementById('sweepVideo');
+  if (video?.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    video.classList.remove('ready');
+  }
+  showScreen('therapistScreen');
+}
+
+// ── sweepSave ──────────────────────────────────────────────────────────────
+async function sweepSave() {
+  const btn = document.getElementById('sweepSaveBtn');
+  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+  const joints = {};
+  for (const { key } of SWEEP_JOINTS) {
+    const s = _sweepJointState[key];
+    if (s.bestAngle !== null) {
+      joints[key] = { angle: s.bestAngle, metricVal: parseFloat(s.bestMetricVal.toFixed(3)) };
+    }
+  }
+
+  try {
+    await db.collection('calibration').doc(_sweepPatientEmail).set({
+      joints,
+      recordedAt: new Date().toISOString(),
+      recordedBy: currentUser?.email || '',
+    });
+    if (btn) { btn.textContent = 'Saved'; btn.disabled = false; }
+    setTimeout(sweepBack, 800);
+  } catch (err) {
+    if (btn) { btn.textContent = 'Save failed — retry'; btn.disabled = false; }
+    console.error(err);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -3075,6 +3584,7 @@ Object.assign(window, {
 
   // Therapist panel
   startCalibration, calibBack,
+  startSweepCalibration, sweepBack, sweepSave, sweepToggleDebug, sweepCopyLog,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
