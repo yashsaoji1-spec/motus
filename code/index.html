@@ -427,24 +427,17 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="sweepCalibrationScreen" class="screen">
 
-  <header class="calib-header">
-    <div class="calib-logo">phalanX<span>.dev</span></div>
-    <div class="calib-phase-tag">Sweep — Joint Angles</div>
-    <div class="calib-spacer"></div>
-    <div class="calib-status-pill">
-      <div class="dot" id="sweepDot"></div>
-      <span id="sweepStatusText">Initializing...</span>
-      <span id="sweepHandCount">0 hands</span>
-    </div>
-    <button class="calib-back-btn" id="sweepDebugBtn" onclick="sweepToggleDebug()" style="display:none">DEBUG</button>
-    <button class="calib-back-btn" onclick="sweepBack()">← Back</button>
+  <header class="sweep-header">
+    <button class="sweep-back-btn" onclick="sweepBack()">← Back</button>
+    <span class="sweep-header-title">Sweep Calibration</span>
+    <button class="sweep-header-btn" id="sweepDebugBtn" onclick="sweepToggleDebug()" style="display:none">DEBUG</button>
   </header>
 
   <div class="calib-main">
 
     <!-- LEFT: Camera -->
     <div class="calib-camera-col">
-      <div class="calib-camera-wrap" id="sweepCameraWrap">
+      <div class="calib-camera-wrap sweep-camera-wrap" id="sweepCameraWrap">
         <div class="calib-scan-line"></div>
         <video id="sweepVideo" playsinline autoplay muted></video>
         <canvas id="sweepCanvas"></canvas>
@@ -452,6 +445,10 @@
           <div class="calib-spinner"></div>
           <div class="calib-overlay-text" id="sweepOverlayMsg">LOADING MEDIAPIPE...</div>
         </div>
+        <!-- Tracking indicator: light blue dot bottom-left -->
+        <div class="sweep-track-dot" id="sweepTrackDot"></div>
+        <!-- Flip camera button -->
+        <button class="sweep-flip-btn" onclick="sweepFlipCamera()">flip</button>
       </div>
     </div>
 

@@ -3117,6 +3117,7 @@ let _sweepPatientEmail = '';
 let _sweepMpHands      = null;
 let _sweepMpCamera     = null;
 let _sweepDebugLog     = [];   // circular buffer, last 60 frames
+let _sweepFacingMode   = 'environment';  // default to rear camera
 
 // All 14 joints derived from CALIB_FINGERS (Section 14): thumb MP/IP,
 // index/middle/ring/pinky MCP/PIP/DIP. Thumb DIP is null in CALIB_FINGERS
@@ -3318,12 +3319,10 @@ function sweepUpdateMetrics(metrics) {
 
 // ── MediaPipe results callback ─────────────────────────────────────────────
 function sweepOnResults(results) {
-  const canvas  = document.getElementById('sweepCanvas');
-  const wrap    = document.getElementById('sweepCameraWrap');
-  const dotEl   = document.getElementById('sweepDot');
-  const countEl = document.getElementById('sweepHandCount');
-  const statusEl = document.getElementById('sweepStatusText');
-  const guidEl  = document.getElementById('sweepGuidance');
+  const canvas    = document.getElementById('sweepCanvas');
+  const wrap      = document.getElementById('sweepCameraWrap');
+  const trackDot  = document.getElementById('sweepTrackDot');
+  const guidEl    = document.getElementById('sweepGuidance');
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d');
@@ -3341,12 +3340,10 @@ function sweepOnResults(results) {
   ctx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
 
   const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
-  if (countEl) countEl.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
 
   if (count === 0) {
-    if (dotEl)   { dotEl.className = 'dot'; }
-    if (statusEl){ statusEl.textContent = 'Point camera at hand'; statusEl.className = ''; }
-    if (wrap)    wrap.classList.remove('scanning');
+    if (trackDot) trackDot.classList.remove('active');
+    if (wrap)     wrap.classList.remove('scanning');
     sweepUpdateDistance('none');
     sweepUpdateMetrics(null);
     sweepClearLiveAngles();
@@ -3359,9 +3356,8 @@ function sweepOnResults(results) {
 
   // Sanity check on raw landmarks — reject non-hand detections (face, objects, etc.)
   if (!sweepIsRealHand(rawLandmarks)) {
-    if (dotEl)   { dotEl.className = 'dot'; }
-    if (statusEl){ statusEl.textContent = 'No hand detected'; statusEl.className = ''; }
-    if (wrap)    wrap.classList.remove('scanning');
+    if (trackDot) trackDot.classList.remove('active');
+    if (wrap)     wrap.classList.remove('scanning');
     sweepUpdateDistance('none');
     sweepUpdateMetrics(null);
     sweepClearLiveAngles();
@@ -3370,9 +3366,8 @@ function sweepOnResults(results) {
     return;
   }
 
-  if (dotEl)   dotEl.className = 'dot active';
-  if (statusEl){ statusEl.textContent = 'Tracking active'; statusEl.className = 'active'; }
-  if (wrap)    wrap.classList.add('scanning');
+  if (trackDot) trackDot.classList.add('active');
+  if (wrap)     wrap.classList.add('scanning');
 
   // Smooth landmarks with One Euro Filter before any computation or drawing
   const t = performance.now() / 1000;
@@ -3454,10 +3449,103 @@ function sweepCopyLog() {
   navigator.clipboard.writeText(JSON.stringify(_sweepDebugLog, null, 2)).catch(() => {});
 }
 
+// ── sweepStartCamera ───────────────────────────────────────────────────────
+// Mobile: RAF loop + direct getUserMedia (iOS Safari fix — same as patient camera).
+// Desktop: window.Camera class. Reads _sweepFacingMode and _sweepMpHands.
+function sweepStartCamera() {
+  const video      = document.getElementById('sweepVideo');
+  const overlay    = document.getElementById('sweepOverlay');
+  const overlayMsg = document.getElementById('sweepOverlayMsg');
+
+  if (overlayMsg) overlayMsg.textContent = 'REQUESTING CAMERA...';
+
+  if (isMobile()) {
+    let active = true;
+    _sweepMpCamera = { stop: () => { active = false; } };
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: _sweepFacingMode }, audio: false })
+      .then(stream => {
+        video.srcObject = stream;
+        const offCanvas = document.createElement('canvas');
+        const offCtx    = offCanvas.getContext('2d');
+
+        const processFrame = async () => {
+          if (!active) return;
+          if (video.readyState >= 2) {
+            offCanvas.width  = video.videoWidth;
+            offCanvas.height = video.videoHeight;
+            offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+            try { await _sweepMpHands.send({ image: offCanvas }); } catch(e) {}
+          }
+          if (active) requestAnimationFrame(processFrame);
+        };
+
+        video.onloadedmetadata = () => {
+          const mirror = _sweepFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+          video.style.transform = mirror;
+          document.getElementById('sweepCanvas').style.transform = mirror;
+          video.play();
+          if (overlay)    overlay.classList.add('hidden');
+          video.classList.add('ready');
+          processFrame();
+        };
+
+        _sweepMpCamera = {
+          stop: () => {
+            active = false;
+            stream.getTracks().forEach(t => t.stop());
+            video.srcObject = null;
+            video.classList.remove('ready');
+          }
+        };
+      })
+      .catch(err => {
+        if (overlay)    overlay.classList.remove('hidden');
+        if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
+        console.error(err);
+      });
+  } else {
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: _sweepFacingMode }, width: 1280, height: 720 },
+      audio: false,
+    }).then(stream => {
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        const mirror = _sweepFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+        video.style.transform = mirror;
+        document.getElementById('sweepCanvas').style.transform = mirror;
+        video.play();
+      };
+      video.onplaying = () => {
+        video.classList.add('ready');
+        if (overlay) overlay.classList.add('hidden');
+      };
+      _sweepMpCamera = new window.Camera(video, {
+        onFrame: async () => { await _sweepMpHands.send({ image: video }); },
+        width: 1280, height: 720,
+      });
+      _sweepMpCamera.start();
+    }).catch(err => {
+      if (overlay)    overlay.classList.remove('hidden');
+      if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
+      console.error(err);
+    });
+  }
+}
+
+// ── sweepFlipCamera ────────────────────────────────────────────────────────
+function sweepFlipCamera() {
+  _sweepFacingMode = _sweepFacingMode === 'environment' ? 'user' : 'environment';
+  if (_sweepMpCamera) { _sweepMpCamera.stop(); _sweepMpCamera = null; }
+  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);
+  sweepStartCamera();
+}
+
 // ── startSweepCalibration ──────────────────────────────────────────────────
 async function startSweepCalibration(patientEmail) {
   _sweepPatientEmail = patientEmail;
   _sweepDebugLog     = [];
+  _sweepFacingMode   = 'environment';
   sweepResetState();
 
   showScreen('sweepCalibrationScreen');
@@ -3491,30 +3579,7 @@ async function startSweepCalibration(patientEmail) {
   hands.onResults(sweepOnResults);
   _sweepMpHands = hands;
 
-  if (overlayMsg) overlayMsg.textContent = 'REQUESTING CAMERA...';
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: 1280, height: 720 },
-    });
-    video.srcObject = stream;
-    video.onloadedmetadata = () => video.play();
-    video.onplaying = () => {
-      video.classList.add('ready');
-      if (overlay)   overlay.classList.add('hidden');
-      if (statusEl)  statusEl.textContent = 'Point camera at hand';
-    };
-    _sweepMpCamera = new window.Camera(video, {
-      onFrame: async () => { await hands.send({ image: video }); },
-      width: 1280, height: 720,
-    });
-    _sweepMpCamera.start();
-  } catch (err) {
-    if (overlay)   overlay.classList.remove('hidden');
-    if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
-    if (statusEl)  { statusEl.textContent = 'Camera denied'; statusEl.className = 'error'; }
-    console.error(err);
-  }
+  sweepStartCamera();
 }
 
 // ── sweepBack ──────────────────────────────────────────────────────────────
@@ -3584,7 +3649,7 @@ Object.assign(window, {
 
   // Therapist panel
   startCalibration, calibBack,
-  startSweepCalibration, sweepBack, sweepSave, sweepToggleDebug, sweepCopyLog,
+  startSweepCalibration, sweepBack, sweepSave, sweepToggleDebug, sweepCopyLog, sweepFlipCamera,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,

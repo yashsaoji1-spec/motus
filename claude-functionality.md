@@ -1,4 +1,4 @@
-# Last updated: 2026-03-21 (Section 16 fully rewritten: rules-based recording, One Euro Filter on landmarks, distance informational-only, line-by-line tracking code documented)
+# Last updated: 2026-03-21 (Section 16: sweepStartCamera extracted with mobile RAF loop pattern; sweepFlipCamera fixed; mirror applied dynamically per facing mode)
 
 # PhalanX — Claude Code Guide
 
@@ -435,17 +435,76 @@ hands.setOptions({
   minTrackingConfidence: 0.75,    // threshold to keep tracking an existing hand
 });
 hands.onResults(sweepOnResults);  // sweepOnResults is called every frame
+_sweepMpHands = hands;
 
-// Camera: rear-facing preferred (environment), 1280×720
-const stream = await navigator.mediaDevices.getUserMedia({
-  video: { facingMode: { ideal: 'environment' }, width: 1280, height: 720 },
-});
-_sweepMpCamera = new window.Camera(video, {
-  onFrame: async () => { await hands.send({ image: video }); },  // sends each video frame to MediaPipe
-  width: 1280, height: 720,
-});
-_sweepMpCamera.start();
+sweepStartCamera();  // camera startup delegated to sweepStartCamera (handles mobile/desktop split)
 ```
+
+---
+
+### Camera Startup and Flip (`sweepStartCamera` / `sweepFlipCamera`)
+
+Camera startup is extracted into `sweepStartCamera()` and called by both `startSweepCalibration` and `sweepFlipCamera`. Uses the same mobile/desktop split as the patient-side camera (Section 11).
+
+**Mobile path** (iOS Safari fix — same as Section 11):
+```js
+// window.Camera doesn't reliably handle camera switching on mobile.
+// Use requestAnimationFrame loop + direct getUserMedia instead.
+let active = true;
+_sweepMpCamera = { stop: () => { active = false; } };  // stub so caller can stop before stream arrives
+
+navigator.mediaDevices.getUserMedia({ video: { facingMode: _sweepFacingMode }, audio: false })
+  .then(stream => {
+    video.srcObject = stream;
+    const offCanvas = document.createElement('canvas');  // offscreen canvas — iOS Safari fix
+    const offCtx    = offCanvas.getContext('2d');         // hands.send needs canvas on iOS, not video
+
+    const processFrame = async () => {
+      if (!active) return;
+      if (video.readyState >= 2) {
+        offCanvas.width  = video.videoWidth;   // match video dimensions each frame
+        offCanvas.height = video.videoHeight;
+        offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+        try { await _sweepMpHands.send({ image: offCanvas }); } catch(e) {}
+      }
+      if (active) requestAnimationFrame(processFrame);  // next frame
+    };
+
+    video.onloadedmetadata = () => {
+      // Apply mirror based on facing mode: front camera mirrored, rear camera not
+      const mirror = _sweepFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+      video.style.transform = mirror;
+      document.getElementById('sweepCanvas').style.transform = mirror;
+      video.play();
+      if (overlay)    overlay.classList.add('hidden');
+      video.classList.add('ready');
+      processFrame();
+    };
+
+    _sweepMpCamera = {
+      stop: () => {
+        active = false;
+        stream.getTracks().forEach(t => t.stop());  // release hardware camera
+        video.srcObject = null;
+        video.classList.remove('ready');
+      }
+    };
+  });
+```
+
+**Desktop path**: uses `window.Camera` class (reliable on desktop, not on mobile).
+
+**Flip**:
+```js
+function sweepFlipCamera() {
+  _sweepFacingMode = _sweepFacingMode === 'environment' ? 'user' : 'environment';
+  if (_sweepMpCamera) { _sweepMpCamera.stop(); _sweepMpCamera = null; }
+  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);  // clear filter history — camera angle changed
+  sweepStartCamera();  // restarts with new facing mode
+}
+```
+
+**Default facing mode**: `_sweepFacingMode = 'environment'` (rear camera) — set in `startSweepCalibration` on entry. Mirror (`scaleX(-1)`) is applied to both `#sweepVideo` and `#sweepCanvas` only when facing is `'user'`; removed from CSS so it can be toggled correctly on flip.
 
 ---
 
@@ -709,6 +768,37 @@ When the user says anything like "merge", "Oliver is done", "integrate Oliver's 
 - Never move to the next phase without explicit confirmation from Yash
 - If anything looks unexpected after any step, stop and ask before continuing
 - After every push, verify critical code wasn't silently dropped before declaring done
+
+## SWEEP CALIBRATION — Rule Tuning Workflow
+
+Rules apply universally to any patient — they describe camera geometry (which angles give accurate MediaPipe readings), not patient-specific anatomy.
+
+**Setup**
+1. Open app on phone, log in as therapist, open any patient, tap "Sweep Calibration"
+2. METRICS panel and live angle grid must be visible (`SWEEP_DEBUG = true`)
+
+**For each joint:**
+3. Hold your own finger at a known angle using a goniometer or reference (e.g. flat = 0°, right angle = 90°)
+4. Keep the finger still — move the camera until the live angle reading on screen matches the true angle
+5. Screenshot the screen (must show METRICS panel + angle grid)
+6. Move camera to another position where it still reads correctly — screenshot again
+7. Repeat 3–5 times from different valid positions
+8. Send all screenshots to Claude with: which joint, what true angle
+
+**Claude derives the rule:**
+- Reads all 7 metric values from each screenshot
+- Identifies which metric is consistently high across all valid frames
+- Sets `min` = lowest observed value − 0.05 tolerance, `max` = 1.0
+- Writes rule into `SWEEP_JOINT_RULES` in `app.js`, builds + deploys to Firebase
+
+**Testing after deploy:**
+- Dot turns yellow (in-range) when orientation satisfies the rule
+- Dot turns green (captured) after 5 consecutive valid frames
+- Start with `index-pip` — most clinically important, easiest to measure
+
+**`SWEEP_JOINT_RULES` location:** `code/app.js` line ~3072
+
+---
 
 ## Pre-Launch Checklist
 
