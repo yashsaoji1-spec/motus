@@ -1184,7 +1184,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    ══════════════════════════════════════════════════════════════════════════ */
 
 #calibrationScreen,
-#sweepCalibrationScreen {
+#sweepCalibrationScreen,
+#mlTrainerScreen {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
@@ -1970,6 +1971,531 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .sweep-save-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   ML ANGLE TRAINER
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ML trainer video/canvas — same pattern as #sweepVideo/#sweepCanvas */
+#mlVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+#mlVideo.ready { opacity: 1; }
+
+#mlCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  transform: scaleX(-1);
+}
+
+.ml-right-col {
+  gap: 10px;
+}
+
+/* Joint row — selector + sample pill */
+.ml-joint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ml-joint-select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ml-joint-select:focus { outline: none; border-color: var(--accent); }
+
+.ml-notes {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  resize: none;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+.ml-notes::placeholder { color: var(--muted); }
+.ml-notes:focus { outline: none; border-color: var(--accent); }
+
+.ml-finger-config {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ml-config-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ml-finger-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.ml-finger-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ml-finger-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.ml-finger-presets {
+  display: flex;
+  gap: 6px;
+}
+
+.ml-preset-btn {
+  flex: 1;
+  padding: 4px 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--muted);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.ml-preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.ml-hand-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ml-count-pill {
+  flex-shrink: 0;
+  min-width: 36px;
+  padding: 4px 8px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-glow);
+  border-radius: 20px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+/* Capture panel — angle hero + slider */
+.ml-capture-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* Angle comparison row */
+.ml-capture-panel > .ml-angle-block,
+.ml-capture-panel > .ml-vs,
+.ml-capture-panel > .ml-angle-block--true {
+  /* layout handled by flex on parent */
+}
+
+/* Override: put angle blocks in a row */
+.ml-capture-panel {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 14px;
+}
+.ml-slider-wrap {
+  grid-column: 1 / -1;
+}
+
+.ml-angle-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ml-angle-tag {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.ml-angle-big {
+  font-family: 'Space Mono', monospace;
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  transition: color 0.2s;
+}
+
+/* When a hand is detected, light up */
+.ml-angle-big:not(:empty):not([data-empty]) { color: var(--accent); }
+
+.ml-angle-big--true {
+  color: var(--gold);
+}
+
+.ml-vs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--border);
+  letter-spacing: 0.06em;
+  padding-top: 20px;
+}
+
+/* Slider */
+.ml-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ml-slider {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--gold);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(to right, var(--accent-glow) 0%, var(--border) 100%);
+  border-radius: 2px;
+  outline: none;
+}
+.ml-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.ml-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.6);
+}
+
+.ml-slider-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  padding: 0 2px;
+}
+
+/* Train card */
+.ml-train-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ml-train-btn {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ml-train-btn:not(:disabled) {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+}
+.ml-train-btn:not(:disabled):hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.ml-train-btn:disabled { opacity: 0.65; cursor: default; }
+
+.ml-train-status {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  min-height: 0.8em;
+}
+
+.ml-progress-wrap {
+  width: 100%;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ml-progress-bar {
+  height: 100%;
+  background: linear-gradient(to right, var(--accent), var(--green));
+  border-radius: 2px;
+  transition: width 0.12s linear;
+  width: 0%;
+}
+
+/* Models card */
+.ml-models-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ml-models-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ml-models-chevron {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.ml-models-body {
+  padding: 0 12px 12px;
+}
+
+.ml-models-list {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ml-model-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ml-model-row:last-child { border-bottom: none; }
+
+.ml-coverage-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ml-coverage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ml-coverage-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ml-coverage-next {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--text);
+  letter-spacing: 0.03em;
+}
+
+.ml-use-btn {
+  padding: 2px 8px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.ml-use-btn:disabled { opacity: 0.35; cursor: default; }
+
+.ml-histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 40px;
+}
+
+.ml-hist-bar {
+  flex: 1;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.5;
+  transition: height 0.2s;
+}
+
+.ml-hist-bar--empty {
+  background: var(--border);
+  opacity: 1;
+}
+
+.ml-hist-bar--target {
+  background: var(--gold, #f59e0b);
+  opacity: 1;
+}
+
+.ml-histogram-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--muted);
+}
+
+.ml-stats-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ml-stats-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ml-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ml-stat-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ml-stats-card .sweep-panel-title,
+.ml-models-card .sweep-panel-title {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ml-stat-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.ml-model-joint {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.62rem;
+}
+
+.ml-model-meta {
+  color: var(--green);
+  font-size: 0.55rem;
+  text-align: right;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    RESPONSIVE BREAKPOINTS
    Mobile-first: base styles are mobile (<640px).
    Tablet: min-width 640px.  Desktop: min-width 1024px.
@@ -2041,7 +2567,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* Calibration — mobile: stack columns */
 #calibrationScreen,
-#sweepCalibrationScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
+#sweepCalibrationScreen,
+#mlTrainerScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
 .calib-main { flex-direction: column; overflow: visible; }
 .calib-right-col { overflow: visible; flex: none; }
 .calib-readout-panel { overflow-y: visible; flex: none; }
@@ -2145,7 +2672,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
   /* Calibration — side by side */
   #calibrationScreen,
-  #sweepCalibrationScreen { height: 100vh; overflow: hidden; }
+  #sweepCalibrationScreen,
+  #mlTrainerScreen { height: 100vh; overflow: hidden; }
   .calib-main { flex-direction: row; overflow: hidden; }
   .calib-right-col { overflow: auto; flex: 1; }
   .calib-readout-panel { overflow-y: auto; flex: 1; }
@@ -2154,6 +2682,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   /* Sweep: give right column more space for controls */
   #sweepCalibrationScreen .calib-camera-col { flex: 0 0 44%; }
   #sweepCalibrationScreen .calib-right-col { flex: 1; min-width: 300px; overflow-y: auto; }
+  #mlTrainerScreen .calib-camera-col { flex: 0 0 44%; }
+  #mlTrainerScreen .calib-right-col { flex: 1; min-width: 300px; overflow-y: auto; }
 
   /* Charts side-by-side at desktop */
   .tp-charts-grid { grid-template-columns: 1fr 1fr; }

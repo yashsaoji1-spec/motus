@@ -498,6 +498,142 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     ML ANGLE TRAINER
+═══════════════════════════════════════════════════════ -->
+<div id="mlTrainerScreen" class="screen">
+
+  <header class="sweep-header">
+    <button class="sweep-back-btn" onclick="mlTrainerBack()">← Back</button>
+    <span class="sweep-header-title">ML Angle Trainer</span>
+    <span style="width:60px"></span>
+  </header>
+
+  <div class="calib-main">
+
+    <div class="calib-camera-col">
+      <div class="calib-camera-wrap sweep-camera-wrap" id="mlCameraWrap">
+        <div class="calib-scan-line"></div>
+        <video id="mlVideo" playsinline autoplay muted></video>
+        <canvas id="mlCanvas"></canvas>
+        <div class="calib-overlay" id="mlOverlay">
+          <div class="calib-spinner"></div>
+          <div class="calib-overlay-text" id="mlOverlayMsg">LOADING MEDIAPIPE...</div>
+        </div>
+        <div class="sweep-track-dot" id="mlTrackDot"></div>
+        <button class="sweep-flip-btn" onclick="mlFlipCamera()">flip</button>
+      </div>
+    </div>
+
+    <div class="calib-right-col ml-right-col">
+
+      <!-- Joint selector -->
+      <div class="ml-joint-row">
+        <select id="mlJointSelect" class="ml-joint-select" onchange="mlOnJointChange()"></select>
+        <span class="ml-hand-label" id="mlHandLabel">—</span>
+      </div>
+
+      <!-- Session notes -->
+      <textarea id="mlSessionNotes" class="ml-notes" placeholder="Session notes (e.g. white male, 35, bedroom lighting)" oninput="mlSaveNotes()" rows="2"></textarea>
+
+      <!-- Finger config -->
+      <div class="ml-finger-config">
+        <span class="ml-config-label">OTHER FINGERS</span>
+        <div class="ml-finger-btns">
+          <button class="ml-finger-btn active" id="mlFinger-thumb"  onclick="mlToggleFinger('thumb')"  title="Thumb">T</button>
+          <button class="ml-finger-btn active" id="mlFinger-index"  onclick="mlToggleFinger('index')"  title="Index">I</button>
+          <button class="ml-finger-btn active" id="mlFinger-middle" onclick="mlToggleFinger('middle')" title="Middle">M</button>
+          <button class="ml-finger-btn active" id="mlFinger-ring"   onclick="mlToggleFinger('ring')"   title="Ring">R</button>
+          <button class="ml-finger-btn active" id="mlFinger-pinky"  onclick="mlToggleFinger('pinky')"  title="Pinky">P</button>
+        </div>
+        <div class="ml-finger-presets">
+          <button class="ml-preset-btn" onclick="mlSetFingerPreset('all')">All up</button>
+          <button class="ml-preset-btn" onclick="mlSetFingerPreset('none')">All down</button>
+          <button class="ml-preset-btn" onclick="mlSetFingerPreset('random')">Random</button>
+        </div>
+      </div>
+
+      <!-- Angle comparison hero -->
+      <div class="ml-capture-panel">
+        <div class="ml-angle-block">
+          <div class="ml-angle-tag">MEDIAPIPE</div>
+          <div class="ml-angle-big" id="mlLiveAngle">—</div>
+        </div>
+        <div class="ml-vs">vs</div>
+        <div class="ml-angle-block ml-angle-block--true">
+          <div class="ml-angle-tag">GROUND TRUTH</div>
+          <div class="ml-angle-big ml-angle-big--true" id="mlSliderAngle">90°</div>
+        </div>
+        <div class="ml-slider-wrap">
+          <input type="range" min="0" max="180" value="90" id="mlAngleSlider" class="ml-slider" oninput="mlOnSlider(this.value)">
+          <div class="ml-slider-ticks">
+            <span>0°</span><span>45°</span><span>90°</span><span>135°</span><span>180°</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="sweep-save-btn" id="mlSubmitBtn" onclick="submitMLSample()">Submit Sample</button>
+
+      <!-- Coverage guidance -->
+      <div class="ml-coverage-card">
+        <div class="ml-coverage-header">
+          <span class="ml-coverage-title">ANGLE COVERAGE</span>
+          <div class="ml-coverage-next">
+            <span id="mlNextAngleLabel">Suggested: —</span>
+            <button class="ml-use-btn" id="mlUseBtn" onclick="mlUseSuggested()" disabled>Use</button>
+          </div>
+        </div>
+        <div class="ml-histogram" id="mlHistogram"></div>
+        <div class="ml-histogram-ticks">
+          <span>0°</span><span>45°</span><span>90°</span><span>135°</span><span>180°</span>
+        </div>
+      </div>
+
+      <!-- Training -->
+      <div class="ml-train-card">
+        <button class="ml-train-btn" id="mlTrainBtn" onclick="trainMLModel()" disabled>Train Model</button>
+        <div class="ml-train-status" id="mlTrainStatus"></div>
+        <div class="ml-progress-wrap" id="mlProgressWrap" style="display:none">
+          <div class="ml-progress-bar" id="mlProgressBar"></div>
+        </div>
+      </div>
+
+      <!-- Sample stats -->
+      <div class="ml-stats-card" id="mlStatsCard">
+        <button class="ml-models-toggle" onclick="mlToggleStats()">
+          <span class="sweep-panel-title">SAMPLE COUNTS</span>
+          <span class="ml-models-chevron" id="mlStatsChevron">▸</span>
+        </button>
+        <div class="ml-stats-body" id="mlStatsBody" style="display:none">
+          <div class="ml-stat-row">
+            <span class="ml-stat-label" id="mlStatJointLabel">Samples for —</span>
+            <span class="ml-stat-val" id="mlStatJointCount">0</span>
+          </div>
+          <div class="ml-stat-row">
+            <span class="ml-stat-label">Total Samples</span>
+            <span class="ml-stat-val" id="mlStatTotal">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trained models -->
+      <div class="ml-models-card" id="mlModelsCard">
+        <button class="ml-models-toggle" onclick="mlToggleModels()">
+          <span class="sweep-panel-title">TRAINED MODELS</span>
+          <span class="ml-models-chevron" id="mlModelsChevron">▸</span>
+        </button>
+        <div class="ml-models-body" id="mlModelsBody" style="display:none">
+          <div id="mlModelsList" class="ml-models-list">No models trained yet.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="calib-footer">phalanX ML Trainer — TensorFlow.js</footer>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      SESSION SUMMARY OVERLAY
 ═══════════════════════════════════════════════════════ -->
 <div id="sessionSummaryOverlay" class="session-summary-overlay" style="display:none;">
@@ -563,6 +699,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<!-- TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
 
 <!-- phalanX (Vite module) -->
 <script type="module" src="/app.js"></script>

@@ -1,4 +1,4 @@
-# Last updated: 2026-03-21 (Section 16: SWEEP_JOINT_RULES fully populated with empirically-derived orientation rules for all 13 recordable joints; rules use OR-logic arrays; Start Capture button gates recording; dot-click resets joint with 3s cooldown)
+# Last updated: 2026-03-23 (Section 17: ML Angle Trainer added — per-hand per-joint model training, MobileNet visual features, angle coverage histogram, session notes, finger config panel, collapsible stats/models UI; screen persistence via sessionStorage; handedness inversion fix)
 
 # PhalanX — Claude Code Guide
 
@@ -41,7 +41,7 @@ Both accounts live in **Firebase Auth** and **Firestore** (`users` collection). 
 ```
 code/
   index.html      — all HTML screens
-  app.js          — all JS logic (16 sections + Section 5b + window exports block)
+  app.js          — all JS logic (17 sections + Section 5b + window exports block)
   styles.css      — all styles
 vite.config.mjs   — Vite config (root: code/, outDir: ../dist)
 firestore.rules   — Firestore security rules
@@ -65,6 +65,7 @@ node_modules/     — npm packages (vite, firebase, chart.js, prompt-sync)
 
 ### CDN (loaded at runtime — kept on CDN due to WASM complexity)
 - **MediaPipe Hands** + `camera_utils` + `drawing_utils` — hand tracking
+- **TensorFlow.js** (`@tensorflow/tfjs@4.x`) + **`@tensorflow-models/mobilenet@2.1.0`** — ML model training and inference; MobileNetV1 α=0.25 (~1MB) used as frozen feature extractor for hybrid angle models
 - **Google Fonts** — DM Sans, DM Mono, Space Mono
 
 ## Firebase Hosting
@@ -95,7 +96,10 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 | `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles?, videoUrl? }` |
 | `calibration`   | `{patientEmail}`     | `{ joints: { [key]: { angle, metricVal } }, recordedAt, recordedBy }` — best angle per joint from sweep calibration; `metricVal` is the 0–1 orientation metric value at time of recording (whichever metric was specified in `SWEEP_JOINT_RULES[key].metric`) |
 | `messages`      | auto-id              | `{ from, to, participants, text, timestamp, read }` |
-| `jointTracking` | `{patientEmail}`     | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
+| `jointTracking`   | `{patientEmail}`           | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
+| `trainingChunks`  | auto-id                    | `{ joint, samples: [{ landmarks, trueAngle, imageFeatures?, notes?, fingerConfig?, recordedAt, recordedBy }], chunkIndex, createdAt }` — 30 samples/chunk; `imageFeatures` is 256 floats from MobileNet (absent on old samples); `notes` is free-text session context; `fingerConfig` is `{ thumb, index, middle, ring, pinky }` booleans |
+| `trainingMeta`    | `{joint-hand}` e.g. `index-mcp-left` | `{ totalSamples, chunkCount, lastUpdated, histogram: { b0…b17: count } }` — `b0` = 0–9°, `b17` = 170–179°; histogram updated via `FieldValue.increment` at submit time |
+| `mlModels`        | `{joint-hand}` e.g. `index-mcp-right` | `{ type: 'hybrid'\|'landmarks', topology, weights, sampleCount, trainedAt, trainedBy }` — `type` absent on old docs = treated as `'landmarks'`; `topology` = `JSON.stringify(model.toJSON())`; `weights` = array of flat float arrays |
 
 **Backward compat:** old `protocols` docs with a flat object (no `items` array) are transparently wrapped by `getProtocols()` as `[{ id: 'legacy', ...data }]`.
 
@@ -126,9 +130,19 @@ service cloud.firestore {
 }
 ```
 
-### localStorage (remaining)
+### localStorage
 
-No localStorage keys remain. All state is in Firestore.
+| Key | Value | Purpose |
+|-----|-------|---------|
+| `ml_session_notes` | string | ML Trainer session notes textarea — persists across page refreshes; not synced to Firestore |
+
+### sessionStorage
+
+| Key | Value | Purpose |
+|-----|-------|---------|
+| `phalanx_screen` | screen ID string | Last active non-auth screen — restored on page refresh via `restoreScreen()` in `loginSuccess()` |
+
+Auth screens excluded from persistence: `loginScreen`, `signupScreen`, `forgotScreen`, `consentScreen`, `pendingScreen`, `adminScreen`.
 
 ## Screen System
 
@@ -151,6 +165,7 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `messagingScreen`          | In-app patient↔therapist messaging thread                      |
 | `calibrationScreen`        | Therapist-facing live joint angle diagnostic (Section 14); in HTML/JS but not accessible from UI currently |
 | `sweepCalibrationScreen`   | Sweep calibration — therapist sweeps rear camera around patient's stationary hand (Section 16); wired to UI via "Sweep Calibration" button in `showRealPatient()`; records joint angles only when **Start Capture** is pressed AND camera orientation satisfies per-joint rules in `SWEEP_JOINT_RULES`; 13 of 14 joints have empirically-derived rules (ring-dip left null — MediaPipe landmarks unreliable for that joint); clicking a dot resets that joint with a 3s cooldown |
+| `mlTrainerScreen`          | ML Angle Trainer — therapist trains per-joint per-hand angle regression models (Section 17); left/right hand auto-detected from MediaPipe; angle set via slider + submit; shows coverage histogram with suggested angle; collapsible sample counts + trained models panels; session notes textarea |
 
 ## Role Split
 
@@ -216,6 +231,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })`; `calibBack` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 | 16  | Sweep Calibration — full rules-based hand tracking system; see expanded section below |
+| 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlRefreshSampleCounts`, `mlRenderCoverage`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`, `mlToggleFinger`, `mlSetFingerPreset`; globals: `_mlModels` (Map), `_mlCurrentHand`, `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlFingerConfig`, `_mlSuggestedAngle` |
 
 ## Section 16: Sweep Calibration — Full Hand Tracking Code Reference
 
@@ -713,6 +729,114 @@ Rules are fully populated for 13/14 joints (ring-dip is null). To refine or add 
 Available metric keys: `lateralZ`, `palmNormalZ`, `fingerZ_thumb`, `fingerZ_index`, `fingerZ_middle`, `fingerZ_ring`, `fingerZ_pinky`
 
 To add a second orientation window for a joint: just push a second object to its array — OR logic means either window can trigger a capture.
+
+---
+
+## Screen Persistence (sessionStorage)
+
+`showScreen(id)` saves the screen ID to `sessionStorage('phalanx_screen')` unless the ID is in `AUTH_SCREENS` (`loginScreen`, `signupScreen`, `forgotScreen`, `consentScreen`, `pendingScreen`, `adminScreen`).
+
+On login, `loginSuccess()` reads `savedScreen = sessionStorage.getItem('phalanx_screen')` **before** any `showScreen()` call (critical — any `showScreen()` call overwrites the value). After routing to the role's default screen, `restoreScreen(saved)` navigates to the saved screen if it matches the user's role:
+- Therapist: `mlTrainerScreen` → re-open ML trainer (calls `openMLTrainer()`)
+- Patient: `exercisesScreen` → call `showExercisesScreen()`; `progressScreen` → call `showProgressScreen()`
+- Sweep calibration and camera screens cannot be restored (require runtime state) — fall back to role default
+
+`logout()` calls `sessionStorage.removeItem('phalanx_screen')`.
+
+---
+
+## Section 17: ML Angle Trainer — Full Code Reference
+
+### Purpose
+
+Per-joint, per-hand angle regression. Therapist collects labeled samples (slider angle + hand pose), trains a small TF.js model in-browser, and the trained model replaces `calibGetAngle` for that joint during patient exercise sessions.
+
+### Globals
+
+```js
+const _mlModels = new Map();        // '${joint}-${hand}' → { type: 'hybrid'|'landmarks', model }
+let _mlCurrentHand = null;          // 'left' | 'right' | null — set each frame by mlOnResults
+let _mlFeatureExtractor = null;     // MobileNetV1 α=0.25 instance (loaded once)
+let _currentFrameFeatures = null;   // 256-dim feature vector, updated async each frame
+let _currentHandLabel = null;       // set by mlOnResults, sweepOnResults, patient onResults
+const _mlFingerConfig = { thumb: true, index: true, middle: true, ring: true, pinky: true };
+const _ML_FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+let _mlSuggestedAngle = null;       // emptiest histogram bucket midpoint
+```
+
+### Firestore Key Convention
+
+All Firestore keys for training data and models use `${baseJoint}-${hand}`, e.g. `index-mcp-left`, `thumb-pip-right`. Hand comes from MediaPipe handedness with **inversion** applied (see below).
+
+### Handedness Inversion
+
+MediaPipe reports handedness from the person's perspective, which is mirror-flipped relative to the camera. Every `onResults` callback that reads `multiHandedness` inverts the label:
+```js
+const rawHand = results.multiHandedness[0].label.toLowerCase(); // 'left' or 'right'
+_currentHandLabel = rawHand === 'left' ? 'right' : 'left';      // flip to camera perspective
+```
+Applied in `mlOnResults`, `sweepOnResults`, and patient camera `onResults`.
+
+### MobileNet Feature Extractor
+
+```js
+async function loadMLFeatureExtractor() {
+  if (!window.mobilenet) return;
+  try {
+    _mlFeatureExtractor = await window.mobilenet.load({ version: 1, alpha: 0.25 });
+  } catch (e) { console.error('loadMLFeatureExtractor:', e); }
+}
+
+async function extractVisualFeatures(canvas, landmarks) {
+  if (!_mlFeatureExtractor || !canvas || !landmarks) return null;
+  // Crops hand region from canvas using landmark bounding box (12% padding each side)
+  // Resizes crop to 224×224, runs mobilenet.infer(cropCanvas, true) (penultimate layer)
+  // Returns 256-dim float array, disposes TF tensor
+}
+```
+
+`_currentFrameFeatures` is updated each frame in `mlOnResults` (and patient/sweep `onResults`) by calling `extractVisualFeatures(canvas, landmarks).then(f => { _currentFrameFeatures = f; })` — async, one frame behind, imperceptible in practice.
+
+### Model Architecture
+
+**Landmarks-only** (when no `imageFeatures` in samples):
+```
+Dense(64, relu) → Dense(32, relu) → Dense(1)
+input: 63 floats (21 landmarks × [x, y, z])
+```
+
+**Hybrid** (when samples have `imageFeatures`):
+```
+imageFeatures(256) → Dense(128, relu) \
+landmarks(63)      → Dense(64,  relu)  → Concat(192) → Dense(64, relu) → Dense(1)
+```
+Built via `tf.model({ inputs: [imgInput, lmInput], outputs })` functional API. Saved to Firestore with `type: 'hybrid'`. Old docs without `type` field treated as `'landmarks'`.
+
+### Sample Threshold
+
+Minimum 100 samples before training is allowed (model has ~6,200 parameters; 20 was insufficient to prevent memorization).
+
+### Coverage Histogram
+
+18 buckets, 10° each (b0 = 0–9°, b17 = 170–179°). Updated at submit time via `FieldValue.increment(1)` on `trainingMeta/{joint-hand}.histogram.b{N}`. `mlRenderCoverage(histogram)` renders 18 bars; gold bar = emptiest bucket = suggested next angle. `mlUseSuggested()` sets the angle slider to `_mlSuggestedAngle`.
+
+### Key Functions
+
+| Function | What it does |
+|----------|-------------|
+| `loadMLModels()` | Loads all trained models from `mlModels` collection + calls `loadMLFeatureExtractor()` in parallel |
+| `submitMLSample()` | Captures current landmarks + slider angle + `_currentFrameFeatures` + notes + fingerConfig; saves to `trainingChunks` (30 samples/chunk) and increments `trainingMeta` histogram bucket |
+| `trainMLModel()` | Reads all chunks for current joint-hand key; builds landmarks-only or hybrid model; saves topology + weights to `mlModels/{joint-hand}` |
+| `getTrainedAngle(jointKey, landmarks)` | Looks up `${jointKey}-${_currentHandLabel}` in `_mlModels`; runs hybrid (uses `_currentFrameFeatures`) or landmarks-only inference; falls back to `null` if no model (caller falls back to `calibGetAngle`) |
+| `mlRefreshSampleCounts()` | Fetches `trainingMeta` for current joint-hand key; updates stats card + coverage histogram |
+| `mlRenderCoverage(histogram)` | Renders 18 histogram bars; marks emptiest bucket gold; sets `_mlSuggestedAngle` |
+| `mlToggleStats()` / `mlToggleModels()` | Collapse/expand with `scrollIntoView` on expand |
+| `mlSaveNotes()` | Saves textarea value to `localStorage('ml_session_notes')` |
+| `mlToggleFinger(name)` / `mlSetFingerPreset(preset)` | Toggle finger active state in `_mlFingerConfig`; presets: `all-up`, `all-down`, `random` |
+
+### Finger Config Panel
+
+Five toggle buttons (T / I / M / R / P) + three presets. Purely a workflow reminder — the 63-landmark input already captures all finger positions continuously. The panel helps the therapist systematically collect samples across diverse finger configurations so the model generalizes.
 
 ---
 
