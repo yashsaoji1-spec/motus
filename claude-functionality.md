@@ -1,4 +1,4 @@
-# Last updated: 2026-03-23 (Section 17: coverage grid upgraded — 6 orientation × 8 angle buckets, progressive fill cells (30 samples = full, green), hyperextension support (-30° to 180° slider), full 3D palm normal for orientation classification, mlAngleBucket helper)
+# Last updated: 2026-03-23 (Section 17: Recording Mode added — mlStartRecording/mlStopRecording auto-capture ~2 samples/sec, recordingId tagging on all auto-captured samples, mlUndoLastRecording to discard a full recording session, mlClearJoint to wipe all samples for a joint)
 
 # PhalanX — Claude Code Guide
 
@@ -97,7 +97,7 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 | `calibration`   | `{patientEmail}`     | `{ joints: { [key]: { angle, metricVal } }, recordedAt, recordedBy }` — best angle per joint from sweep calibration; `metricVal` is the 0–1 orientation metric value at time of recording (whichever metric was specified in `SWEEP_JOINT_RULES[key].metric`) |
 | `messages`      | auto-id              | `{ from, to, participants, text, timestamp, read }` |
 | `jointTracking`   | `{patientEmail}`           | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
-| `trainingChunks`  | auto-id                    | `{ joint, samples: [{ landmarks, trueAngle, imageFeatures?, notes?, fingerConfig?, recordedAt, recordedBy }], chunkIndex, createdAt }` — 30 samples/chunk; `imageFeatures` is 256 floats from MobileNet (absent on old samples); `notes` is free-text session context; `fingerConfig` is `{ thumb, index, middle, ring, pinky }` booleans |
+| `trainingChunks`  | auto-id                    | `{ joint, samples: [{ landmarks, trueAngle, imageFeatures?, notes?, fingerConfig?, recordedAt, recordedBy, recordingId? }], chunkIndex, createdAt }` — 30 samples/chunk; `imageFeatures` is 256 floats from MobileNet (absent on old samples); `notes` is free-text session context; `fingerConfig` is `{ thumb, index, middle, ring, pinky }` booleans; `recordingId` is present on auto-captured samples (Date.now() string of the recording session) — used by `mlUndoLastRecording` to identify and remove a full session |
 | `trainingMeta`    | `{joint-hand}` e.g. `index-mcp-left` | `{ totalSamples, chunkCount, lastUpdated, histogram: { b0…b17: count } }` — `b0` = 0–9°, `b17` = 170–179°; histogram updated via `FieldValue.increment` at submit time |
 | `mlModels`        | `{joint-hand}` e.g. `index-mcp-right` | `{ type: 'hybrid'\|'landmarks', topology, weights, sampleCount, trainedAt, trainedBy }` — `type` absent on old docs = treated as `'landmarks'`; `topology` = `JSON.stringify(model.toJSON())`; `weights` = array of flat float arrays |
 
@@ -165,7 +165,7 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `messagingScreen`          | In-app patient↔therapist messaging thread                      |
 | `calibrationScreen`        | Therapist-facing live joint angle diagnostic (Section 14); in HTML/JS but not accessible from UI currently |
 | `sweepCalibrationScreen`   | Sweep calibration — therapist sweeps rear camera around patient's stationary hand (Section 16); wired to UI via "Sweep Calibration" button in `showRealPatient()`; records joint angles only when **Start Capture** is pressed AND camera orientation satisfies per-joint rules in `SWEEP_JOINT_RULES`; 13 of 14 joints have empirically-derived rules (ring-dip left null — MediaPipe landmarks unreliable for that joint); clicking a dot resets that joint with a 3s cooldown |
-| `mlTrainerScreen`          | ML Angle Trainer — therapist trains per-joint per-hand angle regression models (Section 17); left/right hand auto-detected from MediaPipe; angle set via slider + submit; shows coverage histogram with suggested angle; collapsible sample counts + trained models panels; session notes textarea |
+| `mlTrainerScreen`          | ML Angle Trainer — therapist trains per-joint per-hand angle regression models (Section 17); left/right hand auto-detected from MediaPipe; angle set via slider + submit (single frame) or recording mode (auto-capture ~2/sec while moving hand); recording locks slider, shows blinking dot + live counter; after stop shows undo bar to discard the recording by `recordingId`; "Clear all samples" button wipes all chunks + meta for current joint-hand; shows coverage grid with suggested angle; collapsible sample counts + trained models panels; session notes textarea |
 
 ## Role Split
 
@@ -231,7 +231,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })`; `calibBack` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 | 16  | Sweep Calibration — full rules-based hand tracking system; see expanded section below |
-| 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlRefreshSampleCounts`, `mlRenderCoverage`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`, `mlToggleFinger`, `mlSetFingerPreset`; globals: `_mlModels` (Map), `_mlCurrentHand`, `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlFingerConfig`, `_mlSuggestedAngle` |
+| 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `mlAutoCapture`, `mlStartRecording`, `mlStopRecording`, `mlUndoLastRecording`, `mlClearJoint`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlRefreshSampleCounts`, `mlRenderGrid`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`, `mlToggleFinger`, `mlSetFingerPreset`; globals: `_mlModels` (Map), `_mlCurrentHand`, `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlFingerConfig`, `_mlSuggestedAngle`, `_mlRecording`, `_mlRecordingId`, `_mlLastRecordingId` |
 
 ## Section 16: Sweep Calibration — Full Hand Tracking Code Reference
 
@@ -762,6 +762,16 @@ let _currentHandLabel = null;       // set by mlOnResults, sweepOnResults, patie
 const _mlFingerConfig = { thumb: true, index: true, middle: true, ring: true, pinky: true };
 const _ML_FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
 let _mlSuggestedAngle = null;       // emptiest histogram bucket midpoint
+
+// Recording mode
+let _mlRecording = false;           // true while recording session active
+let _mlRecordFrameCount = 0;        // frame counter for throttle
+let _mlRecordSampleCount = 0;       // samples captured in current recording
+let _mlRecordingId = null;          // Date.now() string — unique ID per recording session
+let _mlLastRecordingId = null;      // ID of most recently stopped recording (for undo)
+let _mlLastRecordingCount = 0;      // sample count of most recently stopped recording
+const ML_RECORD_FRAME_INTERVAL = 15;        // ~2 samples/sec at ~30fps
+const ML_RECORD_GRID_REFRESH_INTERVAL = 10; // refresh coverage grid every N auto-captures
 ```
 
 ### Firestore Key Convention
@@ -859,7 +869,12 @@ Classification: largest absolute component of the palm normal vector wins. Y-axi
 | Function | What it does |
 |----------|-------------|
 | `loadMLModels()` | Loads all trained models from `mlModels` collection + calls `loadMLFeatureExtractor()` in parallel |
-| `submitMLSample()` | Captures current landmarks + slider angle + `_currentFrameFeatures` + notes + fingerConfig; saves to `trainingChunks` (30 samples/chunk) and increments `trainingMeta` histogram bucket |
+| `submitMLSample()` | Single-frame capture: landmarks + slider angle + notes + fingerConfig → `trainingChunks`; resets slider to 90° after save |
+| `mlAutoCapture()` | Same as `submitMLSample` but: no button state changes, no slider reset, tags sample with `_mlRecordingId`; called fire-and-forget from `mlOnResults` every `ML_RECORD_FRAME_INTERVAL` frames during recording |
+| `mlStartRecording()` | Sets `_mlRecording = true`, generates new `_mlRecordingId`, disables slider + submit button, shows stop button + blinking dot |
+| `mlStopRecording()` | Sets `_mlRecording = false`, stores `_mlLastRecordingId` for undo, re-enables slider (resets to 90°) + submit, shows undo bar if samples were captured |
+| `mlUndoLastRecording()` | Reads all chunks for current joint, filters out samples where `recordingId === _mlLastRecordingId`, writes back via batch, rebuilds `trainingMeta` from scratch from remaining samples |
+| `mlClearJoint()` | Deletes all `trainingChunks` docs for current joint-hand + the `trainingMeta` doc; nuclear reset |
 | `trainMLModel()` | Reads all chunks for current joint-hand key; builds landmarks-only or hybrid model; saves topology + weights to `mlModels/{joint-hand}` |
 | `getTrainedAngle(jointKey, landmarks)` | Looks up `${jointKey}-${_currentHandLabel}` in `_mlModels`; runs hybrid (uses `_currentFrameFeatures`) or landmarks-only inference; falls back to `null` if no model (caller falls back to `calibGetAngle`) |
 | `mlRefreshSampleCounts()` | Fetches `trainingMeta` for current joint-hand key; updates stats card; extracts all `grid_*` keys and calls `mlRenderGrid(grid)` |

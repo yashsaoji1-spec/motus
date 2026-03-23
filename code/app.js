@@ -3778,6 +3778,15 @@ let   _mlFeatureExtractor = null;      // MobileNetV1 α=0.25
 let   _currentFrameFeatures = null;   // cached per-frame 256-dim visual vector
 let   _currentHandLabel   = null;      // 'left' | 'right' | null — set by each onResults
 
+let _mlRecording            = false;
+let _mlRecordFrameCount     = 0;
+let _mlRecordSampleCount    = 0;
+let _mlRecordingId          = null;
+let _mlLastRecordingId      = null;
+let _mlLastRecordingCount   = 0;
+const ML_RECORD_FRAME_INTERVAL        = 15;
+const ML_RECORD_GRID_REFRESH_INTERVAL = 10;
+
 // ── loadMLModels (called at login, background) ─────────────────────────────
 async function loadMLModels() {
   if (!window.tf) return;
@@ -4040,6 +4049,7 @@ function mlOnResults(results) {
     _mlCurrentLandmarks = null;
     _mlCurrentHand      = null;
     _currentHandLabel   = null;
+    _mlRecordFrameCount = 0;
     if (trackDot) trackDot.classList.remove('active');
     if (liveEl)   liveEl.textContent = '—';
     if (handEl)   handEl.textContent = '—';
@@ -4087,6 +4097,14 @@ function mlOnResults(results) {
 
   liveEl.textContent  = angle + '°';
   liveEl.style.color  = trained !== null ? 'var(--green)' : '';
+
+  if (_mlRecording && _mlCurrentLandmarks) {
+    _mlRecordFrameCount++;
+    if (_mlRecordFrameCount >= ML_RECORD_FRAME_INTERVAL) {
+      _mlRecordFrameCount = 0;
+      mlAutoCapture();
+    }
+  }
 }
 
 // ── Finger config ──────────────────────────────────────────────────────────
@@ -4121,6 +4139,9 @@ function mlSaveNotes() {
 
 // ── mlOnJointChange ────────────────────────────────────────────────────────
 async function mlOnJointChange() {
+  const undoBar = document.getElementById('mlUndoBar');
+  if (undoBar) undoBar.style.display = 'none';
+  _mlLastRecordingId = null;
   const select = document.getElementById('mlJointSelect');
   if (select) await mlRefreshSampleCounts(select.value);
 }
@@ -4192,6 +4213,183 @@ async function submitMLSample() {
     btn.disabled = false;
     console.error(e);
   }
+}
+
+// ── mlAutoCapture — called every ML_RECORD_FRAME_INTERVAL frames during recording
+async function mlAutoCapture() {
+  if (!_mlRecording || !_mlCurrentLandmarks || !_mlCurrentHand) return;
+  const select = document.getElementById('mlJointSelect');
+  const slider = document.getElementById('mlAngleSlider');
+  if (!select || !slider) return;
+
+  const joint        = `${select.value}-${_mlCurrentHand}`;
+  const trueAngle    = parseInt(slider.value);
+  const landmarks    = _mlCurrentLandmarks.map(lm => [lm.x, lm.y, lm.z || 0]);
+  const notes        = document.getElementById('mlSessionNotes')?.value?.trim() || '';
+  const fingerConfig = _ML_FINGERS.filter(f => _mlFingerConfig[f]).join(',');
+  const sample       = {
+    landmarks, trueAngle,
+    recordedAt:  new Date().toISOString(),
+    recordedBy:  currentUser?.email || '',
+    recordingId: _mlRecordingId,
+    notes, fingerConfig,
+  };
+
+  const metaRef   = db.collection('trainingMeta').doc(joint);
+  const meta      = await metaRef.get();
+  const total     = meta.exists ? meta.data().totalSamples : 0;
+  const chunkIdx  = Math.floor(total / 50);
+  const chunkId   = `${joint}_chunk_${chunkIdx}`;
+  const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
+  const orient    = mlClassifyOrientation(_mlCurrentLandmarks);
+  const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
+
+  try {
+    await db.collection('trainingChunks').doc(chunkId).set(
+      { joint, chunk: chunkIdx, samples: firebase.firestore.FieldValue.arrayUnion(sample) },
+      { merge: true }
+    );
+    await metaRef.set({
+      joint,
+      totalSamples: firebase.firestore.FieldValue.increment(1),
+      [bucketKey]:  firebase.firestore.FieldValue.increment(1),
+      [gridKey]:    firebase.firestore.FieldValue.increment(1),
+    }, { merge: true });
+
+    _mlRecordSampleCount++;
+    const countEl = document.getElementById('mlRecordCount');
+    if (countEl) countEl.textContent = _mlRecordSampleCount;
+
+    if (_mlRecordSampleCount % ML_RECORD_GRID_REFRESH_INTERVAL === 0) {
+      mlRefreshSampleCounts();
+    }
+  } catch (e) {
+    console.error('mlAutoCapture:', e);
+  }
+}
+
+// ── mlStartRecording / mlStopRecording ─────────────────────────────────────
+function mlStartRecording() {
+  if (_mlRecording || !_mlCurrentHand) return;
+  const slider    = document.getElementById('mlAngleSlider');
+  const submitBtn = document.getElementById('mlSubmitBtn');
+  const startBtn  = document.getElementById('mlRecordStartBtn');
+  const stopBtn   = document.getElementById('mlRecordStopBtn');
+  const countEl   = document.getElementById('mlRecordCount');
+  const indicator = document.getElementById('mlRecordingIndicator');
+  const undoBar   = document.getElementById('mlUndoBar');
+
+  _mlRecording         = true;
+  _mlRecordFrameCount  = 0;
+  _mlRecordSampleCount = 0;
+  _mlRecordingId       = Date.now().toString();
+
+  if (slider)    slider.disabled    = true;
+  if (submitBtn) submitBtn.disabled = true;
+  if (startBtn)  startBtn.style.display = 'none';
+  if (stopBtn)   stopBtn.style.display  = '';
+  if (countEl)   countEl.textContent    = '0';
+  if (indicator) indicator.style.display = '';
+  if (undoBar)   undoBar.style.display   = 'none';
+  document.querySelector('.ml-capture-panel')?.classList.add('ml-recording');
+}
+
+function mlStopRecording() {
+  if (!_mlRecording) return;
+  const slider    = document.getElementById('mlAngleSlider');
+  const submitBtn = document.getElementById('mlSubmitBtn');
+  const startBtn  = document.getElementById('mlRecordStartBtn');
+  const stopBtn   = document.getElementById('mlRecordStopBtn');
+  const indicator = document.getElementById('mlRecordingIndicator');
+  const undoBar   = document.getElementById('mlUndoBar');
+  const undoLabel = document.getElementById('mlUndoLabel');
+
+  _mlLastRecordingId    = _mlRecordingId;
+  _mlLastRecordingCount = _mlRecordSampleCount;
+  _mlRecording          = false;
+  _mlRecordFrameCount   = 0;
+  _mlRecordingId        = null;
+
+  if (slider)    { slider.value = 90; slider.disabled = false; mlOnSlider(90); }
+  if (submitBtn) submitBtn.disabled = false;
+  if (startBtn)  startBtn.style.display = '';
+  if (stopBtn)   stopBtn.style.display  = 'none';
+  if (indicator) indicator.style.display = 'none';
+  document.querySelector('.ml-capture-panel')?.classList.remove('ml-recording');
+
+  if (undoBar && _mlLastRecordingCount > 0) {
+    if (undoLabel) undoLabel.textContent = `Discard last recording (${_mlLastRecordingCount} samples)`;
+    undoBar.style.display = '';
+  }
+
+  mlRefreshSampleCounts();
+}
+
+// ── mlUndoLastRecording ────────────────────────────────────────────────────
+async function mlUndoLastRecording() {
+  if (!_mlLastRecordingId || !_mlCurrentHand) return;
+  const select  = document.getElementById('mlJointSelect');
+  const undoBtn = document.getElementById('mlUndoBtn');
+  const undoBar = document.getElementById('mlUndoBar');
+  if (!select || !undoBtn) return;
+
+  const joint = `${select.value}-${_mlCurrentHand}`;
+  undoBtn.disabled    = true;
+  undoBtn.textContent = 'Removing...';
+
+  try {
+    const snap  = await db.collection('trainingChunks').where('joint', '==', joint).get();
+    const batch = db.batch();
+    const rid   = _mlLastRecordingId;
+
+    for (const doc of snap.docs) {
+      const kept = (doc.data().samples || []).filter(s => s.recordingId !== rid);
+      if (kept.length !== (doc.data().samples || []).length) {
+        batch.update(doc.ref, { samples: kept });
+      }
+    }
+    await batch.commit();
+
+    const remaining = snap.docs.flatMap(d => (d.data().samples || []).filter(s => s.recordingId !== rid));
+    const newMeta   = { joint, totalSamples: remaining.length };
+    for (const s of remaining) {
+      const bk = `histogram.b${Math.min(17, Math.floor(s.trueAngle / 10))}`;
+      newMeta[bk] = (newMeta[bk] || 0) + 1;
+      const orient = mlClassifyOrientation(s.landmarks.map(([x, y, z]) => ({ x, y, z })));
+      const gk = `grid_${orient}_${mlAngleBucket(s.trueAngle)}`;
+      newMeta[gk] = (newMeta[gk] || 0) + 1;
+    }
+    await db.collection('trainingMeta').doc(joint).set(newMeta);
+
+    _mlLastRecordingId    = null;
+    _mlLastRecordingCount = 0;
+    if (undoBar) undoBar.style.display = 'none';
+    mlRefreshSampleCounts();
+  } catch (e) {
+    console.error('mlUndoLastRecording:', e);
+    undoBtn.disabled    = false;
+    undoBtn.textContent = 'Discard';
+  }
+}
+
+// ── mlClearJoint ───────────────────────────────────────────────────────────
+async function mlClearJoint() {
+  if (!_mlCurrentHand) return;
+  const select = document.getElementById('mlJointSelect');
+  if (!select) return;
+  const joint = `${select.value}-${_mlCurrentHand}`;
+
+  const snap  = await db.collection('trainingChunks').where('joint', '==', joint).get();
+  const batch = db.batch();
+  snap.docs.forEach(d => batch.delete(d.ref));
+  batch.delete(db.collection('trainingMeta').doc(joint));
+  await batch.commit();
+
+  _mlLastRecordingId    = null;
+  _mlLastRecordingCount = 0;
+  const undoBar = document.getElementById('mlUndoBar');
+  if (undoBar) undoBar.style.display = 'none';
+  mlRefreshSampleCounts();
 }
 
 // ── trainMLModel ───────────────────────────────────────────────────────────
@@ -4456,6 +4654,7 @@ function mlToggleModels() {
 
 // ── mlTrainerBack ──────────────────────────────────────────────────────────
 function mlTrainerBack() {
+  if (_mlRecording) mlStopRecording();
   if (_mlTrainerCamera) { _mlTrainerCamera.stop(); _mlTrainerCamera = null; }
   _mlMpHands = null;
   _mlCurrentLandmarks = null;
@@ -4501,7 +4700,7 @@ Object.assign(window, {
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlSaveNotes, mlToggleFinger, mlSetFingerPreset,
-  submitMLSample, trainMLModel,
+  submitMLSample, trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,

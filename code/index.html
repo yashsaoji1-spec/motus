@@ -573,6 +573,25 @@
 
       <button class="sweep-save-btn" id="mlSubmitBtn" onclick="submitMLSample()">Submit Sample</button>
 
+      <div class="ml-record-bar">
+        <button class="ml-record-start-btn" id="mlRecordStartBtn" onclick="mlStartRecording()">Start Recording</button>
+        <button class="ml-record-stop-btn"  id="mlRecordStopBtn"  onclick="mlStopRecording()" style="display:none">Stop Recording</button>
+        <div class="ml-record-status">
+          <span class="ml-rec-dot" id="mlRecordingIndicator" style="display:none"></span>
+          <span class="ml-rec-count-label">Captured</span>
+          <span class="ml-rec-count" id="mlRecordCount">0</span>
+        </div>
+      </div>
+
+      <div class="ml-undo-bar" id="mlUndoBar" style="display:none">
+        <span class="ml-undo-label" id="mlUndoLabel">Discard last recording</span>
+        <button class="ml-undo-btn" id="mlUndoBtn" onclick="mlUndoLastRecording()">Discard</button>
+      </div>
+
+      <div class="ml-clear-bar">
+        <button class="ml-clear-btn" onclick="mlClearJoint()">Clear all samples for this joint</button>
+      </div>
+
       <!-- Coverage guidance -->
       <div class="ml-coverage-card">
         <div class="ml-coverage-header">

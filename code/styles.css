@@ -2503,6 +2503,142 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   text-align: right;
 }
 
+.ml-record-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ml-record-start-btn {
+  flex: 1;
+  padding: 11px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  color: var(--green);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ml-record-start-btn:hover { background: rgba(16, 185, 129, 0.2); }
+
+.ml-record-stop-btn {
+  flex: 1;
+  padding: 11px;
+  background: rgba(204, 41, 54, 0.1);
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ml-record-stop-btn:hover { background: rgba(204, 41, 54, 0.2); }
+
+.ml-record-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.ml-rec-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: recBlink 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.ml-rec-count-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ml-rec-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 20px;
+  text-align: center;
+}
+
+.ml-capture-panel.ml-recording .ml-slider {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.ml-capture-panel.ml-recording .ml-angle-block--true {
+  outline: 1px solid var(--danger);
+  border-radius: 6px;
+}
+
+.ml-undo-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+
+.ml-undo-label {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.ml-undo-btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.ml-undo-btn:hover    { background: rgba(245, 158, 11, 0.12); }
+.ml-undo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ml-clear-bar { flex-shrink: 0; }
+
+.ml-clear-btn {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ml-clear-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    RESPONSIVE BREAKPOINTS
    Mobile-first: base styles are mobile (<640px).
