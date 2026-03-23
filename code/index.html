@@ -564,9 +564,9 @@
           <div class="ml-angle-big ml-angle-big--true" id="mlSliderAngle">90°</div>
         </div>
         <div class="ml-slider-wrap">
-          <input type="range" min="0" max="180" value="90" id="mlAngleSlider" class="ml-slider" oninput="mlOnSlider(this.value)">
+          <input type="range" min="-30" max="180" value="90" id="mlAngleSlider" class="ml-slider" oninput="mlOnSlider(this.value)">
           <div class="ml-slider-ticks">
-            <span>0°</span><span>45°</span><span>90°</span><span>135°</span><span>180°</span>
+            <span>-30°</span><span>0°</span><span>45°</span><span>90°</span><span>135°</span><span>180°</span>
           </div>
         </div>
       </div>
@@ -582,10 +582,7 @@
             <button class="ml-use-btn" id="mlUseBtn" onclick="mlUseSuggested()" disabled>Use</button>
           </div>
         </div>
-        <div class="ml-histogram" id="mlHistogram"></div>
-        <div class="ml-histogram-ticks">
-          <span>0°</span><span>45°</span><span>90°</span><span>135°</span><span>180°</span>
-        </div>
+        <div class="ml-coverage-grid" id="mlCoverageGrid"></div>
       </div>
 
       <!-- Training -->

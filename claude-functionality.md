@@ -1,4 +1,4 @@
-# Last updated: 2026-03-23 (Section 17: ML Angle Trainer added — per-hand per-joint model training, MobileNet visual features, angle coverage histogram, session notes, finger config panel, collapsible stats/models UI; screen persistence via sessionStorage; handedness inversion fix)
+# Last updated: 2026-03-23 (Section 17: coverage grid upgraded — 6 orientation × 8 angle buckets, progressive fill cells (30 samples = full, green), hyperextension support (-30° to 180° slider), full 3D palm normal for orientation classification, mlAngleBucket helper)
 
 # PhalanX — Claude Code Guide
 
@@ -816,9 +816,43 @@ Built via `tf.model({ inputs: [imgInput, lmInput], outputs })` functional API. S
 
 Minimum 100 samples before training is allowed (model has ~6,200 parameters; 20 was insufficient to prevent memorization).
 
-### Coverage Histogram
+### Coverage Grid
 
-18 buckets, 10° each (b0 = 0–9°, b17 = 170–179°). Updated at submit time via `FieldValue.increment(1)` on `trainingMeta/{joint-hand}.histogram.b{N}`. `mlRenderCoverage(histogram)` renders 18 bars; gold bar = emptiest bucket = suggested next angle. `mlUseSuggested()` sets the angle slider to `_mlSuggestedAngle`.
+**6 orientation rows × 8 angle columns = 48 cells × 30 samples each = 1,440 samples for full joint-hand coverage.**
+
+**Orientation rows** (from full 3D palm normal via `mlPalmNormal` + `mlClassifyOrientation`):
+
+| Key | Meaning |
+|-----|---------|
+| `toward` | Palm facing camera |
+| `away` | Back of hand facing camera |
+| `up` | Palm facing ceiling |
+| `down` | Palm facing floor |
+| `left` | Palm facing left |
+| `right` | Palm facing right |
+
+Classification: largest absolute component of the palm normal vector wins. Y-axis inverted (image coords).
+
+**Angle columns** (via `mlAngleBucket(angle)`):
+
+| Key | Range | Label | Suggested midpoint |
+|-----|-------|-------|--------------------|
+| `hyp` | < 0° | `<0` | -15° |
+| `0`   | exactly 0° | `0` | 0° |
+| `1`   | 1–30° | `1-30` | 15° |
+| `31`  | 31–60° | `31-60` | 45° |
+| `61`  | 61–90° | `61-90` | 75° |
+| `91`  | 91–120° | `91-120` | 105° |
+| `121` | 121–150° | `121-150` | 135° |
+| `151` | 151–180° | `151-180` | 165° |
+
+**Slider range**: -30° to 180° (extended for hyperextension).
+
+**Cell visual**: horizontal fill bar. `--pct` CSS custom property drives `linear-gradient(to right, var(--accent) var(--pct), var(--border) var(--pct))`. Fill % = `min(count, 30) / 30 × 100`. Cell turns green (`--green`) when count ≥ 30. Gold cell = emptiest (fewest samples toward 30 target).
+
+**Firestore storage**: each submit increments `trainingMeta/{joint-hand}.grid_{orient}_{bucketKey}` via `FieldValue.increment(1)`. Example key: `grid_toward_1`, `grid_up_hyp`. `mlRefreshSampleCounts()` reads all `grid_*` keys from the meta doc and passes them to `mlRenderGrid(grid)`.
+
+`mlUseSuggested()` sets the slider to `_mlSuggestedAngle` (midpoint of emptiest bucket).
 
 ### Key Functions
 
@@ -828,8 +862,11 @@ Minimum 100 samples before training is allowed (model has ~6,200 parameters; 20 
 | `submitMLSample()` | Captures current landmarks + slider angle + `_currentFrameFeatures` + notes + fingerConfig; saves to `trainingChunks` (30 samples/chunk) and increments `trainingMeta` histogram bucket |
 | `trainMLModel()` | Reads all chunks for current joint-hand key; builds landmarks-only or hybrid model; saves topology + weights to `mlModels/{joint-hand}` |
 | `getTrainedAngle(jointKey, landmarks)` | Looks up `${jointKey}-${_currentHandLabel}` in `_mlModels`; runs hybrid (uses `_currentFrameFeatures`) or landmarks-only inference; falls back to `null` if no model (caller falls back to `calibGetAngle`) |
-| `mlRefreshSampleCounts()` | Fetches `trainingMeta` for current joint-hand key; updates stats card + coverage histogram |
-| `mlRenderCoverage(histogram)` | Renders 18 histogram bars; marks emptiest bucket gold; sets `_mlSuggestedAngle` |
+| `mlRefreshSampleCounts()` | Fetches `trainingMeta` for current joint-hand key; updates stats card; extracts all `grid_*` keys and calls `mlRenderGrid(grid)` |
+| `mlPalmNormal(landmarks)` | Returns `{nx, ny, nz}` — full 3D unit palm normal from wrist + index/pinky MCP cross product |
+| `mlClassifyOrientation(landmarks)` | Returns one of `toward/away/up/down/left/right` — whichever palm normal component is largest |
+| `mlAngleBucket(angle)` | Maps angle (int, can be negative) to Firestore key: `hyp/<0/1/31/61/91/121/151` |
+| `mlRenderGrid(grid)` | Renders 6×8 coverage grid with fill bars; gold = emptiest cell; sets `_mlSuggestedAngle` |
 | `mlToggleStats()` / `mlToggleModels()` | Collapse/expand with `scrollIntoView` on expand |
 | `mlSaveNotes()` | Saves textarea value to `localStorage('ml_session_notes')` |
 | `mlToggleFinger(name)` / `mlSetFingerPreset(preset)` | Toggle finger active state in `_mlFingerConfig`; presets: `all-up`, `all-down`, `random` |

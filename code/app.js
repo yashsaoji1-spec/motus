@@ -4131,6 +4131,17 @@ function mlOnSlider(value) {
   if (el) el.textContent = value + '°';
 }
 
+function mlAngleBucket(angle) {
+  if (angle < 0)    return 'hyp';
+  if (angle === 0)  return '0';
+  if (angle <= 30)  return '1';
+  if (angle <= 60)  return '31';
+  if (angle <= 90)  return '61';
+  if (angle <= 120) return '91';
+  if (angle <= 150) return '121';
+  return '151';
+}
+
 // ── submitMLSample ─────────────────────────────────────────────────────────
 async function submitMLSample() {
   if (!_mlCurrentLandmarks || !_mlCurrentHand) return;
@@ -4157,6 +4168,8 @@ async function submitMLSample() {
     const sample      = { landmarks, trueAngle, recordedAt: new Date().toISOString(), recordedBy: currentUser?.email || '', notes, fingerConfig };
 
     const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
+    const orient    = mlClassifyOrientation(_mlCurrentLandmarks);
+    const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
     await db.collection('trainingChunks').doc(chunkId).set(
       { joint, chunk: chunkIdx, samples: firebase.firestore.FieldValue.arrayUnion(sample) },
       { merge: true }
@@ -4165,6 +4178,7 @@ async function submitMLSample() {
       joint,
       totalSamples: firebase.firestore.FieldValue.increment(1),
       [bucketKey]: firebase.firestore.FieldValue.increment(1),
+      [gridKey]: firebase.firestore.FieldValue.increment(1),
     }, { merge: true });
 
     btn.textContent = 'Saved!';
@@ -4290,39 +4304,92 @@ async function mlRefreshSampleCounts(joint) {
     if (jCountEl) jCountEl.textContent = jointCount;
     if (totalEl)  totalEl.textContent  = grandTotal;
 
-    const histogram = meta.exists ? (meta.data().histogram || {}) : {};
-    mlRenderCoverage(histogram);
+    const docData = meta.exists ? meta.data() : {};
+    const grid = {};
+    Object.keys(docData).forEach(k => { if (k.startsWith('grid_')) grid[k] = docData[k]; });
+    mlRenderGrid(grid);
   } catch (e) {
     console.error(e);
   }
 }
 
-// ── mlRenderCoverage ───────────────────────────────────────────────────────
+// ── mlClassifyOrientation / mlRenderGrid ───────────────────────────────────
 let _mlSuggestedAngle = null;
 
-function mlRenderCoverage(histogram) {
-  const histEl   = document.getElementById('mlHistogram');
-  const labelEl  = document.getElementById('mlNextAngleLabel');
-  const useBtn   = document.getElementById('mlUseBtn');
-  if (!histEl) return;
+function mlPalmNormal(landmarks) {
+  const w = landmarks[0], p1 = landmarks[5], p5 = landmarks[17];
+  const ax = p5.x - w.x, ay = p5.y - w.y, az = (p5.z || 0) - (w.z || 0);
+  const bx = p1.x - w.x, by = p1.y - w.y, bz = (p1.z || 0) - (w.z || 0);
+  const nx = ay * bz - az * by;
+  const ny = az * bx - ax * bz;
+  const nz = ax * by - ay * bx;
+  const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
+  return mag === 0 ? { nx: 0, ny: 0, nz: 0 } : { nx: nx / mag, ny: ny / mag, nz: nz / mag };
+}
 
-  const buckets  = Array.from({ length: 18 }, (_, i) => histogram[`b${i}`] || 0);
-  const maxCount = Math.max(1, ...buckets);
-  const minCount = Math.min(...buckets);
-  const emptyIdx = buckets.indexOf(minCount);
-  _mlSuggestedAngle = emptyIdx * 10 + 5;
+function mlClassifyOrientation(landmarks) {
+  const { nx, ny, nz } = mlPalmNormal(landmarks);
+  const ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
+  if (az >= ax && az >= ay) return nz > 0 ? 'toward' : 'away';
+  if (ay >= ax && ay >= az) return ny < 0 ? 'up' : 'down';  // image y inverted
+  return nx > 0 ? 'right' : 'left';
+}
 
-  if (labelEl) labelEl.textContent = `Suggested: ${_mlSuggestedAngle}°`;
+function mlRenderGrid(grid) {
+  const gridEl  = document.getElementById('mlCoverageGrid');
+  const labelEl = document.getElementById('mlNextAngleLabel');
+  const useBtn  = document.getElementById('mlUseBtn');
+  if (!gridEl) return;
+
+  const ORIENTS = [
+    { key: 'toward', label: 'TOWARD' },
+    { key: 'away',   label: 'AWAY'   },
+    { key: 'up',     label: 'UP'     },
+    { key: 'down',   label: 'DOWN'   },
+    { key: 'left',   label: 'LEFT'   },
+    { key: 'right',  label: 'RIGHT'  },
+  ];
+  const BUCKETS = [
+    { key: 'hyp', label: '<0',      mid: -15 },
+    { key: '0',   label: '0',       mid: 0   },
+    { key: '1',   label: '1-30',    mid: 15  },
+    { key: '31',  label: '31-60',   mid: 45  },
+    { key: '61',  label: '61-90',   mid: 75  },
+    { key: '91',  label: '91-120',  mid: 105 },
+    { key: '121', label: '121-150', mid: 135 },
+    { key: '151', label: '151-180', mid: 165 },
+  ];
+
+  const cells     = ORIENTS.map(o => BUCKETS.map(b => grid[`grid_${o.key}_${b.key}`] || 0));
+  const allCounts = cells.flat();
+  const minCount  = Math.min(...allCounts);
+  const minFlat   = allCounts.indexOf(minCount);
+  const minOi     = Math.floor(minFlat / BUCKETS.length);
+  const minBi     = minFlat % BUCKETS.length;
+  _mlSuggestedAngle = BUCKETS[minBi].mid;
+
+  if (labelEl) labelEl.textContent = `Suggested: ${_mlSuggestedAngle}° (${ORIENTS[minOi].label})`;
   if (useBtn)  useBtn.disabled = false;
 
-  histEl.innerHTML = buckets.map((count, i) => {
-    const pct     = Math.round((count / maxCount) * 100);
-    const isEmpty = count === 0;
-    const isMin   = count === minCount;
-    return `<div class="ml-hist-bar${isEmpty ? ' ml-hist-bar--empty' : ''}${isMin ? ' ml-hist-bar--target' : ''}"
-      style="height:${Math.max(6, pct)}%"
-      title="${i * 10}–${i * 10 + 9}°: ${count} sample${count !== 1 ? 's' : ''}"></div>`;
-  }).join('');
+  gridEl.innerHTML = `
+    <div class="ml-grid-row ml-grid-header">
+      <div class="ml-grid-orient-label"></div>
+      ${BUCKETS.map(b => `<div class="ml-grid-col-label">${b.label}</div>`).join('')}
+    </div>
+    ${ORIENTS.map((o, oi) => `
+      <div class="ml-grid-row">
+        <div class="ml-grid-orient-label">${o.label}</div>
+        ${BUCKETS.map((b, bi) => {
+          const count  = cells[oi][bi];
+          const pct    = Math.min(100, Math.round(count / 30 * 100));
+          const isDone = count >= 30;
+          const isMin  = oi === minOi && bi === minBi;
+          const style  = isMin || isDone ? '' : `--pct:${pct}%`;
+          return `<div class="ml-grid-cell${isDone ? ' ml-grid-cell--done' : ''}${isMin ? ' ml-grid-cell--target' : ''}" style="${style}" title="${count}/30"></div>`;
+        }).join('')}
+      </div>
+    `).join('')}
+  `;
 }
 
 function mlUseSuggested() {
