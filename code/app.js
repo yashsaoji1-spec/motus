@@ -43,6 +43,11 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const db   = firebase.firestore();
 const auth = firebase.auth();
 
+db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+  if (err.code === 'failed-precondition') console.warn('Persistence failed: multiple tabs open');
+  else if (err.code === 'unimplemented') console.warn('Persistence not available in this browser');
+});
+
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
   if (!firebaseUser) {
@@ -377,20 +382,22 @@ async function updatePatientHomeScreen() {
     todaySessions.filter(s => s.protocolId).forEach(s => {
       doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1;
     });
-    listEl.innerHTML = protocols.map((p, i) => {
+    const PEL_MAX = 3;
+    const pills = protocols.map((p, i) => {
       const done = doneById[p.id] || 0;
       const total = p.sets || 3;
       const isDone = done >= total;
       const cls = isDone ? 'pel-done' : done > 0 ? 'pel-partial' : '';
-      const statusText = isDone ? '✓ Done' : done > 0 ? `${done}/${total} sets` : `${total} sets`;
+      const statusText = isDone ? '✓' : done > 0 ? `${done}/${total}` : `${total} sets`;
       return `<button class="pel-card ${cls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
         <div class="pel-info">
           <div class="pel-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
-          <div class="pel-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
         </div>
         <div class="pel-status">${statusText}</div>
       </button>`;
-    }).join('');
+    });
+    const overflow = protocols.length > PEL_MAX ? `<button class="pel-card pel-more" onclick="showExercisesScreen()">+${protocols.length - PEL_MAX} more</button>` : '';
+    listEl.innerHTML = pills.slice(0, PEL_MAX).join('') + overflow;
   } else if (listEl) {
     listEl.style.display = 'none';
   }
@@ -408,7 +415,7 @@ async function updatePatientHomeScreen() {
   const bestEl  = document.getElementById('streakBest');
   if (badgeEl && streak.current > 0) {
     badgeEl.style.display = 'flex';
-    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame">🔥</span>');
+    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame"><svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><path d="M12 23c-3.6 0-8-2.4-8-8.5C4 9.8 9 4.3 11.4 2c.4-.3.9 0 .9.5-.2 3 1.6 5.2 3.2 6.8 1.5 1.5 3.5 3 3.5 5.2 0 4.5-3 8.5-7 8.5z"/></svg></span>');
     countEl.textContent   = streak.current;
     labelEl.textContent   = 'day streak';
     if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
@@ -577,8 +584,15 @@ async function deleteProtocol(patientEmail, protocolId) {
   } else {
     await db.collection('protocols').doc(patientEmail).set({ items: updated });
   }
-  const snap = await db.collection('users').doc(patientEmail).get();
-  if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  const refreshed = await getProtocols(patientEmail);
+  const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
+  if (protoBody) {
+    protoBody.innerHTML = buildProtocolForm(patientEmail, refreshed);
+    updateExerciseParamsUI('full_fist', null);
+  } else {
+    const snap = await db.collection('users').doc(patientEmail).get();
+    if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  }
 }
 
 async function editProtocol(patientEmail, protocolId) {
@@ -726,8 +740,16 @@ async function assignProtocol(patientEmail) {
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
-  const snap = await db.collection('users').doc(patientEmail).get();
-  if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  // Refresh protocol section in-place instead of rebuilding entire panel
+  const updatedProtocols = await getProtocols(patientEmail);
+  const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
+  if (protoBody) {
+    protoBody.innerHTML = buildProtocolForm(patientEmail, updatedProtocols);
+    updateExerciseParamsUI('full_fist', null);
+  } else {
+    const snap = await db.collection('users').doc(patientEmail).get();
+    if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  }
 }
 
 function formatProtocol(p) {
@@ -786,7 +808,7 @@ async function showExercisesScreen() {
   if (protocols.length === 0) {
     inner.innerHTML = `
       <div class="exs-empty">
-        <div class="exs-empty-icon">💪</div>
+        <div class="exs-empty-icon"></div>
         <p class="exs-empty-title">No protocol yet</p>
         <p class="exs-empty-sub">Your therapist has not assigned any exercises for you.</p>
       </div>`;
@@ -803,28 +825,47 @@ async function showExercisesScreen() {
 
   _exercisesProtocols = protocols;
 
-  inner.innerHTML = `<div class="exs-card-grid">${protocols.map((p, i) => {
+  const EXS_COLLAPSED_MAX = 3;
+  const cards = protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
-    const progressText = isDone
-      ? `<span class="exs-done-badge">Done today ✓</span>`
-      : doneSets > 0
-        ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
-        : '';
-    return `
-    <div class="exs-hero-card ${isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : ''}">
-      <div class="exs-hero-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
-      <div class="exs-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
-      <div class="exs-assigned-by">Prescribed by ${p.assignedBy}</div>
-      ${p.notes ? `<p class="exs-notes-text">"${p.notes}"</p>` : ''}
-      ${progressText}
-      <button class="exs-start-btn"
-        onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
+    const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
+    const badge = isDone ? '<span class="exs-row-badge done">Done</span>'
+      : doneSets > 0 ? `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
+    return `<div class="exs-row ${statusCls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
+      <div class="exs-row-left">
+        <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+        <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
+      </div>
+      <div class="exs-row-right">
+        ${badge}
+        <span class="exs-row-sets">${totalSetsNeeded} sets</span>
+        <svg class="exs-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
     </div>`;
-  }).join('')}</div>`;
+  });
+  const showToggle = protocols.length > EXS_COLLAPSED_MAX;
+  inner.innerHTML = `<div class="exs-list" id="exsList">
+    ${cards.map((c, i) => i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
+  </div>
+  ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">Show all ${protocols.length} exercises</button>` : ''}`;
 
   showScreen('exercisesScreen');
+}
+
+function toggleExerciseList() {
+  const list = document.getElementById('exsList');
+  const btn = document.querySelector('.exs-toggle-btn');
+  if (!list || !btn) return;
+  const hidden = list.querySelectorAll('.exs-hidden');
+  if (hidden.length) {
+    hidden.forEach(el => el.classList.remove('exs-hidden'));
+    btn.textContent = 'Show less';
+  } else {
+    list.querySelectorAll('.exs-row').forEach((el, i) => { if (i >= 3) el.classList.add('exs-hidden'); });
+    btn.textContent = `Show all ${list.querySelectorAll('.exs-row').length} exercises`;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -849,12 +890,12 @@ async function loadConnectedPatients() {
     item.className  = 'patient-item';
     const sessions  = await getPatientSessions(patient.email);
     const compliance = calcCompliance(sessions);
-    const statusColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+    const statusColor = compliance >= 80 ? 'var(--green)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
     item.innerHTML = `
       <div class="patient-name">${patient.name}</div>
-      <div class="patient-connected" style="color:${statusColor}">
-        ● ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
+      <div class="patient-connected">
+        <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
       </div>`;
     item.onclick = () => {
       document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
@@ -882,7 +923,7 @@ function filterPatients(query) {
 function enableMobilePatientDetail(panel) {
   if (window.innerWidth >= 1024) return;
   document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
-  panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">🔬 Calibrate</button></div>');
+  panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">Calibrate</button></div>');
 }
 
 // ── Calibration back button (named so Vite module can export it) ──────────────
@@ -917,8 +958,10 @@ function getDemoSessions(patientEmail) {
 }
 
 async function getPatientSessions(patientEmail) {
+  const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
   const snap = await db.collection('sessions')
     .where('patientEmail', '==', patientEmail)
+    .where('date', '>=', cutoff)
     .orderBy('date', 'asc').get();
   const stored = snap.docs.map(d => d.data());
   return [...getDemoSessions(patientEmail), ...stored]
@@ -1000,7 +1043,7 @@ async function showRealPatient(patient) {
     <h3>${patient.name}</h3>
     <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
     <div class="stats-row">
-      <div class="stat-card"><div class="stat-value" style="color:${complianceColor}">${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
+      <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
       <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain Rating</div></div>
     </div>
@@ -1068,31 +1111,46 @@ function toggleShExpand(id) {
   document.getElementById(id)?.classList.toggle('sh-expanded');
 }
 
+const SH_PAGE_SIZE = 15;
+let shVisibleCount = SH_PAGE_SIZE;
+
+function shLoadMore() {
+  shVisibleCount += SH_PAGE_SIZE;
+  const body = document.querySelector('#tps-history .tp-colsec-body');
+  if (body && window._lastHistorySessions) {
+    body.innerHTML = buildSessionHistory(window._lastHistorySessions);
+  }
+}
+
 function buildSessionHistory(sessions) {
+  window._lastHistorySessions = sessions;
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session History</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
   const grouped = groupSetsIntoSessions(sessions);
-  const rows = [...grouped].reverse().map((g, gi) => {
+  const allReversed = [...grouped].reverse();
+  const visible = allReversed.slice(0, shVisibleCount);
+  const hasMore = allReversed.length > shVisibleCount;
+  const rows = visible.map((g, gi) => {
     const d = new Date(g.date);
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : '';
-    const romColor = g.maxROM >= 120 ? 'var(--green)' : g.maxROM >= 80 ? '#f59e0b' : 'var(--muted)';
+    const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
+    const romColor = g.maxROM >= 120 ? 'var(--green)' : g.maxROM >= 80 ? '#f59e0b' : 'var(--danger)';
     const painColor = g.avgPain <= 3 ? 'var(--green)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
     const rowId = `sh-exp-${gi}`;
     const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
     const setDetail = g.sets.map((s, si) => {
       const sp = s.pain || 0, sr = s.rom || 0;
       const spc = sp <= 3 ? 'var(--green)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
-      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? '#f59e0b' : 'var(--muted)';
+      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? '#f59e0b' : 'var(--danger)';
       const t = new Date(s.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       return `<div class="sh-set-detail-row">
         <span class="sh-set-label">Set ${si + 1}</span>
         <span class="sh-set-time">${t}</span>
         <span class="sh-set-val">${s.reps || 0} reps</span>
-        <span class="sh-set-val" style="color:${src}">${sr}°</span>
-        <span class="sh-set-val" style="color:${spc}"><span class="session-pain-dot" style="background:${spc}"></span>${sp}/10</span>
+        <span class="sh-set-val"><span class="sh-indicator" style="background:${src}"></span>${sr}°</span>
+        <span class="sh-set-val"><span class="sh-indicator" style="background:${spc}"></span>${sp}/10</span>
       </div>`;
     }).join('');
     return `
@@ -1101,8 +1159,8 @@ function buildSessionHistory(sessions) {
         <td class="sh-cell sh-exercise">${exLabel}</td>
         <td class="sh-cell sh-sets">${g.setsCompleted}</td>
         <td class="sh-cell sh-reps">${g.totalReps}</td>
-        <td class="sh-cell sh-rom" style="color:${romColor}">${g.maxROM}°</td>
-        <td class="sh-cell sh-pain"><span class="session-pain-dot" style="background:${painColor}"></span><span style="color:${painColor}">${g.avgPain.toFixed(1)}/10</span></td>
+        <td class="sh-cell sh-rom"><span class="sh-indicator" style="background:${romColor}"></span>${g.maxROM}°</td>
+        <td class="sh-cell sh-pain"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}/10</td>
       </tr>
       <tr class="sh-detail-row" id="${rowId}-detail">
         <td colspan="7" class="sh-detail-cell">
@@ -1116,6 +1174,7 @@ function buildSessionHistory(sessions) {
         </td>
       </tr>`;
   }).join('');
+  const loadMoreBtn = hasMore ? `<button class="sh-load-more" onclick="shLoadMore()">Show more (${allReversed.length - shVisibleCount} remaining)</button>` : '';
   return `
     <div class="session-history-card">
       <h4>Session History — ${grouped.length} session${grouped.length !== 1 ? 's' : ''}</h4>
@@ -1132,6 +1191,7 @@ function buildSessionHistory(sessions) {
           <tbody>${rows}</tbody>
         </table>
       </div>
+      ${loadMoreBtn}
     </div>`;
 }
 
@@ -1407,40 +1467,51 @@ function checkExerciseState(landmarks) {
   return { isFlexed, isExtended, repAngle, conditions: results };
 }
 
+let _lastFeedback = '', _feedbackTimer = null;
 function updateRepFeedback(state) {
   const el = document.getElementById('repFeedback');
   if (!el) return;
 
   if (!currentExerciseParams || !state) {
+    _lastFeedback = '';
+    clearTimeout(_feedbackTimer);
     el.textContent = '';
     return;
   }
 
   const needBend = fingerState !== 'flexed';
+  let msg;
 
   // Distance / abduction metrics — no per-finger conditions
   if (!state.conditions) {
     const isAbduction = currentExerciseParams.metric === 'abduction';
     if (isAbduction) {
-      el.textContent = needBend ? 'Spread your fingers' : 'Bring your fingers together';
+      msg = needBend ? 'Spread your fingers' : 'Bring your fingers together';
     } else {
-      el.textContent = needBend ? 'Close your hand' : 'Open your hand';
+      msg = needBend ? 'Close your hand' : 'Open your hand';
     }
-    return;
+  } else {
+    // Angle metric — find which fingers still need to move
+    const pending = needBend
+      ? state.conditions.filter(c => !c.isFlexed)
+      : state.conditions.filter(c => !c.isExtended);
+
+    const targets = pending.length > 0 ? pending : state.conditions;
+    const names   = [...new Set(targets.map(c => fingerLabel(c.finger)))];
+    const fingerStr = names.length === 1
+      ? names[0]
+      : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+
+    msg = needBend ? `Bend your ${fingerStr}` : `Straighten your ${fingerStr}`;
   }
 
-  // Angle metric — find which fingers still need to move
-  const pending = needBend
-    ? state.conditions.filter(c => !c.isFlexed)
-    : state.conditions.filter(c => !c.isExtended);
-
-  const targets = pending.length > 0 ? pending : state.conditions;
-  const names   = [...new Set(targets.map(c => fingerLabel(c.finger)))];
-  const fingerStr = names.length === 1
-    ? names[0]
-    : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
-
-  el.textContent = needBend ? `Bend your ${fingerStr}` : `Straighten your ${fingerStr}`;
+  if (msg === _lastFeedback) return;
+  _lastFeedback = msg;
+  clearTimeout(_feedbackTimer);
+  _feedbackTimer = setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => { el.textContent = msg; el.style.opacity = '1'; }, 120);
+  }, 300);
 }
 
 function fingerLabel(finger) {
@@ -1532,24 +1603,28 @@ function updateRepUI() {
     document.getElementById('totalSetsDisplay').textContent   = totalSets;
     if (currentSet >= totalSets) {
       document.getElementById('allSetsComplete').style.display = 'block';
-      document.getElementById('nextSetBtn').textContent = '🏆 Finish Session';
+      document.getElementById('nextSetBtn').textContent = 'Finish Session';
     }
     document.getElementById('congratsOverlay').classList.add('show');
+    const camCtrl = document.querySelector('.cam-controls');
+    if (camCtrl) camCtrl.style.display = 'none';
     sessionPaused = true;
   }
 }
 
 async function saveSession() {
+  const now = new Date();
   const doc = {
     patientEmail:   currentUser.email,
-    date:           new Date().toISOString(),
+    date:           now.toISOString(),
     reps:           repCount,
     pain:           parseInt(document.getElementById('painSliderCongrats').value),
     rom:            lastROM,
     tam:            lastTAM,
     therapistEmail: await getConnectedTherapist(),
     exerciseType:   selectedProtocol?.exerciseType || '',
-    protocolId:     selectedProtocol?.id || ''
+    protocolId:     selectedProtocol?.id || '',
+    expireAt:       new Date(now.getTime() + 90 * 86400000)
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
   await db.collection('sessions').add(doc);
@@ -1645,6 +1720,8 @@ async function advanceSet() {
   }
   setsComplete++;
   document.getElementById('congratsOverlay').classList.remove('show');
+  const camCtrlRestore = document.querySelector('.cam-controls');
+  if (camCtrlRestore) camCtrlRestore.style.display = '';
   document.getElementById('allSetsComplete').style.display = 'none';
   document.getElementById('nextSetBtn').textContent = 'Start Next Set';
   if (setsComplete >= totalSets) { showSessionSummary(); return; }
@@ -1700,15 +1777,15 @@ function showSessionSummary(partialReps = 0) {
   document.getElementById('summaryAvgPain').textContent   = avgPain;
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
-    message = '⚠️ Pain was high today. Consider mentioning this to your therapist.';
+    message = 'Pain was high today. Consider mentioning this to your therapist.';
   } else if (maxROM >= 120) {
-    message = '💪 Excellent range of motion today! You\'re making great progress.';
+    message = 'Excellent range of motion today. Keep it up.';
   } else if (maxROM >= 80) {
-    message = '👍 Good session. Consistency is key — keep it up!';
+    message = 'Good session. Consistency is key.';
   } else if (totalRepsCompleted === 0) {
-    message = '📋 Session recorded. Start moving to track your range of motion next time.';
+    message = 'Session recorded. Start moving to track your range of motion next time.';
   } else {
-    message = '✅ Session logged. Every rep counts toward your recovery.';
+    message = 'Session logged. Every rep counts toward your recovery.';
   }
   document.getElementById('summaryMessage').textContent = message;
   document.getElementById('sessionSummaryOverlay').style.display = 'flex';
@@ -1730,21 +1807,25 @@ async function completeSessionEarly() {
 
   // Hide congrats overlay if visible
   document.getElementById('congratsOverlay').classList.remove('show');
+  const camCtrlEnd = document.querySelector('.cam-controls');
+  if (camCtrlEnd) camCtrlEnd.style.display = '';
 
   // Save current partial set if any reps were completed
   if (repCount > 0) {
     const painVal = parseInt(document.getElementById('painSlider').value);
     setPainValues.push(painVal);
+    const endNow = new Date();
     const doc = {
       patientEmail:   currentUser.email,
-      date:           new Date().toISOString(),
+      date:           endNow.toISOString(),
       reps:           repCount,
       pain:           painVal,
       rom:            lastROM,
       tam:            lastTAM,
       therapistEmail: await getConnectedTherapist(),
       exerciseType:   selectedProtocol?.exerciseType || '',
-      protocolId:     selectedProtocol?.id || ''
+      protocolId:     selectedProtocol?.id || '',
+      expireAt:       new Date(endNow.getTime() + 90 * 86400000)
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
     await db.collection('sessions').add(doc);
@@ -1789,8 +1870,42 @@ function startCamera() {
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (const landmarks of results.multiHandLandmarks) {
-        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
-        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 4 });
+        const w = sessionCanvas.width, h = sessionCanvas.height;
+        const fingers = [[0,1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
+        const palm = [[0,5],[0,9],[0,13],[0,17],[5,9],[9,13],[13,17]];
+        sessionCtx.strokeStyle = 'rgba(0,229,192,0.4)';
+        sessionCtx.lineWidth = 2;
+        sessionCtx.lineCap = 'round';
+        for (const chain of fingers) {
+          sessionCtx.beginPath();
+          for (let j = 0; j < chain.length; j++) {
+            const pt = landmarks[chain[j]];
+            if (j === 0) sessionCtx.moveTo(pt.x * w, pt.y * h);
+            else sessionCtx.lineTo(pt.x * w, pt.y * h);
+          }
+          sessionCtx.stroke();
+        }
+        sessionCtx.strokeStyle = 'rgba(0,229,192,0.25)';
+        for (const [a, b] of palm) {
+          sessionCtx.beginPath();
+          sessionCtx.moveTo(landmarks[a].x * w, landmarks[a].y * h);
+          sessionCtx.lineTo(landmarks[b].x * w, landmarks[b].y * h);
+          sessionCtx.stroke();
+        }
+        const tips = [4, 8, 12, 16, 20];
+        const knuckles = [1, 5, 9, 13, 17];
+        for (let i = 0; i < 21; i++) {
+          const lm = landmarks[i];
+          const isTip = tips.includes(i);
+          const isKnuckle = knuckles.includes(i);
+          const r = isTip ? 5 : isKnuckle ? 3.5 : 2.5;
+          if (isTip) { sessionCtx.shadowColor = 'rgba(0,229,192,0.6)'; sessionCtx.shadowBlur = 8; }
+          sessionCtx.beginPath();
+          sessionCtx.arc(lm.x * w, lm.y * h, r, 0, Math.PI * 2);
+          sessionCtx.fillStyle = isTip ? 'rgba(0,229,192,0.9)' : isKnuckle ? 'rgba(0,229,192,0.5)' : 'rgba(255,255,255,0.3)';
+          sessionCtx.fill();
+          if (isTip) sessionCtx.shadowBlur = 0;
+        }
         updateRepCount(landmarks);
       }
     }
@@ -1835,11 +1950,16 @@ function startCamera() {
 
     doGetUserMedia();
   } else {
+    sessionVideo.addEventListener('loadedmetadata', () => {
+      sessionCanvas.width  = sessionVideo.videoWidth;
+      sessionCanvas.height = sessionVideo.videoHeight;
+      document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
+    }, { once: true });
     mpCamera = new window.Camera(sessionVideo, {
       onFrame: async () => {
         if (sessionVideo.readyState >= 2) await hands.send({ image: sessionVideo });
       },
-      width: 640, height: 480,
+      width: 1280, height: 720,
     });
     mpCamera.start();
   }
@@ -1943,12 +2063,12 @@ async function renderProgressScreen() {
     const setRows = g.sets.map((s, si) => {
       const sp = s.pain || 0, sr = s.rom || 0;
       const spc = sp <= 3 ? 'var(--green)' : sp <= 6 ? 'var(--warning)' : 'var(--danger)';
-      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? 'var(--warning)' : 'var(--muted)';
+      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? 'var(--warning)' : 'var(--danger)';
       return `<div class="ses-set-row">
         <span class="ses-set-num">Set ${si + 1}</span>
         <span class="ses-set-stat">${s.reps || 0} reps</span>
-        <span class="ses-set-stat" style="color:${src}">${sr}&deg;</span>
-        <span class="ses-set-stat" style="color:${spc}"><span class="session-pain-dot" style="background:${spc}"></span>${sp}/10</span>
+        <span class="ses-set-stat"><span class="sh-indicator" style="background:${src}"></span>${sr}&deg;</span>
+        <span class="ses-set-stat"><span class="sh-indicator" style="background:${spc}"></span>${sp}/10</span>
       </div>`;
     }).join('');
     const highPain = g.sets.reduce((mx, s, i) => (s.pain || 0) > (mx.p || 0) ? { p: s.pain, i: i + 1 } : mx, { p: 0, i: 0 });
@@ -1964,7 +2084,7 @@ async function renderProgressScreen() {
             <div class="psc-stat-group"><span class="psc-stat-val">${g.setsCompleted}</span><span class="psc-stat-lbl">sets</span></div>
             <div class="psc-stat-group"><span class="psc-stat-val">${g.totalReps}</span><span class="psc-stat-lbl">reps</span></div>
             <div class="psc-stat-group"><span class="psc-stat-val">${g.maxROM}&deg;</span>${trendHTML}<span class="psc-stat-lbl">ROM</span></div>
-            <div class="psc-stat-group"><span class="psc-stat-val" style="color:${painColor}">${g.avgPain.toFixed(1)}</span><span class="psc-stat-lbl">pain</span></div>
+            <div class="psc-stat-group"><span class="psc-stat-val"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}</span><span class="psc-stat-lbl">pain</span></div>
           </div>
           <span class="psc-chevron">&#x25BE;</span>
         </div>
@@ -1984,8 +2104,8 @@ async function renderProgressScreen() {
     <div class="stats-row stats-row-4" style="margin-bottom:24px;">
       <div class="stat-card"><div class="stat-value">${grouped.length}</div><div class="stat-label">Sessions</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}&deg;</div><div class="stat-label">Avg ROM</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:#0B6CB0">${bestROM}&deg;</div><div class="stat-label">Best ROM</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:#ef4444">${avgPain}</div><div class="stat-label">Avg Pain</div></div>
+      <div class="stat-card"><div class="stat-value">${bestROM}&deg;</div><div class="stat-label">Best ROM</div></div>
+      <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain</div></div>
     </div>
     <div class="chart-card" style="margin-bottom:24px;">
       <h4>Range of Motion Over Time</h4>
@@ -2070,7 +2190,6 @@ function buildJointSelector(patientEmail) {
         </div>
         <div class="ejs-joint-card-label">${data.label}</div>
         <div class="ejs-joint-card-name">${data.fullName.split(' ').slice(0,2).join(' ')}</div>
-        <div class="ejs-joint-card-lm">LM ${data.lm}</div>
       </div>`;
     }).join('');
     return `<div class="ejs-finger-block">
@@ -2088,7 +2207,7 @@ function buildJointSelector(patientEmail) {
     `<div class="ejs-finger-pill" id="ejspill-${f}" data-finger="${f}"
           style="border-color:${EJS_FINGER_COLORS[f]};color:${EJS_FINGER_COLORS[f]}"
           onclick="ejsQuickSelectFinger('${f}')">
-      ${f.slice(0,3).toUpperCase()}
+      ${EJS_FINGER_LABELS[f]}
     </div>`
   ).join('');
 
@@ -2104,37 +2223,68 @@ function buildJointSelector(patientEmail) {
       <div class="ejs-hand-col">
         <span class="ejs-view-label">Palmar View</span>
         <div class="ejs-svg-wrap" id="ejsSvgWrap-${patientEmail.replace(/[@.]/g,'_')}">
-          <svg viewBox="0 0 220 340" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
-            <path class="ejs-palm" d="M 60 200 Q 42 215 44 255 Q 46 290 80 305 Q 110 318 145 310 Q 178 302 185 270 Q 192 238 180 210 Z"/>
-            <path class="ejs-finger-seg" d="M 52 195 Q 32 185 22 160 Q 14 138 28 122 Q 42 108 58 120 Q 68 130 70 158 L 72 190"/>
-            <path class="ejs-finger-seg" d="M 85 198 Q 82 165 80 138 Q 78 112 80 90 Q 82 70 94 65 Q 106 60 114 70 Q 121 80 118 104 Q 115 130 113 158 Q 111 180 110 198"/>
-            <path class="ejs-finger-seg" d="M 112 197 Q 110 163 109 135 Q 108 107 110 84 Q 112 62 124 56 Q 136 50 144 60 Q 152 70 149 94 Q 146 120 144 148 Q 142 172 141 197"/>
-            <path class="ejs-finger-seg" d="M 143 197 Q 144 166 146 141 Q 148 116 152 95 Q 156 76 166 73 Q 176 70 182 80 Q 188 92 183 114 Q 178 138 174 162 Q 170 182 168 197"/>
-            <path class="ejs-finger-seg" d="M 170 200 Q 173 178 177 160 Q 181 140 186 122 Q 191 106 199 104 Q 208 102 212 113 Q 216 126 210 146 Q 204 166 199 184 Q 195 196 192 206"/>
-            <!-- Thumb joints -->
-            <g class="ejs-jdot" id="ejsdot-thumb-mcp" onclick="ejsDotClick('thumb','mcp')"><circle class="ejs-dot-outer" cx="60" cy="178" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="60" cy="178" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="60" y="178" fill="#F5A623">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-thumb-pip" onclick="ejsDotClick('thumb','pip')"><circle class="ejs-dot-outer" cx="46" cy="150" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="46" cy="150" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="46" y="150" fill="#F5A623">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-thumb-tip" onclick="ejsDotClick('thumb','tip')"><circle class="ejs-dot-outer" cx="30" cy="125" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="30" cy="125" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="30" y="125" fill="#F5A623">T</text></g>
-            <!-- Index joints -->
-            <g class="ejs-jdot" id="ejsdot-index-mcp" onclick="ejsDotClick('index','mcp')"><circle class="ejs-dot-outer" cx="100" cy="193" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="100" cy="193" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="100" y="193" fill="#2D7FF9">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-index-pip" onclick="ejsDotClick('index','pip')"><circle class="ejs-dot-outer" cx="96" cy="148" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="96" cy="148" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="96" y="148" fill="#2D7FF9">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-index-dip" onclick="ejsDotClick('index','dip')"><circle class="ejs-dot-outer" cx="94" cy="108" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="94" cy="108" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="94" y="108" fill="#2D7FF9">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-index-tip" onclick="ejsDotClick('index','tip')"><circle class="ejs-dot-outer" cx="92" cy="72" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="92" cy="72" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="92" y="72" fill="#2D7FF9">T</text></g>
-            <!-- Middle joints -->
-            <g class="ejs-jdot" id="ejsdot-middle-mcp" onclick="ejsDotClick('middle','mcp')"><circle class="ejs-dot-outer" cx="126" cy="192" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="126" cy="192" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="126" y="192" fill="#00C9B1">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-middle-pip" onclick="ejsDotClick('middle','pip')"><circle class="ejs-dot-outer" cx="127" cy="145" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="127" cy="145" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="127" y="145" fill="#00C9B1">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-middle-dip" onclick="ejsDotClick('middle','dip')"><circle class="ejs-dot-outer" cx="128" cy="103" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="128" cy="103" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="128" y="103" fill="#00C9B1">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-middle-tip" onclick="ejsDotClick('middle','tip')"><circle class="ejs-dot-outer" cx="129" cy="65" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="129" cy="65" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="129" y="65" fill="#00C9B1">T</text></g>
-            <!-- Ring joints -->
-            <g class="ejs-jdot" id="ejsdot-ring-mcp" onclick="ejsDotClick('ring','mcp')"><circle class="ejs-dot-outer" cx="158" cy="192" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="158" cy="192" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="158" y="192" fill="#A78BFA">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-ring-pip" onclick="ejsDotClick('ring','pip')"><circle class="ejs-dot-outer" cx="162" cy="147" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="162" cy="147" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="162" y="147" fill="#A78BFA">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-ring-dip" onclick="ejsDotClick('ring','dip')"><circle class="ejs-dot-outer" cx="166" cy="107" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="166" cy="107" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="166" y="107" fill="#A78BFA">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-ring-tip" onclick="ejsDotClick('ring','tip')"><circle class="ejs-dot-outer" cx="170" cy="72" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="170" cy="72" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="170" y="72" fill="#A78BFA">T</text></g>
-            <!-- Pinky joints -->
-            <g class="ejs-jdot" id="ejsdot-pinky-mcp" onclick="ejsDotClick('pinky','mcp')"><circle class="ejs-dot-outer" cx="183" cy="197" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="183" cy="197" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="183" y="197" fill="#F04B4B">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-pip" onclick="ejsDotClick('pinky','pip')"><circle class="ejs-dot-outer" cx="190" cy="158" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="190" cy="158" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="190" y="158" fill="#F04B4B">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-dip" onclick="ejsDotClick('pinky','dip')"><circle class="ejs-dot-outer" cx="196" cy="126" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="196" cy="126" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="196" y="126" fill="#F04B4B">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-tip" onclick="ejsDotClick('pinky','tip')"><circle class="ejs-dot-outer" cx="202" cy="108" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="202" cy="108" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="202" y="108" fill="#F04B4B">T</text></g>
+          <svg viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
+            <defs>
+              <linearGradient id="handGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#eaeff6"/>
+                <stop offset="100%" stop-color="#d8dfeb"/>
+              </linearGradient>
+            </defs>
+            <g class="ejs-hand-group">
+              <path class="ejs-hand-shape" fill="url(#handGrad)" d="
+                M 98,278
+                C 70,278 50,266 40,246 C 34,234 32,218 32,200
+                L 32,180
+                C 32,170 26,162 18,156
+                C 10,150 4,140 4,126
+                C 4,116 8,106 14,98
+                L 22,86
+                C 26,80 28,74 26,66
+                L 22,48
+                C 20,38 24,32 32,32 C 40,32 44,38 44,48
+                L 46,70 46,130
+
+                C 46,133 48,134 50,132 L 50,128
+                L 52,50 C 52,34 54,20 57,12 C 60,4 65,0 72,0
+                C 79,0 83,5 85,14 C 87,22 87,36 86,52
+                L 76,128
+                C 76,131 78,132 80,130 L 80,126
+                L 82,42 C 82,24 84,10 88,2 C 91,-6 96,-8 102,-8
+                C 108,-8 113,-5 116,3 C 119,11 120,26 118,46
+                L 108,126
+                C 108,129 110,130 112,128 L 112,124
+                L 116,48 C 117,30 120,16 124,8 C 127,1 132,-2 138,-2
+                C 144,-2 148,2 150,10 C 152,18 153,32 152,50
+                L 140,124
+                C 140,127 142,128 144,126 L 144,122
+                L 150,72 C 152,56 155,44 159,38 C 162,33 166,32 170,34
+                C 175,37 177,44 176,54
+                L 170,92 170,130
+                L 170,160
+                C 170,182 167,202 160,220
+                C 150,244 134,262 114,272
+                C 108,276 103,278 98,278
+                Z"/>
+            </g>
+            <g class="ejs-jdot" id="ejsdot-thumb-mcp" onclick="ejsDotClick('thumb','mcp')"><circle class="ejs-dot" cx="34" cy="148" r="5" data-finger="thumb"/></g>
+            <g class="ejs-jdot" id="ejsdot-thumb-pip" onclick="ejsDotClick('thumb','pip')"><circle class="ejs-dot" cx="30" cy="108" r="5" data-finger="thumb"/></g>
+            <g class="ejs-jdot" id="ejsdot-thumb-tip" onclick="ejsDotClick('thumb','tip')"><circle class="ejs-dot" cx="30" cy="74" r="5" data-finger="thumb"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-mcp" onclick="ejsDotClick('index','mcp')"><circle class="ejs-dot" cx="64" cy="130" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-pip" onclick="ejsDotClick('index','pip')"><circle class="ejs-dot" cx="64" cy="88" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-dip" onclick="ejsDotClick('index','dip')"><circle class="ejs-dot" cx="64" cy="52" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-tip" onclick="ejsDotClick('index','tip')"><circle class="ejs-dot" cx="64" cy="22" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-mcp" onclick="ejsDotClick('middle','mcp')"><circle class="ejs-dot" cx="95" cy="128" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-pip" onclick="ejsDotClick('middle','pip')"><circle class="ejs-dot" cx="95" cy="82" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-dip" onclick="ejsDotClick('middle','dip')"><circle class="ejs-dot" cx="95" cy="40" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-tip" onclick="ejsDotClick('middle','tip')"><circle class="ejs-dot" cx="95" cy="8" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-mcp" onclick="ejsDotClick('ring','mcp')"><circle class="ejs-dot" cx="128" cy="126" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-pip" onclick="ejsDotClick('ring','pip')"><circle class="ejs-dot" cx="128" cy="84" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-dip" onclick="ejsDotClick('ring','dip')"><circle class="ejs-dot" cx="128" cy="48" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-tip" onclick="ejsDotClick('ring','tip')"><circle class="ejs-dot" cx="128" cy="18" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-mcp" onclick="ejsDotClick('pinky','mcp')"><circle class="ejs-dot" cx="157" cy="130" r="5" data-finger="pinky"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-pip" onclick="ejsDotClick('pinky','pip')"><circle class="ejs-dot" cx="157" cy="100" r="5" data-finger="pinky"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-dip" onclick="ejsDotClick('pinky','dip')"><circle class="ejs-dot" cx="157" cy="72" r="5" data-finger="pinky"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-tip" onclick="ejsDotClick('pinky','tip')"><circle class="ejs-dot" cx="157" cy="48" r="5" data-finger="pinky"/></g>
           </svg>
         </div>
         <div class="ejs-finger-strip">${pills}</div>
@@ -2150,7 +2300,7 @@ function buildJointSelector(patientEmail) {
       <!-- RIGHT: Info panel -->
       <div class="ejs-info-col">
         <div class="ejs-info-empty" id="ejsInfoEmpty">
-          <div class="ejs-info-empty-icon">🦴</div>
+          <div class="ejs-info-empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg></div>
           <div class="ejs-info-empty-text">Tap any joint on the diagram or in the grid to view clinical details and toggle tracking.</div>
         </div>
         <div class="ejs-info-detail" id="ejsInfoDetail">
@@ -2184,7 +2334,10 @@ function buildJointSelector(patientEmail) {
           </div>
         </div>
         <div class="ejs-tracked-summary">
-          <div class="ejs-tracked-title">Currently Tracking</div>
+          <div class="ejs-tracked-header">
+            <div class="ejs-tracked-title">Tracked Joints</div>
+            <div class="ejs-tracked-count" id="ejsTrackedCount"></div>
+          </div>
           <div class="ejs-tracked-chips" id="ejsTrackedChips"><span class="ejs-tracked-empty">None selected</span></div>
         </div>
       </div>
@@ -2323,6 +2476,7 @@ function ejsDotClick(finger, joint) {
 function ejsSelectCard(key) {
   const data = EJS_JOINT_DATA[key];
   if (!data || data.lm === null) return;
+  ejsToggleJoint(key);
   ejsShowInfo(key);
 }
 
@@ -2381,6 +2535,7 @@ function ejsShowInfo(key) {
   if (selectedJoints.has(key)) {
     btn.className   = 'ejs-track-btn ejs-track-remove';
     btn.textContent = '✕ Remove from Tracking';
+    btn.style.background = '';
   } else {
     btn.className   = 'ejs-track-btn ejs-track-add';
     btn.textContent = '＋ Track This Joint';
@@ -2407,8 +2562,9 @@ function ejsRefreshUI() {
       if (chk) chk.classList.toggle('ejs-check-on', sel);
       if (sel) count++;
     });
+    const validCount = EJS_JOINTS.filter(j => { const d = EJS_JOINT_DATA[`${finger}-${j}`]; return d && d.lm !== null; }).length;
     const fc = document.getElementById(`ejsfcount-${finger}`);
-    if (fc) fc.textContent = `${count} / ${EJS_JOINTS.length}`;
+    if (fc) fc.textContent = `${count} / ${validCount}`;
   });
 
   // SVG dots
@@ -2417,7 +2573,10 @@ function ejsRefreshUI() {
       const key  = `${finger}-${joint}`;
       const dot  = document.getElementById(`ejsdot-${finger}-${joint}`);
       if (!dot) return;
-      dot.classList.toggle('ejs-dot-selected', selectedJoints.has(key));
+      const selected = selectedJoints.has(key);
+      dot.classList.toggle('ejs-dot-selected', selected);
+      const circle = dot.querySelector('.ejs-dot');
+      if (circle) circle.style.stroke = selected ? EJS_FINGER_COLORS[finger] : '';
     });
   });
 
@@ -2456,6 +2615,7 @@ function ejsRefreshUI() {
       if (selectedJoints.has(ejsActiveInfoKey)) {
         btn.className   = 'ejs-track-btn ejs-track-remove';
         btn.textContent = '✕ Remove from Tracking';
+        btn.style.background = '';
       } else {
         btn.className   = 'ejs-track-btn ejs-track-add';
         btn.textContent = '＋ Track This Joint';
@@ -2467,18 +2627,30 @@ function ejsRefreshUI() {
 
 function ejsRenderChips() {
   const wrap = document.getElementById('ejsTrackedChips');
+  const countEl = document.getElementById('ejsTrackedCount');
   if (!wrap) return;
+  const totalValid = Object.values(EJS_JOINT_DATA).filter(d => d.lm !== null).length;
+  if (countEl) countEl.textContent = selectedJoints.size > 0 ? `${selectedJoints.size} of ${totalValid}` : '';
   if (selectedJoints.size === 0) {
     wrap.innerHTML = '<span class="ejs-tracked-empty">None selected</span>';
     return;
   }
-  wrap.innerHTML = [...selectedJoints].map(key => {
+  const grouped = {};
+  [...selectedJoints].forEach(key => {
     const data = EJS_JOINT_DATA[key];
-    if (!data) return '';
-    return `<button class="ejs-chip" style="background:${EJS_FINGER_COLORS[data.finger]}"
-                    onclick="ejsRemoveChip('${key}')">
-      ${EJS_FINGER_LABELS[data.finger].slice(0,3)} ${data.label} <span>×</span>
-    </button>`;
+    if (!data) return;
+    if (!grouped[data.finger]) grouped[data.finger] = [];
+    grouped[data.finger].push({ key, data });
+  });
+  wrap.innerHTML = EJS_FINGERS.filter(f => grouped[f]).map(finger => {
+    const color = EJS_FINGER_COLORS[finger];
+    const chips = grouped[finger].map(({ key, data }) =>
+      `<button class="ejs-chip" style="color:${color};border-color:${color}22;background:${color}0D" onclick="ejsRemoveChip('${key}')">${data.label}<span class="ejs-chip-x">×</span></button>`
+    ).join('');
+    return `<div class="ejs-tracked-finger-row">
+      <span class="ejs-tracked-finger-label" style="color:${color}">${EJS_FINGER_LABELS[finger]}</span>
+      <div class="ejs-tracked-finger-chips">${chips}</div>
+    </div>`;
   }).join('');
 }
 
@@ -3068,6 +3240,9 @@ Object.assign(window, {
   // Joint selector
   ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
   ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
+
+  // Session history
+  shLoadMore, toggleShExpand, toggleExerciseList,
 
   // Exposed array for exercises screen start buttons
   get _exercisesProtocols() { return _exercisesProtocols; },
