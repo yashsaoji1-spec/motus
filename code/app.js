@@ -1059,7 +1059,7 @@ async function showRealPatient(patient) {
     ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
-  const tRomCfg = buildChartConfig(romData, { type: 'rom', color: '#3b82f6', fillColor: 'rgba(59,130,246,0.06)' });
+  const tRomCfg = buildChartConfig(romData, { type: 'rom', color: '#0B6CB0', fillColor: 'rgba(11,108,176,0.06)' });
   new Chart(document.getElementById('romChart').getContext('2d'), {
     type: 'line', data: { labels, datasets: [tRomCfg.dataset] }, options: tRomCfg.options
   });
