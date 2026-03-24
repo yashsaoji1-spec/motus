@@ -890,7 +890,7 @@ async function loadConnectedPatients() {
     item.className  = 'patient-item';
     const sessions  = await getPatientSessions(patient.email);
     const compliance = calcCompliance(sessions);
-    const statusColor = compliance >= 80 ? 'var(--green)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
+    const statusColor = compliance >= 80 ? 'var(--success)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
     item.innerHTML = `
       <div class="patient-name">${patient.name}</div>
@@ -1136,14 +1136,14 @@ function buildSessionHistory(sessions) {
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
-    const romColor = g.maxROM >= 120 ? 'var(--green)' : g.maxROM >= 80 ? '#f59e0b' : 'var(--danger)';
-    const painColor = g.avgPain <= 3 ? 'var(--green)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
+    const romColor = g.maxROM >= 120 ? 'var(--success)' : g.maxROM >= 80 ? '#f59e0b' : 'var(--danger)';
+    const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
     const rowId = `sh-exp-${gi}`;
     const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
     const setDetail = g.sets.map((s, si) => {
       const sp = s.pain || 0, sr = s.rom || 0;
-      const spc = sp <= 3 ? 'var(--green)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
-      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? '#f59e0b' : 'var(--danger)';
+      const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
+      const src = sr >= 120 ? 'var(--success)' : sr >= 80 ? '#f59e0b' : 'var(--danger)';
       const t = new Date(s.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       return `<div class="sh-set-detail-row">
         <span class="sh-set-label">Set ${si + 1}</span>
@@ -2049,7 +2049,7 @@ async function renderProgressScreen() {
     const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'Session';
-    const painColor = g.avgPain <= 3 ? 'var(--green)' : g.avgPain <= 6 ? 'var(--warning)' : 'var(--danger)';
+    const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? 'var(--warning)' : 'var(--danger)';
     const prevGroup = grouped[grouped.length - 1 - idx - 1];
     const trendHTML = (() => {
       if (!prevGroup) return '';
@@ -2062,8 +2062,8 @@ async function renderProgressScreen() {
     const cardId = `psc-${idx}`;
     const setRows = g.sets.map((s, si) => {
       const sp = s.pain || 0, sr = s.rom || 0;
-      const spc = sp <= 3 ? 'var(--green)' : sp <= 6 ? 'var(--warning)' : 'var(--danger)';
-      const src = sr >= 120 ? 'var(--green)' : sr >= 80 ? 'var(--warning)' : 'var(--danger)';
+      const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? 'var(--warning)' : 'var(--danger)';
+      const src = sr >= 120 ? 'var(--success)' : sr >= 80 ? 'var(--warning)' : 'var(--danger)';
       return `<div class="ses-set-row">
         <span class="ses-set-num">Set ${si + 1}</span>
         <span class="ses-set-stat">${s.reps || 0} reps</span>
@@ -2223,47 +2223,59 @@ function buildJointSelector(patientEmail) {
       <div class="ejs-hand-col">
         <span class="ejs-view-label">Palmar View</span>
         <div class="ejs-svg-wrap" id="ejsSvgWrap-${patientEmail.replace(/[@.]/g,'_')}">
-          <svg viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
+          <svg viewBox="0 -16 200 298" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
             <defs>
               <linearGradient id="handGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#eaeff6"/>
-                <stop offset="100%" stop-color="#d8dfeb"/>
+                <stop offset="0%" stop-color="#dce6f0"/>
+                <stop offset="100%" stop-color="#c8d4e2"/>
               </linearGradient>
             </defs>
             <g class="ejs-hand-group">
               <path class="ejs-hand-shape" fill="url(#handGrad)" d="
                 M 98,278
-                C 70,278 50,266 40,246 C 34,234 32,218 32,200
-                L 32,180
-                C 32,170 26,162 18,156
-                C 10,150 4,140 4,126
-                C 4,116 8,106 14,98
-                L 22,86
-                C 26,80 28,74 26,66
-                L 22,48
-                C 20,38 24,32 32,32 C 40,32 44,38 44,48
-                L 46,70 46,130
-
-                C 46,133 48,134 50,132 L 50,128
-                L 52,50 C 52,34 54,20 57,12 C 60,4 65,0 72,0
-                C 79,0 83,5 85,14 C 87,22 87,36 86,52
-                L 76,128
-                C 76,131 78,132 80,130 L 80,126
-                L 82,42 C 82,24 84,10 88,2 C 91,-6 96,-8 102,-8
-                C 108,-8 113,-5 116,3 C 119,11 120,26 118,46
-                L 108,126
-                C 108,129 110,130 112,128 L 112,124
-                L 116,48 C 117,30 120,16 124,8 C 127,1 132,-2 138,-2
-                C 144,-2 148,2 150,10 C 152,18 153,32 152,50
-                L 140,124
-                C 140,127 142,128 144,126 L 144,122
-                L 150,72 C 152,56 155,44 159,38 C 162,33 166,32 170,34
-                C 175,37 177,44 176,54
-                L 170,92 170,130
-                L 170,160
-                C 170,182 167,202 160,220
-                C 150,244 134,262 114,272
-                C 108,276 103,278 98,278
+                C 136,278 166,260 176,236
+                C 184,216 186,194 186,174
+                C 186,160 182,150 176,144
+                C 172,138 170,126 169,106
+                C 168,82 167,60 167,44
+                C 166,32 163,26 157,26
+                C 151,26 148,32 147,44
+                C 147,60 147,82 147,106
+                C 147,126 147,138 147,144
+                C 145,150 142,152 140,150
+                C 138,148 139,142 139,136
+                C 140,106 140,72 140,42
+                C 140,22 139,10 138,2
+                C 136,-4 133,-6 128,-6
+                C 123,-6 120,-4 118,2
+                C 117,10 116,22 116,42
+                C 116,72 116,106 116,136
+                C 115,144 112,148 109,146
+                C 106,144 106,140 106,136
+                C 107,104 107,66 107,32
+                C 107,12 106,0 105,-4
+                C 103,-10 100,-14 95,-14
+                C 90,-14 87,-10 85,-4
+                C 84,0 83,12 83,32
+                C 83,66 83,104 83,136
+                C 82,144 79,148 76,146
+                C 74,144 74,140 74,136
+                C 75,106 76,72 76,38
+                C 76,20 75,8 74,2
+                C 72,-2 69,-4 64,-4
+                C 59,-4 56,-2 54,2
+                C 53,8 52,20 52,38
+                C 52,72 52,106 52,140
+                C 50,158 46,174 42,184
+                C 38,190 36,184 36,172
+                C 37,150 39,128 40,104
+                C 41,84 42,70 42,58
+                C 42,46 38,38 31,38
+                C 24,38 20,46 19,58
+                C 18,70 18,84 18,104
+                C 17,132 16,162 15,184
+                C 10,212 12,242 30,260
+                C 48,274 74,278 98,278
                 Z"/>
             </g>
             <g class="ejs-jdot" id="ejsdot-thumb-mcp" onclick="ejsDotClick('thumb','mcp')"><circle class="ejs-dot" cx="34" cy="148" r="5" data-finger="thumb"/></g>
