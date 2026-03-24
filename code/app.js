@@ -3772,7 +3772,8 @@ let   _mlTrainerCamera    = null;
 let   _mlTrainerFacingMode = 'environment';
 const _mlFilterStates     = {};        // One Euro filter state for ML trainer
 let   _mlCurrentLandmarks = null;
-let   _mlCurrentHand      = null;      // 'left' | 'right' | null
+let   _mlCurrentHand      = null;      // 'left' | 'right' | null — live camera detection
+let   _mlSelectedHand    = null;      // 'left' | 'right' | null — persistent manual selection
 let   _mlMpHands          = null;
 let   _mlFeatureExtractor = null;      // MobileNetV1 α=0.25
 let   _currentFrameFeatures = null;   // cached per-frame 256-dim visual vector
@@ -3784,6 +3785,7 @@ let _mlRecordSampleCount    = 0;
 let _mlRecordingId          = null;
 let _mlLastRecordingId      = null;
 let _mlLastRecordingCount   = 0;
+let _mlCaptureInFlight      = false;
 const ML_RECORD_FRAME_INTERVAL        = 15;
 const ML_RECORD_GRID_REFRESH_INTERVAL = 10;
 
@@ -4061,7 +4063,7 @@ function mlOnResults(results) {
   if (hand !== _mlCurrentHand) {
     _mlCurrentHand  = hand;
     _currentHandLabel = hand;
-    if (hand) mlRefreshSampleCounts();
+    if (hand) mlSetHand(hand);
   }
   if (handEl) handEl.textContent = hand ? hand.charAt(0).toUpperCase() + hand.slice(1) : '—';
 
@@ -4165,15 +4167,16 @@ function mlAngleBucket(angle) {
 
 // ── submitMLSample ─────────────────────────────────────────────────────────
 async function submitMLSample() {
-  if (!_mlCurrentLandmarks || !_mlCurrentHand) return;
+  if (!_mlCurrentLandmarks || !_mlSelectedHand) return;
   const select = document.getElementById('mlJointSelect');
   const slider = document.getElementById('mlAngleSlider');
   const btn    = document.getElementById('mlSubmitBtn');
   if (!select || !slider || !btn) return;
 
-  const joint     = `${select.value}-${_mlCurrentHand}`;
-  const trueAngle = parseInt(slider.value);
-  const landmarks = _mlCurrentLandmarks.map(lm => [lm.x, lm.y, lm.z || 0]);
+  const joint      = `${select.value}-${_mlSelectedHand}`;
+  const trueAngle  = parseInt(slider.value);
+  const lmSnapshot = _mlCurrentLandmarks.slice();
+  const landmarks  = lmSnapshot.flatMap(lm => [lm.x, lm.y, lm.z || 0]);
 
   btn.disabled = true;
   btn.textContent = 'Saving...';
@@ -4186,15 +4189,15 @@ async function submitMLSample() {
     const chunkId  = `${joint}_chunk_${chunkIdx}`;
     const notes       = document.getElementById('mlSessionNotes')?.value?.trim() || '';
     const fingerConfig = _ML_FINGERS.filter(f => _mlFingerConfig[f]).join(',');
-    const sample      = { landmarks, trueAngle, recordedAt: new Date().toISOString(), recordedBy: currentUser?.email || '', notes, fingerConfig };
+    const sample      = { landmarks, trueAngle, recordedAt: new Date().toISOString(), recordedBy: currentUser?.email || '', notes, fingerConfig, ...(_currentFrameFeatures ? { imageFeatures: _currentFrameFeatures } : {}) };
 
     const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
-    const orient    = mlClassifyOrientation(_mlCurrentLandmarks);
+    const orient    = mlClassifyOrientation(lmSnapshot);
     const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
-    await db.collection('trainingChunks').doc(chunkId).set(
-      { joint, chunk: chunkIdx, samples: firebase.firestore.FieldValue.arrayUnion(sample) },
-      { merge: true }
-    );
+    const chunkRef  = db.collection('trainingChunks').doc(chunkId);
+    const chunkSnap = await chunkRef.get();
+    const existing  = chunkSnap.exists ? (chunkSnap.data().samples || []) : [];
+    await chunkRef.set({ joint, chunk: chunkIdx, samples: [...existing, sample] });
     await metaRef.set({
       joint,
       totalSamples: firebase.firestore.FieldValue.increment(1),
@@ -4217,14 +4220,18 @@ async function submitMLSample() {
 
 // ── mlAutoCapture — called every ML_RECORD_FRAME_INTERVAL frames during recording
 async function mlAutoCapture() {
-  if (!_mlRecording || !_mlCurrentLandmarks || !_mlCurrentHand) return;
+  if (!_mlRecording || !_mlCurrentLandmarks || !_mlSelectedHand) return;
+  if (_mlCaptureInFlight) return;
+  _mlCaptureInFlight = true;
+
   const select = document.getElementById('mlJointSelect');
   const slider = document.getElementById('mlAngleSlider');
-  if (!select || !slider) return;
+  if (!select || !slider) { _mlCaptureInFlight = false; return; }
 
-  const joint        = `${select.value}-${_mlCurrentHand}`;
+  const joint        = `${select.value}-${_mlSelectedHand}`;
   const trueAngle    = parseInt(slider.value);
-  const landmarks    = _mlCurrentLandmarks.map(lm => [lm.x, lm.y, lm.z || 0]);
+  const lmSnapshot   = _mlCurrentLandmarks.slice();
+  const landmarks    = lmSnapshot.flatMap(lm => [lm.x, lm.y, lm.z || 0]);
   const notes        = document.getElementById('mlSessionNotes')?.value?.trim() || '';
   const fingerConfig = _ML_FINGERS.filter(f => _mlFingerConfig[f]).join(',');
   const sample       = {
@@ -4233,22 +4240,25 @@ async function mlAutoCapture() {
     recordedBy:  currentUser?.email || '',
     recordingId: _mlRecordingId,
     notes, fingerConfig,
+    ...(_currentFrameFeatures ? { imageFeatures: _currentFrameFeatures } : {}),
   };
 
-  const metaRef   = db.collection('trainingMeta').doc(joint);
-  const meta      = await metaRef.get();
-  const total     = meta.exists ? meta.data().totalSamples : 0;
-  const chunkIdx  = Math.floor(total / 50);
-  const chunkId   = `${joint}_chunk_${chunkIdx}`;
-  const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
-  const orient    = mlClassifyOrientation(_mlCurrentLandmarks);
-  const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
+  const countEl = document.getElementById('mlRecordCount');
 
   try {
-    await db.collection('trainingChunks').doc(chunkId).set(
-      { joint, chunk: chunkIdx, samples: firebase.firestore.FieldValue.arrayUnion(sample) },
-      { merge: true }
-    );
+    const metaRef   = db.collection('trainingMeta').doc(joint);
+    const meta      = await metaRef.get();
+    const total     = meta.exists ? meta.data().totalSamples : 0;
+    const chunkIdx  = Math.floor(total / 50);
+    const chunkId   = `${joint}_chunk_${chunkIdx}`;
+    const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
+    const orient    = mlClassifyOrientation(lmSnapshot);
+    const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
+
+    const chunkRef  = db.collection('trainingChunks').doc(chunkId);
+    const chunkSnap = await chunkRef.get();
+    const existing  = chunkSnap.exists ? (chunkSnap.data().samples || []) : [];
+    await chunkRef.set({ joint, chunk: chunkIdx, samples: [...existing, sample] });
     await metaRef.set({
       joint,
       totalSamples: firebase.firestore.FieldValue.increment(1),
@@ -4257,7 +4267,6 @@ async function mlAutoCapture() {
     }, { merge: true });
 
     _mlRecordSampleCount++;
-    const countEl = document.getElementById('mlRecordCount');
     if (countEl) countEl.textContent = _mlRecordSampleCount;
 
     if (_mlRecordSampleCount % ML_RECORD_GRID_REFRESH_INTERVAL === 0) {
@@ -4265,12 +4274,15 @@ async function mlAutoCapture() {
     }
   } catch (e) {
     console.error('mlAutoCapture:', e);
+    if (countEl) countEl.textContent = 'err';
+  } finally {
+    _mlCaptureInFlight = false;
   }
 }
 
 // ── mlStartRecording / mlStopRecording ─────────────────────────────────────
 function mlStartRecording() {
-  if (_mlRecording || !_mlCurrentHand) return;
+  if (_mlRecording || !_mlSelectedHand) return;
   const slider    = document.getElementById('mlAngleSlider');
   const submitBtn = document.getElementById('mlSubmitBtn');
   const startBtn  = document.getElementById('mlRecordStartBtn');
@@ -4327,13 +4339,13 @@ function mlStopRecording() {
 
 // ── mlUndoLastRecording ────────────────────────────────────────────────────
 async function mlUndoLastRecording() {
-  if (!_mlLastRecordingId || !_mlCurrentHand) return;
+  if (!_mlLastRecordingId || !_mlSelectedHand) return;
   const select  = document.getElementById('mlJointSelect');
   const undoBtn = document.getElementById('mlUndoBtn');
   const undoBar = document.getElementById('mlUndoBar');
   if (!select || !undoBtn) return;
 
-  const joint = `${select.value}-${_mlCurrentHand}`;
+  const joint = `${select.value}-${_mlSelectedHand}`;
   undoBtn.disabled    = true;
   undoBtn.textContent = 'Removing...';
 
@@ -4355,7 +4367,11 @@ async function mlUndoLastRecording() {
     for (const s of remaining) {
       const bk = `histogram.b${Math.min(17, Math.floor(s.trueAngle / 10))}`;
       newMeta[bk] = (newMeta[bk] || 0) + 1;
-      const orient = mlClassifyOrientation(s.landmarks.map(([x, y, z]) => ({ x, y, z })));
+      const lm     = s.landmarks;
+      const lmObjs = Array.isArray(lm[0])
+        ? lm.map(([x, y, z]) => ({ x, y, z }))
+        : Array.from({ length: lm.length / 3 }, (_, i) => ({ x: lm[i*3], y: lm[i*3+1], z: lm[i*3+2] }));
+      const orient = mlClassifyOrientation(lmObjs);
       const gk = `grid_${orient}_${mlAngleBucket(s.trueAngle)}`;
       newMeta[gk] = (newMeta[gk] || 0) + 1;
     }
@@ -4363,8 +4379,9 @@ async function mlUndoLastRecording() {
 
     _mlLastRecordingId    = null;
     _mlLastRecordingCount = 0;
-    if (undoBar) undoBar.style.display = 'none';
+    undoBtn.textContent = 'Removed!';
     mlRefreshSampleCounts();
+    setTimeout(() => { if (undoBar) undoBar.style.display = 'none'; }, 900);
   } catch (e) {
     console.error('mlUndoLastRecording:', e);
     undoBtn.disabled    = false;
@@ -4374,27 +4391,39 @@ async function mlUndoLastRecording() {
 
 // ── mlClearJoint ───────────────────────────────────────────────────────────
 async function mlClearJoint() {
-  if (!_mlCurrentHand) return;
-  const select = document.getElementById('mlJointSelect');
+  const select  = document.getElementById('mlJointSelect');
+  const clearBtn = document.querySelector('.ml-clear-btn');
   if (!select) return;
-  const joint = `${select.value}-${_mlCurrentHand}`;
 
-  const snap  = await db.collection('trainingChunks').where('joint', '==', joint).get();
-  const batch = db.batch();
-  snap.docs.forEach(d => batch.delete(d.ref));
-  batch.delete(db.collection('trainingMeta').doc(joint));
-  await batch.commit();
+  if (!_mlSelectedHand) { alert('Select LEFT or RIGHT before clearing.'); return; }
+  const hand = _mlSelectedHand;
 
-  _mlLastRecordingId    = null;
-  _mlLastRecordingCount = 0;
-  const undoBar = document.getElementById('mlUndoBar');
-  if (undoBar) undoBar.style.display = 'none';
-  mlRefreshSampleCounts();
+  const joint = `${select.value}-${hand}`;
+  if (clearBtn) { clearBtn.disabled = true; clearBtn.textContent = 'Clearing...'; }
+
+  try {
+    const snap  = await db.collection('trainingChunks').where('joint', '==', joint).get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    batch.delete(db.collection('trainingMeta').doc(joint));
+    await batch.commit();
+
+    _mlLastRecordingId    = null;
+    _mlLastRecordingCount = 0;
+    const undoBar = document.getElementById('mlUndoBar');
+    if (undoBar) undoBar.style.display = 'none';
+    if (clearBtn) clearBtn.textContent = 'Cleared!';
+    setTimeout(() => { if (clearBtn) { clearBtn.disabled = false; clearBtn.textContent = 'Clear all samples for this joint'; } }, 1200);
+    mlRefreshSampleCounts();
+  } catch (e) {
+    console.error('mlClearJoint:', e);
+    if (clearBtn) { clearBtn.disabled = false; clearBtn.textContent = 'Clear all samples for this joint'; }
+  }
 }
 
 // ── trainMLModel ───────────────────────────────────────────────────────────
 async function trainMLModel() {
-  if (!window.tf || !_mlCurrentHand) return;
+  if (!window.tf || !_mlSelectedHand) return;
   const select       = document.getElementById('mlJointSelect');
   const trainBtn     = document.getElementById('mlTrainBtn');
   const statusEl     = document.getElementById('mlTrainStatus');
@@ -4402,7 +4431,7 @@ async function trainMLModel() {
   const progressBar  = document.getElementById('mlProgressBar');
   if (!select || !trainBtn || !statusEl) return;
 
-  const joint = `${select.value}-${_mlCurrentHand}`;
+  const joint = `${select.value}-${_mlSelectedHand}`;
   trainBtn.disabled    = true;
   trainBtn.textContent = 'Loading samples...';
   if (statusEl)      statusEl.textContent  = '';
@@ -4419,42 +4448,91 @@ async function trainMLModel() {
       return;
     }
 
-    statusEl.textContent = `Training on ${samples.length} samples...`;
+    const hybridSamples = samples.filter(s => Array.isArray(s.imageFeatures) && s.imageFeatures.length === 256);
+    const useHybrid     = hybridSamples.length >= 10;
 
-    const xs = window.tf.tensor2d(samples.map(s => s.landmarks.flat()));
-    const ys = window.tf.tensor2d(samples.map(s => [s.trueAngle / 180]));
-
-    const model = window.tf.sequential({ layers: [
-      window.tf.layers.dense({ inputShape: [63], units: 64, activation: 'relu' }),
-      window.tf.layers.dense({ units: 32, activation: 'relu' }),
-      window.tf.layers.dense({ units: 1 }),
-    ]});
-    model.compile({ optimizer: window.tf.train.adam(0.001), loss: 'meanSquaredError' });
+    statusEl.textContent = useHybrid
+      ? `Training hybrid model on ${hybridSamples.length} samples...`
+      : `Training on ${samples.length} samples...${hybridSamples.length > 0 ? ` (${hybridSamples.length} have visual features — need 10 for hybrid)` : ''}`;
 
     const epochs = 100;
-    await model.fit(xs, ys, {
-      epochs,
-      validationSplit: samples.length >= 10 ? 0.1 : 0,
-      callbacks: { onEpochEnd: (epoch) => {
-        if (progressBar) progressBar.style.width = `${Math.round((epoch + 1) / epochs * 100)}%`;
-      }},
-    });
+    let model, mae;
 
-    const pred       = model.predict(xs);
-    const predAngles = Array.from(pred.dataSync()).map(v => v * 180);
-    const mae        = predAngles.reduce((s, v, i) => s + Math.abs(v - samples[i].trueAngle), 0) / predAngles.length;
+    if (useHybrid) {
+      const imgXs = window.tf.tensor2d(hybridSamples.map(s => s.imageFeatures));
+      const lmXs  = window.tf.tensor2d(hybridSamples.map(s => s.landmarks.flat()));
+      const ys    = window.tf.tensor2d(hybridSamples.map(s => [s.trueAngle / 180]));
 
-    const weights = model.getWeights().map(w => Array.from(w.dataSync()));
-    await db.collection('mlModels').doc(joint).set({
-      topology:    JSON.stringify(model.toJSON()),
-      weights,
-      sampleCount: samples.length,
-      trainedAt:   new Date().toISOString(),
-      mae:         parseFloat(mae.toFixed(2)),
-    });
+      const imgInput = window.tf.input({ shape: [256] });
+      const lmInput  = window.tf.input({ shape: [63] });
+      const merged   = window.tf.layers.concatenate().apply([imgInput, lmInput]);
+      const d1       = window.tf.layers.dense({ units: 128, activation: 'relu' }).apply(merged);
+      const d2       = window.tf.layers.dense({ units: 64,  activation: 'relu' }).apply(d1);
+      const out      = window.tf.layers.dense({ units: 1 }).apply(d2);
+      model          = window.tf.model({ inputs: [imgInput, lmInput], outputs: out });
+      model.compile({ optimizer: window.tf.train.adam(0.001), loss: 'meanSquaredError' });
 
-    _mlModels.set(joint, { type: 'landmarks', model });
-    xs.dispose(); ys.dispose(); pred.dispose();
+      await model.fit([imgXs, lmXs], ys, {
+        epochs,
+        validationSplit: 0.1,
+        callbacks: { onEpochEnd: (epoch) => {
+          if (progressBar) progressBar.style.width = `${Math.round((epoch + 1) / epochs * 100)}%`;
+        }},
+      });
+
+      const pred       = model.predict([imgXs, lmXs]);
+      const predAngles = Array.from(pred.dataSync()).map(v => v * 180);
+      mae              = predAngles.reduce((s, v, i) => s + Math.abs(v - hybridSamples[i].trueAngle), 0) / predAngles.length;
+      pred.dispose();
+
+      const weights = model.getWeights().map(w => Array.from(w.dataSync()));
+      await db.collection('mlModels').doc(joint).set({
+        type:        'hybrid',
+        topology:    JSON.stringify(model.toJSON()),
+        weights,
+        sampleCount: hybridSamples.length,
+        trainedAt:   new Date().toISOString(),
+        mae:         parseFloat(mae.toFixed(2)),
+      });
+
+      _mlModels.set(joint, { type: 'hybrid', model });
+      imgXs.dispose(); lmXs.dispose(); ys.dispose();
+    } else {
+      const xs = window.tf.tensor2d(samples.map(s => s.landmarks.flat()));
+      const ys = window.tf.tensor2d(samples.map(s => [s.trueAngle / 180]));
+
+      model = window.tf.sequential({ layers: [
+        window.tf.layers.dense({ inputShape: [63], units: 64, activation: 'relu' }),
+        window.tf.layers.dense({ units: 32, activation: 'relu' }),
+        window.tf.layers.dense({ units: 1 }),
+      ]});
+      model.compile({ optimizer: window.tf.train.adam(0.001), loss: 'meanSquaredError' });
+
+      await model.fit(xs, ys, {
+        epochs,
+        validationSplit: samples.length >= 10 ? 0.1 : 0,
+        callbacks: { onEpochEnd: (epoch) => {
+          if (progressBar) progressBar.style.width = `${Math.round((epoch + 1) / epochs * 100)}%`;
+        }},
+      });
+
+      const pred       = model.predict(xs);
+      const predAngles = Array.from(pred.dataSync()).map(v => v * 180);
+      mae              = predAngles.reduce((s, v, i) => s + Math.abs(v - samples[i].trueAngle), 0) / predAngles.length;
+      pred.dispose();
+
+      const weights = model.getWeights().map(w => Array.from(w.dataSync()));
+      await db.collection('mlModels').doc(joint).set({
+        topology:    JSON.stringify(model.toJSON()),
+        weights,
+        sampleCount: samples.length,
+        trainedAt:   new Date().toISOString(),
+        mae:         parseFloat(mae.toFixed(2)),
+      });
+
+      _mlModels.set(joint, { type: 'landmarks', model });
+      xs.dispose(); ys.dispose();
+    }
 
     statusEl.textContent = `Done — avg error: ${mae.toFixed(1)}°`;
     trainBtn.textContent = 'Train Again';
@@ -4468,12 +4546,22 @@ async function trainMLModel() {
   }
 }
 
+// ── mlSetHand ──────────────────────────────────────────────────────────────
+function mlSetHand(hand) {
+  _mlSelectedHand = hand;
+  const leftBtn  = document.getElementById('mlHandBtnLeft');
+  const rightBtn = document.getElementById('mlHandBtnRight');
+  if (leftBtn)  leftBtn.classList.toggle('active',  hand === 'left');
+  if (rightBtn) rightBtn.classList.toggle('active', hand === 'right');
+  mlRefreshSampleCounts();
+}
+
 // ── mlRefreshSampleCounts ──────────────────────────────────────────────────
 async function mlRefreshSampleCounts(joint) {
   const select   = document.getElementById('mlJointSelect');
   const baseKey  = joint || (select ? select.value : null);
-  if (!baseKey || !_mlCurrentHand) return;
-  const j        = `${baseKey}-${_mlCurrentHand}`;
+  if (!baseKey || !_mlSelectedHand) return;
+  const j        = `${baseKey}-${_mlSelectedHand}`;
   const countEl  = document.getElementById('mlSampleCount');
   const trainBtn = document.getElementById('mlTrainBtn');
 
@@ -4496,7 +4584,7 @@ async function mlRefreshSampleCounts(joint) {
     const totalEl  = document.getElementById('mlStatTotal');
     if (labelEl && select) {
       const optText = select.options[select.selectedIndex]?.text || baseKey;
-      const handStr = _mlCurrentHand ? ` (${_mlCurrentHand})` : '';
+      const handStr = _mlSelectedHand ? ` (${_mlSelectedHand})` : '';
       labelEl.textContent = `Samples for ${optText}${handStr}`;
     }
     if (jCountEl) jCountEl.textContent = jointCount;
@@ -4700,7 +4788,7 @@ Object.assign(window, {
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlSaveNotes, mlToggleFinger, mlSetFingerPreset,
-  submitMLSample, trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint,
+  submitMLSample, trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint, mlSetHand,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,

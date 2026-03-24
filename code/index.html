@@ -529,6 +529,10 @@
       <!-- Joint selector -->
       <div class="ml-joint-row">
         <select id="mlJointSelect" class="ml-joint-select" onchange="mlOnJointChange()"></select>
+        <div class="ml-hand-toggle">
+          <button class="ml-hand-btn" id="mlHandBtnLeft"  onclick="mlSetHand('left')">LEFT</button>
+          <button class="ml-hand-btn" id="mlHandBtnRight" onclick="mlSetHand('right')">RIGHT</button>
+        </div>
         <span class="ml-hand-label" id="mlHandLabel">—</span>
       </div>
 

@@ -2112,6 +2112,37 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   flex-shrink: 0;
 }
 
+.ml-hand-toggle {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ml-hand-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.ml-hand-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ml-hand-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .ml-count-pill {
   flex-shrink: 0;
   min-width: 36px;
