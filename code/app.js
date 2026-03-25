@@ -1138,7 +1138,7 @@ function shLoadMore() {
 function buildSessionHistory(sessions) {
   window._lastHistorySessions = sessions;
   if (sessions.length === 0) {
-    return `<div class="session-history-card"><h4>Session History</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
+    return `<div class="session-history-card"><h4>Session history</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
   const grouped = groupSetsIntoSessions(sessions);
   const allReversed = [...grouped].reverse();
@@ -1153,6 +1153,7 @@ function buildSessionHistory(sessions) {
     const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
     const rowId = `sh-exp-${gi}`;
     const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
+    const hasVideo = g.sets.some(s => s.videoUrl);
     const setDetail = g.sets.map((s, si) => {
       const sp = s.pain || 0, sr = s.rom || 0;
       const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
@@ -1167,42 +1168,38 @@ function buildSessionHistory(sessions) {
       </div>`;
     }).join('');
     return `
-      <tr class="sh-row sh-row-expandable" id="${rowId}" onclick="toggleShExpand('${rowId}')">
-        <td class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></td>
-        <td class="sh-cell sh-exercise">${exLabel}</td>
-        <td class="sh-cell sh-sets">${g.setsCompleted}</td>
-        <td class="sh-cell sh-reps">${g.totalReps}</td>
-        <td class="sh-cell sh-rom"><span class="sh-indicator" style="background:${romColor}"></span>${g.maxROM}°</td>
-        <td class="sh-cell sh-pain"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}/10</td>
-      </tr>
-      <tr class="sh-detail-row" id="${rowId}-detail">
-        <td colspan="7" class="sh-detail-cell">
-          <div class="sh-detail-inner">
-            <div class="sh-detail-meta">
-              <span class="sh-meta-chip">${g.setsCompleted} set${g.setsCompleted !== 1 ? 's' : ''}</span>
-              <span class="sh-meta-chip">${durLabel}</span>
-            </div>
-            <div class="sh-set-detail-list">${setDetail}</div>
+      <div class="sh-row sh-row-expandable" id="${rowId}" onclick="toggleShExpand('${rowId}')">
+        <div class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></div>
+        <div class="sh-cell sh-exercise">${exLabel}</div>
+        <div class="sh-cell sh-setsreps">${g.setsCompleted} × ${g.totalReps}</div>
+        <div class="sh-cell sh-rom"><span class="sh-indicator" style="background:${romColor}"></span>${g.maxROM}°</div>
+        <div class="sh-cell sh-pain"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}</div>
+        <div class="sh-cell sh-actions">${hasVideo ? '<svg class="sh-play-icon" width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>' : ''}</div>
+      </div>
+      <div class="sh-detail-wrap" id="${rowId}-detail">
+        <div class="sh-detail-inner">
+          <div class="sh-detail-meta">
+            <span class="sh-meta-chip">${g.setsCompleted} set${g.setsCompleted !== 1 ? 's' : ''}</span>
+            <span class="sh-meta-chip">${durLabel}</span>
           </div>
-        </td>
-      </tr>`;
+          <div class="sh-set-detail-list">${setDetail}</div>
+        </div>
+      </div>`;
   }).join('');
   const loadMoreBtn = hasMore ? `<button class="sh-load-more" onclick="shLoadMore()">Show more (${allReversed.length - shVisibleCount} remaining)</button>` : '';
   return `
     <div class="session-history-card">
-      <h4>Session History — ${grouped.length} session${grouped.length !== 1 ? 's' : ''}</h4>
-      <div class="sh-table-wrap">
-        <table class="sh-table">
-          <thead><tr>
-            <th class="sh-th">Date</th>
-            <th class="sh-th">Exercise</th>
-            <th class="sh-th">Sets</th>
-            <th class="sh-th">Reps</th>
-            <th class="sh-th">ROM</th>
-            <th class="sh-th">Pain</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+      <h4>Session history</h4>
+      <div class="sh-grid-wrap">
+        <div class="sh-grid-header">
+          <div class="sh-hdr">Date</div>
+          <div class="sh-hdr">Exercise</div>
+          <div class="sh-hdr">Sets × Reps</div>
+          <div class="sh-hdr">ROM</div>
+          <div class="sh-hdr">Pain</div>
+          <div class="sh-hdr"></div>
+        </div>
+        ${rows}
       </div>
       ${loadMoreBtn}
     </div>`;
