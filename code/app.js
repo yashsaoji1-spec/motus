@@ -3221,6 +3221,11 @@ function buildMessagePanel(patientEmail) {
   </div>`;
 }
 
+function copyClinicCode() {
+  const code = document.getElementById('therapistCode').textContent;
+  navigator.clipboard.writeText(code);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
@@ -3244,7 +3249,7 @@ Object.assign(window, {
   toggleSound,
 
   // Therapist panel
-  startCalibration, calibBack,
+  copyClinicCode, startCalibration, calibBack,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
