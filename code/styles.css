@@ -747,11 +747,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .protocol-field input:focus, .protocol-field select:focus, .protocol-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 .protocol-btn {
-  padding: 10px; background: var(--accent); color: white; font-weight: 600;
-  border: none; border-radius: var(--radius-md); cursor: pointer; font-family: inherit;
-  font-size: 0.85rem; transition: all 0.15s; width: 100%;
+  padding: 10px 20px; background: transparent; color: var(--accent); font-weight: 600;
+  border: 1px solid var(--accent); border-radius: var(--radius-md); cursor: pointer; font-family: inherit;
+  font-size: 0.85rem; transition: all 0.15s; width: auto;
 }
-.protocol-btn:hover { background: #005bb5; }
+.protocol-btn:hover { background: var(--accent); color: white; }
 .protocol-btn.editing { background: var(--success); }
 .protocol-btn.editing:hover { background: var(--success); }
 .protocol-cancel-btn {
@@ -920,8 +920,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .ep-condition-row {
   display: grid; grid-template-columns: 1fr 70px 62px 72px 26px;
   gap: 6px; align-items: center; margin-bottom: 5px;
-  padding: 4px; background: var(--surface); border-radius: 6px;
+  padding: 6px 8px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px;
 }
+.ep-condition-row:hover { border-color: var(--accent); background: rgba(11,108,176,0.02); }
 .ep-remove-btn {
   width: 22px; height: 22px; padding: 0;
   background: none; border: none; color: var(--placeholder);
