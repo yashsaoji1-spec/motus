@@ -284,21 +284,32 @@ body {
 /* ── Patient home ─────────────────────────────────────────────────────────── */
 #patientScreen {
   flex-direction: column; align-items: center; min-height: 100vh;
-  padding: 28px 24px; gap: 12px; position: relative;
+  padding: 28px 24px; gap: 0; position: relative;
   background: var(--bg);
+}
+.patient-home-container {
+  width: 100%; max-width: 480px;
+  display: flex; flex-direction: column; gap: 12px;
 }
 .patient-greeting {
   font-size: 0.72rem; font-weight: 600; color: var(--placeholder);
   text-transform: none; letter-spacing: 0;
-  align-self: flex-start; width: 100%; max-width: 680px;
 }
 .patient-display-name {
-  font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -0.5px;
-  align-self: flex-start; width: 100%; max-width: 680px; margin-bottom: 4px;
+  font-size: 1.6rem; font-weight: 500; color: var(--text); letter-spacing: -0.5px;
+  margin-bottom: 4px;
 }
+/* ── Today's Plan card ────────────────────────────────────────────────── */
+.todays-plan-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.todays-plan-header { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 10px; }
+.todays-plan-list { display: flex; flex-direction: column; gap: 8px; }
+.todays-plan-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+.todays-plan-item:last-child { border-bottom: none; }
+.todays-plan-name { font-size: 0.85rem; font-weight: 500; color: var(--text); }
+.todays-plan-dose { font-size: 0.78rem; color: var(--muted); font-family: 'DM Mono', monospace; }
 /* ── Patient exercise chips (home screen) ─────────────────────────────── */
 .patient-exercise-list {
-  width: 100%; max-width: 680px;
+  width: 100%;
   display: flex; gap: 8px;
   overflow-x: auto; -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
@@ -405,22 +416,21 @@ body {
   display: flex; align-items: flex-start; justify-content: space-between;
 }
 .patient-hero-btn {
-  width: 100%; max-width: var(--max-content);
-  padding: 16px 20px;
+  width: 100%;
+  padding: 16px;
   background: var(--accent);
-  color: #fff; font-size: 1.05rem; font-weight: 600;
-  border: none; border-radius: var(--radius-md);
-  cursor: pointer; font-family: inherit;
+  color: white; font-size: 1rem; font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  border: none; border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(11,108,176,0.15);
   transition: background-color 150ms ease, transform 200ms ease;
 }
-.patient-hero-btn:hover {
-  background-color: var(--accent-hover);
-}
+.patient-hero-btn:hover { background-color: var(--accent-hover); }
 .patient-hero-btn:active { transform: scale(0.98); }
 .patient-hero-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .patient-nav-grid {
-  width: 100%; max-width: var(--max-content);
-  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);
+  width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
 }
 .patient-nav-card {
   padding: var(--space-5) var(--space-4);
@@ -441,7 +451,7 @@ body {
 .patient-nav-sub { font-size: 0.75rem; color: var(--placeholder); margin-top: 2px; }
 /* ── My Exercises card button ──────────────────────────────────────────── */
 .patient-exercises-card {
-  width: 100%; max-width: var(--max-content);
+  width: 100%;
   padding: 16px 20px; background: var(--surface);
   border: 1px solid var(--border); border-radius: 12px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);

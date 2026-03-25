@@ -402,6 +402,32 @@ async function updatePatientHomeScreen() {
     listEl.style.display = 'none';
   }
 
+  // Today's Plan card
+  const planCard = document.getElementById('todaysPlanCard');
+  const planList = document.getElementById('todaysPlanList');
+  if (planCard && planList && protocols.length > 0) {
+    planCard.style.display = 'block';
+    planList.innerHTML = protocols.map(p => {
+      const name = exerciseLabels[p.exerciseType] || p.exerciseType;
+      const dose = `${p.sets || 3} × ${p.reps || 10} reps`;
+      return `<div class="todays-plan-item"><span class="todays-plan-name">${name}</span><span class="todays-plan-dose">${dose}</span></div>`;
+    }).join('');
+  } else if (planCard) {
+    planCard.style.display = 'none';
+  }
+
+  // My Exercises card subtitle
+  const exSub = document.getElementById('myExercisesSub');
+  if (exSub) {
+    if (protocols.length > 0) {
+      const firstEx = exerciseLabels[protocols[0].exerciseType] || protocols[0].exerciseType;
+      const firstDose = `${protocols[0].sets || 3} sets × ${protocols[0].reps || 10} reps`;
+      exSub.textContent = `${firstEx} — ${firstDose}`;
+    } else {
+      exSub.textContent = 'No exercises assigned yet';
+    }
+  }
+
   if (therapistEmail) {
     const tSnap = await db.collection('users').doc(therapistEmail).get();
     if (tSnap.exists) document.getElementById('therapistContactName').textContent = 'Message ' + tSnap.data().name;

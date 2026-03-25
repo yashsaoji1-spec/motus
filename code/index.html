@@ -142,54 +142,58 @@
      PATIENT HOME
 ═══════════════════════════════════════════════════════ -->
 <div id="patientScreen" class="screen">
-  <div class="patient-top">
-    <div>
-      <div class="patient-greeting" id="patientGreeting">Good morning</div>
-      <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
+  <div class="patient-home-container">
+    <div class="patient-greeting" id="patientGreeting">Good morning</div>
+    <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
+
+    <div id="todaysPlanCard" class="todays-plan-card" style="display:none;">
+      <div class="todays-plan-header">Your exercises</div>
+      <div id="todaysPlanList" class="todays-plan-list"></div>
     </div>
+
+    <button class="patient-hero-btn" onclick="startScanSession()">Start a Session</button>
+
+    <div class="patient-nav-grid">
+      <button class="patient-nav-card" onclick="showProgressScreen()">
+        <span class="patient-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span class="patient-nav-label">My Progress</span>
+      </button>
+      <button class="patient-nav-card" id="therapistContactBtn" onclick="openPatientMessaging()">
+        <span class="patient-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="patient-nav-label"><span id="therapistBtnLabel">Messages</span> <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></span>
+        <span class="patient-nav-sub" id="therapistContactName"></span>
+      </button>
+    </div>
+
+    <div class="patient-exercise-list" id="patientExerciseList" style="display:none;"></div>
+
+    <button class="patient-exercises-card" onclick="showExercisesScreen()">
+      <div>
+        <div class="patient-exercises-card-label">My Exercises</div>
+        <div class="patient-exercises-card-sub" id="myExercisesSub">View all assigned protocols</div>
+      </div>
+      <span class="patient-exercises-card-arrow">›</span>
+    </button>
+
     <div class="streak-badge" id="streakBadge" style="display:none;">
       <span class="streak-count" id="streakCount">0</span>
       <span class="streak-text" id="streakLabel">day streak</span>
       <span class="streak-best" id="streakBest"></span>
     </div>
-  </div>
 
-  <div class="patient-exercise-list" id="patientExerciseList" style="display:none;"></div>
-
-  <button class="patient-hero-btn" onclick="startScanSession()">Start a Session</button>
-
-  <div class="patient-nav-grid">
-    <button class="patient-nav-card" onclick="showProgressScreen()">
-      <span class="patient-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
-      <span class="patient-nav-label">My Progress</span>
-    </button>
-    <button class="patient-nav-card" id="therapistContactBtn" onclick="openPatientMessaging()">
-      <span class="patient-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-      <span class="patient-nav-label"><span id="therapistBtnLabel">Messages</span> <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></span>
-      <span class="patient-nav-sub" id="therapistContactName"></span>
-    </button>
-  </div>
-
-  <button class="patient-exercises-card" onclick="showExercisesScreen()">
-    <div>
-      <div class="patient-exercises-card-label">My Exercises</div>
-      <div class="patient-exercises-card-sub">View all assigned protocols</div>
+    <div class="xp-bar-container" id="xpBarContainer" style="display:none;">
+      <div class="xp-bar-header">
+        <span class="xp-level" id="xpLevel">Level 1</span>
+        <span class="xp-progress-text" id="xpProgressText">0/10</span>
+      </div>
+      <div class="xp-bar-track">
+        <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
+      </div>
     </div>
-    <span class="patient-exercises-card-arrow">›</span>
-  </button>
 
-  <div class="xp-bar-container" id="xpBarContainer" style="display:none;">
-    <div class="xp-bar-header">
-      <span class="xp-level" id="xpLevel">Level 1</span>
-      <span class="xp-progress-text" id="xpProgressText">0/10</span>
+    <div class="patient-bottom-row">
+      <button class="patient-logout-link" onclick="requestLogout()">Log Out</button>
     </div>
-    <div class="xp-bar-track">
-      <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
-    </div>
-  </div>
-
-  <div class="patient-bottom-row">
-    <button class="patient-logout-link" onclick="requestLogout()">Log Out</button>
   </div>
 </div>
 
