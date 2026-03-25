@@ -2239,8 +2239,8 @@ function buildJointSelector(patientEmail) {
           <svg viewBox="0 -16 200 298" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
             <defs>
               <linearGradient id="handGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#dce6f0"/>
-                <stop offset="100%" stop-color="#c8d4e2"/>
+                <stop offset="0%" stop-color="#e8eff8"/>
+                <stop offset="100%" stop-color="#d4dde9"/>
               </linearGradient>
             </defs>
             <g class="ejs-hand-group">
