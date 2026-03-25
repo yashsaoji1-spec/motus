@@ -738,7 +738,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .proto-card-name { font-size: 0.95rem; font-weight: 700; color: var(--text); }
 /* Unified button system */
 .tp-btn {
-  font-size: 0.78rem; font-weight: 600; font-family: inherit;
+  font-size: 0.78rem; font-weight: 600; font-family: 'DM Sans', sans-serif; text-transform: none;
   padding: 5px 12px; border-radius: var(--radius-md); cursor: pointer;
   transition: all 0.15s; border: 1px solid transparent; line-height: 1.4;
 }
