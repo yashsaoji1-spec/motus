@@ -1006,14 +1006,23 @@ async function showRealPatient(patient) {
 
   if (sessions.length === 0) {
     panel.innerHTML = `
-      <h3>${patient.name}</h3>
-      <p class="subtitle">Connected Patient</p>
-      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
-        No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
+      <div class="tp-patient-header">
+        <div>
+          <h3 style="font-size: 1.5rem; font-weight: 600; margin: 0;">${patient.name}</h3>
+          <p style="color: var(--muted); font-size: 0.85rem; margin: 4px 0 0;">Connected Patient</p>
+        </div>
       </div>
-      ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
-      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions), false)}
-      ${makeCollapsible('protocol', 'Add Exercise to Protocol', buildProtocolForm(patient.email, protocols), false)}
+      <div class="tp-empty-state">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+        </svg>
+        <p>No sessions yet</p>
+        <p class="tp-empty-sub">Data will appear after ${patient.name.split(' ')[0]} completes a session.</p>
+      </div>
+      ${makeCollapsible('joints', 'Joint monitoring', buildJointSelector(patient.email), false)}
+      ${makeCollapsible('history', 'Session history', buildSessionHistory(sessions), false)}
+      ${makeCollapsible('protocol', 'Add exercise to protocol', buildProtocolForm(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
     document.getElementById('therapistMsgSend').onclick = async () => {
@@ -1040,8 +1049,12 @@ async function showRealPatient(patient) {
   const labels          = buildChartLabels(recent);
 
   panel.innerHTML = `
-    <h3>${patient.name}</h3>
-    <p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
+    <div class="tp-patient-header">
+      <div>
+        <h3 style="font-size: 1.5rem; font-weight: 600; margin: 0;">${patient.name}</h3>
+        <p style="color: var(--muted); font-size: 0.85rem; margin: 4px 0 0;">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
+      </div>
+    </div>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
@@ -1051,12 +1064,12 @@ async function showRealPatient(patient) {
       <div class="stat-card stat-card-full"><div class="stat-value stat-value-sm">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
     </div>
     <div class="tp-charts-grid">
-    ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="160"></canvas>', true)}
-    ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="160"></canvas>', true)}
+    ${makeCollapsible('rom',     'Range of motion over time', '<canvas id="romChart" height="160"></canvas>', true)}
+    ${makeCollapsible('pain',    'Pain rating over time',     '<canvas id="painChart" height="160"></canvas>', true)}
     </div>
-    ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
-    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
-    ${makeCollapsible('protocol','Add Exercise to Protocol',  buildProtocolForm(patient.email, protocols), false)}
+    ${makeCollapsible('joints',  'Joint monitoring',          buildJointSelector(patient.email), false)}
+    ${makeCollapsible('history', `Session history — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
+    ${makeCollapsible('protocol','Add exercise to protocol',  buildProtocolForm(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
   const tRomCfg = buildChartConfig(romData, { type: 'rom', color: '#0B6CB0', fillColor: 'rgba(11,108,176,0.06)' });
