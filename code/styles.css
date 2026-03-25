@@ -167,10 +167,11 @@ body {
   display: flex; flex-direction: column; gap: 16px;
 }
 .auth-box h1 {
-  font-size: 2.2rem; font-weight: 800;
+  font-size: 2.5rem; font-weight: 800;
   background: var(--gradient-cta); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   text-align: center; letter-spacing: -1px;
 }
+.auth-logo-mark { -webkit-text-fill-color: initial; display: inline-flex; vertical-align: middle; margin-right: 4px; position: relative; top: -2px; }
 .auth-subtitle { text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: -8px; }
 .auth-field { display: flex; flex-direction: column; gap: 6px; }
 .auth-field label {
@@ -187,7 +188,7 @@ body {
 .auth-btn {
   width: 100%; padding: 12px; background: var(--accent); color: white;
   font-size: 0.95rem; font-weight: 600; border: none; border-radius: var(--radius-md);
-  cursor: pointer; margin-top: 4px; transition: background-color 150ms ease, transform 200ms ease; font-family: 'DM Sans', sans-serif;
+  cursor: pointer; margin-top: 8px; transition: background-color 150ms ease, transform 200ms ease; font-family: 'DM Sans', sans-serif;
   text-transform: none;
 }
 .auth-btn:hover { background-color: var(--accent-hover); }
@@ -200,7 +201,7 @@ body {
 .auth-btn-secondary { background: none; color: var(--muted); border: 1px solid var(--border); margin-top: -8px; }
 .auth-btn-secondary:hover { background: var(--surface-alt); color: var(--text); border-color: var(--muted); }
 .pending-message { color: var(--muted); margin-bottom: 2rem; text-align: center; line-height: 1.5; }
-.clinic-code-input { text-align: center; font-size: 1.8rem; letter-spacing: 8px; font-weight: 800; }
+.clinic-code-input { text-align: center; font-size: 2.2rem; letter-spacing: 12px; font-weight: 800; }
 .auth-error {
   background: var(--danger-dim); border: 1px solid #CC2936; color: var(--danger-text);
   font-size: 0.85rem; padding: 10px 14px; border-radius: 8px;
@@ -238,13 +239,29 @@ body {
   color: var(--muted); text-transform: none; letter-spacing: 0;
   margin-bottom: var(--space-4);
 }
-.role-toggle { display: flex; gap: 8px; }
-.role-toggle-btn {
-  flex: 1; padding: 10px; border-radius: 8px; border: 2px solid var(--input-border);
-  background: var(--input-bg); color: var(--muted); font-weight: 600; cursor: pointer;
-  font-family: inherit; font-size: 0.9rem; transition: all 0.2s;
+.role-segmented {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
 }
-.role-toggle-btn.active { border-color: var(--accent); background: var(--accent-active); color: var(--text); }
+.role-seg-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: var(--surface);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.role-seg-btn.active {
+  background: var(--accent);
+  color: white;
+}
 .connect-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.6; text-align: center; }
 
 /* ── Clinic code ──────────────────────────────────────────────────────────── */
