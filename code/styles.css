@@ -1919,7 +1919,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .msg-container { display: flex; flex-direction: column; width: 100%; max-width: 680px; height: 100vh; }
 .msg-header { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .msg-header-title { font-weight: 600; color: var(--text); font-size: 1rem; }
-.msg-thread { flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 10px; }
+.msg-thread { flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 6px; }
 .msg-empty { color: var(--placeholder); font-size: 0.85rem; text-align: center; margin-top: 40px; }
 .msg-bubble { max-width: 72%; padding: 10px 14px; border-radius: 16px; }
 .msg-mine { align-self: flex-end; background: var(--accent); color: #FFFFFF; border-bottom-right-radius: 4px; }
@@ -1927,7 +1927,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .msg-text { font-size: 0.9rem; line-height: 1.5; }
 .msg-time { font-size: 0.65rem; margin-top: 4px; opacity: 0.6; text-align: right; }
 .msg-input-row { display: flex; gap: 8px; padding: 12px 16px; background: var(--surface); border-top: 1px solid var(--border); flex-shrink: 0; }
-.msg-input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 99px; font-size: 0.9rem; font-family: inherit; outline: none; }
+.msg-input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 0.9rem; font-family: inherit; outline: none; }
 .msg-input:focus { border-color: var(--accent); }
 .msg-send-btn { padding: 8px 18px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-md); font-weight: 600; font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .msg-send-btn:hover { background: #005bb5; }
@@ -1964,9 +1964,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tp-colsec-body > .ejs-panel > .ejs-panel-header { display: none; }
 
 .therapist-msg-panel { margin-top: 24px; background: var(--surface); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-.therapist-msg-thread { height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--input-bg); display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.therapist-msg-row { display: flex; gap: 8px; }
-.therapist-msg-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; font-family: inherit; outline: none; }
+.therapist-msg-thread { height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--input-bg); display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.therapist-msg-input-wrap { position: relative; display: flex; align-items: center; }
+.therapist-msg-input { flex: 1; padding: 10px 44px 10px 16px; border: 1px solid var(--border); border-radius: 20px; font-size: 0.85rem; font-family: inherit; outline: none; }
 .therapist-msg-input:focus { border-color: var(--accent); }
 
 /* ── Joint Monitoring charts area ───────────────────────────────────────── */
@@ -1995,4 +1995,5 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   padding: 1.25rem 0.5rem;
   line-height: 1.5;
 }
-.therapist-msg-send { padding: 8px 16px; background: var(--accent); color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-family: inherit; font-weight: 600; }
+.therapist-msg-send { position: absolute; right: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--accent); color: white; border: none; border-radius: 50%; cursor: pointer; transition: background 150ms ease; }
+.therapist-msg-send:hover { background: var(--accent-hover); }

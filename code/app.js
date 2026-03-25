@@ -3144,6 +3144,21 @@ function formatMsgTime(isoStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + time;
 }
 
+function timeAgo(isoStr) {
+  const d = new Date(isoStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffSec < 60) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay <= 7) return `${diffDay}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
 async function getThread(a, b) {
@@ -3188,7 +3203,7 @@ async function renderThread(containerId, myEmail, otherEmail) {
   }
   el.innerHTML = thread.map(m => {
     const mine = m.from === myEmail;
-    const time = formatMsgTime(m.timestamp);
+    const time = timeAgo(m.timestamp);
     return `<div class="msg-bubble ${mine ? 'msg-mine' : 'msg-theirs'}">
       <div class="msg-text">${escapeHtml(m.text)}</div>
       <div class="msg-time">${time}</div>
@@ -3222,11 +3237,12 @@ async function sendMessageFromPatient() {
 
 function buildMessagePanel(patientEmail) {
   return `<div class="therapist-msg-panel">
-    <div class="section-title" style="font-size:0.85rem; font-weight:700; color:#6B7A99; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Messages</div>
     <div class="therapist-msg-thread" id="therapistMsgThread"></div>
-    <div class="therapist-msg-row">
+    <div class="therapist-msg-input-wrap">
       <input type="text" id="therapistMsgInput" class="therapist-msg-input" placeholder="Send a message…" />
-      <button id="therapistMsgSend" class="therapist-msg-send">Send</button>
+      <button id="therapistMsgSend" class="therapist-msg-send">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
     </div>
   </div>`;
 }
