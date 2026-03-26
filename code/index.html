@@ -480,6 +480,17 @@
   </div>
 </div>
 
+<div id="sheetBackdrop" class="sheet-backdrop" style="display:none;" onclick="dismissExerciseDetail()"></div>
+<div id="exerciseSheet" class="sheet" style="display:none;">
+  <div class="sheet-handle"></div>
+  <div class="sheet-content">
+    <h3 id="sheetExName" class="sheet-title"></h3>
+    <p id="sheetExRx" class="sheet-rx"></p>
+    <p id="sheetExNotes" class="sheet-notes"></p>
+    <button class="sheet-begin-btn" id="sheetBeginBtn">Begin Session</button>
+  </div>
+</div>
+
 <!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>

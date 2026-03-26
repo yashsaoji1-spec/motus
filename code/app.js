@@ -23,6 +23,7 @@ let selectedProtocol = null;
 let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
+var activeSheetProtocol = null;
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -3315,6 +3316,45 @@ function copyClinicCode() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   BOTTOM SHEET — Exercise detail
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function showExerciseDetail(protocol) {
+  activeSheetProtocol = protocol;
+  document.getElementById('sheetExName').textContent = protocol.exerciseName || protocol.label || 'Exercise';
+  var sets = protocol.sets || 3;
+  var reps = protocol.reps || 10;
+  var rest = protocol.restSeconds || 30;
+  document.getElementById('sheetExRx').textContent = sets + ' sets \u00d7 ' + reps + ' reps \u00b7 ' + rest + 's rest';
+  var notesEl = document.getElementById('sheetExNotes');
+  if (protocol.notes) {
+    notesEl.textContent = protocol.notes;
+    notesEl.style.display = 'block';
+  } else {
+    notesEl.style.display = 'none';
+  }
+  document.getElementById('sheetBeginBtn').onclick = function() {
+    dismissExerciseDetail();
+    startSessionWithProtocol(activeSheetProtocol);
+  };
+  document.getElementById('sheetBackdrop').style.display = 'block';
+  var sheet = document.getElementById('exerciseSheet');
+  sheet.classList.remove('dismissing');
+  sheet.style.display = 'block';
+}
+
+function dismissExerciseDetail() {
+  var sheet = document.getElementById('exerciseSheet');
+  sheet.classList.add('dismissing');
+  setTimeout(function() {
+    sheet.style.display = 'none';
+    sheet.classList.remove('dismissing');
+    document.getElementById('sheetBackdrop').style.display = 'none';
+  }, 200);
+  activeSheetProtocol = null;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -3327,6 +3367,9 @@ Object.assign(window, {
 
   // Navigation
   showScreen,
+
+  // Bottom sheet
+  showExerciseDetail, dismissExerciseDetail,
 
   // Patient flows
   startScanSession, startSessionWithProtocol, showExercisesScreen,
