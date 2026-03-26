@@ -2089,103 +2089,105 @@ async function showProgressScreen() {
   await renderProgressScreen();
 }
 
+function buildPatientSessionHistory(sessions) {
+  if (!sessions || !sessions.length) return '';
+  var html = '<div class="prog-history-card"><div class="prog-grid-header">' +
+    '<span>Date</span><span>Exercise</span><span>Sets</span><span>Pain</span></div>';
+  sessions.slice(0, 20).forEach(function(s) {
+    var date = s.timestamp ? timeAgo(s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : '\u2014';
+    var exercise = s.exerciseName || s.label || '\u2014';
+    var sets = (s.completedSets || 0) + '/' + (s.totalSets || s.sets || '\u2014');
+    var pain = s.avgPain != null ? s.avgPain.toFixed(1) : '\u2014';
+    html += '<div class="prog-grid-row"><span>' + date + '</span><span>' + exercise + '</span><span>' + sets + '</span><span>' + pain + '</span></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
 async function renderProgressScreen() {
-  const sessions = currentUser ? await getPatientSessions(currentUser.email) : [];
-  const content  = document.getElementById('progressContent');
-  if (sessions.length === 0) {
-    content.innerHTML = `<div class="no-progress-msg">No sessions recorded yet.<br/>Complete a set of reps to see your progress here.</div>`;
+  const sessions = window.patientSessions || [];
+  const content = document.getElementById('progressContent');
+
+  if (!sessions.length) {
+    content.innerHTML = '<div class="prog-empty">' +
+      '<div class="prog-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>' +
+      '<p>Complete your first session to start tracking progress.</p>' +
+      '</div>';
     return;
   }
-  const totalReps = sessions.reduce((s, x) => s + (x.reps || 0), 0);
-  const avgROM    = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
-  const bestROM   = Math.max(...sessions.map(s => s.rom || 0));
-  const avgPain   = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
-  const recent    = sessions.slice(-10);
-  const romData   = recent.map(s => s.rom || 0);
-  const painData  = recent.map(s => s.pain || 0);
-  const labels    = buildChartLabels(recent);
-  const grouped = groupSetsIntoSessions(sessions);
 
-  const historyHTML = [...grouped].reverse().map((g, idx) => {
-    const d = new Date(g.date);
-    const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'Session';
-    const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? 'var(--warning)' : 'var(--danger)';
-    const prevGroup = grouped[grouped.length - 1 - idx - 1];
-    const trendHTML = (() => {
-      if (!prevGroup) return '';
-      const diff = g.maxROM - prevGroup.maxROM;
-      if (Math.abs(diff) < 2) return '<span class="ses-trend ses-trend--flat">&rarr;</span>';
-      return diff > 0
-        ? `<span class="ses-trend ses-trend--up">&uarr;${diff}&deg;</span>`
-        : `<span class="ses-trend ses-trend--down">&darr;${Math.abs(diff)}&deg;</span>`;
-    })();
-    const cardId = `psc-${idx}`;
-    const setRows = g.sets.map((s, si) => {
-      const sp = s.pain || 0, sr = s.rom || 0;
-      const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? 'var(--warning)' : 'var(--danger)';
-      const src = sr >= 120 ? 'var(--success)' : sr >= 80 ? 'var(--warning)' : 'var(--danger)';
-      return `<div class="ses-set-row">
-        <span class="ses-set-num">Set ${si + 1}</span>
-        <span class="ses-set-stat">${s.reps || 0} reps</span>
-        <span class="ses-set-stat"><span class="sh-indicator" style="background:${src}"></span>${sr}&deg;</span>
-        <span class="ses-set-stat"><span class="sh-indicator" style="background:${spc}"></span>${sp}/10</span>
-      </div>`;
-    }).join('');
-    const highPain = g.sets.reduce((mx, s, i) => (s.pain || 0) > (mx.p || 0) ? { p: s.pain, i: i + 1 } : mx, { p: 0, i: 0 });
-    const durLabel = g.durationMin > 0 ? g.durationMin + ' min' : '< 1 min';
-    return `
-      <div class="psc-card" id="${cardId}">
-        <div class="psc-header" onclick="document.getElementById('${cardId}').classList.toggle('expanded')">
-          <div class="psc-header-left">
-            <div class="psc-date">${dateStr}</div>
-            <div class="psc-time">${timeStr}</div>
-          </div>
-          <div class="psc-header-stats">
-            <div class="psc-stat-group"><span class="psc-stat-val">${g.setsCompleted}</span><span class="psc-stat-lbl">sets</span></div>
-            <div class="psc-stat-group"><span class="psc-stat-val">${g.totalReps}</span><span class="psc-stat-lbl">reps</span></div>
-            <div class="psc-stat-group"><span class="psc-stat-val">${g.maxROM}&deg;</span>${trendHTML}<span class="psc-stat-lbl">ROM</span></div>
-            <div class="psc-stat-group"><span class="psc-stat-val"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}</span><span class="psc-stat-lbl">pain</span></div>
-          </div>
-          <span class="psc-chevron">&#x25BE;</span>
-        </div>
-        <div class="psc-body">
-          <div class="psc-detail-row">
-            <div class="psc-detail-item"><span class="psc-detail-label">Exercise</span><span class="psc-detail-val psc-exercise-tag">${exLabel}</span></div>
-            <div class="psc-detail-item"><span class="psc-detail-label">Duration</span><span class="psc-detail-val">${durLabel}</span></div>
-            ${highPain.p > 5 ? `<div class="psc-detail-item psc-pain-flag"><span class="psc-detail-label">Peak Pain</span><span class="psc-detail-val" style="color:var(--danger)">${highPain.p}/10 in Set ${highPain.i}</span></div>` : ''}
-          </div>
-          <div class="psc-sets-header">Per-Set Breakdown</div>
-          <div class="psc-sets-list">${setRows}</div>
-        </div>
-      </div>`;
-  }).join('');
-
-  content.innerHTML = `
-    <div class="stats-row stats-row-4" style="margin-bottom:24px;">
-      <div class="stat-card"><div class="stat-value">${grouped.length}</div><div class="stat-label">Sessions</div></div>
-      <div class="stat-card"><div class="stat-value">${avgROM}&deg;</div><div class="stat-label">Avg ROM</div></div>
-      <div class="stat-card"><div class="stat-value">${bestROM}&deg;</div><div class="stat-label">Best ROM</div></div>
-      <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain</div></div>
-    </div>
-    <div class="chart-card" style="margin-bottom:24px;">
-      <h4>Range of Motion Over Time</h4>
-      <canvas id="patientRomChart" height="160"></canvas>
-    </div>
-    <div class="chart-card" style="margin-bottom:24px;">
-      <h4>Pain Level Over Time</h4>
-      <canvas id="patientPainChart" height="160"></canvas>
-    </div>
-    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Session History</p>
-    <div class="psc-list">${historyHTML}</div>`;
-  const romCfg = buildChartConfig(romData, { type: 'rom', color: '#0B6CB0', fillColor: 'rgba(11,108,176,0.06)' });
-  new Chart(document.getElementById('patientRomChart').getContext('2d'), {
-    type: 'line', data: { labels, datasets: [romCfg.dataset] }, options: romCfg.options
+  const now = Date.now();
+  const msPerDay = 86400000;
+  const last7 = sessions.filter(function(s) {
+    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    return ts && (now - ts.getTime()) <= 7 * msPerDay;
   });
-  const painCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
-  new Chart(document.getElementById('patientPainChart').getContext('2d'), {
-    type: 'line', data: { labels, datasets: [painCfg.dataset] }, options: painCfg.options
+  const prior7 = sessions.filter(function(s) {
+    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    if (!ts) return false;
+    var age = now - ts.getTime();
+    return age > 7 * msPerDay && age <= 14 * msPerDay;
+  });
+
+  const sessionsThisWeek = last7.length;
+
+  var painTrendValue = null;
+  var painTrendClass = '';
+  var painTrendDisplay = '\u2014';
+  if (last7.length && prior7.length) {
+    const avgLast = last7.reduce(function(s, x) { return s + (x.avgPain || 0); }, 0) / last7.length;
+    const avgPrior = prior7.reduce(function(s, x) { return s + (x.avgPain || 0); }, 0) / prior7.length;
+    const diff = avgLast - avgPrior;
+    if (diff < 0) {
+      painTrendDisplay = '\u2193 ' + Math.abs(diff).toFixed(1);
+      painTrendClass = 'improving';
+    } else if (diff > 0) {
+      painTrendDisplay = '\u2191 ' + diff.toFixed(1);
+      painTrendClass = 'worsening';
+    } else {
+      painTrendDisplay = '\u2192 0.0';
+    }
+  }
+
+  const bestROM = sessions.reduce(function(best, s) { return Math.max(best, s.rom || s.maxROM || 0); }, 0);
+
+  const recent = sessions.slice(-10);
+  const romData = recent.map(function(s) { return s.rom || s.maxROM || 0; });
+  const labels = recent.map(function(s) {
+    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    return ts ? ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  });
+
+  content.innerHTML =
+    '<div class="prog-stats-row">' +
+      '<div class="prog-stat-card"><div class="prog-stat-value">' + sessionsThisWeek + '/7</div><div class="prog-stat-label">This week</div></div>' +
+      '<div class="prog-stat-card"><div class="prog-stat-value ' + painTrendClass + '">' + painTrendDisplay + '</div><div class="prog-stat-label">Pain trend</div></div>' +
+      '<div class="prog-stat-card"><div class="prog-stat-value">' + (bestROM ? bestROM + '\u00b0' : '\u2014') + '</div><div class="prog-stat-label">Best ROM</div></div>' +
+    '</div>' +
+    '<div class="prog-chart-card"><canvas id="progRomChart"></canvas></div>' +
+    buildPatientSessionHistory(sessions);
+
+  new Chart(document.getElementById('progRomChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: romData,
+        borderColor: '#0B6CB0',
+        backgroundColor: 'rgba(11,108,176,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointBackgroundColor: '#0B6CB0'
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 11 } } },
+        y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 11 } } }
+      }
+    }
   });
 }
 

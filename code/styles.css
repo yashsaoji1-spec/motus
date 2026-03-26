@@ -1155,47 +1155,58 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .modal-confirm { flex: 1; padding: 10px; background: var(--danger); border: none; border-radius: var(--radius-md); color: white; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.85rem; transition: all 0.15s; }
 .modal-confirm:hover { background: #A51E2A; }
 
-/* ── Progress screen ──────────────────────────────────────────────────────── */
-#progressScreen { flex-direction: column; min-height: 100vh; background: var(--bg); }
-.progress-container { max-width: 700px; margin: 0 auto; padding: var(--space-8) var(--space-6); width: 100%; }
-.progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-7); }
-.progress-title { color: var(--accent); font-size: var(--text-2xl); font-weight: var(--font-extrabold); }
-/* ── Patient Progress — Expandable Session Cards ─────────────────────────── */
-.psc-list { display: flex; flex-direction: column; gap: 8px; }
-.psc-card { background: var(--surface); border-radius: 14px; border: 1px solid var(--border); overflow: hidden; transition: box-shadow 0.2s; }
-.psc-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-.psc-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; user-select: none; }
-.psc-header-left { min-width: 80px; }
-.psc-date { font-size: 0.82rem; font-weight: 700; color: var(--text); }
-.psc-time { font-size: 0.68rem; color: var(--muted); }
-.psc-header-stats { display: flex; align-items: center; gap: 14px; flex: 1; }
-.psc-stat-group { display: flex; flex-direction: column; align-items: center; min-width: 42px; }
-.psc-stat-val { font-size: 1rem; font-weight: 800; color: var(--accent); line-height: 1.2; }
-.psc-stat-lbl { font-size: 0.6rem; color: var(--muted); text-transform: none; letter-spacing: 0; }
-.psc-chevron { font-size: 0.9rem; color: var(--muted); transition: transform 0.25s; margin-left: auto; }
-.psc-card.expanded .psc-chevron { transform: rotate(180deg); }
-.psc-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 16px; }
-.psc-card.expanded .psc-body { max-height: 500px; padding: 0 16px 16px; }
-.psc-detail-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; padding-top: 12px; border-top: 1px solid var(--border-light); }
-.psc-detail-item { display: flex; flex-direction: column; gap: 2px; }
-.psc-detail-label { font-size: 0.6rem; color: var(--muted); text-transform: none; letter-spacing: 0; }
-.psc-detail-val { font-size: 0.82rem; font-weight: 700; color: var(--text); }
-.psc-exercise-tag { color: var(--success); text-transform: none; font-size: 0.72rem; letter-spacing: 0; }
-.psc-pain-flag { background: var(--danger-dim); border-radius: 6px; padding: 4px 8px; }
-.psc-sets-header { font-size: 0.68rem; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 700; margin-bottom: 6px; }
-.psc-sets-list { display: flex; flex-direction: column; gap: 4px; }
-.ses-set-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 6px; background: var(--bg); font-size: 0.78rem; }
-.ses-set-num { font-weight: 700; color: var(--accent); min-width: 40px; font-size: 0.72rem; }
-.ses-set-stat { font-weight: 600; min-width: 50px; }
-.ses-trend { font-size: 0.68rem; font-weight: 700; margin-left: 2px; }
-.ses-trend--up { color: var(--success); }
-.ses-trend--down { color: var(--danger); }
-.ses-trend--flat { color: var(--muted); }
-.stats-row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.stats-row-4 .stat-card { padding: 14px 16px; border-radius: 12px; }
-.stats-row-4 .stat-value { font-size: 1.6rem; }
-.stats-row-4 .stat-label { font-size: 0.68rem; margin-top: 2px; }
-.no-progress-msg { text-align: center; color: var(--placeholder); padding: 60px 20px; font-size: 0.95rem; line-height: 1.8; }
+/* ── Progress Screen ───────────────────────────────────────────────── */
+#progressScreen { flex-direction: column; align-items: center; padding: var(--space-4); }
+.prog-container { width: 100%; max-width: 480px; }
+.prog-header { margin-bottom: var(--space-4); position: relative; }
+.prog-title { font-size: 1.3rem; font-weight: 700; color: var(--text); margin: 0; }
+.prog-back-btn {
+  position: absolute; top: 0; right: 0;
+  background: none; border: 1px solid var(--border);
+  color: var(--muted); padding: 5px 14px;
+  border-radius: var(--radius-md); font-size: 0.78rem;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.prog-back-btn:hover { border-color: var(--muted); color: var(--text); background: var(--surface-alt); }
+.prog-stats-row {
+  display: flex; gap: var(--space-3); overflow-x: auto;
+  margin-bottom: var(--space-4);
+}
+.prog-stat-card {
+  flex: 1; min-width: 120px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4);
+}
+.prog-stat-value { font-size: 1.3rem; font-weight: 700; color: var(--text); }
+.prog-stat-value.improving { color: var(--success); }
+.prog-stat-value.worsening { color: var(--danger); }
+.prog-stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.prog-chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.prog-chart-card canvas { width: 100%; max-height: 200px; }
+.prog-history-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.prog-grid-header {
+  display: grid; grid-template-columns: 100px 1fr 80px 60px;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.75rem; font-weight: 600; color: var(--muted);
+}
+.prog-grid-row {
+  display: grid; grid-template-columns: 100px 1fr 80px 60px;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem; color: var(--text);
+  border-top: 1px solid var(--border);
+}
+.prog-grid-row:nth-child(even) { background: var(--surface-alt); }
+.prog-empty { text-align: center; padding: var(--space-8) 0; color: var(--muted); }
+.prog-empty-icon { margin-bottom: var(--space-3); }
+.prog-empty p { font-size: 0.9rem; }
 
 /* ── Rep dots / speed warning / streak ───────────────────────────────────── */
 .rep-dot {
@@ -1785,12 +1796,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* Admin */
 .admin-container { padding: 20px 16px; }
 
-/* Progress */
-.progress-container { padding: 20px 16px; }
-.ph-exercise { font-size: 0.78rem; }
-.ph-time { min-width: 60px; font-size: 0.72rem; }
-.ph-stat { min-width: 42px; font-size: 0.75rem; }
-
 /* Therapist dashboard — mobile: stacked, sidebar takes full width */
 #therapistScreen { flex-direction: column; height: 100vh; overflow: hidden; }
 .sidebar { width: 100%; border-right: none; border-bottom: none; padding: 0; flex: 1; overflow-y: auto; }
@@ -1855,8 +1860,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   /* Admin */
   .admin-container { padding: var(--space-8) var(--space-6); }
 
-  /* Progress */
-  .progress-container { padding: var(--space-8) var(--space-6); }
   /* Stats */
   .stats-row { grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .stat-card-full { grid-column: span 3; }
