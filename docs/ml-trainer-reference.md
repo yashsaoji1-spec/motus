@@ -12,8 +12,6 @@ let _mlCurrentHand = null;          // 'left' | 'right' | null — set each fram
 let _mlFeatureExtractor = null;     // MobileNetV1 α=0.25 instance (loaded once)
 let _currentFrameFeatures = null;   // 256-dim feature vector, updated async each frame
 let _currentHandLabel = null;       // set by mlOnResults, sweepOnResults, patient onResults
-const _mlFingerConfig = { thumb: true, index: true, middle: true, ring: true, pinky: true };
-const _ML_FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
 let _mlSuggestedAngle = null;       // emptiest histogram bucket midpoint
 
 // Recording mode
@@ -137,10 +135,5 @@ Classification: largest absolute component of the palm normal vector wins. Y-axi
 | `mlRenderGrid(grid)` | Renders 6×8 coverage grid with fill bars; gold = emptiest cell; sets `_mlSuggestedAngle` |
 | `mlToggleStats()` / `mlToggleModels()` | Collapse/expand with `scrollIntoView` on expand |
 | `mlSaveNotes()` | Saves textarea value to `localStorage('ml_session_notes')` |
-| `mlToggleFinger(name)` / `mlSetFingerPreset(preset)` | Toggle finger active state in `_mlFingerConfig`; presets: `all-up`, `all-down`, `random` |
-
-### Finger Config Panel
-
-Five toggle buttons (T / I / M / R / P) + three presets. Purely a workflow reminder — the 63-landmark input already captures all finger positions continuously. The panel helps the therapist systematically collect samples across diverse finger configurations so the model generalizes.
 
 ---

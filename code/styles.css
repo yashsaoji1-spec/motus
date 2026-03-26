@@ -2038,69 +2038,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .ml-notes::placeholder { color: var(--muted); }
 .ml-notes:focus { outline: none; border-color: var(--accent); }
 
-.ml-finger-config {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.ml-config-label {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.55rem;
-  color: var(--muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.ml-finger-btns {
-  display: flex;
-  gap: 6px;
-}
-
-.ml-finger-btn {
-  flex: 1;
-  padding: 8px 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-family: 'Space Mono', monospace;
-  font-size: 0.7rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.ml-finger-btn.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.ml-finger-presets {
-  display: flex;
-  gap: 6px;
-}
-
-.ml-preset-btn {
-  flex: 1;
-  padding: 4px 0;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  font-family: 'Space Mono', monospace;
-  font-size: 0.5rem;
-  color: var(--muted);
-  cursor: pointer;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-.ml-preset-btn:hover { border-color: var(--accent); color: var(--accent); }
-
 .ml-hand-label {
   font-family: 'Space Mono', monospace;
   font-size: 0.62rem;

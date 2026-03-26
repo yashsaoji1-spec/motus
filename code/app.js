@@ -4109,29 +4109,6 @@ function mlOnResults(results) {
   }
 }
 
-// ── Finger config ──────────────────────────────────────────────────────────
-const _mlFingerConfig = { thumb: true, index: true, middle: true, ring: true, pinky: true };
-const _ML_FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
-
-function mlToggleFinger(name) {
-  _mlFingerConfig[name] = !_mlFingerConfig[name];
-  const btn = document.getElementById(`mlFinger-${name}`);
-  if (btn) btn.classList.toggle('active', _mlFingerConfig[name]);
-}
-
-function mlSetFingerPreset(preset) {
-  if (preset === 'all') {
-    _ML_FINGERS.forEach(f => { _mlFingerConfig[f] = true; });
-  } else if (preset === 'none') {
-    _ML_FINGERS.forEach(f => { _mlFingerConfig[f] = false; });
-  } else {
-    _ML_FINGERS.forEach(f => { _mlFingerConfig[f] = Math.random() > 0.5; });
-  }
-  _ML_FINGERS.forEach(f => {
-    const btn = document.getElementById(`mlFinger-${f}`);
-    if (btn) btn.classList.toggle('active', _mlFingerConfig[f]);
-  });
-}
 
 // ── mlSaveNotes ────────────────────────────────────────────────────────────
 function mlSaveNotes() {
@@ -4188,8 +4165,7 @@ async function submitMLSample() {
     const chunkIdx = Math.floor(total / 50);
     const chunkId  = `${joint}_chunk_${chunkIdx}`;
     const notes       = document.getElementById('mlSessionNotes')?.value?.trim() || '';
-    const fingerConfig = _ML_FINGERS.filter(f => _mlFingerConfig[f]).join(',');
-    const sample      = { landmarks, trueAngle, recordedAt: new Date().toISOString(), recordedBy: currentUser?.email || '', notes, fingerConfig, ...(_currentFrameFeatures ? { imageFeatures: _currentFrameFeatures } : {}) };
+    const sample      = { landmarks, trueAngle, recordedAt: new Date().toISOString(), recordedBy: currentUser?.email || '', notes, ...(_currentFrameFeatures ? { imageFeatures: _currentFrameFeatures } : {}) };
 
     const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
     const orient    = mlClassifyOrientation(lmSnapshot);
@@ -4233,13 +4209,12 @@ async function mlAutoCapture() {
   const lmSnapshot   = _mlCurrentLandmarks.slice();
   const landmarks    = lmSnapshot.flatMap(lm => [lm.x, lm.y, lm.z || 0]);
   const notes        = document.getElementById('mlSessionNotes')?.value?.trim() || '';
-  const fingerConfig = _ML_FINGERS.filter(f => _mlFingerConfig[f]).join(',');
   const sample       = {
     landmarks, trueAngle,
     recordedAt:  new Date().toISOString(),
     recordedBy:  currentUser?.email || '',
     recordingId: _mlRecordingId,
-    notes, fingerConfig,
+    notes,
     ...(_currentFrameFeatures ? { imageFeatures: _currentFrameFeatures } : {}),
   };
 
@@ -4787,7 +4762,7 @@ Object.assign(window, {
   sweepStartCapture, sweepResetJoint,
 
   // ML Trainer
-  startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlSaveNotes, mlToggleFinger, mlSetFingerPreset,
+  startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlSaveNotes,
   submitMLSample, trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint, mlSetHand,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
