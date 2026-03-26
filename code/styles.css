@@ -474,8 +474,11 @@ body {
 
 /* ── Camera screen ────────────────────────────────────────────────────────── */
 #cameraScreen {
-  flex-direction: column; align-items: center;
-  height: 100vh; padding: var(--space-4); gap: var(--space-3);
+  flex-direction: column;
+  align-items: center;
+  height: 100vh;
+  padding: var(--space-3);
+  gap: var(--space-3);
   overflow: hidden;
 }
 .patient-header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 640px; }
@@ -601,30 +604,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   color: var(--accent); box-shadow: 0 2px 8px var(--accent-glow);
 }
 
-/* ── Camera (redesigned layout) ──────────────────────────────────────────── */
-.cam-header {
-  width: 100%; max-width: var(--max-content);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: var(--space-2) 0; flex-shrink: 0;
-}
-.cam-header-info { display: flex; flex-direction: column; gap: 2px; }
-.cam-exercise-name { font-size: 1.1rem; font-weight: 700; color: var(--text); }
-.cam-set-label { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
-.cam-back-btn {
-  padding: 5px 14px;
-  background: none; border: 1px solid var(--border);
-  border-radius: var(--radius-md); color: var(--muted);
-  font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit;
-  transition: all 0.15s;
-}
-.cam-back-btn:hover { border-color: var(--muted); color: var(--text); background: var(--surface-alt); }
+/* ── Camera HUD + Control Card ─────────────────────────────────────── */
 .cam-viewport {
-  width: 100%; max-width: var(--max-content);
-  position: relative; border-radius: var(--radius-xl);
-  overflow: hidden; background: #000;
+  width: 100%;
+  max-width: 720px;
+  position: relative;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: #000;
   border: 2px solid var(--border);
   box-shadow: var(--shadow-md);
-  flex: 1; min-height: 0;
+  flex: 1;
+  min-height: 0;
   aspect-ratio: 16/9;
 }
 .cam-viewport video { object-fit: contain; }
@@ -632,36 +623,54 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   position: absolute; width: 100%; height: 100%;
   transform: scaleX(-1);
 }
-.cam-flip-btn {
+.cam-hud-back {
   position: absolute; top: var(--space-3); left: var(--space-3);
+  z-index: 15; padding: 5px 14px;
+  background: rgba(0,0,0,0.5); border: none;
+  border-radius: var(--radius-md); color: rgba(255,255,255,0.7);
+  font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  font-family: inherit; backdrop-filter: blur(4px);
+  transition: background 0.2s;
+}
+.cam-hud-back:hover { background: rgba(0,0,0,0.7); color: #fff; }
+.cam-flip-btn {
+  position: absolute; top: var(--space-3); right: var(--space-3);
   z-index: 15; width: 40px; height: 40px;
   background: rgba(0,0,0,0.5); border: none; border-radius: var(--radius-full);
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(4px); transition: background 0.2s;
 }
 .cam-flip-btn:hover { background: rgba(0,0,0,0.7); }
-.cam-controls {
-  width: 100%; max-width: var(--max-content);
-  display: flex; flex-direction: column; gap: var(--space-2);
-  flex-shrink: 0;
+.cam-hud-sets {
+  position: absolute; bottom: 12px; left: 12px;
+  z-index: 10; display: flex; gap: 6px;
 }
+.cam-ctrl-card {
+  width: 100%; max-width: 720px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  display: flex; flex-direction: column;
+  gap: var(--space-2); flex-shrink: 0;
+}
+.cam-ctrl-header {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.cam-exercise-name { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.cam-set-label { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
 .cam-feedback {
   text-align: center; font-size: 0.9rem; font-weight: 600;
   color: var(--accent); height: 1.4rem; line-height: 1.4rem;
-  padding: 0; overflow: hidden; white-space: nowrap;
-  text-overflow: ellipsis; transition: opacity 0.12s ease;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  transition: opacity 0.12s ease;
 }
 .cam-pain-strip {
   display: flex; align-items: center; gap: var(--space-3);
-  padding: var(--space-2) 0;
 }
-.cam-pain-label {
-  font-size: 0.82rem; font-weight: 600; color: var(--muted); flex-shrink: 0;
-}
-.cam-pain-value {
-  font-size: 0.82rem; font-weight: 600; color: var(--text);
-  flex-shrink: 0; min-width: 44px; text-align: right;
-}
+.cam-pain-label { font-size: 0.82rem; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+.cam-pain-value { font-size: 0.82rem; font-weight: 600; color: var(--text); flex-shrink: 0; min-width: 44px; text-align: right; }
 .cam-pain-strip input[type="range"] { flex: 1; }
 .cam-end-btn {
   width: 100%; padding: var(--space-3);
@@ -1752,19 +1761,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .patient-nav-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
 
 /* Camera */
-#cameraScreen { padding: 10px; gap: 6px; padding-top: 10px; }
-.camera-box { width: 100%; height: auto; aspect-ratio: 16/9; }
-.camera-box video, .camera-box canvas { width: 100%; height: 100%; }
-.cam-viewport { border-radius: var(--radius-lg); }
-.cam-header, .cam-controls { max-width: 100%; }
-.cam-header { padding: var(--space-1) 0; }
-.cam-exercise-name { font-size: 0.95rem; }
-.cam-controls { gap: 4px; }
-.cam-controls .set-tracker { margin-bottom: 4px; gap: 5px; }
-.cam-controls .set-dot { height: 22px; min-height: 22px; border-radius: 8px; font-size: 0.65rem; }
-.cam-controls .progress-bar-track { height: 6px; }
-.cam-pain-strip { padding: 2px 0; }
-.cam-end-btn { padding: 8px; min-height: 38px; font-size: 0.85rem; }
+  #cameraScreen { padding: 0; gap: 0; }
+  .cam-viewport {
+    border-radius: 0; border-left: none; border-right: none;
+    aspect-ratio: auto; flex: 1;
+  }
+  .cam-ctrl-card {
+    border-radius: 0; border-left: none; border-right: none;
+    padding: var(--space-3);
+  }
 .progress-section, .pain-section, .assigned-protocol, .end-session-btn, .patient-header { width: 100%; }
 
 /* Exercises */
@@ -1823,7 +1828,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* Touch targets — minimum 44px height for all interactive elements */
 .patient-nav-card { min-height: 44px; }
 .set-dot { min-height: 36px; }
-.cam-back-btn { min-height: 44px; }
 .cam-end-btn { min-height: 44px; }
 
 /* ── Tablet (≥ 640px) ───────────────────────────────────────────────────── */
@@ -1837,19 +1841,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .patient-display-name { font-size: 1.6rem; }
   .patient-hero-btn { font-size: 1.1rem; padding: 14px 20px; }
 
-  /* Camera — restore compact overrides from base */
-  #cameraScreen { padding: var(--space-4); gap: var(--space-3); padding-top: var(--space-4); }
-  .cam-viewport { border-radius: var(--radius-xl); }
-  .cam-header { padding: var(--space-2) 0; }
-  .cam-header, .cam-controls { max-width: var(--max-content); }
-  .cam-controls { gap: var(--space-2); }
-  .cam-controls .set-tracker { margin-bottom: 8px; gap: 8px; }
-  .cam-controls .set-dot { height: 28px; min-height: 28px; border-radius: 10px; font-size: 0.7rem; }
-  .cam-controls .progress-bar-track { height: 6px; }
-  .cam-pain-strip { padding: var(--space-2) 0; }
+  /* Camera — restore layout for tablet+ */
+  #cameraScreen { padding: var(--space-3); gap: var(--space-3); }
+  .cam-viewport { border-radius: var(--radius-xl); border-left: 2px solid var(--border); border-right: 2px solid var(--border); aspect-ratio: 16/9; }
+  .cam-ctrl-card { border-radius: var(--radius-lg); border: 1px solid var(--border); padding: var(--space-4); }
   .cam-end-btn { padding: var(--space-3); min-height: 44px; font-size: 0.9rem; }
-  .cam-exercise-name { font-size: 1.1rem; }
-  .camera-box { width: 640px; height: 480px; }
 
   /* Exercises */
   .exs-container { padding: var(--space-8) var(--space-6); }
