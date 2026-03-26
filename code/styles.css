@@ -1223,36 +1223,35 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* ── Rest Timer Overlay ─────────────────────────────────────────────────── */
 .rest-timer-overlay {
-  position: absolute; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(8px);
-  border-radius: 16px; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 20; gap: 10px;
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
+  border-radius: var(--radius-xl);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 20; gap: var(--space-3);
 }
 .rest-timer-label {
-  color: rgba(255,255,255,0.45); font-size: 0.78rem; text-transform: none;
-  letter-spacing: 0; font-weight: 600;
+  color: rgba(255,255,255,0.5); font-size: 0.9rem; font-weight: 600;
 }
 .rest-timer-count {
-  font-size: 5rem; font-weight: 900; line-height: 1;
-  font-family: 'DM Mono', monospace;
-  background: var(--gradient-text);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  animation: timerPulse 1s ease-in-out infinite;
+  font-size: 3rem; font-weight: 900; color: #fff;
 }
 @keyframes timerPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.03); }
 }
-.rest-timer-sub { color: rgba(255,255,255,0.35); font-size: 0.85rem; }
+.rest-timer-sub {
+  color: rgba(255,255,255,0.4); font-size: 0.82rem;
+}
 .rest-timer-bar {
-  width: 220px; height: 6px; background: rgba(255,255,255,0.1);
-  border-radius: 99px; overflow: hidden; margin-top: 4px;
+  width: 200px; height: 4px;
+  background: rgba(255,255,255,0.15); border-radius: 99px; overflow: hidden;
 }
 .rest-timer-fill {
-  height: 100%; border-radius: 99px; width: 100%;
-  background: linear-gradient(90deg, var(--accent), #1a8fcb);
-  transition: width 1s linear;
+  height: 100%; background: var(--accent);
+  border-radius: 99px; transition: width 1s linear;
 }
-.rest-skip-btn { margin-top: 12px; }
+.rest-skip-btn { margin-top: var(--space-2); }
 
 /* Rep feedback HUD — live angle readout below camera */
 .rep-feedback {
@@ -2037,4 +2036,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   #congratsOverlay .reset-btn {
     width: 100%; padding: var(--space-4);
   }
+
+  .rest-timer-overlay {
+    position: fixed; inset: 0;
+    border-radius: 0; background: var(--bg);
+    z-index: 100;
+  }
+  .rest-timer-label { color: var(--muted); }
+  .rest-timer-count { font-size: 4rem; color: var(--text); }
+  .rest-timer-sub { color: var(--muted); }
+  .rest-timer-bar { width: 100%; max-width: 300px; background: var(--border); }
+  .rest-skip-btn { width: 100%; max-width: 300px; }
 }
