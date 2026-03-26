@@ -520,7 +520,8 @@ body {
 #congratsOverlay {
   display: none; position: absolute; inset: 0;
   background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
-  border-radius: 16px; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: var(--radius-xl); flex-direction: column;
+  align-items: center; justify-content: center;
   z-index: 20; gap: 14px;
 }
 #congratsOverlay.show {
@@ -689,8 +690,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .congrats-reps-text { color: rgba(255,255,255,0.55); font-size: 0.9rem; }
 .congrats-all-sets { display: none; font-size: 1rem; font-weight: 700; color: var(--success); }
 .congrats-pain-prompt { color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-top: var(--space-2); }
-.congrats-pain-slider { width: 200px; }
+.congrats-pain-slider { width: 200px; accent-color: var(--accent); }
 .congrats-pain-value { color: rgba(255,255,255,0.7); font-size: 0.9rem; font-weight: 600; }
+
+@keyframes congratsMobileIn {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* ── Therapist screen ─────────────────────────────────────────────────────── */
 #therapistScreen { flex-direction: row; height: 100vh; overflow: hidden; }
@@ -2006,3 +2012,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .therapist-msg-send { position: absolute; right: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--accent); color: white; border: none; border-radius: 50%; cursor: pointer; transition: background 150ms ease; }
 .therapist-msg-send:hover { background: var(--accent-hover); }
+
+/* ── Mobile responsive overlays ─────────────────────────────────────────── */
+@media (max-width: 767px) {
+  #congratsOverlay {
+    position: fixed; inset: 0;
+    border-radius: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+  #congratsOverlay.show {
+    animation: congratsMobileIn 0.3s ease-out;
+  }
+  #congratsOverlay h2 {
+    font-size: 2rem;
+    background: none; -webkit-background-clip: unset;
+    -webkit-text-fill-color: var(--accent); color: var(--accent);
+  }
+  #congratsOverlay p { color: var(--muted); }
+  #congratsOverlay strong { color: var(--text); }
+  .congrats-pain-prompt { color: var(--muted); }
+  .congrats-pain-slider { width: 100%; }
+  .congrats-pain-value { color: var(--text); }
+  #congratsOverlay .reset-btn {
+    width: 100%; padding: var(--space-4);
+  }
+}
