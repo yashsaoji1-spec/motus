@@ -214,20 +214,14 @@
      CAMERA SCREEN  (patient session)
 ═══════════════════════════════════════════════════════ -->
 <div id="cameraScreen" class="screen">
-  <div class="cam-header">
-    <div class="cam-header-info">
-      <span class="cam-exercise-name" id="camExerciseName">Session</span>
-      <span class="cam-set-label" id="camSetLabel">Set 1 of 3</span>
-    </div>
-    <button class="cam-back-btn" onclick="showScreen('patientScreen')">Back</button>
-  </div>
-
   <div class="cam-viewport">
     <video id="patientVideo" autoplay playsinline muted></video>
     <canvas id="patientCanvas"></canvas>
+    <button class="cam-hud-back" onclick="showScreen('patientScreen')">← Back</button>
     <button id="flipCameraBtn" class="cam-flip-btn" onclick="flipCamera()" style="display:none;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-5 11.5V14H9v2.5L5.5 13 9 9.5V12h6V9.5l3.5 3.5-3.5 3.5z"/></svg>
     </button>
+    <div class="cam-hud-sets" id="setTracker"></div>
     <div class="rep-overlay">
       <div class="rep-count-row">
         <span class="rep-number" id="repDisplay">0</span>
@@ -256,9 +250,12 @@
     </div>
   </div>
 
-  <div class="cam-controls">
+  <div class="cam-ctrl-card">
+    <div class="cam-ctrl-header">
+      <span class="cam-exercise-name" id="camExerciseName">Session</span>
+      <span class="cam-set-label" id="camSetLabel">Set 1 of 3</span>
+    </div>
     <div id="repFeedback" class="cam-feedback"></div>
-    <div class="set-tracker" id="setTracker"></div>
     <div class="progress-bar-track">
       <div class="progress-bar-fill" id="progressFill"></div>
     </div>
