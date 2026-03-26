@@ -2105,7 +2105,10 @@ function buildPatientSessionHistory(sessions) {
 }
 
 async function renderProgressScreen() {
-  const sessions = window.patientSessions || [];
+  var sessions = [];
+  if (currentUser && currentUser.email) {
+    sessions = await getPatientSessions(currentUser.email);
+  }
   const content = document.getElementById('progressContent');
 
   if (!sessions.length) {
