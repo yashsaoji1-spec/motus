@@ -1932,7 +1932,7 @@ function startCamera() {
   try {
     hands = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
   } catch(e) {
-    alert('Hands init error: ' + e.message);
+    showCalError('Hand tracking unavailable');
     return;
   }
   hands.setOptions({ maxNumHands: 1, modelComplexity: isMobile() ? 0 : 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
