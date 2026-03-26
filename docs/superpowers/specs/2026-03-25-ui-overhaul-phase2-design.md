@@ -72,7 +72,7 @@ Enhances the existing `#congratsOverlay` element (index.html line 238) and its e
 - Background: `rgba(0,0,0,0.88)`, `backdrop-filter: blur(8px)`.
 - Animate in: scale(0.9→1) + opacity(0→1), 350ms ease-out.
 - Content (centered, stacked, `gap: 14px`):
-  - "Great work!" — `font-size: 2.2rem`, `font-weight: 900`, gradient text (`var(--gradient-text)`).
+  - "Great work!" — `font-size: 2.2rem`, `font-weight: 900`, gradient text (`background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text`).
   - "Set X of Y complete!" — `rgba(255,255,255,0.65)`, `0.95rem`.
   - "Z reps completed" — `rgba(255,255,255,0.55)`, `0.9rem`.
   - "All sets complete for today!" — `var(--success)`, shown only on final set.
@@ -248,8 +248,8 @@ Stats shown:
 - Fixed bottom: `var(--surface)` bg, `border-top: 1px solid var(--border)`, `padding: var(--space-3)`.
 - Input field: `flex: 1`, `var(--surface-alt)` bg, `1px solid var(--border)`, `border-radius: var(--radius-full)`, `padding: var(--space-2) var(--space-3)`, `font-size: 0.9rem`.
 - Send button: replaces the existing text "Send" button (`.msg-send-btn`) with a circular icon button. Requires HTML change: replace `<button class="msg-send-btn">Send</button>` with `<button class="msg-send-btn" ...>` containing an SVG arrow-up icon. Size: `40px × 40px`, `border-radius: var(--radius-full)`.
-  - Active (text present): `var(--accent)` bg, white arrow icon. Enabled.
-  - Inactive (empty input): `var(--surface-alt)` bg, `var(--muted)` arrow. `pointer-events: none`.
+  - Active (text present): `var(--accent)` bg, white arrow icon. `disabled` attribute removed.
+  - Inactive (empty input): `var(--surface-alt)` bg, `var(--muted)` arrow. `disabled` attribute set (blocks both mouse and keyboard activation).
   - Toggle logic: add `input` event listener on the text field to toggle `.msg-send-btn--active` class.
 - `gap: var(--space-2)` between input and button.
 
