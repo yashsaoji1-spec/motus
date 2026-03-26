@@ -233,7 +233,7 @@ Find the existing camera mobile overrides at lines 1754–1768 and replace with:
 
 - [ ] **Step 4: Remove stale camera CSS**
 
-Remove the old `.cam-header`, `.cam-header-info`, `.cam-back-btn` rules (they were at lines 605–620) since those elements no longer exist.
+Remove the old `.cam-header`, `.cam-header-info`, `.cam-back-btn`, and old `.cam-flip-btn` rules from the replaced block (lines 605–642). These were all replaced wholesale in Step 2. If any of these rules survive outside the replaced block, delete them too — grep for `.cam-header` and `.cam-flip-btn` to confirm no duplicates remain.
 
 - [ ] **Step 5: Verify in browser**
 
@@ -305,14 +305,13 @@ git commit -m "Position set tracker dots in camera HUD overlay"
 Restyle the existing congrats overlay CSS. Desktop stays in-viewport. Mobile becomes full-screen takeover.
 
 **Files:**
-- Modify: `code/styles.css:517-537` (existing `#congratsOverlay`)
-- Modify: `code/styles.css:676-680` (`.congrats-*` children)
+- Modify: `code/styles.css` — search for `#congratsOverlay` rules (near line 517) and `.congrats-*` child rules (search for `.congrats-reps-text`, `.congrats-all-sets`, `.congrats-pain-*`)
 
 **Spec reference:** §3 (Congrats Overlay)
 
 - [ ] **Step 1: Update desktop congrats styles**
 
-Replace the `#congratsOverlay` and `#congratsOverlay.show` rules at lines 517–530 and the children at 531–537 and 676–680. Preserve all existing structure. Desktop styles remain in-viewport:
+Find and replace all `#congratsOverlay` rules and `.congrats-*` child rules. Search for these selectors — do not rely on line numbers as they shift with earlier tasks. Preserve all existing HTML structure. Desktop styles remain in-viewport:
 
 ```css
 #congratsOverlay {
@@ -346,7 +345,16 @@ Replace the `#congratsOverlay` and `#congratsOverlay.show` rules at lines 517–
 
 - [ ] **Step 2: Add mobile full-screen congrats**
 
-Add a media query for mobile congrats takeover:
+Add a `@keyframes` declaration at the top level (outside any media query, matching the existing codebase convention where all keyframes are declared at the top level):
+
+```css
+@keyframes congratsMobileIn {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+```
+
+Then add the mobile media query:
 
 ```css
 @media (max-width: 767px) {
@@ -358,10 +366,6 @@ Add a media query for mobile congrats takeover:
   }
   #congratsOverlay.show {
     animation: congratsMobileIn 0.3s ease-out;
-  }
-  @keyframes congratsMobileIn {
-    from { opacity: 0; transform: translateY(40px); }
-    to   { opacity: 1; transform: translateY(0); }
   }
   #congratsOverlay h2 {
     font-size: 2rem;
@@ -827,13 +831,13 @@ Replace the `.exs-*` block at lines 831–907 with new `.ex-*` styles:
 
 - [ ] **Step 3: Rewrite `showExercisesScreen()` in JS**
 
-Replace the existing `showExercisesScreen()` function (app.js:827-881) to build the new card layout. Each card calls `showExerciseDetail(protocol)` on click. Use `textContent` for user-facing data; build structural HTML via string concatenation (matching existing codebase pattern). Protocol data comes from `window.patientProtocols`.
+Replace the existing `showExercisesScreen()` function (app.js:827-881) to build the new card layout. **Important:** The existing function renders cards with `onclick="startSessionWithProtocol(...)"` which starts a session directly. This must be replaced with `onclick` calling `showExerciseDetail(protocol)` to show the bottom sheet first (spec §5). Remove all direct `startSessionWithProtocol` onclick handlers from exercise cards. The existing `_exercisesProtocols` array pattern can be preserved to pass protocol objects to the bottom sheet.
 
 The function should:
 1. Call `showScreen('exercisesScreen')`
 2. Get protocols from `window.patientProtocols || []`
 3. Set subtitle text with count
-4. For each protocol, build an `.ex-card` div with name, rx, completion status, and chevron
+4. For each protocol, build an `.ex-card` div with name, rx, completion status, and chevron — onclick opens the bottom sheet via `showExerciseDetail()`
 5. Handle empty state with clipboard icon and message
 
 - [ ] **Step 4: Verify in browser**
@@ -1015,7 +1019,7 @@ Replace lines 323–336 in `index.html`:
   <div class="msg-container">
     <div class="msg-header">
       <button class="msg-back-btn" onclick="showScreen('patientScreen')">←</button>
-      <span class="msg-header-name" id="msgHeaderName">Therapist</span>
+      <span class="msg-header-name" id="msgHeaderTitle">Therapist</span>
     </div>
     <div class="msg-thread" id="msgThread"></div>
     <div class="msg-input-row">
