@@ -645,6 +645,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   position: absolute; bottom: 12px; left: 12px;
   z-index: 10; display: flex; gap: 6px;
 }
+.cam-hud-sets .set-dot {
+  width: 28px; height: 28px; min-width: 28px;
+  flex: none;
+}
 .cam-ctrl-card {
   width: 100%; max-width: 720px;
   background: var(--surface);
