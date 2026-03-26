@@ -826,20 +826,25 @@ async function loadPatientProtocol() {
 }
 
 async function showExercisesScreen() {
+  showScreen('exercisesScreen');
   const [protocols, allSessions] = currentUser
     ? await Promise.all([getProtocols(currentUser.email), getPatientSessions(currentUser.email)])
     : [[], []];
   const inner = document.getElementById('exercisesScreenInner');
+  const subtitle = document.getElementById('exSubtitle');
   if (!inner) return;
 
   if (protocols.length === 0) {
+    if (subtitle) subtitle.textContent = '';
     inner.innerHTML = `
-      <div class="exs-empty">
-        <div class="exs-empty-icon"></div>
-        <p class="exs-empty-title">No protocol yet</p>
-        <p class="exs-empty-sub">Your therapist has not assigned any exercises for you.</p>
+      <div class="ex-empty">
+        <div class="ex-empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.35">
+            <rect x="9" y="2" width="6" height="4" rx="1"/><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" y1="11" x2="14" y2="11"/>
+          </svg>
+        </div>
+        <p>No exercises yet</p>
       </div>`;
-    showScreen('exercisesScreen');
     return;
   }
 
@@ -852,47 +857,31 @@ async function showExercisesScreen() {
 
   _exercisesProtocols = protocols;
 
-  const EXS_COLLAPSED_MAX = 3;
+  if (subtitle) subtitle.textContent = `${protocols.length} exercise${protocols.length !== 1 ? 's' : ''} assigned`;
+
   const cards = protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
-    const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
-    const badge = isDone ? '<span class="exs-row-badge done">Done</span>'
-      : doneSets > 0 ? `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
-    return `<div class="exs-row ${statusCls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
-      <div class="exs-row-left">
-        <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
-        <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
+    const isPartial = !isDone && doneSets > 0;
+    const statusIndicator = isDone
+      ? `<div class="ex-status-done"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>`
+      : isPartial
+        ? `<span class="ex-status-pill in-progress">${doneSets}/${totalSetsNeeded}</span>`
+        : '';
+    return `<div class="ex-card" onclick="showExerciseDetail(_exercisesProtocols[${i}])">
+      <div class="ex-card-left">
+        <span class="ex-card-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+        <span class="ex-card-rx">${p.sets} sets × ${p.reps} reps</span>
       </div>
-      <div class="exs-row-right">
-        ${badge}
-        <span class="exs-row-sets">${totalSetsNeeded} sets</span>
-        <svg class="exs-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      <div class="ex-card-right">
+        ${statusIndicator}
+        <span class="ex-chevron">›</span>
       </div>
     </div>`;
   });
-  const showToggle = protocols.length > EXS_COLLAPSED_MAX;
-  inner.innerHTML = `<div class="exs-list" id="exsList">
-    ${cards.map((c, i) => i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
-  </div>
-  ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">Show all ${protocols.length} exercises</button>` : ''}`;
 
-  showScreen('exercisesScreen');
-}
-
-function toggleExerciseList() {
-  const list = document.getElementById('exsList');
-  const btn = document.querySelector('.exs-toggle-btn');
-  if (!list || !btn) return;
-  const hidden = list.querySelectorAll('.exs-hidden');
-  if (hidden.length) {
-    hidden.forEach(el => el.classList.remove('exs-hidden'));
-    btn.textContent = 'Show less';
-  } else {
-    list.querySelectorAll('.exs-row').forEach((el, i) => { if (i >= 3) el.classList.add('exs-hidden'); });
-    btn.textContent = `Show all ${list.querySelectorAll('.exs-row').length} exercises`;
-  }
+  inner.innerHTML = cards.join('');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3390,7 +3379,7 @@ Object.assign(window, {
   ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
 
   // Session history
-  shLoadMore, toggleShExpand, toggleExerciseList,
+  shLoadMore, toggleShExpand,
 
   // Exposed array for exercises screen start buttons
   get _exercisesProtocols() { return _exercisesProtocols; },

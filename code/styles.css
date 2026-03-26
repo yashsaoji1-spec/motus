@@ -882,82 +882,48 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .proto-require-note { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(0,94,184,0.15); }
 /* .session-exercise-label removed — replaced by .sh-exercise in table layout */
 
-/* ── My Exercises screen (exs-*) ────────────────────────────────────────── */
-#exercisesScreen { background: var(--bg); flex-direction: column; min-height: 100vh; }
-.exs-container {
-  max-width: var(--max-content); margin: 0 auto;
-  padding: var(--space-8) var(--space-6); width: 100%;
+/* ── My Exercises ──────────────────────────────────────────────────── */
+#exercisesScreen { flex-direction: column; align-items: center; padding: var(--space-4); }
+.ex-container { width: 100%; max-width: 480px; }
+.ex-header { margin-bottom: var(--space-4); position: relative; }
+.ex-title { font-size: 1.3rem; font-weight: 700; color: var(--text); margin: 0; }
+.ex-subtitle { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+.ex-back-btn {
+  position: absolute; top: 0; right: 0;
+  background: none; border: 1px solid var(--border);
+  color: var(--muted); padding: 5px 14px;
+  border-radius: var(--radius-md); font-size: 0.78rem;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
 }
-.exs-header {
+.ex-back-btn:hover { border-color: var(--muted); color: var(--text); background: var(--surface-alt); }
+.ex-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.ex-card {
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: var(--space-7);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: var(--space-4);
+  cursor: pointer; transition: all 0.15s;
 }
-.exs-title {
-  font-size: var(--text-2xl); font-weight: var(--font-extrabold);
-  background: var(--gradient-cta); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  letter-spacing: -0.3px;
+.ex-card:hover { border-color: var(--accent); background: var(--surface-alt); }
+.ex-card-left { display: flex; flex-direction: column; gap: 2px; }
+.ex-card-name { font-size: 1rem; font-weight: 600; color: var(--text); }
+.ex-card-rx { font-size: 0.82rem; color: var(--muted); }
+.ex-card-right { display: flex; align-items: center; gap: var(--space-2); }
+.ex-status-pill {
+  font-size: 0.72rem; font-weight: 600; padding: 3px 8px;
+  border-radius: var(--radius-full);
 }
-/* Exercise compact rows */
-.exs-list { display: flex; flex-direction: column; gap: 6px; }
-.exs-row {
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 14px 16px; cursor: pointer; transition: all 0.2s; position: relative;
-  overflow: hidden;
+.ex-status-pill.in-progress { background: var(--accent-dim); color: var(--accent); }
+.ex-status-done {
+  width: 24px; height: 24px; border-radius: var(--radius-full);
+  background: var(--success); display: flex;
+  align-items: center; justify-content: center;
 }
-.exs-row::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--gradient-cta);
-}
-.exs-row.exs-status-done::before { background: var(--success); }
-.exs-row.exs-status-partial::before { background: var(--gold); }
-.exs-row.exs-status-done { opacity: 0.6; }
-.exs-row:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(11,108,176,0.06); }
-.exs-row.exs-hidden { display: none; }
-.exs-row-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.exs-row-name { font-size: 0.95rem; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.exs-row-meta { font-size: 0.78rem; color: var(--muted); }
-.exs-row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.exs-row-sets { font-size: 0.78rem; font-weight: 600; color: var(--muted); background: var(--surface-alt); padding: 3px 10px; border-radius: 20px; }
-.exs-row-badge { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-.exs-row-badge.done { background: rgba(16,185,129,0.1); color: var(--success); }
-.exs-row-badge.partial { background: var(--gold-dim); color: var(--gold); }
-.exs-row-arrow { color: var(--muted); flex-shrink: 0; }
-.exs-toggle-btn {
-  display: block; width: 100%; margin-top: 8px; padding: 10px;
-  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-md);
-  color: var(--accent); font-size: 0.82rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; transition: all 0.2s;
-}
-.exs-toggle-btn:hover { background: var(--surface); border-color: var(--accent); }
-.exs-section-card { background: var(--surface); border-radius: 14px; padding: 20px; margin-bottom: 14px; }
-.exs-section-title { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: none; letter-spacing: 0; margin-bottom: 14px; }
-.exs-cond-list { display: flex; flex-direction: column; gap: 8px; }
-.exs-cond-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--input-bg); border-radius: 10px; flex-wrap: wrap; }
-.exs-cond-finger { font-size: 0.95rem; font-weight: 700; color: var(--text); min-width: 54px; }
-.exs-cond-joint { font-size: 0.7rem; font-weight: 700; border-radius: 5px; padding: 3px 7px; border: 1px solid; flex-shrink: 0; }
-.exs-cond-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.exs-range-item { font-size: 0.82rem; font-weight: 600; padding: 2px 8px; border-radius: 5px; }
-.exs-range-flex { background: rgba(239,68,68,0.08); color: var(--danger); }
-.exs-range-extend { background: rgba(34,197,94,0.08); color: #16a34a; }
-.exs-range-sep { font-size: 0.72rem; color: var(--placeholder); }
-.exs-require-note { font-size: 0.78rem; color: var(--muted); margin: 10px 0 0; padding-top: 10px; border-top: 1px solid #F0F2F5; }
-.exs-desc-text { font-size: 0.88rem; color: var(--muted); line-height: 1.6; margin: 0; }
-.exs-notes-text { font-size: 0.9rem; color: var(--text); font-style: italic; line-height: 1.6; margin: 0; }
-.exs-done-badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 0.75rem; padding: 6px 12px; background: linear-gradient(135deg, #dcfce7, #d1fae5); color: var(--success-dark); border-radius: 99px; font-size: 0.78rem; font-weight: 700; box-shadow: 0 0 12px rgba(34,197,94,0.15); }
-.exs-progress-text { display: inline-block; margin-top: 0.75rem; font-size: 0.82rem; color: var(--warning-text); font-weight: 500; }
-.exs-status-card { border-left: 3px solid; }
-.exs-status-done    { border-left-color: #16a34a; background: #f0fdf4; }
-.exs-status-partial { border-left-color: #ca8a04; background: #fefce8; }
-.exs-status-pending { border-left-color: #D0D7E3; }
-.exs-status-text { font-size: 0.95rem; font-weight: 700; color: var(--text); }
-.exs-status-done    .exs-status-text { color: var(--success-dark); }
-.exs-status-partial .exs-status-text { color: var(--warning-text); }
-.exs-status-sub  { font-size: 0.8rem; color: var(--muted); margin-top: 3px; }
-.exs-empty { text-align: center; padding: 60px 0; }
-.exs-empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
-.exs-empty-title { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-.exs-empty-sub { font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+.ex-status-done svg { width: 14px; height: 14px; }
+.ex-chevron { color: var(--muted); font-size: 1.2rem; font-weight: 300; }
+.ex-empty { text-align: center; padding: var(--space-8) 0; color: var(--muted); }
+.ex-empty-icon { margin-bottom: var(--space-3); }
+.ex-empty p { font-size: 0.9rem; }
 
 /* ── Exercise Params UI (ep-*) ───────────────────────────────────────────── */
 .ep-container { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -1816,11 +1782,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   }
 .progress-section, .pain-section, .assigned-protocol, .end-session-btn, .patient-header { width: 100%; }
 
-/* Exercises */
-.exs-container { padding: 20px 16px; }
-.exs-header { margin-bottom: 20px; }
-.exs-title { font-size: 1.2rem; }
-
 /* Admin */
 .admin-container { padding: 20px 16px; }
 
@@ -1890,11 +1851,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .cam-viewport { border-radius: var(--radius-xl); border-left: 2px solid var(--border); border-right: 2px solid var(--border); aspect-ratio: 16/9; }
   .cam-ctrl-card { border-radius: var(--radius-lg); border: 1px solid var(--border); padding: var(--space-4); }
   .cam-end-btn { padding: var(--space-3); min-height: 44px; font-size: 0.9rem; }
-
-  /* Exercises */
-  .exs-container { padding: var(--space-8) var(--space-6); }
-  .exs-header { margin-bottom: var(--space-7); }
-  .exs-title { font-size: var(--text-2xl); }
 
   /* Admin */
   .admin-container { padding: var(--space-8) var(--space-6); }
