@@ -31,7 +31,11 @@ Three zones stacked vertically, centered, `max-width: 720px`:
 ### What moves vs. what stays
 - **Moves out of viewport**: Set tracker, progress bar, pain slider, end button, feedback text → all into the control card.
 - **Stays in viewport**: Rep counter, set dots, back button, flip camera, speed warning.
-- **Removed from current layout**: `.cam-header` (exercise name moves to control card, back button moves to HUD overlay).
+- **Removed from current layout**: `.cam-header` element is removed. Its children migrate:
+  - `#camExerciseName` → moves into the control card Row 1 (left side). Same element ID, new parent.
+  - `#camSetLabel` → moves into the control card Row 1 (right side). Same element ID, new parent.
+  - `.cam-back-btn` → becomes a HUD overlay button (top-left of viewport). Same onclick, new position/styling.
+  - All existing JS references to `camExerciseName` and `camSetLabel` by ID continue to work — the elements are relocated, not removed.
 
 ---
 
@@ -50,13 +54,18 @@ Calibration is NOT a separate screen. It is an overlay state within the camera s
 - Overlay background: `rgba(0,0,0,0.4)` — enough to dim the camera but still show the feed.
 - Hand outline: thin white stroke SVG matching the target hand position.
 - Prompt text: `font-size: 1rem`, `font-weight: 600`, white, centered below the hand outline.
-- Control card is visible during calibration but the "End Session" button serves as a cancel/back action.
+- Control card is visible during calibration. The "End Session" button explicitly acts as cancel during calibration — clicking it returns to the previous screen (My Exercises or patient home), same as the HUD back button.
+
+### Error & Timeout Handling
+- **Camera fails to open**: Show a centered error message in the viewport ("Camera unavailable — check permissions") with a "Go Back" button. No calibration overlay appears.
+- **MediaPipe fails to load**: Same error pattern — "Hand tracking unavailable" with a "Go Back" button.
+- **Hand not detected after 15 seconds**: Show a subtle hint below the prompt — "Try moving your hand closer to the camera". No forced timeout — the user can stay in calibration as long as needed or tap "End Session" / back to exit.
 
 ---
 
 ## 3. Congrats Overlay
 
-Appears after a set is completed.
+Enhances the existing `#congratsOverlay` element (index.html line 238) and its existing CSS (styles.css lines 517-537). This is a CSS-layer restyle + responsive enhancement, not a new element. The existing HTML structure and child elements (`#currentSetDisplay`, `#totalSetsDisplay`, `#targetDisplay`, `#allSetsComplete`, `#painSliderCongrats`, `#painValueCongrats`, `#nextSetBtn`) are preserved.
 
 ### Desktop (≥768px) — In-Viewport
 - Overlays the camera viewport only (control card stays visible beneath).
@@ -86,7 +95,7 @@ Appears after a set is completed.
 
 ## 4. Rest Timer Overlay
 
-Appears between sets after congrats overlay is dismissed.
+Enhances the existing `#restTimerOverlay` element (index.html line 248) and its CSS (styles.css lines 1205-1237). CSS restyle + responsive enhancement — existing HTML structure and IDs (`#restTimerCount`, `#restTimerFill`) preserved.
 
 ### Desktop (≥768px) — In-Viewport
 - Same viewport overlay pattern as congrats.
@@ -117,7 +126,7 @@ Patient taps an exercise card on My Exercises screen.
 - **Backdrop**: `rgba(0,0,0,0.3)` behind the sheet. Tapping it dismisses.
 - **Sheet**: Slides up from bottom. `var(--surface)` background, `border-radius: var(--radius-xl) var(--radius-xl) 0 0`, `var(--shadow-lg)`.
 - **Drag handle**: Small centered pill at the top (`40px × 4px`, `var(--border)` color, `border-radius: 99px`).
-- **Content** (padded `var(--space-5)` horizontal, `var(--space-4)` vertical):
+- **Content** (padded `var(--space-4)` all sides):
   - Exercise name — `font-size: 1.2rem`, `font-weight: 700`, `var(--text)`.
   - Prescription row — inline: "3 sets × 10 reps · 30s rest". `font-size: 0.9rem`, `var(--muted)`.
   - Therapist notes (if any) — `font-size: 0.85rem`, `var(--placeholder)`, italic, `margin-top: var(--space-3)`. Omitted entirely if no notes.
@@ -187,11 +196,11 @@ Stats shown:
 - `margin-top: var(--space-4)`.
 
 ### Session History
-- Reuses `.sh-grid-*` pattern from Phase 1 therapist dashboard.
-- 4-column grid for patient view: Date, Exercise, Sets, Pain.
+- Uses the `.sh-grid-*` visual pattern from Phase 1 but with **new patient-specific classes** (`.prog-grid-header`, `.prog-grid-row`) to avoid modifying the therapist's 6-column grid.
+- Patient grid: 4 columns — Date, Exercise, Sets, Pain. `grid-template-columns: 100px 1fr 80px 60px`.
 - Header row: `var(--muted)`, `font-size: 0.75rem`, `font-weight: 600`.
 - Data rows: `font-size: 0.85rem`, `var(--text)`. Alternating row bg optional.
-- Dates use `timeAgo()` for relative timestamps.
+- Dates use `timeAgo()` for relative timestamps. This is rendered by a **new** `buildPatientSessionHistory()` function — separate from the therapist's `buildSessionHistoryCard()` to avoid cross-contaminating the therapist dashboard.
 - `margin-top: var(--space-4)`.
 
 ### Empty State
@@ -238,9 +247,10 @@ Stats shown:
 ### Message Input Bar
 - Fixed bottom: `var(--surface)` bg, `border-top: 1px solid var(--border)`, `padding: var(--space-3)`.
 - Input field: `flex: 1`, `var(--surface-alt)` bg, `1px solid var(--border)`, `border-radius: var(--radius-full)`, `padding: var(--space-2) var(--space-3)`, `font-size: 0.9rem`.
-- Send button: circular, `40px`, to the right of input.
-  - Active (text present): `var(--accent)` bg, white arrow icon.
-  - Inactive (empty input): `var(--border)` bg, `var(--muted)` arrow.
+- Send button: replaces the existing text "Send" button (`.msg-send-btn`) with a circular icon button. Requires HTML change: replace `<button class="msg-send-btn">Send</button>` with `<button class="msg-send-btn" ...>` containing an SVG arrow-up icon. Size: `40px × 40px`, `border-radius: var(--radius-full)`.
+  - Active (text present): `var(--accent)` bg, white arrow icon. Enabled.
+  - Inactive (empty input): `var(--surface-alt)` bg, `var(--muted)` arrow. `pointer-events: none`.
+  - Toggle logic: add `input` event listener on the text field to toggle `.msg-send-btn--active` class.
 - `gap: var(--space-2)` between input and button.
 
 ### Empty State
@@ -253,7 +263,8 @@ Stats shown:
 ## CSS Architecture Notes
 
 - All new components use existing `:root` design tokens from Phase 1. No new color tokens needed.
-- New class prefixes: `.cam-hud-*` (camera HUD overlays), `.ex-*` (exercise cards/detail), `.prog-*` (progress screen), `.msg-*` (messaging), `.sheet-*` (bottom sheet).
+- New class prefixes: `.cam-hud-*` (camera HUD overlays), `.ex-*` (exercise cards/detail), `.prog-*` (progress screen), `.sheet-*` (bottom sheet).
+- Existing `.msg-*` classes are **restyled in place** — same class names, updated CSS values. The one structural change is `.msg-send-btn` becoming a circular icon button (see §8).
 - Responsive breakpoint: `768px` (single breakpoint, mobile-first with `@media (min-width: 768px)` for desktop).
 - Calibration overlay classes: `.cal-overlay`, `.cal-hand-guide`, `.cal-prompt`.
 - Congrats/rest mobile variants: `.congrats-mobile`, `.rest-mobile` activated via media query.
@@ -264,4 +275,6 @@ Stats shown:
 - Calibration: modify existing calibration logic to overlay within camera screen rather than separate screen navigation.
 - Congrats/rest: add media query check (`window.matchMedia('(max-width: 767px)')`) to toggle between in-viewport and full-screen rendering.
 - Messaging: modify `buildMessagePanel()` to render bubble layout with timestamp clustering and read indicators.
+- Session history: new `buildPatientSessionHistory()` function for the patient Progress screen, separate from the therapist's `buildSessionHistoryCard()`.
+- Camera session: relocate `#camExerciseName` and `#camSetLabel` elements from `.cam-header` into the control card. All `getElementById` references remain valid.
 - No new dependencies. No new libraries.
