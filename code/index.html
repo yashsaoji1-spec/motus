@@ -217,6 +217,21 @@
   <div class="cam-viewport">
     <video id="patientVideo" autoplay playsinline muted></video>
     <canvas id="patientCanvas"></canvas>
+    <div id="calOverlay" class="cal-overlay" style="display:none;">
+      <svg class="cal-hand-guide" viewBox="0 0 200 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100 20 C60 20 40 60 40 100 L40 180 C40 220 60 260 100 260 C140 260 160 220 160 180 L160 100 C160 60 140 20 100 20Z" stroke="rgba(255,255,255,0.25)" stroke-width="2" fill="none"/>
+        <line x1="70" y1="30" x2="70" y2="80" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+        <line x1="90" y1="20" x2="90" y2="70" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+        <line x1="110" y1="20" x2="110" y2="70" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+        <line x1="130" y1="30" x2="130" y2="80" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+      </svg>
+      <p class="cal-prompt">Position your hand in frame</p>
+      <p class="cal-hint" id="calHint" style="display:none;">Try moving your hand closer to the camera</p>
+    </div>
+    <div id="calError" class="cal-error" style="display:none;">
+      <p id="calErrorMsg">Camera unavailable — check permissions</p>
+      <button class="reset-btn" onclick="showScreen('patientScreen')">Go Back</button>
+    </div>
     <button class="cam-hud-back" onclick="showScreen('patientScreen')">← Back</button>
     <button id="flipCameraBtn" class="cam-flip-btn" onclick="flipCamera()" style="display:none;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M20 5h-3.17L15 3H9L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-5 11.5V14H9v2.5L5.5 13 9 9.5V12h6V9.5l3.5 3.5-3.5 3.5z"/></svg>

@@ -1888,8 +1888,43 @@ function isMobile() {
 
 let mpCamera = null;
 
+var calHintTimer = null;
+var calHandDetected = false;
+
+function showCalOverlay() {
+  calHandDetected = false;
+  var overlay = document.getElementById('calOverlay');
+  var hint = document.getElementById('calHint');
+  var error = document.getElementById('calError');
+  overlay.style.display = 'flex';
+  overlay.classList.remove('fade-out');
+  hint.style.display = 'none';
+  error.style.display = 'none';
+  calHintTimer = setTimeout(function() {
+    hint.style.display = 'block';
+  }, 15000);
+}
+
+function hideCalOverlay() {
+  if (calHandDetected) return;
+  calHandDetected = true;
+  clearTimeout(calHintTimer);
+  var overlay = document.getElementById('calOverlay');
+  overlay.classList.add('fade-out');
+  setTimeout(function() { overlay.style.display = 'none'; }, 300);
+}
+
+function showCalError(msg) {
+  clearTimeout(calHintTimer);
+  document.getElementById('calOverlay').style.display = 'none';
+  var error = document.getElementById('calError');
+  document.getElementById('calErrorMsg').textContent = msg;
+  error.style.display = 'flex';
+}
+
 function startCamera() {
   if (mpCamera) return;
+  showCalOverlay();
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
@@ -1905,6 +1940,7 @@ function startCamera() {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      hideCalOverlay();
       for (const landmarks of results.multiHandLandmarks) {
         const w = sessionCanvas.width, h = sessionCanvas.height;
         const fingers = [[0,1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
@@ -1981,7 +2017,7 @@ function startCamera() {
             }
           };
         })
-        .catch(err => { alert('Camera error: ' + err.name + ': ' + err.message); });
+        .catch(err => { showCalError('Camera unavailable — check permissions'); });
     };
 
     doGetUserMedia();
