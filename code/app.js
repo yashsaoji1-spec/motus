@@ -1045,9 +1045,9 @@ async function showRealPatient(patient) {
       const input = document.getElementById('therapistMsgInput');
       await sendMessage(currentUser.email, patient.email, input.value);
       input.value = '';
-      await renderThread('therapistMsgThread', currentUser.email, patient.email);
+      await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     };
-    await renderThread('therapistMsgThread', currentUser.email, patient.email);
+    await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     enableMobilePatientDetail(panel);
     await ejsInit(patient.email, sessions);
     updateExerciseParamsUI('full_fist', null);
@@ -1102,9 +1102,9 @@ async function showRealPatient(patient) {
     const input = document.getElementById('therapistMsgInput');
     await sendMessage(currentUser.email, patient.email, input.value);
     input.value = '';
-    await renderThread('therapistMsgThread', currentUser.email, patient.email);
+    await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   };
-  await renderThread('therapistMsgThread', currentUser.email, patient.email);
+  await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   enableMobilePatientDetail(panel);
   await ejsInit(patient.email, sessions);
   updateExerciseParamsUI('full_fist', null);
@@ -3250,22 +3250,39 @@ async function unreadCount(toEmail, fromEmail) {
 
 // ── Shared thread renderer ────────────────────────────────────────────────────
 
-async function renderThread(containerId, myEmail, otherEmail) {
+function toggleMsgSend() {
+  const input = document.getElementById('msgInput');
+  const btn = document.getElementById('msgSendBtn');
+  if (btn) btn.disabled = !input.value.trim();
+}
+
+async function renderThread(containerId, myEmail, otherEmail, emptyMsg) {
   const el = document.getElementById(containerId);
   if (!el) return;
   const thread = await getThread(myEmail, otherEmail);
   if (!thread.length) {
-    el.innerHTML = '<p class="msg-empty">No messages yet.</p>';
+    el.innerHTML = `<div class="msg-empty">${escapeHtml(emptyMsg || 'Send a message')}</div>`;
     return;
   }
-  el.innerHTML = thread.map(m => {
+  let html = '';
+  for (let i = 0; i < thread.length; i++) {
+    const m = thread[i];
     const mine = m.from === myEmail;
-    const time = timeAgo(m.timestamp);
-    return `<div class="msg-bubble ${mine ? 'msg-mine' : 'msg-theirs'}">
-      <div class="msg-text">${escapeHtml(m.text)}</div>
-      <div class="msg-time">${time}</div>
-    </div>`;
-  }).join('');
+    const cls = mine ? 'sent' : 'received';
+    html += `<div class="msg-bubble ${cls}">${escapeHtml(m.text)}</div>`;
+    const next = thread[i + 1];
+    const isLastInCluster = !next || next.from !== m.from;
+    if (isLastInCluster) {
+      html += `<div class="msg-timestamp ${cls}">${timeAgo(m.timestamp)}</div>`;
+    }
+    if (mine && m.read) {
+      const hasLaterSentRead = thread.slice(i + 1).some(n => n.from === myEmail && n.read);
+      if (!hasLaterSentRead) {
+        html += '<div class="msg-read-indicator">Read</div>';
+      }
+    }
+  }
+  el.innerHTML = html;
   el.scrollTop = el.scrollHeight;
 }
 
@@ -3277,7 +3294,7 @@ async function openPatientMessaging() {
   await markRead(currentUser.email, tEmail);
   const tSnap = await db.collection('users').doc(tEmail).get();
   document.getElementById('msgHeaderTitle').textContent = tSnap.exists ? tSnap.data().name : 'Your Therapist';
-  await renderThread('msgThread', currentUser.email, tEmail);
+  await renderThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
   showScreen('messagingScreen');
 }
 
@@ -3285,9 +3302,11 @@ async function sendMessageFromPatient() {
   const tEmail = await getConnectedTherapist();
   if (!tEmail) return;
   const input = document.getElementById('msgInput');
+  if (!input.value.trim()) return;
   await sendMessage(currentUser.email, tEmail, input.value);
   input.value = '';
-  await renderThread('msgThread', currentUser.email, tEmail);
+  toggleMsgSend();
+  await renderThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
 }
 
 // ── Therapist-side panel builder ──────────────────────────────────────────────
