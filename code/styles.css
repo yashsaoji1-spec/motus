@@ -481,26 +481,12 @@ body {
   gap: var(--space-3);
   overflow: hidden;
 }
-.patient-header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 640px; }
-.patient-header h2 {
-  font-size: 1.4rem; font-weight: 800;
-  background: var(--gradient-cta); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
 .logout-btn {
   background: none; border: 1px solid var(--border); color: var(--muted);
   padding: 5px 12px; border-radius: var(--radius-md); cursor: pointer; font-size: 0.78rem;
   font-family: inherit; font-weight: 600; transition: all 0.15s;
 }
 .logout-btn:hover { border-color: var(--muted); color: var(--text); background: var(--surface-alt); }
-.camera-box {
-  position: relative; width: 640px; height: 480px;
-  border-radius: 20px; overflow: hidden; background: #000;
-  border: 2px solid var(--border);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-}
-.camera-box video, .camera-box canvas {
-  position: absolute; width: 100%; height: 100%; transform: scaleX(-1);
-}
 .rep-overlay {
   position: absolute; bottom: 12px; right: 12px;
   background: rgba(0,0,0,0.55); backdrop-filter: blur(10px);
@@ -547,11 +533,6 @@ body {
   transition: all 0.15s;
 }
 .reset-btn:hover { background: var(--accent-hover); }
-.progress-section { width: 640px; }
-.cam-progress-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-  padding: 14px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
 .progress-bar-track {
   width: 100%; height: 6px; background: rgba(11,108,176,0.12);
   border-radius: 99px; overflow: hidden;
@@ -560,33 +541,7 @@ body {
   height: 100%; background: linear-gradient(90deg, var(--accent), #1a8fcb);
   border-radius: 99px; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); width: 0%;
 }
-.pain-section {
-  width: 640px; background: var(--surface); border-radius: 16px; padding: 18px 20px;
-  border: 1px solid var(--border); border-left: 4px solid var(--accent);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-.end-session-btn {
-  width: 640px; padding: 14px; background: transparent;
-  border: 2px solid var(--danger); color: var(--danger); border-radius: 12px;
-  font-size: 0.95rem; font-weight: 600; cursor: pointer; letter-spacing: 0.3px;
-  transition: all 0.2s; font-family: inherit;
-}
-.end-session-btn:hover { background: var(--danger); color: #fff; transform: translateY(-1px); }
-.pain-section label { font-size: 0.9rem; color: var(--muted); display: block; margin-bottom: 10px; }
-.pain-section label strong { color: var(--text); }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
-.pain-scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
-.assigned-protocol {
-  width: 640px; background: var(--surface); border-radius: 16px; padding: 16px 20px;
-  border-left: 4px solid var(--success); border: 1px solid var(--border);
-  border-left: 4px solid var(--success);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-.protocol-title { font-size: 0.75rem; font-weight: 700; color: var(--success); text-transform: none; letter-spacing: 0; }
-.protocol-exercise-name { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-top: 4px; }
-.protocol-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
-.protocol-meta-item { font-size: 0.82rem; color: var(--muted); }
-.protocol-meta-item strong { color: var(--muted); }
 .protocol-patient-notes { font-size: 0.82rem; color: var(--placeholder); font-style: italic; margin-top: 6px; line-height: 1.5; }
 .set-tracker { display: flex; gap: 8px; margin-bottom: 12px; }
 .set-dot {
