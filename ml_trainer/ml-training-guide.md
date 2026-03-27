@@ -28,6 +28,8 @@ While the camera is running, watch the **MEDIAPIPE vs GROUND TRUTH** panel. Set 
 ### 3. Coverage grid fill
 The 6×8 grid shows how many samples you have per (orientation × angle) combination. A cell turns solid when it hits 30 samples. If large chunks of the grid are empty, the model is interpolating (guessing) for those conditions — and it'll be inaccurate there.
 
+**Angle columns (left → right):** <0° | 0° | 1–30° | 31–60° | 61–90° | 91–120° | 121–150° | 151–180°. The gold cell is the emptiest — clicking **Use Suggested** sets the slider to its midpoint. Slider range is -30° to 180°.
+
 ### 4. Retrain and compare MAE
 After adding a batch of new samples, retrain and note whether MAE dropped. If it stays flat or goes up, the new samples may be mislabeled (slider wasn't set correctly) or they're introducing noise.
 
@@ -67,6 +69,9 @@ The hand bounding box crop is normalized before MobileNet, but extreme distances
 ### Factor 6: Which joint you're training
 Each joint has its own model (e.g., `index-mcp-left`). Don't mix joints — the `mlJointSelect` dropdown controls which model is being trained. Make sure you're always looking at the joint you think you are.
 
+### Factor 8: Hand selection (left vs right)
+MediaPipe reports handedness from the person's perspective, which is mirror-flipped relative to the camera. The app auto-corrects this — so **LEFT in the app = your left hand** (the camera's right). Always verify the hand label displayed in the trainer matches the hand you're actually recording. If your samples end up under the wrong hand, they'll never contribute to the right model.
+
 ### Factor 7: Finger config (which other fingers are up/down)
 Adjacent finger position slightly changes landmarks due to skin stretch and shadows. The `fingerConfig` field is stored per-sample — if you trained with all fingers up but predict with some fingers down, expect slight degradation. Not a huge factor but worth varying during collection.
 
@@ -86,7 +91,7 @@ Practical approach:
 3. Move to the next orientation
 4. Repeat
 
-The recording mode (~2 samples/sec) makes this fast — a slow hand sweep at one orientation for 30 seconds fills most of a row.
+The recording mode (~6 samples/sec) makes this fast — a slow hand sweep at one orientation for 30 seconds fills most of a row.
 
 ### Step 3: Vary conditions after baseline
 Once you have 30 samples per cell in normal conditions:
@@ -101,6 +106,30 @@ For rehab, the angles that matter most depend on the joint:
 - **Full extension (0°)** is always important — it's the baseline
 
 Give these ranges double coverage compared to extremes.
+
+---
+
+## Using the Angle Jig
+
+Physical jigs in `hardware/` hold the finger at a precise angle so the slider value matches the actual joint position exactly — no estimation required.
+
+Two designs:
+- **`adjustable_jig.scad`** — one tool per joint type (MCP / PIP / DIP), adjustable 0°–90° in 10° steps via arc holes + lock peg. Print once, use for all angle recordings.
+- **`finger_angle_jig.scad`** — fixed-angle, supports all 14 joints. Print one per angle needed.
+
+**Recording workflow with the adjustable jig:**
+
+1. Print proximal arm + distal arm + 3 lock pegs for the target joint (TPU 95A, 0.2mm layers, no supports, flat on build plate)
+2. Slip the proximal arm onto the bone segment above the joint; distal arm onto the bone segment below
+3. Press the distal arm socket over the proximal arm boss
+4. Rotate to the target angle; push a lock peg through the matching arc hole (hole 0 = 0°, hole 9 = 90°)
+5. In the ML Trainer, set the slider to match the locked angle
+6. Hit **Start Recording** — move the hand through orientations while the joint stays fixed
+7. **Stop Recording**; pull the peg, rotate to the next angle, push peg back in
+8. Update the slider to match and record again
+9. Repeat across the angle range until the coverage grid shows adequate fill
+
+Because the joint cannot physically move from the locked position, every sample in a recording session has the same exact true angle — making this the highest-quality data collection method.
 
 ---
 
@@ -127,7 +156,7 @@ Retrain after:
 - Changing lighting conditions significantly
 - Training a new person's hand
 
-The Train Model button shows how many samples you have and how many more are needed (minimum 100 to unlock). After training, compare the new MAE to the previous — if it went up, the new samples may have bad labels.
+The Train Model button shows how many samples you have and how many more are needed (minimum 100 to unlock — the model has ~6,200 parameters and memorizes rather than generalizes below this threshold). After training, compare the new MAE to the previous — if it went up, the new samples may have bad labels.
 
 ---
 
@@ -135,7 +164,7 @@ The Train Model button shows how many samples you have and how many more are nee
 
 | | Landmarks-only | Hybrid |
 |---|---|---|
-| Input | 63 floats (geometry only) | 63 landmarks + 256 MobileNet features |
+| Input | 63 floats (21 landmarks × x/y/z) | 63 landmarks + 256 MobileNet visual features |
 | Needs | Any 100 samples | 10+ samples with `imageFeatures` |
 | Generalizes lighting? | No | Yes |
 | Generalizes skin tone? | No | Better |

@@ -1,6 +1,6 @@
 When Yash says "update CLAUDE.md", "update the doc", "update the functionality form", or anything similar — update the relevant section(s) of this file directly: the "Last updated" line, the Screen System table, the Section Map table, or whichever part reflects what changed.
 
-# Last updated: 2026-03-27 (Hardware: added adjustable finger angle jig system — hardware/adjustable_jig.scad covers all 3 joint types MCP/PIP/DIP with 2-piece pivot mechanism, 0–90° in 10° steps via arc holes + lock peg; hardware/finger_angle_jig.scad updated to v2 with full 14-joint lookup table)
+# Last updated: 2026-03-27 (Docs cleanup: deleted docs/ml-trainer-reference.md and docs/sweep-calibration-reference.md — relevant content merged into ml_trainer/ml-training-guide.md; CLAUDE.md section references updated)
 
 # PhalanX — Claude Code Guide
 
@@ -242,7 +242,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 
 ## Section 16: Sweep Calibration
 
-Full code reference: [docs/sweep-calibration-reference.md](docs/sweep-calibration-reference.md)
+Full code reference: see `ml_trainer/ml-training-guide.md`
 
 ## Screen Persistence (sessionStorage)
 
@@ -259,7 +259,7 @@ On login, `loginSuccess()` reads `savedScreen = sessionStorage.getItem('phalanx_
 
 ## Section 17: ML Angle Trainer
 
-Full code reference: [docs/ml-trainer-reference.md](docs/ml-trainer-reference.md)
+Full code reference: see `ml_trainer/ml-training-guide.md`
 
 ## Firestore Role Values
 
