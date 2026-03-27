@@ -720,5 +720,32 @@
 <!-- phalanX (Vite module) -->
 <script type="module" src="/app.js"></script>
 
+<!-- Add Protocol Modal -->
+<div id="addProtocolModal" class="apmodal-overlay" style="display:none" onclick="if(event.target===this)closeAddProtocolModal()">
+  <div class="apmodal-box">
+    <div class="apmodal-header">
+      <span class="apmodal-patient-name" id="apModalPatientName"></span>
+      <div class="apmodal-btns">
+        <button class="apmodal-btn apmodal-btn--remove" id="apRemoveBtn" onclick="removeProtocolSelections()">-</button>
+        <button class="apmodal-btn apmodal-btn--add" id="apAddBtn" onclick="addProtocolSelections()">+</button>
+      </div>
+    </div>
+    <div class="apmodal-search-row">
+      <input type="text" class="apmodal-search" placeholder="Search exercises..." oninput="filterApLibrary(this.value)">
+    </div>
+    <div class="apmodal-list" id="apModalList"></div>
+  </div>
+</div>
+
+<!-- Exercise Library Panel -->
+<div id="exerciseLibraryBackdrop" onclick="closeExerciseLibrary()" style="display:none"></div>
+<div id="exerciseLibraryPanel" style="display:none">
+  <div class="exlib-header">
+    <span class="exlib-title">Exercise Library</span>
+    <button class="exlib-close-btn" onclick="closeExerciseLibrary()">x</button>
+  </div>
+  <div class="exlib-body"></div>
+</div>
+
 </body>
 </html>
