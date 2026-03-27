@@ -3782,11 +3782,14 @@ let   _currentHandLabel   = null;      // 'left' | 'right' | null — set by eac
 let _mlRecording            = false;
 let _mlRecordFrameCount     = 0;
 let _mlRecordSampleCount    = 0;
+let _mlTotalSamples         = 0;
 let _mlRecordingId          = null;
 let _mlLastRecordingId      = null;
 let _mlLastRecordingCount   = 0;
 let _mlCaptureInFlight      = false;
-const ML_RECORD_FRAME_INTERVAL        = 15;
+let _mlSamplesLoaded        = false;
+let _mlSamplesCache         = null;
+const ML_RECORD_FRAME_INTERVAL        = 5;
 const ML_RECORD_GRID_REFRESH_INTERVAL = 10;
 
 // ── loadMLModels (called at login, background) ─────────────────────────────
@@ -4121,6 +4124,12 @@ async function mlOnJointChange() {
   const undoBar = document.getElementById('mlUndoBar');
   if (undoBar) undoBar.style.display = 'none';
   _mlLastRecordingId = null;
+  _mlSamplesLoaded   = false;
+  _mlSamplesCache    = null;
+  const samplesBody    = document.getElementById('mlSamplesBody');
+  const samplesChevron = document.getElementById('mlSamplesChevron');
+  if (samplesBody)    samplesBody.style.display    = 'none';
+  if (samplesChevron) samplesChevron.textContent   = '▸';
   const select = document.getElementById('mlJointSelect');
   if (select) await mlRefreshSampleCounts(select.value);
 }
@@ -4142,58 +4151,6 @@ function mlAngleBucket(angle) {
   return '151';
 }
 
-// ── submitMLSample ─────────────────────────────────────────────────────────
-async function submitMLSample() {
-  if (!_mlCurrentLandmarks || !_mlSelectedHand) return;
-  const select = document.getElementById('mlJointSelect');
-  const slider = document.getElementById('mlAngleSlider');
-  const btn    = document.getElementById('mlSubmitBtn');
-  if (!select || !slider || !btn) return;
-
-  const joint      = `${select.value}-${_mlSelectedHand}`;
-  const trueAngle  = parseInt(slider.value);
-  const lmSnapshot = _mlCurrentLandmarks.slice();
-  const landmarks  = lmSnapshot.flatMap(lm => [lm.x, lm.y, lm.z || 0]);
-
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
-
-  try {
-    const metaRef  = db.collection('trainingMeta').doc(joint);
-    const meta     = await metaRef.get();
-    const total    = meta.exists ? meta.data().totalSamples : 0;
-    const chunkIdx = Math.floor(total / 50);
-    const chunkId  = `${joint}_chunk_${chunkIdx}`;
-    const notes       = document.getElementById('mlSessionNotes')?.value?.trim() || '';
-    const sample      = { landmarks, trueAngle, recordedAt: new Date().toISOString(), recordedBy: currentUser?.email || '', notes, ...(_currentFrameFeatures ? { imageFeatures: _currentFrameFeatures } : {}) };
-
-    const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
-    const orient    = mlClassifyOrientation(lmSnapshot);
-    const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
-    const chunkRef  = db.collection('trainingChunks').doc(chunkId);
-    const chunkSnap = await chunkRef.get();
-    const existing  = chunkSnap.exists ? (chunkSnap.data().samples || []) : [];
-    await chunkRef.set({ joint, chunk: chunkIdx, samples: [...existing, sample] });
-    await metaRef.set({
-      joint,
-      totalSamples: firebase.firestore.FieldValue.increment(1),
-      [bucketKey]: firebase.firestore.FieldValue.increment(1),
-      [gridKey]: firebase.firestore.FieldValue.increment(1),
-    }, { merge: true });
-
-    btn.textContent = 'Saved!';
-    setTimeout(() => { btn.textContent = 'Submit Sample'; btn.disabled = false; }, 700);
-
-    slider.value = 90;
-    mlOnSlider(90);
-    await mlRefreshSampleCounts(joint);
-  } catch (e) {
-    btn.textContent = 'Error — retry';
-    btn.disabled = false;
-    console.error(e);
-  }
-}
-
 // ── mlAutoCapture — called every ML_RECORD_FRAME_INTERVAL frames during recording
 async function mlAutoCapture() {
   if (!_mlRecording || !_mlCurrentLandmarks || !_mlSelectedHand) return;
@@ -4204,12 +4161,12 @@ async function mlAutoCapture() {
   const slider = document.getElementById('mlAngleSlider');
   if (!select || !slider) { _mlCaptureInFlight = false; return; }
 
-  const joint        = `${select.value}-${_mlSelectedHand}`;
-  const trueAngle    = parseInt(slider.value);
-  const lmSnapshot   = _mlCurrentLandmarks.slice();
-  const landmarks    = lmSnapshot.flatMap(lm => [lm.x, lm.y, lm.z || 0]);
-  const notes        = document.getElementById('mlSessionNotes')?.value?.trim() || '';
-  const sample       = {
+  const joint      = `${select.value}-${_mlSelectedHand}`;
+  const trueAngle  = parseInt(slider.value);
+  const lmSnapshot = _mlCurrentLandmarks.slice();
+  const landmarks  = lmSnapshot.flatMap(lm => [lm.x, lm.y, lm.z || 0]);
+  const notes      = document.getElementById('mlSessionNotes')?.value?.trim() || '';
+  const sample     = {
     landmarks, trueAngle,
     recordedAt:  new Date().toISOString(),
     recordedBy:  currentUser?.email || '',
@@ -4221,26 +4178,26 @@ async function mlAutoCapture() {
   const countEl = document.getElementById('mlRecordCount');
 
   try {
-    const metaRef   = db.collection('trainingMeta').doc(joint);
-    const meta      = await metaRef.get();
-    const total     = meta.exists ? meta.data().totalSamples : 0;
-    const chunkIdx  = Math.floor(total / 50);
+    const chunkIdx  = Math.floor(_mlTotalSamples / 50);
     const chunkId   = `${joint}_chunk_${chunkIdx}`;
     const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
     const orient    = mlClassifyOrientation(lmSnapshot);
     const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
 
-    const chunkRef  = db.collection('trainingChunks').doc(chunkId);
-    const chunkSnap = await chunkRef.get();
-    const existing  = chunkSnap.exists ? (chunkSnap.data().samples || []) : [];
-    await chunkRef.set({ joint, chunk: chunkIdx, samples: [...existing, sample] });
-    await metaRef.set({
-      joint,
-      totalSamples: firebase.firestore.FieldValue.increment(1),
-      [bucketKey]:  firebase.firestore.FieldValue.increment(1),
-      [gridKey]:    firebase.firestore.FieldValue.increment(1),
-    }, { merge: true });
+    const batch = db.batch();
+    batch.set(
+      db.collection('trainingChunks').doc(chunkId),
+      { joint, chunk: chunkIdx, samples: firebase.firestore.FieldValue.arrayUnion(sample) },
+      { merge: true }
+    );
+    batch.set(
+      db.collection('trainingMeta').doc(joint),
+      { joint, totalSamples: firebase.firestore.FieldValue.increment(1), [bucketKey]: firebase.firestore.FieldValue.increment(1), [gridKey]: firebase.firestore.FieldValue.increment(1) },
+      { merge: true }
+    );
+    await batch.commit();
 
+    _mlTotalSamples++;
     _mlRecordSampleCount++;
     if (countEl) countEl.textContent = _mlRecordSampleCount;
 
@@ -4256,23 +4213,28 @@ async function mlAutoCapture() {
 }
 
 // ── mlStartRecording / mlStopRecording ─────────────────────────────────────
-function mlStartRecording() {
+async function mlStartRecording() {
   if (_mlRecording || !_mlSelectedHand) return;
+  const select    = document.getElementById('mlJointSelect');
   const slider    = document.getElementById('mlAngleSlider');
-  const submitBtn = document.getElementById('mlSubmitBtn');
   const startBtn  = document.getElementById('mlRecordStartBtn');
   const stopBtn   = document.getElementById('mlRecordStopBtn');
   const countEl   = document.getElementById('mlRecordCount');
   const indicator = document.getElementById('mlRecordingIndicator');
   const undoBar   = document.getElementById('mlUndoBar');
 
+  if (select) {
+    const joint = `${select.value}-${_mlSelectedHand}`;
+    const meta  = await db.collection('trainingMeta').doc(joint).get();
+    _mlTotalSamples = meta.exists ? (meta.data().totalSamples || 0) : 0;
+  }
+
   _mlRecording         = true;
   _mlRecordFrameCount  = 0;
   _mlRecordSampleCount = 0;
   _mlRecordingId       = Date.now().toString();
 
-  if (slider)    slider.disabled    = true;
-  if (submitBtn) submitBtn.disabled = true;
+  if (slider)    slider.disabled        = true;
   if (startBtn)  startBtn.style.display = 'none';
   if (stopBtn)   stopBtn.style.display  = '';
   if (countEl)   countEl.textContent    = '0';
@@ -4284,7 +4246,6 @@ function mlStartRecording() {
 function mlStopRecording() {
   if (!_mlRecording) return;
   const slider    = document.getElementById('mlAngleSlider');
-  const submitBtn = document.getElementById('mlSubmitBtn');
   const startBtn  = document.getElementById('mlRecordStartBtn');
   const stopBtn   = document.getElementById('mlRecordStopBtn');
   const indicator = document.getElementById('mlRecordingIndicator');
@@ -4297,9 +4258,8 @@ function mlStopRecording() {
   _mlRecordFrameCount   = 0;
   _mlRecordingId        = null;
 
-  if (slider)    { slider.value = 90; slider.disabled = false; mlOnSlider(90); }
-  if (submitBtn) submitBtn.disabled = false;
-  if (startBtn)  startBtn.style.display = '';
+  if (slider)   { slider.value = 90; slider.disabled = false; mlOnSlider(90); }
+  if (startBtn) startBtn.style.display = '';
   if (stopBtn)   stopBtn.style.display  = 'none';
   if (indicator) indicator.style.display = 'none';
   document.querySelector('.ml-capture-panel')?.classList.remove('ml-recording');
@@ -4523,7 +4483,13 @@ async function trainMLModel() {
 
 // ── mlSetHand ──────────────────────────────────────────────────────────────
 function mlSetHand(hand) {
-  _mlSelectedHand = hand;
+  _mlSelectedHand  = hand;
+  _mlSamplesLoaded = false;
+  _mlSamplesCache  = null;
+  const samplesBody    = document.getElementById('mlSamplesBody');
+  const samplesChevron = document.getElementById('mlSamplesChevron');
+  if (samplesBody)    samplesBody.style.display    = 'none';
+  if (samplesChevron) samplesChevron.textContent   = '▸';
   const leftBtn  = document.getElementById('mlHandBtnLeft');
   const rightBtn = document.getElementById('mlHandBtnRight');
   if (leftBtn)  leftBtn.classList.toggle('active',  hand === 'left');
@@ -4715,6 +4681,149 @@ function mlToggleModels() {
   if (open && card) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 20);
 }
 
+// ── mlToggleSamples ────────────────────────────────────────────────────────
+async function mlToggleSamples() {
+  const body    = document.getElementById('mlSamplesBody');
+  const chevron = document.getElementById('mlSamplesChevron');
+  const card    = document.getElementById('mlSamplesCard');
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (chevron) chevron.textContent = open ? '▾' : '▸';
+  if (open) {
+    if (!_mlSamplesLoaded) await mlLoadSamples();
+    if (card) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 20);
+  }
+}
+
+// ── mlLoadSamples ──────────────────────────────────────────────────────────
+async function mlLoadSamples() {
+  const select = document.getElementById('mlJointSelect');
+  const listEl = document.getElementById('mlSamplesList');
+  if (!select || !listEl || !_mlSelectedHand) return;
+
+  const joint = `${select.value}-${_mlSelectedHand}`;
+  listEl.innerHTML = '<div class="ml-samples-loading">Loading...</div>';
+
+  try {
+    const snap = await db.collection('trainingChunks').where('joint', '==', joint).get();
+    const all  = snap.docs.flatMap(d => d.data().samples || []);
+
+    _mlSamplesCache  = { joint, snap };
+    _mlSamplesLoaded = true;
+
+    mlRenderSamples(all);
+  } catch (e) {
+    console.error('mlLoadSamples:', e);
+    listEl.innerHTML = '<div class="ml-samples-loading">Failed to load.</div>';
+  }
+}
+
+// ── mlRenderSamples ────────────────────────────────────────────────────────
+function mlRenderSamples(samples) {
+  const listEl = document.getElementById('mlSamplesList');
+  if (!listEl) return;
+
+  if (!samples.length) {
+    listEl.innerHTML = '<div class="ml-samples-loading">No samples recorded yet.</div>';
+    return;
+  }
+
+  // Group by date, then by recordingId within each date
+  const byDate = {};
+  for (const s of samples) {
+    const date = (s.recordedAt || '').slice(0, 10) || 'Unknown';
+    if (!byDate[date]) byDate[date] = {};
+    const rid = s.recordingId || `__manual_${s.recordedAt}`;
+    if (!byDate[date][rid]) byDate[date][rid] = [];
+    byDate[date][rid].push(s);
+  }
+
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  listEl.innerHTML = dates.map((date, di) => {
+    const sessions = byDate[date];
+    const rids     = Object.keys(sessions).sort((a, b) => {
+      const ta = sessions[a][0]?.recordedAt || '';
+      const tb = sessions[b][0]?.recordedAt || '';
+      return tb.localeCompare(ta);
+    });
+    const dateTotal = rids.reduce((n, r) => n + sessions[r].length, 0);
+    const bodyId    = `mlSamplesDate_${di}`;
+
+    const rows = rids.map(rid => {
+      const ss      = sessions[rid];
+      const time    = new Date(ss[0].recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const minAng  = Math.min(...ss.map(s => s.trueAngle));
+      const maxAng  = Math.max(...ss.map(s => s.trueAngle));
+      const isManual = rid.startsWith('__manual_');
+      const deleteArg = isManual ? `null,'${ss[0].recordedAt}',this` : `'${rid}',null,this`;
+      const angleStr  = minAng === maxAng ? `${minAng}°` : `${minAng}°–${maxAng}°`;
+      return `<div class="ml-sample-session">
+        <span class="ml-sample-session-info">${time} — ${ss.length} sample${ss.length !== 1 ? 's' : ''} — ${angleStr}</span>
+        <button class="ml-sample-delete-btn" onclick="mlDeleteSession(${deleteArg})">Delete</button>
+      </div>`;
+    }).join('');
+
+    return `<div class="ml-samples-date-group">
+      <button class="ml-samples-date-hdr" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.ml-samples-date-chevron').textContent=this.nextElementSibling.style.display===''?'▾':'▸'">
+        <span>${date} <span class="ml-samples-date-count">(${dateTotal})</span></span>
+        <span class="ml-samples-date-chevron">▸</span>
+      </button>
+      <div id="${bodyId}" class="ml-samples-date-body" style="display:none">${rows}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── mlDeleteSession ────────────────────────────────────────────────────────
+async function mlDeleteSession(recordingId, fallbackRecordedAt, btn) {
+  const select = document.getElementById('mlJointSelect');
+  if (!select || !_mlSelectedHand || !_mlSamplesCache) return;
+
+  const joint = `${select.value}-${_mlSelectedHand}`;
+  if (btn) { btn.disabled = true; btn.textContent = 'Removing...'; }
+
+  try {
+    const { snap } = _mlSamplesCache;
+    const batch    = db.batch();
+
+    const filter = s => recordingId
+      ? s.recordingId !== recordingId
+      : s.recordedAt  !== fallbackRecordedAt;
+
+    for (const doc of snap.docs) {
+      const orig = doc.data().samples || [];
+      const kept = orig.filter(filter);
+      if (kept.length !== orig.length) batch.update(doc.ref, { samples: kept });
+    }
+    await batch.commit();
+
+    // Recalculate metadata from remaining samples
+    const remaining = snap.docs.flatMap(d => (d.data().samples || []).filter(filter));
+    const newMeta   = { joint, totalSamples: remaining.length };
+    for (const s of remaining) {
+      const bk = `histogram.b${Math.min(17, Math.floor(s.trueAngle / 10))}`;
+      newMeta[bk] = (newMeta[bk] || 0) + 1;
+      const lm     = s.landmarks;
+      const lmObjs = Array.isArray(lm[0])
+        ? lm.map(([x, y, z]) => ({ x, y, z }))
+        : Array.from({ length: lm.length / 3 }, (_, i) => ({ x: lm[i*3], y: lm[i*3+1], z: lm[i*3+2] }));
+      const orient = mlClassifyOrientation(lmObjs);
+      const gk     = `grid_${orient}_${mlAngleBucket(s.trueAngle)}`;
+      newMeta[gk]  = (newMeta[gk] || 0) + 1;
+    }
+    await db.collection('trainingMeta').doc(joint).set(newMeta);
+
+    // Update local cache and re-render
+    _mlSamplesCache = { joint, snap: { docs: snap.docs.map(d => ({ ref: d.ref, data: () => ({ ...d.data(), samples: (d.data().samples || []).filter(filter) }) })) } };
+    mlRenderSamples(remaining);
+    mlRefreshSampleCounts();
+  } catch (e) {
+    console.error('mlDeleteSession:', e);
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+  }
+}
+
 // ── mlTrainerBack ──────────────────────────────────────────────────────────
 function mlTrainerBack() {
   if (_mlRecording) mlStopRecording();
@@ -4762,8 +4871,8 @@ Object.assign(window, {
   sweepStartCapture, sweepResetJoint,
 
   // ML Trainer
-  startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlSaveNotes,
-  submitMLSample, trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint, mlSetHand,
+  startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
+  trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint, mlSetHand, mlDeleteSession,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,

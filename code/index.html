@@ -559,8 +559,6 @@
         </div>
       </div>
 
-      <button class="sweep-save-btn" id="mlSubmitBtn" onclick="submitMLSample()">Submit Sample</button>
-
       <div class="ml-record-bar">
         <button class="ml-record-start-btn" id="mlRecordStartBtn" onclick="mlStartRecording()">Start Recording</button>
         <button class="ml-record-stop-btn"  id="mlRecordStopBtn"  onclick="mlStopRecording()" style="display:none">Stop Recording</button>
@@ -627,6 +625,17 @@
         </button>
         <div class="ml-models-body" id="mlModelsBody" style="display:none">
           <div id="mlModelsList" class="ml-models-list">No models trained yet.</div>
+        </div>
+      </div>
+
+      <!-- Sample browser -->
+      <div class="ml-models-card" id="mlSamplesCard">
+        <button class="ml-models-toggle" onclick="mlToggleSamples()">
+          <span class="sweep-panel-title">SAMPLES</span>
+          <span class="ml-models-chevron" id="mlSamplesChevron">▸</span>
+        </button>
+        <div class="ml-models-body" id="mlSamplesBody" style="display:none">
+          <div id="mlSamplesList"></div>
         </div>
       </div>
 

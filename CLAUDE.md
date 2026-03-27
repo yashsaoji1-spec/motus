@@ -1,6 +1,6 @@
 When Yash says "update CLAUDE.md", "update the doc", "update the functionality form", or anything similar — update the relevant section(s) of this file directly: the "Last updated" line, the Screen System table, the Section Map table, or whichever part reflects what changed.
 
-# Last updated: 2026-03-26 (Section 17: Removed Other Fingers panel — mlToggleFinger, mlSetFingerPreset, _mlFingerConfig, _ML_FINGERS deleted; fingerConfig field no longer written to training samples; HTML, CSS, and window exports cleaned up)
+# Last updated: 2026-03-27 (Hardware: added adjustable finger angle jig system — hardware/adjustable_jig.scad covers all 3 joint types MCP/PIP/DIP with 2-piece pivot mechanism, 0–90° in 10° steps via arc holes + lock peg; hardware/finger_angle_jig.scad updated to v2 with full 14-joint lookup table)
 
 # PhalanX — Claude Code Guide
 
@@ -53,6 +53,11 @@ public/
 dist/             — build output (gitignored); deploy this to Firebase Hosting
 non_func/         — LICENSE.txt, devlog.html (non-production files)
 node_modules/     — npm packages (vite, firebase, chart.js, prompt-sync)
+hardware/
+  adjustable_jig.scad   — parametric adjustable angle jig (MCP/PIP/DIP); 2-piece pivot + lock peg; 0–90° in 10° steps
+  finger_angle_jig.scad — fixed-angle jig v2; supports all 14 joints via finger+joint lookup table
+scripts/
+  import-freihand.js    — Node.js script to import FreiHAND training data into Firestore
 ```
 
 ## Dependencies
