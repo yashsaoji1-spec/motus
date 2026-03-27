@@ -1791,7 +1791,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     border-radius: 0; border-left: none; border-right: none;
     padding: var(--space-3);
   }
-.progress-section, .pain-section, .assigned-protocol, .end-session-btn, .patient-header { width: 100%; }
 
 /* Admin */
 .admin-container { padding: 20px 16px; }
@@ -2097,6 +2096,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .rest-timer-sub { color: var(--muted); }
   .rest-timer-bar { width: 100%; max-width: 300px; background: var(--border); }
   .rest-skip-btn { width: 100%; max-width: 300px; }
+
+  /* Exercise screen */
+  .ex-container { padding: 0 var(--space-3); }
+  .ex-back-btn { position: static; margin-top: var(--space-2); }
+
+  /* Progress screen */
+  .prog-container { padding: 0 var(--space-3); }
+  .prog-back-btn { position: static; margin-top: var(--space-2); }
+  .prog-stats-row { gap: var(--space-2); }
+  .prog-stat-card { min-width: 100px; padding: var(--space-2) var(--space-3); }
+  .prog-stat-value { font-size: 1.1rem; }
+  .prog-grid-header, .prog-grid-row { font-size: 0.78rem; padding: var(--space-2); }
+
+  /* Messaging */
+  .msg-header { padding: var(--space-2) var(--space-3); }
+  .msg-thread { padding: var(--space-3); }
+  .msg-input-row { padding: var(--space-2) var(--space-3); }
 }
 
 /* ── Bottom Sheet ──────────────────────────────────────────────────── */
