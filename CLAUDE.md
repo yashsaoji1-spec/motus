@@ -1,6 +1,7 @@
-When Yash says "update CLAUDE.md", "update the doc", "update the functionality form", or anything similar — update the relevant section(s) of this file directly: the "Last updated" line, the Screen System table, the Section Map table, or whichever part reflects what changed.
-
-# Last updated: 2026-03-29 (Custom exercise creation: + button in Add Protocol modal; modal opens blank; remove buttons always visible on joint rows; removed Calibrate button from mobile therapist panel header)
+@.claude/rules/context-window.md
+@.claude/rules/constraints.md
+@.claude/rules/ui-rules.md
+@.claude/rules/maintenance.md
 
 # PhalanX — Claude Code Guide
 
@@ -125,19 +126,6 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 | `messages` | `participants` ARRAY + `timestamp` ASC |
 | `messages` | `to` ASC, `from` ASC, `read` ASC |
 
-### Firestore security rules
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
-
 ### localStorage
 
 | Key | Value | Purpose |
@@ -241,10 +229,6 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 16  | Sweep Calibration — full rules-based hand tracking system; see expanded section below |
 | 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `mlAutoCapture`, `mlStartRecording`, `mlStopRecording`, `mlUndoLastRecording`, `mlClearJoint`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlSetHand`, `mlRefreshSampleCounts`, `mlRenderGrid`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`; globals: `_mlModels` (Map), `_mlCurrentHand` (live camera detection only), `_mlSelectedHand` (persistent — used by all data ops), `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlSuggestedAngle`, `_mlRecording`, `_mlRecordingId`, `_mlLastRecordingId` |
 
-## Section 16: Sweep Calibration
-
-Full code reference: see `ml_trainer/ml-training-guide.md`
-
 ## Screen Persistence (sessionStorage)
 
 `showScreen(id)` saves the screen ID to `sessionStorage('phalanx_screen')` unless the ID is in `AUTH_SCREENS` (`loginScreen`, `signupScreen`, `forgotScreen`, `consentScreen`, `pendingScreen`, `adminScreen`).
@@ -258,10 +242,6 @@ On login, `loginSuccess()` reads `savedScreen = sessionStorage.getItem('phalanx_
 
 ---
 
-## Section 17: ML Angle Trainer
-
-Full code reference: see `ml_trainer/ml-training-guide.md`
-
 ## Firestore Role Values
 
 | `role` value | Meaning |
@@ -274,201 +254,3 @@ Full code reference: see `ml_trainer/ml-training-guide.md`
 Admin accounts are created **manually** by Yash:
 1. Firebase Auth console → Add user → set email + password
 2. Firestore → `users/{email}` → `{ name: "...", role: "admin" }`
-
-## CSS Variables (styles.css `:root`)
-
-```css
---bg             #F0F7F4                    /* page background (light green-tinted) */
---surface        #FFFFFF                    /* card/panel background */
---border         #C8D8D4                    /* borders and grid lines */
---accent         #0B6CB0                    /* blue — primary interactive color */
---accent-dim     rgba(11, 108, 176, 0.08)
---accent-glow    rgba(11, 108, 176, 0.25)
---text           #1A2744                    /* primary text */
---muted          #6B7A99                    /* secondary/disabled text */
---danger         #CC2936                    /* error states, pain indicator */
---green          #10B981                    /* success / positive states */
---green-dark     #059669
---green-dim      rgba(16, 185, 129, 0.08)
---green-glow     rgba(16, 185, 129, 0.25)
---gold           #F59E0B                    /* streaks / achievement highlights */
---gold-dim       rgba(245, 158, 11, 0.1)
---gradient-cta          linear-gradient(135deg, #0B6CB0, #10B981)
---gradient-cta-hover    linear-gradient(135deg, #0960A0, #059669)
---gradient-hero         linear-gradient(135deg, #0B6CB0 0%, #0A5DA0 40%, #10B981 100%)
---gradient-surface      linear-gradient(180deg, #E8F4FD, #F0F7F4)
-```
-
-## Maintenance Instructions
-
-Whenever the user says anything resembling "update claude-functionality.md" (or equivalent), Claude must:
-1. Read the current `claude-functionality.md`
-2. Read and audit `app.js`, `index.html`, and `styles.css` for any changes
-3. Update ALL stale sections — file line counts, section map, screen list, localStorage keys, CSS variables, file structure, etc.
-4. Replace the date on the top line with today's date
-5. Only update `/Users/alpanajoshi/Documents/Yash - Projects/phalanX-feature-functionality/claude-functionality.md` — the user handles pushing to git
-6. **Never commit or push to GitHub unless the user explicitly asks**
-
-## Branch Merge Framework
-
-When the user says anything like "merge", "Oliver is done", "integrate Oliver's changes", or pastes this section — follow this framework exactly. **Check in with Yash or Oliver at every step before proceeding.**
-
-### When Yash merges feature/functionality → main
-
-1. **Ask:** "Are you sure your branch is ready to merge? Any uncommitted changes?"
-2. `git fetch origin`
-3. `git checkout main && git merge --no-commit --no-ff origin/feature/functionality`
-4. Show a summary of what changed. **Ask:** "Does this look right? Anything unexpected?"
-5. If yes — `git add` + `git commit` + `git push origin main`
-6. **Confirm:** "Pushed to main. Ready for Oliver to merge when he's done."
-
----
-
-### When Oliver merges feature/ui → main
-
-**Phase 1 — Confirm Oliver is ready**
-- **Ask Oliver/Yash:** "Has Oliver pushed all his changes to `origin/feature/ui`? Should I fetch now?"
-- `git fetch origin`
-- Show the latest commits on `feature/ui`. **Ask:** "Are these the changes you expected?"
-
-**Phase 2 — Preview conflicts**
-- `git merge-tree $(git merge-base main origin/feature/ui) main origin/feature/ui > /tmp/merge_dry_run.txt`
-- Present every conflict in a clear table: Yash's version vs Oliver's version, with a plain-English description of what each side does
-- **Ask for each conflict:** "For [conflict #N], do you want to keep Yash's version, Oliver's version, or both?"
-- Do not proceed until every conflict has a decision
-
-**Phase 3 — Do the merge**
-- `git checkout main`
-- `git merge --no-commit --no-ff origin/feature/ui`
-- Apply each resolution as decided — one conflict at a time
-- After each file is resolved, **confirm:** "I've resolved [filename]. Here's what it looks like now — does this match what you expected?"
-- After all files resolved, grep for critical functionality (key functions, constants, HTML elements that must be preserved). **Ask:** "Everything looks intact — should I commit?"
-- `git add` + `git commit` + `git push origin main`
-- **Confirm:** "Merged and pushed. Ready to test."
-
-**Phase 4 — Test**
-- `cd phalanX-test && git pull origin main && npm run dev`
-- **Ask Yash:** "Dev server is running. Please test both your features and Oliver's. Let me know what you find."
-- Only deploy after Yash confirms everything works
-
----
-
-**Rules Claude must follow during merges:**
-- Never let git auto-resolve — always use `--no-commit`
-- Never move to the next phase without explicit confirmation from Yash
-- If anything looks unexpected after any step, stop and ask before continuing
-- After every push, verify critical code wasn't silently dropped before declaring done
-
-## SWEEP CALIBRATION — Rule Tuning Workflow
-
-Rules apply universally to any patient — they describe camera geometry (which angles give accurate MediaPipe readings), not patient-specific anatomy.
-
-**Setup**
-1. Open app on phone, log in as therapist, open any patient, tap "Sweep Calibration"
-2. METRICS panel and live angle grid must be visible (`SWEEP_DEBUG = true`)
-
-**For each joint:**
-3. Hold your own finger at a known angle using a goniometer or reference (e.g. flat = 0°, right angle = 90°)
-4. Keep the finger still — move the camera until the live angle reading on screen matches the true angle
-5. Screenshot the screen (must show METRICS panel + angle grid)
-6. Move camera to another position where it still reads correctly — screenshot again
-7. Repeat 3–5 times from different valid positions
-8. Send all screenshots to Claude with: which joint, what true angle
-
-**Claude derives the rule:**
-- Reads all 7 metric values from each screenshot
-- Identifies which metric is consistently high across all valid frames
-- Sets `min` = lowest observed value − 0.05 tolerance, `max` = 1.0
-- Writes rule into `SWEEP_JOINT_RULES` in `app.js`, builds + deploys to Firebase
-
-**Testing after deploy:**
-- Dot turns yellow (in-range) when orientation satisfies the rule
-- Dot turns green (captured) after 5 consecutive valid frames
-- Start with `index-pip` — most clinically important, easiest to measure
-
-**`SWEEP_JOINT_RULES` location:** `code/app.js` line ~3072
-
----
-
-## Pre-Launch Checklist
-
-- [ ] **Tighten Firestore security rules** — current rules allow any authenticated user to read/write everything. Before launch, scope rules so patients can only read/write their own data, therapists can only access their connected patients, and admins can only access the `users` collection.
-- [ ] **Delete demo accounts** — remove `sarah.chen@mayoclinic.org` and `james.park@gmail.com` from Firebase Auth and Firestore, or change their passwords.
-- [ ] **Create first real admin account** — follow the manual steps in the Firestore Role Values section above.
-- [x] **Test on HTTPS / mobile** — tested via ngrok + VS Code port forwarding on iOS Safari and Chrome. Mobile uses direct `getUserMedia` path (not MediaPipe `Camera` class). `startCamera()` must be called before any `await` in session-start functions to preserve iOS gesture context. iOS Safari requires `hands.send({ image: canvas })` — passing the video element directly does not work; video must be drawn to a canvas first.
-- [ ] **Review Firebase Auth settings** — disable any sign-in providers you're not using.
-- [ ] **Set up video expiry Cloud Function** — currently the 30-day expiry is UI-only (files remain on Cloudinary but are inaccessible through the app). For actual deletion at launch: (1) upgrade Firebase project `phalanx-firebase-database` to Blaze plan at https://console.firebase.google.com/project/phalanx-firebase-database/usage/details — free in practice, just requires a billing account attached; (2) tell Claude "set up the video expiry Cloud Function" — it will create `functions/index.js` with a daily scheduled job that deletes Cloudinary videos older than 30 days and clears `videoUrl` from Firestore. Cloudinary credentials: cloud `dslbugsdg`, API key `853184729123867`, API secret in Yash's password manager.
-
-## UI Rules
-
-- **No emojis — ever.** Do not add emojis anywhere in the app: HTML, JS strings, CSS content, button labels, messages, icons, or favicons. Use plain text or standard ASCII symbols (e.g. `+`, `-`, `x`) instead.
-
-## Key Constraints
-
-- **Vite build step** — run `npm run dev` for local dev; `npm run build` before deploy. No other bundler/compiler.
-- **No linter or formatter** — no enforced style rules
-- **No test framework** — manual browser testing only
-- **MediaPipe stays on CDN** — WASM model files make bundling fragile; accessed via `window.Hands`, `window.Camera`, etc. directly at call sites (not at module init — avoids CDN timing race on mobile)
-- **Firebase + Chart.js via npm** — imported at top of `app.js` using `firebase/compat` API (zero refactor needed)
-- **Cloudinary via plain fetch** — no SDK; `uploadSessionVideo` POSTs a `FormData` blob to `https://api.cloudinary.com/v1_1/{cloud}/video/upload` with an unsigned preset. No auth required. Deletion requires signed API call with secret — done server-side only (Cloud Function).
-- **Window exports block** — app.js ends with `Object.assign(window, {...})` exposing all functions called from HTML `onclick` attrs (required because app.js is an ES module)
-- **Firebase backend** — all user data in Firestore; no localStorage keys remain
-- **Single file per layer** — keep all HTML in `index.html`, all JS in `app.js`, all CSS in `styles.css`
-# Plugin Usage Guide
-
-At the start of every session, read this file to understand which plugins/skills are available and when to use them.
-
-## Rules
-
-- Do NOT invoke a plugin/skill on every prompt — only when the request clearly matches the trigger conditions below.
-- When a trigger condition is met, invoke the corresponding skill BEFORE generating any response about the task.
-
----
-
-## Plugin Trigger Map
-
-### frontend-design
-**Trigger when:** User asks about UI layout, styling, formatting, moving elements around, changing how something looks, redesigning a screen or component, spacing, alignment, colors, or visual polish.
-**Examples:** "move the button to the right", "make this look better", "format the layout", "center this", "redesign the capture screen"
-
-### auto-style
-**Trigger when:** New HTML elements, screens, or components are being added to index.html and need styling.
-**Examples:** "add a new panel", "create a new section", "add a card component"
-
-### code-review
-**Trigger when:** User explicitly asks for a review of code quality, structure, or correctness.
-**Examples:** "review this", "look over my code", "what do you think of this implementation", "any issues with this?", "code review"
-
-### simplify
-**Trigger when:** User asks to clean up, simplify, refactor, or improve existing code quality.
-**Examples:** "simplify this", "clean this up", "refactor", "this feels messy", "make this cleaner"
-
-### commit-commands
-**Trigger when:** User asks to commit changes, stage files, or anything git-commit related.
-**Examples:** "commit this", "make a commit", "save my changes"
-
-### github
-**Trigger when:** User asks about PRs, issues, branches, or anything GitHub-related beyond basic git.
-**Examples:** "create a PR", "open an issue", "check the PR status"
-
-### firebase
-**Trigger when:** User asks about Firebase config, Firestore queries, Firebase Auth, storage rules, or deployment via Firebase.
-**Examples:** "deploy to Firebase", "check my Firestore rules", "Firebase auth issue"
-
-### superpowers
-**Trigger when:** User asks for advanced agentic capabilities, complex multi-step autonomous tasks, or anything that feels beyond a standard single-step response.
-**Examples:** "figure this out end to end", "autonomously fix all the bugs", "take over and handle this"
-
-### context7
-**Trigger when:** User asks about library/framework documentation, API references, or "how does X work" for an external dependency.
-**Examples:** "how do I use MediaPipe's pose API", "what does this Firebase method do", "look up the Chart.js docs"
-
-### chrome-devtools-mcp
-**Trigger when:** User asks to inspect, debug, or profile something in the browser — DOM, network, console errors, performance.
-**Examples:** "check the console errors", "inspect the DOM", "debug why this isn't rendering"
-
-### no-slop
-**Auto-triggers on ALL code generation and modification tasks.** Ensures code looks human-written — no over-commenting, no unnecessary abstractions, no AI-coded patterns.
-
-### production-code
-**Auto-triggers whenever writing or modifying app.js, index.html, or styles.css.** Ensures every line is deployment-ready — no TODOs, no placeholders, no shortcuts.
