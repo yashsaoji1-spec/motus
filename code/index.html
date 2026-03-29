@@ -708,6 +708,69 @@
   </div>
 </div>
 
+<!-- Add Protocol Modal -->
+<div id="addProtocolModal" class="apm-overlay" style="display:none" onclick="if(event.target===this)closeAddProtocol()">
+  <div class="apm-panel">
+    <div class="apm-hdr">
+      <div class="apm-hdr-left">
+        <div class="apm-hdr-title" id="apmTitle">Add Exercise</div>
+        <div class="apm-hdr-patient" id="apmPatientName"></div>
+      </div>
+      <button class="apm-close-btn" onclick="closeAddProtocol()">x</button>
+    </div>
+    <div class="apm-body">
+      <div class="apm-lib-col">
+        <div class="apm-lib-search-wrap">
+          <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off">
+          <button class="apm-new-ex-btn" onclick="apmEnterCreateMode()" title="Create new exercise">+</button>
+        </div>
+        <div class="apm-lib-list" id="apmLibList"></div>
+      </div>
+      <div class="apm-config-col">
+        <div id="apmCreateFields" style="display:none;flex-direction:column;gap:var(--space-4)">
+          <div class="apm-field">
+            <label class="apm-label">Exercise Name</label>
+            <input type="text" id="apmNewExName" class="apm-input" placeholder="e.g. Wrist Circles" autocomplete="off">
+          </div>
+          <div class="apm-field">
+            <label class="apm-label">Category</label>
+            <select id="apmNewExCatSelect" class="apm-select"></select>
+          </div>
+        </div>
+        <div id="exerciseParamsSection" class="ep-container"></div>
+        <div class="apm-dosage-row">
+          <div class="apm-field">
+            <label class="apm-label">Reps</label>
+            <input type="number" id="protocolReps" class="apm-input" value="10" min="1" max="50">
+          </div>
+          <div class="apm-field">
+            <label class="apm-label">Sets</label>
+            <input type="number" id="protocolSets" class="apm-input" value="3" min="1" max="10">
+          </div>
+          <div class="apm-field">
+            <label class="apm-label">Frequency</label>
+            <select id="protocolFrequency" class="apm-select">
+              <option value="daily">Daily</option>
+              <option value="twice_daily">Twice Daily</option>
+              <option value="every_other">Every Other Day</option>
+              <option value="three_week">3x Per Week</option>
+            </select>
+          </div>
+        </div>
+        <div class="apm-notes-field">
+          <label class="apm-label">Notes for Patient</label>
+          <textarea id="protocolNotes" class="apm-textarea" placeholder="e.g. Move slowly, stop if pain exceeds 6/10..." rows="2"></textarea>
+        </div>
+        <input type="hidden" id="exerciseType" value="full_fist">
+      </div>
+    </div>
+    <div class="apm-footer">
+      <button class="apm-cancel-btn" id="apmCancelBtn" onclick="closeAddProtocol()">Cancel</button>
+      <button class="apm-submit-btn" id="apmSubmitBtn" onclick="assignProtocol()">Add to Protocol</button>
+    </div>
+  </div>
+</div>
+
 <!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -720,32 +783,6 @@
 <!-- phalanX (Vite module) -->
 <script type="module" src="/app.js"></script>
 
-<!-- Add Protocol Modal -->
-<div id="addProtocolModal" class="apmodal-overlay" style="display:none" onclick="if(event.target===this)closeAddProtocolModal()">
-  <div class="apmodal-box">
-    <div class="apmodal-header">
-      <span class="apmodal-patient-name" id="apModalPatientName"></span>
-      <div class="apmodal-btns">
-        <button class="apmodal-btn apmodal-btn--remove" id="apRemoveBtn" onclick="removeProtocolSelections()">-</button>
-        <button class="apmodal-btn apmodal-btn--add" id="apAddBtn" onclick="addProtocolSelections()">+</button>
-      </div>
-    </div>
-    <div class="apmodal-search-row">
-      <input type="text" class="apmodal-search" placeholder="Search exercises..." oninput="filterApLibrary(this.value)">
-    </div>
-    <div class="apmodal-list" id="apModalList"></div>
-  </div>
-</div>
-
-<!-- Exercise Library Panel -->
-<div id="exerciseLibraryBackdrop" onclick="closeExerciseLibrary()" style="display:none"></div>
-<div id="exerciseLibraryPanel" style="display:none">
-  <div class="exlib-header">
-    <span class="exlib-title">Exercise Library</span>
-    <button class="exlib-close-btn" onclick="closeExerciseLibrary()">x</button>
-  </div>
-  <div class="exlib-body"></div>
-</div>
 
 </body>
 </html>

@@ -23,10 +23,8 @@ let selectedProtocol = null;
 let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
-let _apPatientEmail = null;
-let _apPatientName  = null;
-let _apProtocols    = [];
-let _apSelected     = new Set();
+let _protoPatientEmail = null;
+let _apmNewExCat = false;
 
 // ── Video recording state ──
 let mediaRecorder        = null;   // active MediaRecorder during a session
@@ -606,53 +604,27 @@ const EXERCISE_DEFAULTS = {
   index_middle_spread:     { metric:'abduction', tipA:8, tipB:12, spreadAt:0.20, closedAt:0.10 },
 };
 
-const EXERCISE_LIBRARY = [
-  // Tendon Gliding
-  { id:'hook_fist',         name:'Hook Fist',           category:'Tendon Gliding',        defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Bend the middle and tip knuckles while keeping the base knuckles straight. Isolates the flexor digitorum profundus.' },
-  { id:'straight_fist',     name:'Straight Fist',       category:'Tendon Gliding',        defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Bend all knuckles except the tip joint so fingertips point straight down. Isolates the flexor digitorum superficialis.' },
-  { id:'tabletop_position', name:'Tabletop Position',   category:'Tendon Gliding',        defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Bend the base knuckles 90 degrees while keeping the middle and tip joints straight, forming an L-shape at each finger.' },
-  { id:'full_fist',         name:'Full Fist',           category:'Tendon Gliding',        defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Close all fingers into a complete fist, then fully open. All four fingers must flex together to complete each rep.' },
-  { id:'finger_extension',  name:'Finger Extension',    category:'Tendon Gliding',        defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Start with fingers loosely bent, then actively straighten and spread all fingers as flat as possible. Works extensor tendons.' },
-  // Individual Finger Flexion
-  { id:'index_flexion',     name:'Index Finger Flexion',    category:'Individual Finger Flexion', defaultReps:15, defaultSets:3, defaultFrequency:'daily',
-    description:'Flex and extend the index finger through its full available range of motion.' },
-  { id:'middle_flexion',    name:'Middle Finger Flexion',   category:'Individual Finger Flexion', defaultReps:15, defaultSets:3, defaultFrequency:'daily',
-    description:'Flex and extend the middle finger through its full available range of motion.' },
-  { id:'ring_flexion',      name:'Ring Finger Flexion',     category:'Individual Finger Flexion', defaultReps:15, defaultSets:3, defaultFrequency:'daily',
-    description:'Flex and extend the ring finger through its full available range of motion.' },
-  { id:'pinky_flexion',     name:'Pinky Flexion',           category:'Individual Finger Flexion', defaultReps:15, defaultSets:3, defaultFrequency:'daily',
-    description:'Flex and extend the little finger through its full available range of motion.' },
-  { id:'thumb_flexion',     name:'Thumb Flexion',           category:'Individual Finger Flexion', defaultReps:15, defaultSets:3, defaultFrequency:'daily',
-    description:'Flex the thumb across the palm toward the little finger and return to neutral.' },
-  // Blocking / Isolation
-  { id:'pip_blocking',      name:'PIP Blocking',        category:'Blocking / Isolation',  defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Stabilize the base knuckle with the other hand, then flex and extend only the middle joint. Isolates the superficialis tendon.' },
-  { id:'dip_blocking',      name:'DIP Blocking',        category:'Blocking / Isolation',  defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Stabilize the middle joint with the other hand, then flex and extend only the tip joint. Isolates the profundus tendon.' },
-  // Opposition / Pinch
-  { id:'thumb_index_opposition',  name:'Thumb to Index Pinch',  category:'Opposition / Pinch', defaultReps:12, defaultSets:3, defaultFrequency:'daily',
-    description:'Bring the thumb tip to meet the index fingertip, then return open. Trains precision pinch.' },
-  { id:'thumb_opposition',        name:'Thumb to Middle Pinch', category:'Opposition / Pinch', defaultReps:12, defaultSets:3, defaultFrequency:'daily',
-    description:'Bring the thumb tip to meet the middle fingertip and return. Targets tripod pinch pattern.' },
-  { id:'thumb_ring_opposition',   name:'Thumb to Ring Pinch',   category:'Opposition / Pinch', defaultReps:12, defaultSets:3, defaultFrequency:'daily',
-    description:'Bring the thumb tip to meet the ring fingertip and return. Often the weakest opposition — important for grip strength.' },
-  { id:'thumb_little_opposition', name:'Thumb to Little Pinch', category:'Opposition / Pinch', defaultReps:12, defaultSets:3, defaultFrequency:'daily',
-    description:'Bring the thumb tip to meet the little fingertip and return. Full opposition arc, requires good thenar mobility.' },
-  // Spreading / Abduction
-  { id:'finger_abduction',    name:'Finger Spread',       category:'Spreading / Abduction', defaultReps:12, defaultSets:2, defaultFrequency:'daily',
-    description:'Spread all four fingers wide apart, then return together. Works the dorsal interosseous muscles.' },
-  { id:'index_middle_spread', name:'Index-Middle Spread',  category:'Spreading / Abduction', defaultReps:15, defaultSets:2, defaultFrequency:'daily',
-    description:'Spread only the index and middle finger apart, then close. Targets the first dorsal interosseous.' },
-  // Grip & Composite
-  { id:'grip_squeeze',    name:'Grip Squeeze',            category:'Grip & Composite', defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Close all fingers into a full fist simultaneously — all fingers must flex together each rep. Builds grip strength.' },
-  { id:'finger_flexion',  name:'Composite Finger Flexion',category:'Grip & Composite', defaultReps:10, defaultSets:3, defaultFrequency:'daily',
-    description:'Flex all fingers through their range at your own pace. Any finger completing a full flex-extend counts as a rep.' },
+const PROTOCOL_CATALOG = [
+  { id:'hook_fist',              cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Middle and tip knuckles flex while base knuckles stay straight.' },
+  { id:'straight_fist',          cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'All knuckles flex except the tip joint; fingertips point straight down.' },
+  { id:'tabletop_position',      cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Base knuckles 90°, middle and tip joints stay straight.' },
+  { id:'full_fist',              cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Complete fist then full open. All four fingers flex together.' },
+  { id:'finger_extension',       cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Straighten and spread all fingers from a loosely bent position.' },
+  { id:'index_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the index finger through its full available range.' },
+  { id:'middle_flexion',         cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the middle finger through its full available range.' },
+  { id:'ring_flexion',           cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the ring finger through its full available range.' },
+  { id:'pinky_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the little finger through its full available range.' },
+  { id:'thumb_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex thumb across the palm toward the little finger and return.' },
+  { id:'pip_blocking',           cat:'Blocking & Isolation', dr:10, ds:3, df:'daily',   desc:'Stabilize base knuckle; flex and extend only the middle joint.' },
+  { id:'dip_blocking',           cat:'Blocking & Isolation', dr:10, ds:3, df:'daily',   desc:'Stabilize middle joint; flex and extend only the tip joint.' },
+  { id:'thumb_index_opposition', cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets index fingertip, then returns open.' },
+  { id:'thumb_opposition',       cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets middle fingertip and returns.' },
+  { id:'thumb_ring_opposition',  cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets ring fingertip and returns.' },
+  { id:'thumb_little_opposition',cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets little fingertip and returns.' },
+  { id:'finger_abduction',       cat:'Spreading & Abduction',dr:12, ds:2, df:'daily',   desc:'Spread all four fingers wide apart, then return together.' },
+  { id:'index_middle_spread',    cat:'Spreading & Abduction',dr:15, ds:2, df:'daily',   desc:'Spread only the index and middle finger apart, then close.' },
+  { id:'grip_squeeze',           cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'All fingers flex simultaneously into a full fist. Builds grip strength.' },
+  { id:'finger_flexion',         cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'Any finger completing a full flex-extend cycle counts as a rep.' },
 ];
 
 // b is pivot. pip uses [MCP, PIP, TIP] = composite flexion, matching legacy middle-finger behavior.
@@ -697,15 +669,24 @@ async function editProtocol(patientEmail, protocolId) {
 
   editingProtocolId = protocolId;
   editingPatientEmail = patientEmail;
+  _protoPatientEmail = patientEmail;
 
-  // Expand the protocol collapsible section
-  const section = document.getElementById('tps-protocol');
-  if (section && section.classList.contains('collapsed')) toggleTpSection('tps-protocol');
+  const modal = document.getElementById('addProtocolModal');
+  if (!modal) return;
+  const panelHeader = document.querySelector('.patient-panel-hdr h3');
+  document.getElementById('apmPatientName').textContent = panelHeader ? panelHeader.textContent : patientEmail;
+  document.getElementById('apmTitle').textContent = 'Edit Exercise';
+  document.getElementById('apmSubmitBtn').textContent = 'Save Changes';
+  const searchEl = document.getElementById('apmSearch');
+  if (searchEl) searchEl.value = '';
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  _apmRenderLibrary('');
 
-  // Populate the form with existing values
-  const sel = document.getElementById('exerciseType');
-  if (sel) sel.value = p.exerciseType;
+  const typeEl = document.getElementById('exerciseType');
+  if (typeEl) typeEl.value = p.exerciseType;
   updateExerciseParamsUI(p.exerciseType, p.exerciseParams || null);
+  _apmHighlightSelected(p.exerciseType);
 
   const repsEl = document.getElementById('protocolReps');
   const setsEl = document.getElementById('protocolSets');
@@ -715,48 +696,10 @@ async function editProtocol(patientEmail, protocolId) {
   if (setsEl) setsEl.value = p.sets || 3;
   if (freqEl) freqEl.value = p.frequency || 'daily';
   if (notesEl) notesEl.value = p.notes || '';
-
-  // Change button text and show cancel link
-  const btn = document.querySelector('.protocol-btn');
-  if (btn) {
-    btn.textContent = 'Save Changes';
-    btn.classList.add('editing');
-  }
-  let cancelEl = document.getElementById('cancelEditBtn');
-  if (!cancelEl) {
-    cancelEl = document.createElement('button');
-    cancelEl.id = 'cancelEditBtn';
-    cancelEl.className = 'protocol-cancel-btn';
-    cancelEl.textContent = 'Cancel Edit';
-    cancelEl.onclick = () => cancelEditProtocol(patientEmail);
-    const btn2 = document.querySelector('.protocol-btn');
-    if (btn2) btn2.parentElement.insertBefore(cancelEl, btn2.nextSibling);
-  }
-  cancelEl.style.display = 'inline-block';
-
-  // Scroll into view
-  const formEl = document.querySelector('.protocol-card');
-  if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function cancelEditProtocol(patientEmail) {
-  editingProtocolId = null;
-  editingPatientEmail = null;
-  const btn = document.querySelector('.protocol-btn');
-  if (btn) {
-    btn.textContent = 'Add to Protocol';
-    btn.classList.remove('editing');
-  }
-  const cancelEl = document.getElementById('cancelEditBtn');
-  if (cancelEl) cancelEl.style.display = 'none';
-  // Reset form
-  const repsEl = document.getElementById('protocolReps');
-  const setsEl = document.getElementById('protocolSets');
-  const notesEl = document.getElementById('protocolNotes');
-  if (repsEl) repsEl.value = 10;
-  if (setsEl) setsEl.value = 3;
-  if (notesEl) notesEl.value = '';
-  updateExerciseParamsUI('full_fist', null);
+function cancelEditProtocol() {
+  closeAddProtocol();
 }
 
 async function loadTrackedJoints(patientEmail) {
@@ -771,9 +714,11 @@ async function saveTrackedJoints(patientEmail, joints) {
   });
 }
 
-async function assignProtocol(patientEmail) {
+async function assignProtocol() {
+  const patientEmail = _protoPatientEmail;
+  if (!patientEmail) return;
   const exerciseType = document.getElementById('exerciseType').value;
-  if (!exerciseType) { alert('Please select an exercise from the library.'); return; }
+  if (!exerciseType) { alert('Please select an exercise.'); return; }
   const defaults = EXERCISE_DEFAULTS[exerciseType];
 
   // Collect exerciseParams from the UI
@@ -836,6 +781,7 @@ async function assignProtocol(patientEmail) {
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
+  closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
@@ -1065,9 +1011,6 @@ function toggleTpSection(id) {
 }
 
 async function showRealPatient(patient) {
-  _apPatientEmail = patient.email;
-  _apPatientName  = patient.name;
-
   const [sessions, protocols] = await Promise.all([
     getPatientSessions(patient.email),
     getProtocols(patient.email)
@@ -1078,7 +1021,7 @@ async function showRealPatient(patient) {
     panel.innerHTML = `
       <div class="patient-panel-hdr">
         <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient</p></div>
-        <button class="add-protocol-btn" onclick="openAddProtocolModal()">Add Protocol</button>
+        <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
       </div>
       <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
       <button class="sweep-launch-btn" onclick="startMLTrainer()">ML Trainer</button>
@@ -1087,7 +1030,7 @@ async function showRealPatient(patient) {
       </div>
       ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
-      ${makeCollapsible('protocol', 'Protocol', buildProtocolForm(patient.email, protocols), false)}
+      ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
     document.getElementById('therapistMsgSend').onclick = async () => {
@@ -1099,7 +1042,6 @@ async function showRealPatient(patient) {
     await renderThread('therapistMsgThread', currentUser.email, patient.email);
     enableMobilePatientDetail(panel);
     await ejsInit(patient.email, sessions);
-    updateExerciseParamsUI('full_fist', null);
     return;
   }
 
@@ -1119,7 +1061,7 @@ async function showRealPatient(patient) {
   panel.innerHTML = `
     <div class="patient-panel-hdr">
       <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p></div>
-      <button class="add-protocol-btn" onclick="openAddProtocolModal()">Add Protocol</button>
+      <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
     </div>
     <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
     <button class="sweep-launch-btn" onclick="startMLTrainer()">ML Trainer</button>
@@ -1137,7 +1079,7 @@ async function showRealPatient(patient) {
     </div>
     ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
     ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
-    ${makeCollapsible('protocol','Protocol',  buildProtocolForm(patient.email, protocols), false)}
+    ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
   new Chart(document.getElementById('romChart').getContext('2d'), {
@@ -1214,10 +1156,12 @@ function buildSessionHistory(sessions, patientName) {
     </div>`;
 }
 
-function buildProtocolForm(patientEmail, protocols) {
-  const existingHTML = protocols.length > 0 ? `
+function buildProtocolList(patientEmail, protocols) {
+  if (!protocols.length) {
+    return '<div class="proto-empty">No exercises assigned yet.</div>';
+  }
+  return `
     <div class="proto-existing-section">
-      <div class="proto-existing-title">Current Protocol · ${protocols.length} exercise${protocols.length !== 1 ? 's' : ''}</div>
       ${protocols.map(p => `
         <div class="proto-card">
           <div class="proto-card-header">
@@ -1230,202 +1174,187 @@ function buildProtocolForm(patientEmail, protocols) {
           ${formatProtocol(p)}
         </div>
       `).join('')}
-    </div>` : '';
-
-  return `
-    <div class="protocol-card">
-      <h4>Add Exercise to Protocol</h4>
-      <div class="protocol-form">
-        <div class="protocol-field">
-          <label>Exercise</label>
-          <div class="exlib-selected-display" id="exlibSelectedDisplay">
-            <span class="exlib-selected-placeholder">No exercise selected</span>
-          </div>
-          <button class="exlib-browse-btn" type="button" onclick="openExerciseLibrary()">Browse Exercise Library</button>
-          <input type="hidden" id="exerciseType" value="">
-        </div>
-        <div id="exerciseParamsSection" class="ep-container"></div>
-        <div class="proto-dosage-row">
-          <div class="protocol-field">
-            <label>Reps</label>
-            <input type="number" id="protocolReps" value="10" min="1" max="50" />
-          </div>
-          <div class="protocol-field">
-            <label>Sets</label>
-            <input type="number" id="protocolSets" value="3" min="1" max="10" />
-          </div>
-          <div class="protocol-field">
-            <label>Frequency</label>
-            <select id="protocolFrequency">
-              <option value="daily">Daily</option>
-              <option value="twice_daily">Twice Daily</option>
-              <option value="every_other">Every Other Day</option>
-              <option value="three_week">3x Per Week</option>
-            </select>
-          </div>
-        </div>
-        <div class="protocol-field">
-          <label>Notes for Patient</label>
-          <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="2"></textarea>
-        </div>
-        <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Add to Protocol</button>
-        <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">Protocol assigned successfully</div>
-      </div>
-      ${existingHTML}
     </div>`;
 }
 
 // ── Add Protocol Modal ─────────────────────────────────────────────────────
-async function openAddProtocolModal() {
-  _apSelected  = new Set();
-  _apProtocols = [];
-  const modal  = document.getElementById('addProtocolModal');
-  const nameEl = document.getElementById('apModalPatientName');
-  const listEl = document.getElementById('apModalList');
-  if (!modal || !nameEl || !listEl) return;
-  nameEl.textContent = _apPatientName || '';
-  listEl.innerHTML   = '<div class="apmodal-loading">Loading...</div>';
+
+async function openAddProtocol(patientEmail, patientName) {
+  _protoPatientEmail = patientEmail;
+  editingProtocolId = null;
+  editingPatientEmail = null;
+  await _apmLoadCustomExercises();
+  _apmNewExCat = false;
+  const modal = document.getElementById('addProtocolModal');
+  if (!modal) return;
+  document.getElementById('apmPatientName').textContent = patientName || patientEmail;
+  document.getElementById('apmTitle').textContent = 'Add Exercise';
+  document.getElementById('apmSubmitBtn').textContent = 'Add to Protocol';
+  const repsEl = document.getElementById('protocolReps');
+  const setsEl = document.getElementById('protocolSets');
+  const freqEl = document.getElementById('protocolFrequency');
+  const notesEl = document.getElementById('protocolNotes');
+  const typeEl = document.getElementById('exerciseType');
+  if (repsEl) repsEl.value = 10;
+  if (setsEl) setsEl.value = 3;
+  if (freqEl) freqEl.value = 'daily';
+  if (notesEl) notesEl.value = '';
+  if (typeEl) typeEl.value = '';
+  const searchEl = document.getElementById('apmSearch');
+  if (searchEl) searchEl.value = '';
+  document.getElementById('apmCreateFields').style.display = 'none';
+  const cancelBtn = document.getElementById('apmCancelBtn');
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = closeAddProtocol;
+  submitBtn.onclick = assignProtocol;
   modal.style.display = 'flex';
-  _apProtocols = await getProtocols(_apPatientEmail);
-  _renderApList('');
+  document.body.style.overflow = 'hidden';
+  _apmRenderLibrary('');
+  updateExerciseParamsUI(null, null);
 }
 
-function closeAddProtocolModal() {
+function closeAddProtocol() {
   const modal = document.getElementById('addProtocolModal');
   if (modal) modal.style.display = 'none';
-  _apSelected = new Set();
+  document.body.style.overflow = '';
+  editingProtocolId = null;
+  editingPatientEmail = null;
+  _protoPatientEmail = null;
 }
 
-function _renderApList(query) {
-  const listEl = document.getElementById('apModalList');
+function _apmRenderLibrary(query) {
+  const listEl = document.getElementById('apmLibList');
   if (!listEl) return;
-  const existingIds = new Set(_apProtocols.map(p => p.exerciseType));
   const q = query.toLowerCase().trim();
-  const items = [...EXERCISE_LIBRARY]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .filter(ex => !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q));
-  if (!items.length) { listEl.innerHTML = '<div class="apmodal-loading">No exercises found.</div>'; return; }
-  listEl.innerHTML = items.map(ex => {
-    const inProto = existingIds.has(ex.id);
-    const checked = _apSelected.has(ex.id);
-    return `<div class="apmodal-item${checked ? ' apmodal-item--sel' : ''}" onclick="toggleApExercise('${ex.id}')">
-      <div class="apmodal-check${checked ? ' checked' : ''}" id="apchk-${ex.id}"></div>
-      <div class="apmodal-item-info">
-        <span class="apmodal-item-name">${ex.name}</span>
-        <span class="apmodal-item-sub">${ex.category}${inProto ? ' · added' : ''}</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function toggleApExercise(id) {
-  _apSelected.has(id) ? _apSelected.delete(id) : _apSelected.add(id);
-  const chk  = document.getElementById(`apchk-${id}`);
-  const item = chk?.closest('.apmodal-item');
-  if (chk)  chk.classList.toggle('checked', _apSelected.has(id));
-  if (item) item.classList.toggle('apmodal-item--sel', _apSelected.has(id));
-}
-
-function filterApLibrary(query) { _renderApList(query); }
-
-async function addProtocolSelections() {
-  if (!_apSelected.size) return;
-  const btn = document.getElementById('apAddBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  try {
-    const existing = await getProtocols(_apPatientEmail);
-    const now = Date.now();
-    const newItems = [..._apSelected].map((id, i) => {
-      const entry  = EXERCISE_LIBRARY.find(e => e.id === id);
-      const params = EXERCISE_DEFAULTS[id];
-      const item   = {
-        id: (now + i).toString(),
-        exerciseType: id,
-        reps:      entry?.defaultReps      || 10,
-        sets:      entry?.defaultSets      || 3,
-        frequency: entry?.defaultFrequency || 'daily',
-        notes: '', assignedBy: currentUser?.name || '', assignedAt: new Date().toISOString(),
-      };
-      if (params) item.exerciseParams = { ...params };
-      return item;
-    });
-    await db.collection('protocols').doc(_apPatientEmail).set({ items: [...existing, ...newItems] });
-    closeAddProtocolModal();
-    const snap = await db.collection('users').doc(_apPatientEmail).get();
-    if (snap.exists) showRealPatient({ email: _apPatientEmail, ...snap.data() });
-  } catch(e) {
-    console.error('addProtocolSelections:', e);
-    if (btn) { btn.disabled = false; btn.textContent = '+'; }
+  const filtered = PROTOCOL_CATALOG.filter(e =>
+    !q || (exerciseLabels[e.id] || '').toLowerCase().includes(q) || e.cat.toLowerCase().includes(q) || e.desc.toLowerCase().includes(q)
+  );
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="apm-lib-empty">No exercises found</div>';
+    return;
   }
-}
-
-async function removeProtocolSelections() {
-  if (!_apSelected.size) return;
-  const btn = document.getElementById('apRemoveBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  try {
-    const existing = await getProtocols(_apPatientEmail);
-    const updated  = existing.filter(p => !_apSelected.has(p.exerciseType));
-    if (updated.length === 0) await db.collection('protocols').doc(_apPatientEmail).delete();
-    else await db.collection('protocols').doc(_apPatientEmail).set({ items: updated });
-    closeAddProtocolModal();
-    const snap = await db.collection('users').doc(_apPatientEmail).get();
-    if (snap.exists) showRealPatient({ email: _apPatientEmail, ...snap.data() });
-  } catch(e) {
-    console.error('removeProtocolSelections:', e);
-    if (btn) { btn.disabled = false; btn.textContent = '-'; }
-  }
-}
-
-// ── Exercise Library ───────────────────────────────────────────────────────
-function openExerciseLibrary() {
-  const panel    = document.getElementById('exerciseLibraryPanel');
-  const backdrop = document.getElementById('exerciseLibraryBackdrop');
-  if (!panel || !backdrop) return;
-
-  const categories = {};
-  for (const ex of EXERCISE_LIBRARY) {
-    if (!categories[ex.category]) categories[ex.category] = [];
-    categories[ex.category].push(ex);
-  }
-
-  panel.querySelector('.exlib-body').innerHTML = Object.keys(categories).map(cat => `
-    <div class="exlib-category">
-      <div class="exlib-category-header">${cat}</div>
-      ${categories[cat].map(ex => `
-        <div class="exlib-card">
-          <div class="exlib-card-name">${ex.name}</div>
-          <div class="exlib-card-desc">${ex.description}</div>
-          <button class="exlib-select-btn" onclick="selectLibraryExercise('${ex.id}')">Select</button>
+  const cats = {};
+  for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
+  listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
+    <div class="apm-lib-cat">
+      <div class="apm-lib-cat-label">${cat}</div>
+      ${items.map(e => `
+        <div class="apm-lib-item" id="apm-item-${e.id}" onclick="apmSelectExercise('${e.id}')">
+          <div class="apm-lib-item-name">${exerciseLabels[e.id] || e.id}</div>
+          <div class="apm-lib-item-desc">${e.desc}</div>
         </div>
       `).join('')}
     </div>
   `).join('');
-
-  backdrop.style.display = 'block';
-  panel.style.display = 'flex';
-  panel.offsetWidth;
-  panel.classList.add('open');
+  const currentType = document.getElementById('exerciseType')?.value;
+  if (currentType) _apmHighlightSelected(currentType);
 }
 
-function closeExerciseLibrary() {
-  const panel    = document.getElementById('exerciseLibraryPanel');
-  const backdrop = document.getElementById('exerciseLibraryBackdrop');
-  if (panel)    { panel.classList.remove('open'); setTimeout(() => { panel.style.display = 'none'; }, 250); }
-  if (backdrop) backdrop.style.display = 'none';
+function _apmHighlightSelected(id) {
+  document.querySelectorAll('.apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+  const el = document.getElementById('apm-item-' + id);
+  if (el) { el.classList.add('apm-lib-item--active'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
 }
 
-function selectLibraryExercise(id) {
-  const entry = EXERCISE_LIBRARY.find(e => e.id === id);
-  if (!entry) return;
-  const repsEl = document.getElementById('protocolReps');
-  const setsEl = document.getElementById('protocolSets');
-  const freqEl = document.getElementById('protocolFrequency');
-  if (repsEl) repsEl.value = entry.defaultReps;
-  if (setsEl) setsEl.value = entry.defaultSets;
-  if (freqEl) freqEl.value = entry.defaultFrequency;
+function apmSelectExercise(id) {
+  const typeEl = document.getElementById('exerciseType');
+  if (typeEl) typeEl.value = id;
+  const entry = PROTOCOL_CATALOG.find(e => e.id === id);
+  if (entry) {
+    const repsEl = document.getElementById('protocolReps');
+    const setsEl = document.getElementById('protocolSets');
+    const freqEl = document.getElementById('protocolFrequency');
+    if (repsEl) repsEl.value = entry.dr;
+    if (setsEl) setsEl.value = entry.ds;
+    if (freqEl) freqEl.value = entry.df;
+  }
   updateExerciseParamsUI(id, null);
-  closeExerciseLibrary();
+  _apmHighlightSelected(id);
+}
+
+function apmFilter(query) { _apmRenderLibrary(query); }
+
+async function _apmLoadCustomExercises() {
+  try {
+    const snap = await db.collection('customExercises').get();
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (!PROTOCOL_CATALOG.find(e => e.id === d.id)) {
+        PROTOCOL_CATALOG.push({ id: d.id, cat: d.cat, dr: d.dr, ds: d.ds, df: d.df, desc: d.desc || '' });
+        exerciseLabels[d.id] = d.name;
+      }
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+function apmEnterCreateMode() {
+  _apmNewExCat = true;
+  const fields = document.getElementById('apmCreateFields');
+  fields.style.display = 'flex';
+  document.getElementById('apmNewExName').value = '';
+  document.getElementById('apmNewExName').placeholder = 'e.g. Wrist Circles';
+  document.querySelectorAll('.apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+  const container = document.getElementById('exerciseParamsSection');
+  if (container) container.innerHTML = `
+    <div class="ep-section">
+      <span class="ep-section-label">Joint Conditions</span>
+      <div class="ep-condition-header">
+        <span>Finger</span><span>Joint</span><span>Flex\u00b0</span><span>Extend\u00b0</span><span></span>
+      </div>
+      <div id="epConditionsList"></div>
+      <button class="ep-add-btn" onclick="epAddCondition()">+ Add Joint</button>
+    </div>
+    <div class="ep-require-all-row" id="epRequireAllRow" style="display:none">
+      <label class="ep-checkbox-label">
+        <input type="checkbox" id="epRequireAll">
+        Require all joints simultaneously
+      </label>
+    </div>
+    <p class="ep-threshold-hint">0\u00b0 = straight finger. Higher values = more bent.</p>`;
+  const cats = [...new Set(PROTOCOL_CATALOG.map(e => e.cat))];
+  document.getElementById('apmNewExCatSelect').innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  const cancelBtn = document.getElementById('apmCancelBtn');
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = apmExitCreateMode;
+  submitBtn.textContent = 'Save to Library';
+  submitBtn.onclick = apmSaveCustomExercise;
+}
+
+function apmExitCreateMode() {
+  _apmNewExCat = false;
+  document.getElementById('apmCreateFields').style.display = 'none';
+  const cancelBtn = document.getElementById('apmCancelBtn');
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = closeAddProtocol;
+  submitBtn.textContent = 'Add to Protocol';
+  submitBtn.onclick = assignProtocol;
+}
+
+async function apmSaveCustomExercise() {
+  const rawName = document.getElementById('apmNewExName').value.trim();
+  if (!rawName) { document.getElementById('apmNewExName').focus(); return; }
+  const cat = document.getElementById('apmNewExCatSelect').value;
+  const id = rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (PROTOCOL_CATALOG.find(e => e.id === id)) {
+    document.getElementById('apmNewExName').value = '';
+    document.getElementById('apmNewExName').placeholder = 'Name already exists';
+    return;
+  }
+  const dr = parseInt(document.getElementById('protocolReps').value) || 10;
+  const ds = parseInt(document.getElementById('protocolSets').value) || 3;
+  const df = document.getElementById('protocolFrequency').value || 'daily';
+  const entry = { id, cat, dr, ds, df, desc: '' };
+  try {
+    await db.collection('customExercises').add({ ...entry, name: rawName, createdBy: auth.currentUser?.email || '' });
+  } catch (e) { /* save locally even if Firestore fails */ }
+  PROTOCOL_CATALOG.push(entry);
+  exerciseLabels[id] = rawName;
+  apmExitCreateMode();
+  _apmRenderLibrary(document.getElementById('apmSearch')?.value || '');
+  apmSelectExercise(id);
 }
 
 function epUpdateRequireAllVisibility() {
@@ -1433,7 +1362,7 @@ function epUpdateRequireAllVisibility() {
   const row   = document.getElementById('epRequireAllRow');
   if (row) row.style.display = count > 1 ? 'flex' : 'none';
   document.querySelectorAll('.ep-remove-btn').forEach(btn => {
-    btn.style.visibility = count > 1 ? 'visible' : 'hidden';
+    btn.style.visibility = 'visible';
   });
 }
 
@@ -1466,14 +1395,6 @@ function updateExerciseParamsUI(exerciseType, savedParams) {
 
   const sel = document.getElementById('exerciseType');
   if (sel && exerciseType) sel.value = exerciseType;
-
-  const displayEl = document.getElementById('exlibSelectedDisplay');
-  if (displayEl && exerciseType) {
-    const libEntry = EXERCISE_LIBRARY.find(e => e.id === exerciseType);
-    const label    = libEntry ? libEntry.name : (exerciseLabels[exerciseType] || exerciseType);
-    const cat      = libEntry ? libEntry.category : '';
-    displayEl.innerHTML = `<span class="exlib-selected-name">${label}</span>${cat ? `<span class="exlib-selected-cat">${cat}</span>` : ''}`;
-  }
 
   const defaults = EXERCISE_DEFAULTS[exerciseType];
   if (!defaults) { container.innerHTML = ''; return; }
@@ -5093,8 +5014,8 @@ Object.assign(window, {
   trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint, mlSetHand, mlDeleteSession,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
-  openAddProtocolModal, closeAddProtocolModal, toggleApExercise, filterApLibrary, addProtocolSelections, removeProtocolSelections,
-  openExerciseLibrary, closeExerciseLibrary, selectLibraryExercise,
+  openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
+  apmEnterCreateMode, apmExitCreateMode, apmSaveCustomExercise,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
 
   // Joint selector
