@@ -1,6 +1,6 @@
 When Yash says "update CLAUDE.md", "update the doc", "update the functionality form", or anything similar — update the relevant section(s) of this file directly: the "Last updated" line, the Screen System table, the Section Map table, or whichever part reflects what changed.
 
-# Last updated: 2026-03-29 (Custom exercise creation: + button in Add Protocol modal library column enters create mode — name + category fields appear, joint conditions UI starts empty, saves to Firestore customExercises collection, merges into PROTOCOL_CATALOG on modal open; modal opens with no default exercise selected; remove buttons always visible on joint condition rows)
+# Last updated: 2026-03-29 (Custom exercise creation: + button in Add Protocol modal; modal opens blank; remove buttons always visible on joint rows; removed Calibrate button from mobile therapist panel header)
 
 # PhalanX — Claude Code Guide
 
