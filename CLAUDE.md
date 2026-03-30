@@ -262,3 +262,17 @@ Full code reference: see `ml_trainer/ml-training-guide.md`
 Admin accounts are created **manually** by Yash:
 1. Firebase Auth console → Add user → set email + password
 2. Firestore → `users/{email}` → `{ name: "...", role: "admin" }`
+
+## Known Issues (Pending Fix)
+
+### Consent Screen Inaccuracies (`consentScreen` in `index.html`)
+
+Two claims in the "How we use it" section are inaccurate and need to be corrected before launch:
+
+1. **"Camera video is processed on-device and never stored" — FALSE.**
+   The app records session video at 400 kbps (`startRecording` in Section 11) and uploads it to Cloudinary. The `videoUrl` is persisted on every session Firestore document. This claim directly contradicts actual behavior.
+
+2. **"You may request deletion of your data at any time" — UNFULFILLABLE.**
+   There is no deletion UI, form, or mechanism anywhere in the app. Until one is built, this claim should either be removed or reworded to set accurate expectations.
+
+**Action needed:** Update the consent screen copy to accurately describe video recording and Cloudinary storage, and either implement a data deletion path or remove the deletion promise.
