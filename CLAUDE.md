@@ -229,6 +229,10 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 16  | Sweep Calibration — full rules-based hand tracking system; see expanded section below |
 | 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `mlAutoCapture`, `mlStartRecording`, `mlStopRecording`, `mlUndoLastRecording`, `mlClearJoint`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlSetHand`, `mlRefreshSampleCounts`, `mlRenderGrid`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`; globals: `_mlModels` (Map), `_mlCurrentHand` (live camera detection only), `_mlSelectedHand` (persistent — used by all data ops), `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlSuggestedAngle`, `_mlRecording`, `_mlRecordingId`, `_mlLastRecordingId` |
 
+## Section 16: Sweep Calibration
+
+Full code reference: see `ml_trainer/ml-training-guide.md`
+
 ## Screen Persistence (sessionStorage)
 
 `showScreen(id)` saves the screen ID to `sessionStorage('phalanx_screen')` unless the ID is in `AUTH_SCREENS` (`loginScreen`, `signupScreen`, `forgotScreen`, `consentScreen`, `pendingScreen`, `adminScreen`).
@@ -241,6 +245,10 @@ On login, `loginSuccess()` reads `savedScreen = sessionStorage.getItem('phalanx_
 `logout()` calls `sessionStorage.removeItem('phalanx_screen')`.
 
 ---
+
+## Section 17: ML Angle Trainer
+
+Full code reference: see `ml_trainer/ml-training-guide.md`
 
 ## Firestore Role Values
 
