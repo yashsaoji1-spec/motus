@@ -513,8 +513,8 @@ async function startSessionWithProtocol(protocol) {
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
   showScreen('cameraScreen');
-  loadPatientProtocol();
-  initSetTracker();
+  await loadPatientProtocol();
+  await initSetTracker();
   if (!mpCamera) startCamera();
 }
 
