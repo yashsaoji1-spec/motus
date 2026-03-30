@@ -406,35 +406,7 @@ async function updatePatientHomeScreen() {
     getConnectedTherapist()
   ]);
 
-  const listEl = document.getElementById('patientExerciseList');
-  if (protocols.length > 0 && listEl) {
-    listEl.style.display = 'flex';
-    _exercisesProtocols = protocols;
-    const today = new Date().toDateString();
-    const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
-    const doneById = {};
-    todaySessions.filter(s => s.protocolId).forEach(s => {
-      doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1;
-    });
-    const PEL_MAX = 3;
-    const pills = protocols.map((p, i) => {
-      const done = doneById[p.id] || 0;
-      const total = p.sets || 3;
-      const isDone = done >= total;
-      const cls = isDone ? 'pel-done' : done > 0 ? 'pel-partial' : '';
-      const statusText = isDone ? '✓' : done > 0 ? `${done}/${total}` : `${total} sets`;
-      return `<button class="pel-card ${cls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
-        <div class="pel-info">
-          <div class="pel-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
-        </div>
-        <div class="pel-status">${statusText}</div>
-      </button>`;
-    });
-    const overflow = protocols.length > PEL_MAX ? `<button class="pel-card pel-more" onclick="showExercisesScreen()">+${protocols.length - PEL_MAX} more</button>` : '';
-    listEl.innerHTML = pills.slice(0, PEL_MAX).join('') + overflow;
-  } else if (listEl) {
-    listEl.style.display = 'none';
-  }
+
 
   // Today's Plan card
   const planCard = document.getElementById('todaysPlanCard');
@@ -862,22 +834,20 @@ async function loadPatientProtocol() {
 }
 
 async function showExercisesScreen() {
-  showScreen('exercisesScreen');
   const [protocols, allSessions] = currentUser
     ? await Promise.all([getProtocols(currentUser.email), getPatientSessions(currentUser.email)])
     : [[], []];
   const inner = document.getElementById('exercisesScreenInner');
-  const subtitle = document.getElementById('exSubtitle');
   if (!inner) return;
 
   if (protocols.length === 0) {
-    if (subtitle) subtitle.textContent = '';
     inner.innerHTML = `
       <div class="exs-empty">
         <div class="exs-empty-icon"></div>
         <p class="exs-empty-title">No protocol yet</p>
         <p class="exs-empty-sub">Your therapist has not assigned any exercises for you.</p>
       </div>`;
+    showScreen('exercisesScreen');
     return;
   }
 
@@ -890,30 +860,47 @@ async function showExercisesScreen() {
 
   _exercisesProtocols = protocols;
 
-  if (subtitle) subtitle.textContent = `${protocols.length} exercise${protocols.length !== 1 ? 's' : ''} assigned`;
-
+  const EXS_COLLAPSED_MAX = 3;
   const cards = protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
-    const progressText = isDone
-      ? `<span class="exs-done-badge">Done today</span>`
-      : doneSets > 0
-        ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
-        : '';
-    return `<div class="ex-card" onclick="showExerciseDetail(_exercisesProtocols[${i}])">
-      <div class="ex-card-left">
-        <span class="ex-card-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
-        <span class="ex-card-rx">${p.sets} sets × ${p.reps} reps</span>
+    const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
+    const badge = isDone ? '<span class="exs-row-badge done">Done</span>'
+      : doneSets > 0 ? `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
+    return `<div class="exs-row ${statusCls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
+      <div class="exs-row-left">
+        <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+        <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
       </div>
-      <div class="ex-card-right">
-        ${statusIndicator}
-        <span class="ex-chevron">›</span>
+      <div class="exs-row-right">
+        ${badge}
+        <span class="exs-row-sets">${totalSetsNeeded} sets</span>
+        <svg class="exs-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>`;
   });
+  const showToggle = protocols.length > EXS_COLLAPSED_MAX;
+  inner.innerHTML = `<div class="exs-list" id="exsList">
+    ${cards.map((c, i) => i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
+  </div>
+  ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">Show all ${protocols.length} exercises</button>` : ''}`;
 
-  inner.innerHTML = cards.join('');
+  showScreen('exercisesScreen');
+}
+
+function toggleExerciseList() {
+  const list = document.getElementById('exsList');
+  const btn = document.querySelector('.exs-toggle-btn');
+  if (!list || !btn) return;
+  const hidden = list.querySelectorAll('.exs-hidden');
+  if (hidden.length) {
+    hidden.forEach(el => el.classList.remove('exs-hidden'));
+    btn.textContent = 'Show less';
+  } else {
+    list.querySelectorAll('.exs-row').forEach((el, i) => { if (i >= 3) el.classList.add('exs-hidden'); });
+    btn.textContent = `Show all ${list.querySelectorAll('.exs-row').length} exercises`;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
