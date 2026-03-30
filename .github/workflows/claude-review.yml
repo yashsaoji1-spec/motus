@@ -20,8 +20,10 @@ jobs:
       - name: Get PR diff
         id: diff
         run: |
-          git diff origin/${{ github.base_ref }}...origin/${{ github.head_ref }} > pr_diff.txt
-          echo "Diff saved"
+          git diff origin/${{ github.base_ref }}...origin/${{ github.head_ref }} \
+            -- ':(exclude)package-lock.json' ':(exclude)dist/**' ':(exclude).firebase/**' \
+            > pr_diff.txt
+          echo "Diff saved ($(wc -c < pr_diff.txt) bytes)"
 
       - name: Claude Fact-Check Review
         env:
@@ -30,26 +32,31 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
-          DIFF=$(cat pr_diff.txt)
+          DIFF=$(cat pr_diff.txt | head -c 80000)
 
           RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
-            -d "{
-              \"model\": \"claude-opus-4-6\",
-              \"max_tokens\": 1024,
-              \"messages\": [{
-                \"role\": \"user\",
-                \"content\": \"You are a code reviewer and fact-checker for a web app called phalanX. Review the following pull request diff carefully.\n\nCheck for:\n1. Logic errors or bugs\n2. Incorrect assumptions or facts in comments/docs\n3. Inconsistencies between the two branches being merged\n4. Any code that looks incomplete or contradictory\n5. Security issues\n\nBe specific and constructive. Format your response in clear sections.\n\nHere is the diff:\n\n$(echo "$DIFF" | head -c 3000)\"
-              }]
-            }")
+            -d "$(python3 -c "
+          import json, sys
+          diff = open('pr_diff.txt').read()[:80000]
+          payload = {
+            'model': 'claude-opus-4-6',
+            'max_tokens': 2048,
+            'messages': [{
+              'role': 'user',
+              'content': 'You are a code reviewer and fact-checker for a web app called phalanX. Review the following pull request diff carefully.\n\nCheck for:\n1. Logic errors or bugs\n2. Incorrect assumptions or facts in comments/docs\n3. Inconsistencies between the two branches being merged\n4. Any code that looks incomplete or contradictory\n5. Security issues\n\nBe specific and constructive. Format your response in clear sections.\n\nHere is the diff:\n\n' + diff
+            }]
+          }
+          print(json.dumps(payload))
+          ")")
 
           COMMENT=$(echo $RESPONSE | python3 -c "
           import sys, json
           data = json.load(sys.stdin)
           text = data['content'][0]['text']
-          print('## 🤖 Claude Fact-Check Review\n\n' + text)
+          print('## Claude Fact-Check Review\n\n' + text)
           ")
 
           gh pr comment $PR_NUMBER --repo $REPO --body "$COMMENT"

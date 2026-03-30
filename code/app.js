@@ -24,6 +24,14 @@ let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
 var activeSheetProtocol = null;
+let _protoPatientEmail = null;
+let _apmNewExCat = false;
+
+// ── Video recording state ──
+let mediaRecorder        = null;   // active MediaRecorder during a session
+let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
+let recordingSupported   = false;  // false on iOS/unsupported browsers — skip all recording logic
+let _pendingSessionDocId = null;   // Firestore doc ID to patch with videoUrl after upload completes
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -62,6 +70,7 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     currentUser = { email: firebaseUser.email, ...snap.data() };
     currentRole = currentUser.role;
     await loginSuccess();
+    loadMLModels();
   } catch (e) {
     console.error('onAuthStateChanged error:', e);
     showScreen('loginScreen');
@@ -123,6 +132,8 @@ const screenTitles = {
   adminScreen:        'PhalanX — Admin Panel',
 };
 
+const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'roleScreen', 'connectScreen', 'pendingScreen']);
+
 function showScreen(screenId) {
   const prevActive = document.querySelector('.screen.active');
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -130,6 +141,7 @@ function showScreen(screenId) {
   next.classList.add('active');
   next.scrollTop = 0;
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
+  if (!AUTH_SCREENS.has(screenId)) sessionStorage.setItem('phalanx_screen', screenId);
 
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
@@ -217,7 +229,7 @@ async function handleForgot() {
   try {
     await auth.sendPasswordResetEmail(email);
     const successEl = document.getElementById('forgotSuccess');
-    successEl.textContent = '✓ Password reset email sent! Check your inbox.';
+    successEl.textContent = 'Password reset email sent! Check your inbox.';
     successEl.style.display = 'block';
     setTimeout(() => {
       successEl.style.display = 'none';
@@ -244,7 +256,7 @@ async function handleConnect() {
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   await saveConnection(therapist.email, currentUser.email);
   const successEl = document.getElementById('connectSuccess');
-  successEl.textContent = `✓ Connected to ${therapist.name}! Loading your exercises...`;
+  successEl.textContent = `Connected to ${therapist.name}! Loading your exercises...`;
   successEl.style.display = 'block';
   setTimeout(async () => {
     showScreen('patientScreen');
@@ -264,6 +276,8 @@ async function skipConnect() {
    ══════════════════════════════════════════════════════════════════════════ */
 
 async function loginSuccess() {
+  const savedScreen = sessionStorage.getItem('phalanx_screen');
+
   if (currentRole === 'admin') {
     showScreen('adminScreen');
     await loadAdminScreen();
@@ -284,12 +298,31 @@ async function loginSuccess() {
       showScreen('connectScreen');
     }
   }
+
+  await restoreScreen(savedScreen);
+}
+
+async function restoreScreen(saved) {
+  if (!saved) return;
+
+  // sweepCalibrationScreen needs patientEmail arg — can't restore
+  // cameraScreen session state is gone on refresh — can't restore
+  // messagingScreen needs currentPatient set — can't restore
+  if (currentRole === 'therapist') {
+    if (saved === 'mlTrainerScreen') { await startMLTrainer(); }
+    // therapistScreen is already shown by loginSuccess — nothing to do
+  } else if (currentRole === 'patient') {
+    if (saved === 'exercisesScreen') { await showExercisesScreen(); }
+    else if (saved === 'progressScreen') { await showProgressScreen(); }
+    // patientScreen already shown by loginSuccess — nothing to do
+  }
 }
 
 function logout() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
   if (restTimerInterval) { clearInterval(restTimerInterval); restTimerInterval = null; }
+  sessionStorage.removeItem('phalanx_screen');
   auth.signOut();
   // onAuthStateChanged resets currentUser/currentRole and shows loginScreen
 }
@@ -550,7 +583,13 @@ const exerciseLabels = {
   grip_squeeze:           'Grip Squeeze',
   finger_abduction:       'Finger Abduction',
   wrist_flexion:          'Wrist Flexion',
-  wrist_extension:        'Wrist Extension'
+  wrist_extension:        'Wrist Extension',
+  straight_fist:          'Straight Fist',
+  pip_blocking:           'PIP Blocking',
+  dip_blocking:           'DIP Blocking',
+  thumb_ring_opposition:  'Thumb to Ring Pinch',
+  thumb_little_opposition:'Thumb to Little Pinch',
+  index_middle_spread:    'Index-Middle Spread',
 };
 
 const frequencyLabels = {
@@ -578,7 +617,37 @@ const EXERCISE_DEFAULTS = {
   thumb_index_opposition: { metric:'distance',  tipA:4,  tipB:8,  closeAt:0.08, openAt:0.25 },
   thumb_opposition:       { metric:'distance',  tipA:4,  tipB:12, closeAt:0.08, openAt:0.25 },
   finger_abduction:       { metric:'abduction', tipA:8,  tipB:20, spreadAt:0.30, closedAt:0.15 },
+  // New library exercises
+  straight_fist:         { metric:'angle', conditions:[{finger:'index',joint:'mcp',flexAt:50,extendAt:15},{finger:'index',joint:'pip',flexAt:60,extendAt:15},{finger:'middle',joint:'mcp',flexAt:50,extendAt:15},{finger:'middle',joint:'pip',flexAt:60,extendAt:15},{finger:'ring',joint:'mcp',flexAt:50,extendAt:15},{finger:'ring',joint:'pip',flexAt:60,extendAt:15},{finger:'pinky',joint:'mcp',flexAt:50,extendAt:15},{finger:'pinky',joint:'pip',flexAt:60,extendAt:15}], requireAll:true },
+  pip_blocking:          { metric:'angle', conditions:[{finger:'index',joint:'pip',flexAt:60,extendAt:15},{finger:'middle',joint:'pip',flexAt:60,extendAt:15},{finger:'ring',joint:'pip',flexAt:60,extendAt:15},{finger:'pinky',joint:'pip',flexAt:60,extendAt:15}], requireAll:false },
+  dip_blocking:          { metric:'angle', conditions:[{finger:'index',joint:'dip',flexAt:30,extendAt:10},{finger:'middle',joint:'dip',flexAt:30,extendAt:10}], requireAll:false },
+  thumb_ring_opposition:   { metric:'distance', tipA:4, tipB:16, closeAt:0.08, openAt:0.25 },
+  thumb_little_opposition: { metric:'distance', tipA:4, tipB:20, closeAt:0.08, openAt:0.25 },
+  index_middle_spread:     { metric:'abduction', tipA:8, tipB:12, spreadAt:0.20, closedAt:0.10 },
 };
+
+const PROTOCOL_CATALOG = [
+  { id:'hook_fist',              cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Middle and tip knuckles flex while base knuckles stay straight.' },
+  { id:'straight_fist',          cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'All knuckles flex except the tip joint; fingertips point straight down.' },
+  { id:'tabletop_position',      cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Base knuckles 90°, middle and tip joints stay straight.' },
+  { id:'full_fist',              cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Complete fist then full open. All four fingers flex together.' },
+  { id:'finger_extension',       cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Straighten and spread all fingers from a loosely bent position.' },
+  { id:'index_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the index finger through its full available range.' },
+  { id:'middle_flexion',         cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the middle finger through its full available range.' },
+  { id:'ring_flexion',           cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the ring finger through its full available range.' },
+  { id:'pinky_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the little finger through its full available range.' },
+  { id:'thumb_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex thumb across the palm toward the little finger and return.' },
+  { id:'pip_blocking',           cat:'Blocking & Isolation', dr:10, ds:3, df:'daily',   desc:'Stabilize base knuckle; flex and extend only the middle joint.' },
+  { id:'dip_blocking',           cat:'Blocking & Isolation', dr:10, ds:3, df:'daily',   desc:'Stabilize middle joint; flex and extend only the tip joint.' },
+  { id:'thumb_index_opposition', cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets index fingertip, then returns open.' },
+  { id:'thumb_opposition',       cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets middle fingertip and returns.' },
+  { id:'thumb_ring_opposition',  cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets ring fingertip and returns.' },
+  { id:'thumb_little_opposition',cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets little fingertip and returns.' },
+  { id:'finger_abduction',       cat:'Spreading & Abduction',dr:12, ds:2, df:'daily',   desc:'Spread all four fingers wide apart, then return together.' },
+  { id:'index_middle_spread',    cat:'Spreading & Abduction',dr:15, ds:2, df:'daily',   desc:'Spread only the index and middle finger apart, then close.' },
+  { id:'grip_squeeze',           cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'All fingers flex simultaneously into a full fist. Builds grip strength.' },
+  { id:'finger_flexion',         cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'Any finger completing a full flex-extend cycle counts as a rep.' },
+];
 
 // b is pivot. pip uses [MCP, PIP, TIP] = composite flexion, matching legacy middle-finger behavior.
 const FINGER_LANDMARK_MAP = {
@@ -629,15 +698,24 @@ async function editProtocol(patientEmail, protocolId) {
 
   editingProtocolId = protocolId;
   editingPatientEmail = patientEmail;
+  _protoPatientEmail = patientEmail;
 
-  // Expand the protocol collapsible section
-  const section = document.getElementById('tps-protocol');
-  if (section && section.classList.contains('collapsed')) toggleTpSection('tps-protocol');
+  const modal = document.getElementById('addProtocolModal');
+  if (!modal) return;
+  const panelHeader = document.querySelector('.patient-panel-hdr h3');
+  document.getElementById('apmPatientName').textContent = panelHeader ? panelHeader.textContent : patientEmail;
+  document.getElementById('apmTitle').textContent = 'Edit Exercise';
+  document.getElementById('apmSubmitBtn').textContent = 'Save Changes';
+  const searchEl = document.getElementById('apmSearch');
+  if (searchEl) searchEl.value = '';
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  _apmRenderLibrary('');
 
-  // Populate the form with existing values
-  const sel = document.getElementById('exerciseType');
-  if (sel) sel.value = p.exerciseType;
+  const typeEl = document.getElementById('exerciseType');
+  if (typeEl) typeEl.value = p.exerciseType;
   updateExerciseParamsUI(p.exerciseType, p.exerciseParams || null);
+  _apmHighlightSelected(p.exerciseType);
 
   const repsEl = document.getElementById('protocolReps');
   const setsEl = document.getElementById('protocolSets');
@@ -647,48 +725,10 @@ async function editProtocol(patientEmail, protocolId) {
   if (setsEl) setsEl.value = p.sets || 3;
   if (freqEl) freqEl.value = p.frequency || 'daily';
   if (notesEl) notesEl.value = p.notes || '';
-
-  // Change button text and show cancel link
-  const btn = document.querySelector('.protocol-btn');
-  if (btn) {
-    btn.textContent = 'Save Changes';
-    btn.classList.add('editing');
-  }
-  let cancelEl = document.getElementById('cancelEditBtn');
-  if (!cancelEl) {
-    cancelEl = document.createElement('button');
-    cancelEl.id = 'cancelEditBtn';
-    cancelEl.className = 'protocol-cancel-btn';
-    cancelEl.textContent = 'Cancel Edit';
-    cancelEl.onclick = () => cancelEditProtocol(patientEmail);
-    const btn2 = document.querySelector('.protocol-btn');
-    if (btn2) btn2.parentElement.insertBefore(cancelEl, btn2.nextSibling);
-  }
-  cancelEl.style.display = 'inline-block';
-
-  // Scroll into view
-  const formEl = document.querySelector('.protocol-card');
-  if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function cancelEditProtocol(patientEmail) {
-  editingProtocolId = null;
-  editingPatientEmail = null;
-  const btn = document.querySelector('.protocol-btn');
-  if (btn) {
-    btn.textContent = 'Add to Protocol';
-    btn.classList.remove('editing');
-  }
-  const cancelEl = document.getElementById('cancelEditBtn');
-  if (cancelEl) cancelEl.style.display = 'none';
-  // Reset form
-  const repsEl = document.getElementById('protocolReps');
-  const setsEl = document.getElementById('protocolSets');
-  const notesEl = document.getElementById('protocolNotes');
-  if (repsEl) repsEl.value = 10;
-  if (setsEl) setsEl.value = 3;
-  if (notesEl) notesEl.value = '';
-  updateExerciseParamsUI('full_fist', null);
+function cancelEditProtocol() {
+  closeAddProtocol();
 }
 
 async function loadTrackedJoints(patientEmail) {
@@ -703,8 +743,11 @@ async function saveTrackedJoints(patientEmail, joints) {
   });
 }
 
-async function assignProtocol(patientEmail) {
+async function assignProtocol() {
+  const patientEmail = _protoPatientEmail;
+  if (!patientEmail) return;
   const exerciseType = document.getElementById('exerciseType').value;
+  if (!exerciseType) { alert('Please select an exercise.'); return; }
   const defaults = EXERCISE_DEFAULTS[exerciseType];
 
   // Collect exerciseParams from the UI
@@ -767,16 +810,9 @@ async function assignProtocol(patientEmail) {
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
-  // Refresh protocol section in-place instead of rebuilding entire panel
-  const updatedProtocols = await getProtocols(patientEmail);
-  const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
-  if (protoBody) {
-    protoBody.innerHTML = buildProtocolForm(patientEmail, updatedProtocols);
-    updateExerciseParamsUI('full_fist', null);
-  } else {
-    const snap = await db.collection('users').doc(patientEmail).get();
-    if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
-  }
+  closeAddProtocol();
+  const snap = await db.collection('users').doc(patientEmail).get();
+  if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
 }
 
 function formatProtocol(p) {
@@ -837,13 +873,10 @@ async function showExercisesScreen() {
   if (protocols.length === 0) {
     if (subtitle) subtitle.textContent = '';
     inner.innerHTML = `
-      <div class="ex-empty">
-        <div class="ex-empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.35">
-            <rect x="9" y="2" width="6" height="4" rx="1"/><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" y1="11" x2="14" y2="11"/>
-          </svg>
-        </div>
-        <p>No exercises yet</p>
+      <div class="exs-empty">
+        <div class="exs-empty-icon"></div>
+        <p class="exs-empty-title">No protocol yet</p>
+        <p class="exs-empty-sub">Your therapist has not assigned any exercises for you.</p>
       </div>`;
     return;
   }
@@ -863,11 +896,10 @@ async function showExercisesScreen() {
     const doneSets = doneById[p.id] || 0;
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
-    const isPartial = !isDone && doneSets > 0;
-    const statusIndicator = isDone
-      ? `<div class="ex-status-done"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>`
-      : isPartial
-        ? `<span class="ex-status-pill in-progress">${doneSets}/${totalSetsNeeded}</span>`
+    const progressText = isDone
+      ? `<span class="exs-done-badge">Done today</span>`
+      : doneSets > 0
+        ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
         : '';
     return `<div class="ex-card" onclick="showExerciseDetail(_exercisesProtocols[${i}])">
       <div class="ex-card-left">
@@ -939,7 +971,7 @@ function filterPatients(query) {
 function enableMobilePatientDetail(panel) {
   if (window.innerWidth >= 1024) return;
   document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
-  panel.insertAdjacentHTML('afterbegin', '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button><button class="tp-mobile-back-btn" style="padding:0" onclick="startCalibration()">Calibrate</button></div>');
+  panel.insertAdjacentHTML('afterbegin', '<div style="margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button></div>');
 }
 
 // ── Calibration back button (named so Vite module can export it) ──────────────
@@ -1022,23 +1054,18 @@ async function showRealPatient(patient) {
 
   if (sessions.length === 0) {
     panel.innerHTML = `
-      <div class="tp-patient-header">
-        <div>
-          <h3 style="font-size: 1.5rem; font-weight: 600; margin: 0;">${patient.name}</h3>
-          <p style="color: var(--muted); font-size: 0.85rem; margin: 4px 0 0;">Connected Patient</p>
-        </div>
+      <div class="patient-panel-hdr">
+        <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient</p></div>
+        <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
       </div>
-      <div class="tp-empty-state">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-          <rect x="9" y="3" width="6" height="4" rx="1"/>
-        </svg>
-        <p>No sessions yet</p>
-        <p class="tp-empty-sub">Data will appear after ${patient.name.split(' ')[0]} completes a session.</p>
+      <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
+      <button class="sweep-launch-btn" onclick="startMLTrainer()">ML Trainer</button>
+      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
+        No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
-      ${makeCollapsible('joints', 'Joint monitoring', buildJointSelector(patient.email), false)}
-      ${makeCollapsible('history', 'Session history', buildSessionHistory(sessions), false)}
-      ${makeCollapsible('protocol', 'Add exercise to protocol', buildProtocolForm(patient.email, protocols), false)}
+      ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
+      ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
     document.getElementById('therapistMsgSend').onclick = async () => {
@@ -1050,7 +1077,6 @@ async function showRealPatient(patient) {
     await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     enableMobilePatientDetail(panel);
     await ejsInit(patient.email, sessions);
-    updateExerciseParamsUI('full_fist', null);
     return;
   }
 
@@ -1065,12 +1091,12 @@ async function showRealPatient(patient) {
   const labels          = buildChartLabels(recent);
 
   panel.innerHTML = `
-    <div class="tp-patient-header">
-      <div>
-        <h3 style="font-size: 1.5rem; font-weight: 600; margin: 0;">${patient.name}</h3>
-        <p style="color: var(--muted); font-size: 0.85rem; margin: 4px 0 0;">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p>
-      </div>
+    <div class="patient-panel-hdr">
+      <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p></div>
+      <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
     </div>
+    <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
+    <button class="sweep-launch-btn" onclick="startMLTrainer()">ML Trainer</button>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
@@ -1083,9 +1109,9 @@ async function showRealPatient(patient) {
     ${makeCollapsible('rom',     'Range of motion over time', '<canvas id="romChart" height="160"></canvas>', true)}
     ${makeCollapsible('pain',    'Pain rating over time',     '<canvas id="painChart" height="160"></canvas>', true)}
     </div>
-    ${makeCollapsible('joints',  'Joint monitoring',          buildJointSelector(patient.email), false)}
-    ${makeCollapsible('history', `Session history — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions), false)}
-    ${makeCollapsible('protocol','Add exercise to protocol',  buildProtocolForm(patient.email, protocols), false)}
+    ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
+    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
+    ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
   const tRomCfg = buildChartConfig(romData, { type: 'rom', color: '#0B6CB0', fillColor: 'rgba(11,108,176,0.06)' });
@@ -1221,10 +1247,12 @@ function buildSessionHistory(sessions) {
     </div>`;
 }
 
-function buildProtocolForm(patientEmail, protocols) {
-  const existingHTML = protocols.length > 0 ? `
+function buildProtocolList(patientEmail, protocols) {
+  if (!protocols.length) {
+    return '<div class="proto-empty">No exercises assigned yet.</div>';
+  }
+  return `
     <div class="proto-existing-section">
-      <div class="proto-existing-title">Current Protocol · ${protocols.length} exercise${protocols.length !== 1 ? 's' : ''}</div>
       ${protocols.map(p => `
         <div class="proto-card">
           <div class="proto-card-header">
@@ -1237,66 +1265,187 @@ function buildProtocolForm(patientEmail, protocols) {
           ${formatProtocol(p)}
         </div>
       `).join('')}
-    </div>` : '';
-
-  return `
-    <div class="protocol-card">
-      <h4>Add Exercise to Protocol</h4>
-      <div class="protocol-form">
-        <div class="protocol-field">
-          <label>Exercise Type</label>
-          <select id="exerciseType" onchange="updateExerciseParamsUI(this.value, null)">
-            <optgroup label="Full Hand">
-              <option value="full_fist">Full Fist</option>
-              <option value="hook_fist">Hook Fist</option>
-              <option value="tabletop_position">Tabletop Position</option>
-              <option value="grip_squeeze">Grip Squeeze</option>
-            </optgroup>
-            <optgroup label="Individual Fingers">
-              <option value="index_flexion">Index Finger Flexion</option>
-              <option value="middle_flexion">Middle Finger Flexion</option>
-              <option value="ring_flexion">Ring Finger Flexion</option>
-              <option value="pinky_flexion">Pinky Flexion</option>
-              <option value="thumb_flexion">Thumb Flexion</option>
-              <option value="finger_flexion">Finger Flexion</option>
-              <option value="finger_extension">Finger Extension</option>
-            </optgroup>
-            <optgroup label="Opposition / Spread">
-              <option value="thumb_index_opposition">Thumb to Index Opposition</option>
-              <option value="thumb_opposition">Thumb Opposition</option>
-              <option value="finger_abduction">Finger Abduction</option>
-            </optgroup>
-          </select>
-        </div>
-        <div id="exerciseParamsSection" class="ep-container"></div>
-        <div class="proto-dosage-row">
-          <div class="protocol-field">
-            <label>Reps</label>
-            <input type="number" id="protocolReps" value="10" min="1" max="50" />
-          </div>
-          <div class="protocol-field">
-            <label>Sets</label>
-            <input type="number" id="protocolSets" value="3" min="1" max="10" />
-          </div>
-          <div class="protocol-field">
-            <label>Frequency</label>
-            <select id="protocolFrequency">
-              <option value="daily">Daily</option>
-              <option value="twice_daily">Twice Daily</option>
-              <option value="every_other">Every Other Day</option>
-              <option value="three_week">3x Per Week</option>
-            </select>
-          </div>
-        </div>
-        <div class="protocol-field">
-          <label>Notes for Patient</label>
-          <textarea id="protocolNotes" placeholder="e.g. Move slowly and stop if pain exceeds 6/10..." rows="2"></textarea>
-        </div>
-        <button class="protocol-btn" onclick="assignProtocol('${patientEmail}')">Add to Protocol</button>
-        <div id="protocolSuccess" class="auth-success" style="display:none; margin-top:12px;">✓ Protocol assigned successfully</div>
-      </div>
-      ${existingHTML}
     </div>`;
+}
+
+// ── Add Protocol Modal ─────────────────────────────────────────────────────
+
+async function openAddProtocol(patientEmail, patientName) {
+  _protoPatientEmail = patientEmail;
+  editingProtocolId = null;
+  editingPatientEmail = null;
+  await _apmLoadCustomExercises();
+  _apmNewExCat = false;
+  const modal = document.getElementById('addProtocolModal');
+  if (!modal) return;
+  document.getElementById('apmPatientName').textContent = patientName || patientEmail;
+  document.getElementById('apmTitle').textContent = 'Add Exercise';
+  document.getElementById('apmSubmitBtn').textContent = 'Add to Protocol';
+  const repsEl = document.getElementById('protocolReps');
+  const setsEl = document.getElementById('protocolSets');
+  const freqEl = document.getElementById('protocolFrequency');
+  const notesEl = document.getElementById('protocolNotes');
+  const typeEl = document.getElementById('exerciseType');
+  if (repsEl) repsEl.value = 10;
+  if (setsEl) setsEl.value = 3;
+  if (freqEl) freqEl.value = 'daily';
+  if (notesEl) notesEl.value = '';
+  if (typeEl) typeEl.value = '';
+  const searchEl = document.getElementById('apmSearch');
+  if (searchEl) searchEl.value = '';
+  document.getElementById('apmCreateFields').style.display = 'none';
+  const cancelBtn = document.getElementById('apmCancelBtn');
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = closeAddProtocol;
+  submitBtn.onclick = assignProtocol;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  _apmRenderLibrary('');
+  updateExerciseParamsUI(null, null);
+}
+
+function closeAddProtocol() {
+  const modal = document.getElementById('addProtocolModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+  editingProtocolId = null;
+  editingPatientEmail = null;
+  _protoPatientEmail = null;
+}
+
+function _apmRenderLibrary(query) {
+  const listEl = document.getElementById('apmLibList');
+  if (!listEl) return;
+  const q = query.toLowerCase().trim();
+  const filtered = PROTOCOL_CATALOG.filter(e =>
+    !q || (exerciseLabels[e.id] || '').toLowerCase().includes(q) || e.cat.toLowerCase().includes(q) || e.desc.toLowerCase().includes(q)
+  );
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="apm-lib-empty">No exercises found</div>';
+    return;
+  }
+  const cats = {};
+  for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
+  listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
+    <div class="apm-lib-cat">
+      <div class="apm-lib-cat-label">${cat}</div>
+      ${items.map(e => `
+        <div class="apm-lib-item" id="apm-item-${e.id}" onclick="apmSelectExercise('${e.id}')">
+          <div class="apm-lib-item-name">${exerciseLabels[e.id] || e.id}</div>
+          <div class="apm-lib-item-desc">${e.desc}</div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+  const currentType = document.getElementById('exerciseType')?.value;
+  if (currentType) _apmHighlightSelected(currentType);
+}
+
+function _apmHighlightSelected(id) {
+  document.querySelectorAll('.apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+  const el = document.getElementById('apm-item-' + id);
+  if (el) { el.classList.add('apm-lib-item--active'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+}
+
+function apmSelectExercise(id) {
+  const typeEl = document.getElementById('exerciseType');
+  if (typeEl) typeEl.value = id;
+  const entry = PROTOCOL_CATALOG.find(e => e.id === id);
+  if (entry) {
+    const repsEl = document.getElementById('protocolReps');
+    const setsEl = document.getElementById('protocolSets');
+    const freqEl = document.getElementById('protocolFrequency');
+    if (repsEl) repsEl.value = entry.dr;
+    if (setsEl) setsEl.value = entry.ds;
+    if (freqEl) freqEl.value = entry.df;
+  }
+  updateExerciseParamsUI(id, null);
+  _apmHighlightSelected(id);
+}
+
+function apmFilter(query) { _apmRenderLibrary(query); }
+
+async function _apmLoadCustomExercises() {
+  try {
+    const snap = await db.collection('customExercises').get();
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (!PROTOCOL_CATALOG.find(e => e.id === d.id)) {
+        PROTOCOL_CATALOG.push({ id: d.id, cat: d.cat, dr: d.dr, ds: d.ds, df: d.df, desc: d.desc || '' });
+        exerciseLabels[d.id] = d.name;
+      }
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+function apmEnterCreateMode() {
+  _apmNewExCat = true;
+  const fields = document.getElementById('apmCreateFields');
+  fields.style.display = 'flex';
+  document.getElementById('apmNewExName').value = '';
+  document.getElementById('apmNewExName').placeholder = 'e.g. Wrist Circles';
+  document.querySelectorAll('.apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+  const container = document.getElementById('exerciseParamsSection');
+  if (container) container.innerHTML = `
+    <div class="ep-section">
+      <span class="ep-section-label">Joint Conditions</span>
+      <div class="ep-condition-header">
+        <span>Finger</span><span>Joint</span><span>Flex\u00b0</span><span>Extend\u00b0</span><span></span>
+      </div>
+      <div id="epConditionsList"></div>
+      <button class="ep-add-btn" onclick="epAddCondition()">+ Add Joint</button>
+    </div>
+    <div class="ep-require-all-row" id="epRequireAllRow" style="display:none">
+      <label class="ep-checkbox-label">
+        <input type="checkbox" id="epRequireAll">
+        Require all joints simultaneously
+      </label>
+    </div>
+    <p class="ep-threshold-hint">0\u00b0 = straight finger. Higher values = more bent.</p>`;
+  const cats = [...new Set(PROTOCOL_CATALOG.map(e => e.cat))];
+  document.getElementById('apmNewExCatSelect').innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  const cancelBtn = document.getElementById('apmCancelBtn');
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = apmExitCreateMode;
+  submitBtn.textContent = 'Save to Library';
+  submitBtn.onclick = apmSaveCustomExercise;
+}
+
+function apmExitCreateMode() {
+  _apmNewExCat = false;
+  document.getElementById('apmCreateFields').style.display = 'none';
+  const cancelBtn = document.getElementById('apmCancelBtn');
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = closeAddProtocol;
+  submitBtn.textContent = 'Add to Protocol';
+  submitBtn.onclick = assignProtocol;
+}
+
+async function apmSaveCustomExercise() {
+  const rawName = document.getElementById('apmNewExName').value.trim();
+  if (!rawName) { document.getElementById('apmNewExName').focus(); return; }
+  const cat = document.getElementById('apmNewExCatSelect').value;
+  const id = rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (PROTOCOL_CATALOG.find(e => e.id === id)) {
+    document.getElementById('apmNewExName').value = '';
+    document.getElementById('apmNewExName').placeholder = 'Name already exists';
+    return;
+  }
+  const dr = parseInt(document.getElementById('protocolReps').value) || 10;
+  const ds = parseInt(document.getElementById('protocolSets').value) || 3;
+  const df = document.getElementById('protocolFrequency').value || 'daily';
+  const entry = { id, cat, dr, ds, df, desc: '' };
+  try {
+    await db.collection('customExercises').add({ ...entry, name: rawName, createdBy: auth.currentUser?.email || '' });
+  } catch (e) { /* save locally even if Firestore fails */ }
+  PROTOCOL_CATALOG.push(entry);
+  exerciseLabels[id] = rawName;
+  apmExitCreateMode();
+  _apmRenderLibrary(document.getElementById('apmSearch')?.value || '');
+  apmSelectExercise(id);
 }
 
 function epUpdateRequireAllVisibility() {
@@ -1304,7 +1453,7 @@ function epUpdateRequireAllVisibility() {
   const row   = document.getElementById('epRequireAllRow');
   if (row) row.style.display = count > 1 ? 'flex' : 'none';
   document.querySelectorAll('.ep-remove-btn').forEach(btn => {
-    btn.style.visibility = count > 1 ? 'visible' : 'hidden';
+    btn.style.visibility = 'visible';
   });
 }
 
@@ -1342,7 +1491,7 @@ function updateExerciseParamsUI(exerciseType, savedParams) {
   if (!defaults) { container.innerHTML = ''; return; }
 
   if (defaults.metric === 'distance') {
-    const tipName = defaults.tipB === 8 ? 'index finger' : defaults.tipB === 12 ? 'middle finger' : 'target finger';
+    const tipName = defaults.tipB === 8 ? 'index finger' : defaults.tipB === 12 ? 'middle finger' : defaults.tipB === 16 ? 'ring finger' : defaults.tipB === 20 ? 'little finger' : 'target finger';
     container.innerHTML = `<div class="ep-section"><p class="ep-desc-text">Rep counts when the thumb tip approaches the ${tipName} tip, then returns open.</p></div>`;
     return;
   }
@@ -1472,7 +1621,9 @@ function checkExerciseState(landmarks) {
   const results = p.conditions.map(cond => {
     const triplet = FINGER_LANDMARK_MAP[cond.finger]?.[cond.joint];
     if (!triplet) return null;
-    const angle = Math.round(getJointAngle(landmarks, triplet));
+    const jointKey = `${cond.finger}-${cond.joint}`;
+    const trained  = getTrainedAngle(jointKey, landmarks);
+    const angle    = trained !== null ? trained : Math.round(getJointAngle(landmarks, triplet));
     return {
       finger:     cond.finger,
       joint:      cond.joint,
@@ -1595,7 +1746,8 @@ function updateRepCount(landmarks) {
       const [finger, joint] = key.split('-');
       const triplet = FINGER_LANDMARK_MAP[finger]?.[joint];
       if (!triplet) return;
-      const angle = Math.round(getJointAngle(landmarks, triplet));
+      const trained = getTrainedAngle(key, landmarks);
+      const angle   = trained !== null ? trained : Math.round(getJointAngle(landmarks, triplet));
       if (angle > (jointMaxAngles[key] || 0)) jointMaxAngles[key] = angle;
     });
   }
@@ -1716,7 +1868,7 @@ function renderSetDots() {
   for (let i = 1; i <= totalSets; i++) {
     const dot = document.createElement('div');
     dot.className = 'set-dot';
-    if (i < currentSet)   { dot.classList.add('complete'); dot.textContent = '✓'; }
+    if (i < currentSet)   { dot.classList.add('complete'); dot.textContent = i; }
     else if (i === currentSet) { dot.classList.add('active'); dot.textContent = i; }
     else                  { dot.textContent = i; }
     tracker.appendChild(dot);
@@ -1929,45 +2081,14 @@ function startCamera() {
   hands.onResults(results => {
     sessionCtx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
     sessionCtx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
+    const _rawHand = (results.multiHandedness?.[0]?.label || '').toLowerCase();
+    _currentHandLabel = _rawHand === 'left' ? 'right' : _rawHand === 'right' ? 'left' : null;
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      hideCalOverlay();
+      extractVisualFeatures(sessionCanvas, results.multiHandLandmarks[0]).then(f => { _currentFrameFeatures = f; });
       for (const landmarks of results.multiHandLandmarks) {
-        const w = sessionCanvas.width, h = sessionCanvas.height;
-        const fingers = [[0,1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
-        const palm = [[0,5],[0,9],[0,13],[0,17],[5,9],[9,13],[13,17]];
-        sessionCtx.strokeStyle = 'rgba(0,229,192,0.4)';
-        sessionCtx.lineWidth = 2;
-        sessionCtx.lineCap = 'round';
-        for (const chain of fingers) {
-          sessionCtx.beginPath();
-          for (let j = 0; j < chain.length; j++) {
-            const pt = landmarks[chain[j]];
-            if (j === 0) sessionCtx.moveTo(pt.x * w, pt.y * h);
-            else sessionCtx.lineTo(pt.x * w, pt.y * h);
-          }
-          sessionCtx.stroke();
-        }
-        sessionCtx.strokeStyle = 'rgba(0,229,192,0.25)';
-        for (const [a, b] of palm) {
-          sessionCtx.beginPath();
-          sessionCtx.moveTo(landmarks[a].x * w, landmarks[a].y * h);
-          sessionCtx.lineTo(landmarks[b].x * w, landmarks[b].y * h);
-          sessionCtx.stroke();
-        }
-        const tips = [4, 8, 12, 16, 20];
-        const knuckles = [1, 5, 9, 13, 17];
-        for (let i = 0; i < 21; i++) {
-          const lm = landmarks[i];
-          const isTip = tips.includes(i);
-          const isKnuckle = knuckles.includes(i);
-          const r = isTip ? 5 : isKnuckle ? 3.5 : 2.5;
-          if (isTip) { sessionCtx.shadowColor = 'rgba(0,229,192,0.6)'; sessionCtx.shadowBlur = 8; }
-          sessionCtx.beginPath();
-          sessionCtx.arc(lm.x * w, lm.y * h, r, 0, Math.PI * 2);
-          sessionCtx.fillStyle = isTip ? 'rgba(0,229,192,0.9)' : isKnuckle ? 'rgba(0,229,192,0.5)' : 'rgba(255,255,255,0.3)';
-          sessionCtx.fill();
-          if (isTip) sessionCtx.shadowBlur = 0;
-        }
+        const mobile = isMobile();
+        window.drawConnectors(sessionCtx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: mobile ? 4 : 2 });
+        window.drawLandmarks(sessionCtx, landmarks, { color: '#2D7FF9', lineWidth: mobile ? 2 : 1, radius: mobile ? 4 : 2 });
         updateRepCount(landmarks);
       }
     }
@@ -2409,7 +2530,7 @@ function buildJointSelector(patientEmail) {
           </div>
           <div class="ejs-info-desc"><div id="ejsInfoDesc" class="ejs-info-desc-text">—</div></div>
           <div class="ejs-info-actions">
-            <button class="ejs-track-btn ejs-track-add" id="ejsTrackBtn" onclick="ejsToggleFromInfo()">＋ Track This Joint</button>
+            <button class="ejs-track-btn ejs-track-add" id="ejsTrackBtn" onclick="ejsToggleFromInfo()">+ Track This Joint</button>
           </div>
         </div>
         <div class="ejs-tracked-summary">
@@ -2617,7 +2738,7 @@ function ejsShowInfo(key) {
     btn.style.background = '';
   } else {
     btn.className   = 'ejs-track-btn ejs-track-add';
-    btn.textContent = '＋ Track This Joint';
+    btn.textContent = '+ Track This Joint';
     btn.style.background = EJS_FINGER_COLORS[data.finger];
   }
 
@@ -2697,7 +2818,7 @@ function ejsRefreshUI() {
         btn.style.background = '';
       } else {
         btn.className   = 'ejs-track-btn ejs-track-add';
-        btn.textContent = '＋ Track This Joint';
+        btn.textContent = '+ Track This Joint';
         btn.style.background = EJS_FINGER_COLORS[data.finger];
       }
     }
@@ -3368,6 +3489,1763 @@ function dismissExerciseDetail() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   SECTION 16: SWEEP CALIBRATION
+   Therapist sweeps camera around patient's stationary hand. Algorithm records
+   a joint's angle only when the camera orientation satisfies Yash's rule for
+   that joint — rules derived from empirical goniometer testing.
+
+   Workflow:
+   1. Set SWEEP_DEBUG = true, run sweep, hold joints at known angles.
+   2. Click COPY LOG → export JSON with all orientation metrics + angles.
+   3. Find frames where angles[joint] matches known true angle → read metrics.
+   4. Fill in SWEEP_JOINT_RULES[joint] = [{ metric, min, max }, ...].
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const SWEEP_DEBUG           = true;  // shows METRICS panel and debug log
+const SWEEP_REQUIRED_FRAMES = 5;     // consecutive in-rule frames before recording
+
+// Per-joint orientation rules. null = not recorded. Array of { metric, min, max } — OR logic.
+// metric must be one of the keys returned by sweepComputeMetrics().
+const SWEEP_JOINT_RULES = {
+  'thumb-mcp':  [{ metric: 'palmNormalZ',    min: 0.70, max: 1.0 }],
+  'thumb-pip':  [{ metric: 'palmNormalZ',    min: 0.70, max: 1.0 }],
+  'index-mcp':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
+  'index-pip':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
+  'index-dip':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
+  'middle-mcp': [{ metric: 'fingerZ_middle', min: 0.55, max: 1.0 }],
+  'middle-pip': [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
+  'middle-dip': [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
+  'ring-mcp':   [{ metric: 'fingerZ_ring',   min: 0.35, max: 1.0 }],
+  'ring-pip':   [{ metric: 'fingerZ_ring',   min: 0.25, max: 1.0 }],
+  'ring-dip':   null,
+  'pinky-mcp':  [{ metric: 'fingerZ_pinky',  min: 0.25, max: 1.0 }],
+  'pinky-pip':  [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
+  'pinky-dip':  [{ metric: 'palmNormalZ',    min: 0.20, max: 1.0 }],
+};
+
+// ── One Euro Filter for landmarks ─────────────────────────────────────────
+// Reuses calibAlphaFor() from Section 14. Separate state and no Math.round
+// since landmark coords are normalized floats, not integer angles.
+const SWEEP_ONE_EURO_MINCUTOFF = 1.0;
+const SWEEP_ONE_EURO_BETA      = 0.1;
+const SWEEP_ONE_EURO_DCUTOFF   = 1.0;
+const _sweepFilterStates = {};
+
+function sweepOneEuroFilter(id, rawValue, timestamp) {
+  if (!_sweepFilterStates[id]) {
+    _sweepFilterStates[id] = { prevValue: rawValue, prevDeriv: 0, prevTime: timestamp };
+    return rawValue;
+  }
+  const state   = _sweepFilterStates[id];
+  const dt      = (timestamp - state.prevTime) || (1 / 60);
+  const alpha_d = calibAlphaFor(SWEEP_ONE_EURO_DCUTOFF, dt);
+  const deriv   = alpha_d * ((rawValue - state.prevValue) / dt) + (1 - alpha_d) * state.prevDeriv;
+  const cutoff  = SWEEP_ONE_EURO_MINCUTOFF + SWEEP_ONE_EURO_BETA * Math.abs(deriv);
+  const alpha   = calibAlphaFor(cutoff, dt);
+  const value   = alpha * rawValue + (1 - alpha) * state.prevValue;
+  state.prevValue = value;
+  state.prevDeriv = deriv;
+  state.prevTime  = timestamp;
+  return value;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let _sweepPatientEmail = '';
+let _sweepMpHands      = null;
+let _sweepMpCamera     = null;
+let _sweepDebugLog     = [];   // circular buffer, last 60 frames
+let _sweepFacingMode   = 'environment';  // default to rear camera
+
+// Anatomical angle limits — readings outside these are physically impossible
+// and indicate a bad MediaPipe frame. Used to gate recording only.
+const SWEEP_ANGLE_LIMITS = { mcp: [0, 100], pip: [0, 115], dip: [0, 90] };
+
+// All 14 joints derived from CALIB_FINGERS (Section 14): thumb MP/IP,
+// index/middle/ring/pinky MCP/PIP/DIP. Thumb DIP is null in CALIB_FINGERS
+// so it is naturally skipped.
+const SWEEP_JOINTS = (() => {
+  const out = [];
+  for (const [finger, joints] of Object.entries(CALIB_FINGERS)) {
+    for (const [joint, def] of Object.entries(joints)) {
+      if (!def) continue;
+      out.push({ key: `${finger}-${joint}`, finger, joint, def });
+    }
+  }
+  return out;
+})();
+
+// Per-joint state: best metric value seen when angle was recorded
+const _sweepJointState = {};
+const _sweepFrameCount = {};  // consecutive in-rule frames per joint
+const _sweepCooldowns  = {};  // key → ms timestamp when cooldown expires
+let   _sweepCapturing  = false;
+
+function sweepResetState() {
+  for (const { key } of SWEEP_JOINTS) {
+    _sweepJointState[key] = { bestMetricVal: 0, bestAngle: null };
+    _sweepFrameCount[key] = 0;
+    delete _sweepCooldowns[key];
+  }
+  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);
+  _sweepCapturing = false;
+  const captureBtn = document.getElementById('sweepCaptureBtn');
+  const saveBtn    = document.getElementById('sweepSaveBtn');
+  if (captureBtn) captureBtn.style.display = '';
+  if (saveBtn)    saveBtn.style.display    = 'none';
+}
+
+function sweepStartCapture() {
+  _sweepCapturing = true;
+  const captureBtn = document.getElementById('sweepCaptureBtn');
+  const saveBtn    = document.getElementById('sweepSaveBtn');
+  if (captureBtn) captureBtn.style.display = 'none';
+  if (saveBtn)    saveBtn.style.display    = '';
+}
+
+function sweepResetJoint(key) {
+  _sweepJointState[key] = { bestMetricVal: 0, bestAngle: null };
+  _sweepFrameCount[key] = 0;
+  _sweepCooldowns[key]  = performance.now() + 3000;
+  const dot    = document.getElementById(`sweep-dot-${key}`);
+  const bestEl = document.getElementById(`sweep-best-${key}`);
+  if (dot)    { dot.classList.remove('captured', 'in-range'); dot.classList.add('cooldown'); }
+  if (bestEl) bestEl.textContent = '—';
+}
+
+// ── Orientation metrics ────────────────────────────────────────────────────
+// Returns all measurable camera-orientation metrics from 3D landmarks.
+// Yash references these keys in SWEEP_JOINT_RULES after goniometer testing.
+function sweepComputeMetrics(landmarks) {
+  const lateralZ   = Math.abs(normZ(landmarks[5], landmarks[17]));
+  const palmNormalZ = Math.abs(sweepPalmNormalZ(landmarks));
+  return {
+    lateralZ,
+    palmNormalZ,
+    fingerZ_thumb:  Math.abs(normZ(landmarks[2],  landmarks[3])),
+    fingerZ_index:  Math.abs(normZ(landmarks[5],  landmarks[6])),
+    fingerZ_middle: Math.abs(normZ(landmarks[9],  landmarks[10])),
+    fingerZ_ring:   Math.abs(normZ(landmarks[13], landmarks[14])),
+    fingerZ_pinky:  Math.abs(normZ(landmarks[17], landmarks[18])),
+  };
+}
+
+function normZ(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, dz = (b.z || 0) - (a.z || 0);
+  const mag = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  return mag === 0 ? 0 : dz / mag;
+}
+
+function sweepPalmNormalZ(landmarks) {
+  const w = landmarks[0], p1 = landmarks[5], p5 = landmarks[17];
+  const ax = p5.x - w.x, ay = p5.y - w.y, az = (p5.z || 0) - (w.z || 0);
+  const bx = p1.x - w.x, by = p1.y - w.y, bz = (p1.z || 0) - (w.z || 0);
+  const cz = ax * by - ay * bx;
+  const mag = Math.sqrt((ay * bz - az * by) ** 2 + (az * bx - ax * bz) ** 2 + cz ** 2);
+  return mag === 0 ? 0 : cz / mag;
+}
+
+// ── Real hand sanity check ─────────────────────────────────────────────────
+// Verifies that detected landmarks look like a real hand, not a face or object.
+// For each of the 4 fingers, the MCP→PIP segment should be at least as long
+// as the PIP→DIP segment (real hand anatomy). Face false-positives fail this.
+function sweepIsRealHand(landmarks) {
+  const fingers = [
+    [5, 6, 7],   // index  MCP, PIP, DIP
+    [9, 10, 11], // middle
+    [13, 14, 15], // ring
+    [17, 18, 19], // pinky
+  ];
+  let passes = 0;
+  for (const [a, b, c] of fingers) {
+    const d1 = Math.hypot(landmarks[b].x - landmarks[a].x, landmarks[b].y - landmarks[a].y);
+    const d2 = Math.hypot(landmarks[c].x - landmarks[b].x, landmarks[c].y - landmarks[b].y);
+    if (d1 > 0.01 && d2 > 0.005 && d1 >= d2 * 0.5 && d2 >= d1 * 0.25) passes++;
+  }
+  return passes >= 3;
+}
+
+// ── Distance detection ─────────────────────────────────────────────────────
+// Wrist (landmark 0) → middle MCP (landmark 9) in normalised coords scales
+// inversely with real distance. Thresholds from testing at ~30–50 cm.
+function sweepDistanceStatus(landmarks) {
+  const w = landmarks[0], m = landmarks[9];
+  const d = Math.sqrt((w.x - m.x) ** 2 + (w.y - m.y) ** 2);
+  if (d < 0.12) return 'too_far';
+  if (d > 0.38) return 'too_close';
+  return 'good';
+}
+
+// ── Guidance text ──────────────────────────────────────────────────────────
+function sweepGuidanceText() {
+  const untuned = SWEEP_JOINTS.filter(({ key }) => !SWEEP_JOINT_RULES[key]);
+  if (untuned.length > 0) return `${untuned.length} joint${untuned.length > 1 ? 's' : ''} have no rules set yet.`;
+  const missing = SWEEP_JOINTS.filter(({ key }) => _sweepJointState[key].bestAngle === null);
+  if (missing.length === 0) return 'All joints captured.';
+  const ulnar  = missing.filter(({ finger }) => finger === 'ring' || finger === 'pinky');
+  const radial = missing.filter(({ finger }) => finger === 'thumb' || finger === 'index' || finger === 'middle');
+  if (ulnar.length > radial.length)  return 'Tilt camera toward pinky side.';
+  if (radial.length > ulnar.length)  return 'Tilt camera toward thumb side.';
+  return 'Keep sweeping around the hand.';
+}
+
+// ── Build completion grid ──────────────────────────────────────────────────
+// Each cell shows: status dot, live angle (current frame), best recorded angle
+function sweepBuildGrid() {
+  const grid = document.getElementById('sweepGrid');
+  if (!grid) return;
+  const fingers      = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+  const fingerLabels = { thumb: 'THB', index: 'IDX', middle: 'MID', ring: 'RNG', pinky: 'PNK' };
+  const joints       = ['mcp', 'pip', 'dip'];
+  const jointLabels  = { mcp: 'MCP', pip: 'PIP', dip: 'DIP' };
+
+  let html = '<div class="sweep-grid-row sweep-grid-header"><div class="sweep-grid-cell sweep-grid-label"></div>';
+  for (const f of fingers) html += `<div class="sweep-grid-cell sweep-grid-col-label">${fingerLabels[f]}</div>`;
+  html += '</div>';
+
+  for (const j of joints) {
+    html += `<div class="sweep-grid-row"><div class="sweep-grid-cell sweep-grid-label">${jointLabels[j]}</div>`;
+    for (const f of fingers) {
+      const disabled = f === 'thumb' && j === 'dip';
+      const key = `${f}-${j}`;
+      if (disabled) {
+        html += `<div class="sweep-grid-cell sweep-cell-data"><div class="sweep-dot sweep-dot-disabled"></div></div>`;
+      } else {
+        html += `<div class="sweep-grid-cell sweep-cell-data">
+          <div class="sweep-dot" id="sweep-dot-${key}" onclick="sweepResetJoint('${key}')"></div>
+          <div class="sweep-live-val" id="sweep-live-${key}">—</div>
+          <div class="sweep-best-val" id="sweep-best-${key}">—</div>
+        </div>`;
+      }
+    }
+    html += '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+// ── Update grid UI ─────────────────────────────────────────────────────────
+// Three states per dot: untuned (gray, default) / in-range (yellow) / captured (green)
+function sweepUpdateGrid(metrics) {
+  let captured = 0;
+  for (const { key } of SWEEP_JOINTS) {
+    const state  = _sweepJointState[key];
+    const rules  = SWEEP_JOINT_RULES[key];
+    const dot    = document.getElementById(`sweep-dot-${key}`);
+    const bestEl = document.getElementById(`sweep-best-${key}`);
+
+    if (dot) {
+      const inCooldown = _sweepCooldowns[key] && performance.now() < _sweepCooldowns[key];
+      dot.classList.remove('untuned', 'in-range', 'captured', 'cooldown');
+      if (state.bestAngle !== null) {
+        dot.classList.add('captured');
+      } else if (inCooldown) {
+        dot.classList.add('cooldown');
+      } else if (!rules) {
+        dot.classList.add('untuned');
+      } else if (metrics && _sweepCapturing) {
+        if (rules.some(r => metrics[r.metric] >= r.min && metrics[r.metric] <= r.max)) dot.classList.add('in-range');
+      }
+    }
+
+    if (bestEl) bestEl.textContent = state.bestAngle !== null ? `${state.bestAngle}°` : '—';
+    if (state.bestAngle !== null) captured++;
+  }
+  const btn = document.getElementById('sweepSaveBtn');
+  if (btn) btn.textContent = `Save — ${captured}/14 captured`;
+}
+
+// ── Per-joint foreshortening check ────────────────────────────────────────
+// Returns false if either segment forming the angle lever arm is too short in
+// 2D relative to hand scale — indicating the segment is edge-on / occluded.
+// Hand scale = wrist→middle MCP distance (scales with camera distance).
+const SWEEP_FORESHORTENING_THRESHOLD = 0.12;
+
+function sweepJointReliable(landmarks, def) {
+  const handScale = Math.hypot(landmarks[9].x - landmarks[0].x, landmarks[9].y - landmarks[0].y);
+  if (handScale < 0.01) return false;
+  const seg1 = Math.hypot(landmarks[def.b].x - landmarks[def.a].x, landmarks[def.b].y - landmarks[def.a].y);
+  const seg2 = Math.hypot(landmarks[def.c].x - landmarks[def.b].x, landmarks[def.c].y - landmarks[def.b].y);
+  return seg1 >= SWEEP_FORESHORTENING_THRESHOLD * handScale
+      && seg2 >= SWEEP_FORESHORTENING_THRESHOLD * handScale;
+}
+
+// ── Update live angle display (current frame) ──────────────────────────────
+function sweepUpdateLiveAngles(landmarks) {
+  for (const { key, joint, def } of SWEEP_JOINTS) {
+    const el = document.getElementById(`sweep-live-${key}`);
+    if (!el) continue;
+    const trained = getTrainedAngle(key, landmarks);
+    const raw     = trained !== null
+      ? trained
+      : Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+    const limits = SWEEP_ANGLE_LIMITS[joint];
+    const angle  = limits ? Math.min(raw, limits[1]) : raw;
+    el.textContent = angle + '°';
+    el.style.color = trained !== null ? 'var(--green)' : '';
+  }
+}
+
+function sweepClearLiveAngles() {
+  for (const { key } of SWEEP_JOINTS) {
+    const el = document.getElementById(`sweep-live-${key}`);
+    if (el) el.textContent = '—';
+  }
+}
+
+// ── Update distance indicator UI ───────────────────────────────────────────
+function sweepUpdateDistance(status) {
+  const ids = { too_close: 'sweepDistTooClose', good: 'sweepDistGood', too_far: 'sweepDistTooFar' };
+  for (const [k, id] of Object.entries(ids)) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', k === status);
+  }
+}
+
+// ── Update metrics readout (debug only) ───────────────────────────────────
+function sweepUpdateMetrics(metrics) {
+  if (!SWEEP_DEBUG || !metrics) return;
+  const el = document.getElementById('sweepMetricsReadout');
+  if (!el) return;
+  el.textContent = Object.entries(metrics)
+    .map(([k, v]) => `${k}: ${v.toFixed(3)}`).join('\n');
+}
+
+// ── Landmark drawing for sweep ─────────────────────────────────────────────
+// Tip landmarks (4,8,12,16,20) are used in DIP angle calculations but not drawn —
+// MediaPipe's tip positions are inaccurate for curled/occluded fingers, and the
+// large glowing dots from calibDrawLandmarks make that obvious. All other joints
+// are drawn as uniform small dots.
+const SWEEP_TIP_INDICES = new Set([4, 8, 12, 16, 20]);
+
+function sweepDrawLandmarks(ctx, landmarks) {
+  window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, {
+    color: 'rgba(0, 229, 192, 0.45)', lineWidth: 2,
+  });
+  landmarks.forEach((lm, i) => {
+    const x = lm.x * ctx.canvas.width;
+    const y = lm.y * ctx.canvas.height;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle  = 'rgba(0,229,192,0.7)';
+    ctx.shadowBlur = 5;
+    ctx.shadowColor = '#00e5c0';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+}
+
+// ── MediaPipe results callback ─────────────────────────────────────────────
+function sweepOnResults(results) {
+  const canvas    = document.getElementById('sweepCanvas');
+  const wrap      = document.getElementById('sweepCameraWrap');
+  const trackDot  = document.getElementById('sweepTrackDot');
+  const guidEl    = document.getElementById('sweepGuidance');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+
+  // Center-crop to square (same pattern as calibOnResults)
+  const srcW = results.image.width;
+  const srcH = results.image.height;
+  const size = Math.min(srcW, srcH);
+  const cropX = (srcW - size) / 2;
+  const cropY = (srcH - size) / 2;
+  canvas.width  = size;
+  canvas.height = size;
+  ctx.save();
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
+
+  const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+
+  if (count === 0) {
+    if (trackDot) trackDot.classList.remove('active');
+    if (wrap)     wrap.classList.remove('scanning');
+    sweepUpdateDistance('none');
+    sweepUpdateMetrics(null);
+    sweepClearLiveAngles();
+    if (guidEl)  guidEl.textContent = 'Point camera at hand';
+    ctx.restore();
+    return;
+  }
+
+  const rawLandmarks = results.multiHandLandmarks[0];
+
+  // Sanity check on raw landmarks — reject non-hand detections (face, objects, etc.)
+  if (!sweepIsRealHand(rawLandmarks)) {
+    if (trackDot) trackDot.classList.remove('active');
+    if (wrap)     wrap.classList.remove('scanning');
+    sweepUpdateDistance('none');
+    sweepUpdateMetrics(null);
+    sweepClearLiveAngles();
+    for (const { key } of SWEEP_JOINTS) _sweepFrameCount[key] = 0;
+    ctx.restore();
+    return;
+  }
+
+  if (trackDot) trackDot.classList.add('active');
+  if (wrap)     wrap.classList.add('scanning');
+
+  // Smooth landmarks with One Euro Filter before any computation or drawing
+  const t = performance.now() / 1000;
+  const landmarks = rawLandmarks.map((lm, i) => ({
+    ...lm,
+    x: sweepOneEuroFilter(`${i}-x`, lm.x, t),
+    y: sweepOneEuroFilter(`${i}-y`, lm.y, t),
+    z: sweepOneEuroFilter(`${i}-z`, lm.z || 0, t),
+  }));
+
+  // Remap to cropped-square coords for drawing
+  const drawLandmarks = landmarks.map(lm => ({
+    ...lm,
+    x: (lm.x * srcW - cropX) / size,
+    y: (lm.y * srcH - cropY) / size,
+  }));
+  sweepDrawLandmarks(ctx, drawLandmarks);
+  ctx.restore();
+
+  const _sRawHand = (results.multiHandedness?.[0]?.label || '').toLowerCase();
+  _currentHandLabel = _sRawHand === 'left' ? 'right' : _sRawHand === 'right' ? 'left' : null;
+  extractVisualFeatures(canvas, landmarks).then(f => { _currentFrameFeatures = f; });
+
+  // Distance indicator — informational only, does not block recording
+  sweepUpdateDistance(sweepDistanceStatus(landmarks));
+
+  // Compute all orientation metrics
+  const metrics = sweepComputeMetrics(landmarks);
+  sweepUpdateMetrics(metrics);
+
+  // Update live angle display every frame
+  sweepUpdateLiveAngles(landmarks);
+
+  // Per-joint recording: only record when capturing is active and rule is satisfied
+  for (const { key, joint, def } of SWEEP_JOINTS) {
+    const rules = SWEEP_JOINT_RULES[key];
+    if (!rules || !_sweepCapturing) { _sweepFrameCount[key] = 0; continue; }
+    if (_sweepCooldowns[key] && performance.now() < _sweepCooldowns[key]) { _sweepFrameCount[key] = 0; continue; }
+
+    const passing = rules.find(r => metrics[r.metric] >= r.min && metrics[r.metric] <= r.max);
+
+    if (passing) {
+      const val   = metrics[passing.metric];
+      const angle = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+      const [minA, maxA] = SWEEP_ANGLE_LIMITS[joint] || SWEEP_ANGLE_LIMITS.pip;
+      if (angle < minA || angle > maxA) { _sweepFrameCount[key] = 0; continue; }
+      _sweepFrameCount[key] = (_sweepFrameCount[key] || 0) + 1;
+      if (_sweepFrameCount[key] >= SWEEP_REQUIRED_FRAMES) {
+        if (_sweepJointState[key].bestAngle === null || val > _sweepJointState[key].bestMetricVal) {
+          _sweepJointState[key].bestMetricVal = val;
+          _sweepJointState[key].bestAngle     = angle;
+        }
+      }
+    } else {
+      _sweepFrameCount[key] = 0;
+    }
+  }
+
+  sweepUpdateGrid(metrics);
+  if (guidEl) guidEl.textContent = sweepGuidanceText();
+
+  // Debug frame logging — all metrics + all joint angles per frame
+  if (SWEEP_DEBUG) {
+    const frame = { t: performance.now().toFixed(0), ...Object.fromEntries(Object.entries(metrics).map(([k, v]) => [k, parseFloat(v.toFixed(3))])), angles: {} };
+    for (const { key, def } of SWEEP_JOINTS) {
+      frame.angles[key] = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+    }
+    _sweepDebugLog.push(frame);
+    if (_sweepDebugLog.length > 60) _sweepDebugLog.shift();
+    const logEl = document.getElementById('sweepDebugLog');
+    if (logEl) {
+      logEl.textContent = _sweepDebugLog.slice(-5).map(f =>
+        Object.entries(f).filter(([k]) => k !== 't' && k !== 'angles').map(([k, v]) => `${k}:${v}`).join(' ')
+      ).join('\n');
+    }
+  }
+}
+
+// ── sweepToggleDebug / sweepCopyLog ────────────────────────────────────────
+function sweepToggleDebug() {
+  const panel = document.getElementById('sweepDebugPanel');
+  if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+}
+
+function sweepCopyLog() {
+  navigator.clipboard.writeText(JSON.stringify(_sweepDebugLog, null, 2)).catch(() => {});
+}
+
+// ── sweepStartCamera ───────────────────────────────────────────────────────
+// Mobile: RAF loop + direct getUserMedia (iOS Safari fix — same as patient camera).
+// Desktop: window.Camera class. Reads _sweepFacingMode and _sweepMpHands.
+function sweepStartCamera() {
+  const video      = document.getElementById('sweepVideo');
+  const overlay    = document.getElementById('sweepOverlay');
+  const overlayMsg = document.getElementById('sweepOverlayMsg');
+
+  // On mobile, override CSS mirror based on facing mode (rear = none, front = scaleX(-1)).
+  // On desktop, CSS scaleX(-1) is always correct — front webcam raw image is naturally mirrored.
+  if (isMobile()) {
+    const mirror = _sweepFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+    video.style.transform = mirror;
+    const sweepCanvas = document.getElementById('sweepCanvas');
+    if (sweepCanvas) sweepCanvas.style.transform = mirror;
+  }
+
+  if (overlayMsg) overlayMsg.textContent = 'REQUESTING CAMERA...';
+
+  if (isMobile()) {
+    let active = true;
+    _sweepMpCamera = { stop: () => { active = false; } };
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _sweepFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    }).then(stream => {
+        video.srcObject = stream;
+        const offCanvas = document.createElement('canvas');
+        const offCtx    = offCanvas.getContext('2d');
+
+        const processFrame = async () => {
+          if (!active) return;
+          if (video.readyState >= 2) {
+            const maxW = 1280, maxH = 720;
+            const scale = Math.min(maxW / video.videoWidth, maxH / video.videoHeight, 1);
+            offCanvas.width  = Math.round(video.videoWidth  * scale);
+            offCanvas.height = Math.round(video.videoHeight * scale);
+            offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+            try { await _sweepMpHands.send({ image: offCanvas }); } catch(e) {}
+          }
+          if (active) requestAnimationFrame(processFrame);
+        };
+
+        video.onloadedmetadata = () => {
+          video.play();
+          if (overlay)    overlay.classList.add('hidden');
+          video.classList.add('ready');
+          processFrame();
+        };
+
+        _sweepMpCamera = {
+          stop: () => {
+            active = false;
+            stream.getTracks().forEach(t => t.stop());
+            video.srcObject = null;
+            video.classList.remove('ready');
+          }
+        };
+      })
+      .catch(err => {
+        if (overlay)    overlay.classList.remove('hidden');
+        if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
+        console.error(err);
+      });
+  } else {
+    // Desktop: same RAF loop as mobile, send video directly (no offscreen canvas needed outside iOS Safari)
+    let active = true;
+    _sweepMpCamera = { stop: () => { active = false; } };
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: _sweepFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    }).then(stream => {
+      video.srcObject = stream;
+
+      const processFrame = async () => {
+        if (!active) return;
+        if (video.readyState >= 2) {
+          try { await _sweepMpHands.send({ image: video }); } catch(e) {}
+        }
+        if (active) requestAnimationFrame(processFrame);
+      };
+
+      video.onloadedmetadata = () => {
+        video.play();
+        if (overlay) overlay.classList.add('hidden');
+        video.classList.add('ready');
+        processFrame();
+      };
+
+      _sweepMpCamera = {
+        stop: () => {
+          active = false;
+          stream.getTracks().forEach(t => t.stop());
+          video.srcObject = null;
+          video.classList.remove('ready');
+        }
+      };
+    }).catch(err => {
+      if (overlay)    overlay.classList.remove('hidden');
+      if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
+      console.error(err);
+    });
+  }
+}
+
+// ── sweepFlipCamera ────────────────────────────────────────────────────────
+function sweepFlipCamera() {
+  _sweepFacingMode = _sweepFacingMode === 'environment' ? 'user' : 'environment';
+  if (_sweepMpCamera) { _sweepMpCamera.stop(); _sweepMpCamera = null; }
+  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);
+  sweepStartCamera();
+}
+
+// ── startSweepCalibration ──────────────────────────────────────────────────
+async function startSweepCalibration(patientEmail) {
+  _sweepPatientEmail = patientEmail;
+  _sweepDebugLog     = [];
+  _sweepFacingMode   = 'environment';
+  sweepResetState();
+
+  showScreen('sweepCalibrationScreen');
+  sweepBuildGrid();
+  sweepUpdateGrid(null);
+  sweepUpdateDistance('none');
+
+  const video      = document.getElementById('sweepVideo');
+  const overlay    = document.getElementById('sweepOverlay');
+  const overlayMsg = document.getElementById('sweepOverlayMsg');
+  const statusEl   = document.getElementById('sweepStatusText');
+  const dbgBtn     = document.getElementById('sweepDebugBtn');
+
+  if (statusEl)  { statusEl.textContent = 'Loading...'; statusEl.className = ''; }
+  if (overlayMsg)  overlayMsg.textContent = 'LOADING MEDIAPIPE...';
+  if (dbgBtn)      dbgBtn.style.display = SWEEP_DEBUG ? '' : 'none';
+  const metricsPanel = document.getElementById('sweepMetricsPanel');
+  if (metricsPanel)  metricsPanel.style.display = SWEEP_DEBUG ? '' : 'none';
+
+  if (_sweepMpCamera) return; // already running
+
+  const hands = new window.Hands({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+  });
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.85,
+    minTrackingConfidence: 0.75,
+  });
+  hands.onResults(sweepOnResults);
+  _sweepMpHands = hands;
+
+  sweepStartCamera();
+}
+
+// ── sweepBack ──────────────────────────────────────────────────────────────
+function sweepBack() {
+  if (_sweepMpCamera) { _sweepMpCamera.stop(); _sweepMpCamera = null; }
+  _sweepMpHands = null;
+  const video = document.getElementById('sweepVideo');
+  if (video?.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    video.classList.remove('ready');
+  }
+  showScreen('therapistScreen');
+}
+
+// ── sweepSave ──────────────────────────────────────────────────────────────
+async function sweepSave() {
+  const btn = document.getElementById('sweepSaveBtn');
+  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+  const joints = {};
+  for (const { key } of SWEEP_JOINTS) {
+    const s = _sweepJointState[key];
+    if (s.bestAngle !== null) {
+      joints[key] = { angle: s.bestAngle, metricVal: parseFloat(s.bestMetricVal.toFixed(3)) };
+    }
+  }
+
+  try {
+    await db.collection('calibration').doc(_sweepPatientEmail).set({
+      joints,
+      recordedAt: new Date().toISOString(),
+      recordedBy: currentUser?.email || '',
+    });
+    if (btn) { btn.textContent = 'Saved'; btn.disabled = false; }
+    setTimeout(sweepBack, 800);
+  } catch (err) {
+    if (btn) { btn.textContent = 'Save failed — retry'; btn.disabled = false; }
+    console.error(err);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 17: ML ANGLE TRAINER
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const _mlModels = new Map();           // jointKey-hand → { type, model }
+let   _mlTrainerCamera    = null;
+let   _mlTrainerFacingMode = 'environment';
+const _mlFilterStates     = {};        // One Euro filter state for ML trainer
+let   _mlCurrentLandmarks = null;
+let   _mlCurrentHand      = null;      // 'left' | 'right' | null — live camera detection
+let   _mlSelectedHand    = null;      // 'left' | 'right' | null — persistent manual selection
+let   _mlMpHands          = null;
+let   _mlFeatureExtractor = null;      // MobileNetV1 α=0.25
+let   _currentFrameFeatures = null;   // cached per-frame 256-dim visual vector
+let   _currentHandLabel   = null;      // 'left' | 'right' | null — set by each onResults
+
+let _mlRecording            = false;
+let _mlRecordFrameCount     = 0;
+let _mlRecordSampleCount    = 0;
+let _mlTotalSamples         = 0;
+let _mlRecordingId          = null;
+let _mlLastRecordingId      = null;
+let _mlLastRecordingCount   = 0;
+let _mlCaptureInFlight      = false;
+let _mlSamplesLoaded        = false;
+let _mlSamplesCache         = null;
+const ML_RECORD_FRAME_INTERVAL        = 5;
+const ML_RECORD_GRID_REFRESH_INTERVAL = 10;
+
+// ── loadMLModels (called at login, background) ─────────────────────────────
+async function loadMLModels() {
+  if (!window.tf) return;
+  try {
+    const [snap] = await Promise.all([
+      db.collection('mlModels').get(),
+      loadMLFeatureExtractor(),
+    ]);
+    for (const doc of snap.docs) {
+      const data          = doc.data();
+      const type          = data.type || 'landmarks';
+      const model         = await window.tf.models.modelFromJSON(JSON.parse(data.topology));
+      const weightTensors = data.weights.map(w => window.tf.tensor(w));
+      model.setWeights(weightTensors);
+      weightTensors.forEach(t => t.dispose());
+      _mlModels.set(doc.id, { type, model });
+    }
+  } catch (e) {
+    console.error('loadMLModels:', e);
+  }
+}
+
+async function loadMLFeatureExtractor() {
+  if (!window.mobilenet) return;
+  try {
+    _mlFeatureExtractor = await window.mobilenet.load({ version: 1, alpha: 0.25 });
+  } catch (e) {
+    console.error('loadMLFeatureExtractor:', e);
+  }
+}
+
+async function extractVisualFeatures(canvas, landmarks) {
+  if (!_mlFeatureExtractor || !canvas || !landmarks) return null;
+  try {
+    const xs  = landmarks.map(l => l.x), ys = landmarks.map(l => l.y);
+    const pad = 0.12;
+    const x0  = Math.max(0, Math.min(...xs) - pad);
+    const y0  = Math.max(0, Math.min(...ys) - pad);
+    const x1  = Math.min(1, Math.max(...xs) + pad);
+    const y1  = Math.min(1, Math.max(...ys) + pad);
+    const cw  = canvas.width, ch = canvas.height;
+
+    const crop = document.createElement('canvas');
+    crop.width = crop.height = 224;
+    crop.getContext('2d').drawImage(
+      canvas,
+      x0 * cw, y0 * ch, (x1 - x0) * cw, (y1 - y0) * ch,
+      0, 0, 224, 224
+    );
+
+    const tensor = _mlFeatureExtractor.infer(crop, true);
+    const result = Array.from(tensor.dataSync());
+    tensor.dispose();
+    return result;
+  } catch (e) {
+    console.error('extractVisualFeatures:', e);
+    return null;
+  }
+}
+
+// ── getTrainedAngle — used throughout app (Sections 9, 16) ────────────────
+function getTrainedAngle(jointKey, landmarks) {
+  if (!_currentHandLabel) return null;
+  const entry = _mlModels.get(`${jointKey}-${_currentHandLabel}`);
+  if (!entry) return null;
+  const flat = landmarks.map(lm => [lm.x, lm.y, lm.z || 0]).flat();
+
+  if (entry.type === 'hybrid') {
+    if (!_currentFrameFeatures) return null;
+    const imgT  = window.tf.tensor2d([_currentFrameFeatures]);
+    const lmT   = window.tf.tensor2d([flat]);
+    const pred  = entry.model.predict([imgT, lmT]);
+    const angle = Math.round(pred.dataSync()[0] * 180);
+    imgT.dispose(); lmT.dispose(); pred.dispose();
+    return Math.max(0, Math.min(180, angle));
+  }
+
+  const input = window.tf.tensor2d([flat]);
+  const pred  = entry.model.predict(input);
+  const angle = Math.round(pred.dataSync()[0] * 180);
+  input.dispose(); pred.dispose();
+  return Math.max(0, Math.min(180, angle));
+}
+
+// ── One Euro Filter for ML trainer landmarks ───────────────────────────────
+function mlOneEuroFilter(id, rawValue, timestamp) {
+  if (!_mlFilterStates[id]) {
+    _mlFilterStates[id] = { prevValue: rawValue, prevDeriv: 0, prevTime: timestamp };
+    return rawValue;
+  }
+  const state  = _mlFilterStates[id];
+  const dt     = (timestamp - state.prevTime) || (1 / 60);
+  const alphaD = calibAlphaFor(1.0, dt);
+  const deriv  = alphaD * ((rawValue - state.prevValue) / dt) + (1 - alphaD) * state.prevDeriv;
+  const cutoff = 1.0 + 0.1 * Math.abs(deriv);
+  const alpha  = calibAlphaFor(cutoff, dt);
+  const value  = alpha * rawValue + (1 - alpha) * state.prevValue;
+  state.prevValue = value;
+  state.prevDeriv = deriv;
+  state.prevTime  = timestamp;
+  return value;
+}
+
+// ── startMLTrainer ─────────────────────────────────────────────────────────
+async function startMLTrainer() {
+  _mlTrainerFacingMode = 'environment';
+  Object.keys(_mlFilterStates).forEach(k => delete _mlFilterStates[k]);
+  _mlCurrentLandmarks = null;
+
+  showScreen('mlTrainerScreen');
+
+  const select = document.getElementById('mlJointSelect');
+  if (select) {
+    select.innerHTML = SWEEP_JOINTS
+      .map(j => `<option value="${j.key}">${j.finger} ${j.joint.toUpperCase()}</option>`)
+      .join('');
+  }
+
+  const slider   = document.getElementById('mlAngleSlider');
+  const sliderEl = document.getElementById('mlSliderAngle');
+  if (slider)   slider.value = 90;
+  if (sliderEl) sliderEl.textContent = '90°';
+
+  const notesEl = document.getElementById('mlSessionNotes');
+  if (notesEl) notesEl.value = localStorage.getItem('ml_session_notes') || '';
+
+  await Promise.all([mlRefreshSampleCounts(), mlRefreshModelsList()]);
+
+  if (_mlTrainerCamera) return;
+
+  const hands = new window.Hands({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+  });
+  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.85, minTrackingConfidence: 0.75 });
+  hands.onResults(mlOnResults);
+  _mlMpHands = hands;
+
+  mlStartCamera();
+}
+
+// ── mlStartCamera ──────────────────────────────────────────────────────────
+function mlStartCamera() {
+  const video      = document.getElementById('mlVideo');
+  const overlay    = document.getElementById('mlOverlay');
+  const overlayMsg = document.getElementById('mlOverlayMsg');
+
+  if (isMobile()) {
+    const mirror = _mlTrainerFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+    if (video) video.style.transform = mirror;
+    const canvas = document.getElementById('mlCanvas');
+    if (canvas) canvas.style.transform = mirror;
+  }
+
+  if (overlayMsg) overlayMsg.textContent = 'REQUESTING CAMERA...';
+
+  if (isMobile()) {
+    let active = true;
+    _mlTrainerCamera = { stop: () => { active = false; } };
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _mlTrainerFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    }).then(stream => {
+      video.srcObject = stream;
+      const offCanvas = document.createElement('canvas');
+      const offCtx    = offCanvas.getContext('2d');
+
+      const processFrame = async () => {
+        if (!active) return;
+        if (video.readyState >= 2) {
+          const maxW = 1280, maxH = 720;
+          const scale = Math.min(maxW / video.videoWidth, maxH / video.videoHeight, 1);
+          offCanvas.width  = Math.round(video.videoWidth  * scale);
+          offCanvas.height = Math.round(video.videoHeight * scale);
+          offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+          try { await _mlMpHands.send({ image: offCanvas }); } catch(e) {}
+        }
+        if (active) requestAnimationFrame(processFrame);
+      };
+
+      video.onloadedmetadata = () => {
+        video.play();
+        if (overlay) overlay.classList.add('hidden');
+        video.classList.add('ready');
+        processFrame();
+      };
+
+      _mlTrainerCamera = {
+        stop: () => {
+          active = false;
+          stream.getTracks().forEach(t => t.stop());
+          video.srcObject = null;
+          video.classList.remove('ready');
+        }
+      };
+    }).catch(err => {
+      if (overlay)    overlay.classList.remove('hidden');
+      if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
+      console.error(err);
+    });
+  } else {
+    let active = true;
+    _mlTrainerCamera = { stop: () => { active = false; } };
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: _mlTrainerFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    }).then(stream => {
+      video.srcObject = stream;
+
+      const processFrame = async () => {
+        if (!active) return;
+        if (video.readyState >= 2) {
+          try { await _mlMpHands.send({ image: video }); } catch(e) {}
+        }
+        if (active) requestAnimationFrame(processFrame);
+      };
+
+      video.onloadedmetadata = () => {
+        video.play();
+        if (overlay) overlay.classList.add('hidden');
+        video.classList.add('ready');
+        processFrame();
+      };
+
+      _mlTrainerCamera = {
+        stop: () => {
+          active = false;
+          stream.getTracks().forEach(t => t.stop());
+          video.srcObject = null;
+          video.classList.remove('ready');
+        }
+      };
+    }).catch(err => {
+      if (overlay)    overlay.classList.remove('hidden');
+      if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
+      console.error(err);
+    });
+  }
+}
+
+// ── mlOnResults ────────────────────────────────────────────────────────────
+function mlOnResults(results) {
+  const canvas   = document.getElementById('mlCanvas');
+  const trackDot = document.getElementById('mlTrackDot');
+  if (!canvas) return;
+
+  const ctx  = canvas.getContext('2d');
+  const srcW = results.image.width, srcH = results.image.height;
+  const size = Math.min(srcW, srcH);
+  const cropX = (srcW - size) / 2, cropY = (srcH - size) / 2;
+  canvas.width = size; canvas.height = size;
+  ctx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
+
+  const liveEl = document.getElementById('mlLiveAngle');
+
+  const handEl = document.getElementById('mlHandLabel');
+
+  if (results.multiHandLandmarks.length === 0 || !sweepIsRealHand(results.multiHandLandmarks[0])) {
+    _mlCurrentLandmarks = null;
+    _mlCurrentHand      = null;
+    _currentHandLabel   = null;
+    _mlRecordFrameCount = 0;
+    if (trackDot) trackDot.classList.remove('active');
+    if (liveEl)   liveEl.textContent = '—';
+    if (handEl)   handEl.textContent = '—';
+    return;
+  }
+
+  const rawHand = (results.multiHandedness?.[0]?.label || '').toLowerCase();
+  const hand = rawHand === 'left' ? 'right' : rawHand === 'right' ? 'left' : null;
+  if (hand !== _mlCurrentHand) {
+    _mlCurrentHand  = hand;
+    _currentHandLabel = hand;
+    if (hand) mlSetHand(hand);
+  }
+  if (handEl) handEl.textContent = hand ? hand.charAt(0).toUpperCase() + hand.slice(1) : '—';
+
+  const t   = performance.now() / 1000;
+  const raw = results.multiHandLandmarks[0];
+  const landmarks = raw.map((lm, i) => ({
+    ...lm,
+    x: mlOneEuroFilter(`${i}-x`, lm.x, t),
+    y: mlOneEuroFilter(`${i}-y`, lm.y, t),
+    z: mlOneEuroFilter(`${i}-z`, lm.z || 0, t),
+  }));
+
+  _mlCurrentLandmarks = landmarks;
+  if (trackDot) trackDot.classList.add('active');
+  extractVisualFeatures(canvas, landmarks).then(f => { _currentFrameFeatures = f; });
+
+  const drawLm = landmarks.map(lm => ({
+    ...lm,
+    x: (lm.x * srcW - cropX) / size,
+    y: (lm.y * srcH - cropY) / size,
+  }));
+  calibDrawLandmarks(ctx, drawLm);
+
+  const select = document.getElementById('mlJointSelect');
+  if (!select || !liveEl) return;
+  const jDef  = SWEEP_JOINTS.find(j => j.key === select.value);
+  if (!jDef) return;
+
+  const trained = getTrainedAngle(select.value, landmarks);
+  const angle   = trained !== null
+    ? trained
+    : Math.round(calibGetAngle(landmarks[jDef.def.a], landmarks[jDef.def.b], landmarks[jDef.def.c]));
+
+  liveEl.textContent  = angle + '°';
+  liveEl.style.color  = trained !== null ? 'var(--green)' : '';
+
+  if (_mlRecording && _mlCurrentLandmarks) {
+    _mlRecordFrameCount++;
+    if (_mlRecordFrameCount >= ML_RECORD_FRAME_INTERVAL) {
+      _mlRecordFrameCount = 0;
+      mlAutoCapture();
+    }
+  }
+}
+
+
+// ── mlSaveNotes ────────────────────────────────────────────────────────────
+function mlSaveNotes() {
+  const el = document.getElementById('mlSessionNotes');
+  if (el) localStorage.setItem('ml_session_notes', el.value);
+}
+
+// ── mlOnJointChange ────────────────────────────────────────────────────────
+async function mlOnJointChange() {
+  const undoBar = document.getElementById('mlUndoBar');
+  if (undoBar) undoBar.style.display = 'none';
+  _mlLastRecordingId = null;
+  _mlSamplesLoaded   = false;
+  _mlSamplesCache    = null;
+  const samplesBody    = document.getElementById('mlSamplesBody');
+  const samplesChevron = document.getElementById('mlSamplesChevron');
+  if (samplesBody)    samplesBody.style.display    = 'none';
+  if (samplesChevron) samplesChevron.textContent   = '▸';
+  const select = document.getElementById('mlJointSelect');
+  if (select) await mlRefreshSampleCounts(select.value);
+}
+
+// ── mlOnSlider ─────────────────────────────────────────────────────────────
+function mlOnSlider(value) {
+  const el = document.getElementById('mlSliderAngle');
+  if (el) el.textContent = value + '°';
+}
+
+function mlAngleBucket(angle) {
+  if (angle < 0)    return 'hyp';
+  if (angle === 0)  return '0';
+  if (angle <= 30)  return '1';
+  if (angle <= 60)  return '31';
+  if (angle <= 90)  return '61';
+  if (angle <= 120) return '91';
+  if (angle <= 150) return '121';
+  return '151';
+}
+
+// ── mlAutoCapture — called every ML_RECORD_FRAME_INTERVAL frames during recording
+async function mlAutoCapture() {
+  if (!_mlRecording || !_mlCurrentLandmarks || !_mlSelectedHand) return;
+  if (_mlCaptureInFlight) return;
+  _mlCaptureInFlight = true;
+
+  const select = document.getElementById('mlJointSelect');
+  const slider = document.getElementById('mlAngleSlider');
+  if (!select || !slider) { _mlCaptureInFlight = false; return; }
+
+  const joint      = `${select.value}-${_mlSelectedHand}`;
+  const trueAngle  = parseInt(slider.value);
+  const lmSnapshot = _mlCurrentLandmarks.slice();
+  const landmarks  = lmSnapshot.flatMap(lm => [lm.x, lm.y, lm.z || 0]);
+  const notes      = document.getElementById('mlSessionNotes')?.value?.trim() || '';
+  const sample     = {
+    landmarks, trueAngle,
+    recordedAt:  new Date().toISOString(),
+    recordedBy:  currentUser?.email || '',
+    recordingId: _mlRecordingId,
+    notes,
+    ...(_currentFrameFeatures ? { imageFeatures: _currentFrameFeatures } : {}),
+  };
+
+  const countEl = document.getElementById('mlRecordCount');
+
+  try {
+    const chunkIdx  = Math.floor(_mlTotalSamples / 50);
+    const chunkId   = `${joint}_chunk_${chunkIdx}`;
+    const bucketKey = `histogram.b${Math.min(17, Math.floor(trueAngle / 10))}`;
+    const orient    = mlClassifyOrientation(lmSnapshot);
+    const gridKey   = `grid_${orient}_${mlAngleBucket(trueAngle)}`;
+
+    const batch = db.batch();
+    batch.set(
+      db.collection('trainingChunks').doc(chunkId),
+      { joint, chunk: chunkIdx, samples: firebase.firestore.FieldValue.arrayUnion(sample) },
+      { merge: true }
+    );
+    batch.set(
+      db.collection('trainingMeta').doc(joint),
+      { joint, totalSamples: firebase.firestore.FieldValue.increment(1), [bucketKey]: firebase.firestore.FieldValue.increment(1), [gridKey]: firebase.firestore.FieldValue.increment(1) },
+      { merge: true }
+    );
+    await batch.commit();
+
+    _mlTotalSamples++;
+    _mlRecordSampleCount++;
+    if (countEl) countEl.textContent = _mlRecordSampleCount;
+
+    if (_mlRecordSampleCount % ML_RECORD_GRID_REFRESH_INTERVAL === 0) {
+      mlRefreshSampleCounts();
+    }
+  } catch (e) {
+    console.error('mlAutoCapture:', e);
+    if (countEl) countEl.textContent = 'err';
+  } finally {
+    _mlCaptureInFlight = false;
+  }
+}
+
+// ── mlStartRecording / mlStopRecording ─────────────────────────────────────
+async function mlStartRecording() {
+  if (_mlRecording || !_mlSelectedHand) return;
+  const select    = document.getElementById('mlJointSelect');
+  const slider    = document.getElementById('mlAngleSlider');
+  const startBtn  = document.getElementById('mlRecordStartBtn');
+  const stopBtn   = document.getElementById('mlRecordStopBtn');
+  const countEl   = document.getElementById('mlRecordCount');
+  const indicator = document.getElementById('mlRecordingIndicator');
+  const undoBar   = document.getElementById('mlUndoBar');
+
+  if (select) {
+    const joint = `${select.value}-${_mlSelectedHand}`;
+    const meta  = await db.collection('trainingMeta').doc(joint).get();
+    _mlTotalSamples = meta.exists ? (meta.data().totalSamples || 0) : 0;
+  }
+
+  _mlRecording         = true;
+  _mlRecordFrameCount  = 0;
+  _mlRecordSampleCount = 0;
+  _mlRecordingId       = Date.now().toString();
+
+  if (slider)    slider.disabled        = true;
+  if (startBtn)  startBtn.style.display = 'none';
+  if (stopBtn)   stopBtn.style.display  = '';
+  if (countEl)   countEl.textContent    = '0';
+  if (indicator) indicator.style.display = '';
+  if (undoBar)   undoBar.style.display   = 'none';
+  document.querySelector('.ml-capture-panel')?.classList.add('ml-recording');
+}
+
+function mlStopRecording() {
+  if (!_mlRecording) return;
+  const slider    = document.getElementById('mlAngleSlider');
+  const startBtn  = document.getElementById('mlRecordStartBtn');
+  const stopBtn   = document.getElementById('mlRecordStopBtn');
+  const indicator = document.getElementById('mlRecordingIndicator');
+  const undoBar   = document.getElementById('mlUndoBar');
+  const undoLabel = document.getElementById('mlUndoLabel');
+
+  _mlLastRecordingId    = _mlRecordingId;
+  _mlLastRecordingCount = _mlRecordSampleCount;
+  _mlRecording          = false;
+  _mlRecordFrameCount   = 0;
+  _mlRecordingId        = null;
+
+  if (slider)   { slider.value = 90; slider.disabled = false; mlOnSlider(90); }
+  if (startBtn) startBtn.style.display = '';
+  if (stopBtn)   stopBtn.style.display  = 'none';
+  if (indicator) indicator.style.display = 'none';
+  document.querySelector('.ml-capture-panel')?.classList.remove('ml-recording');
+
+  if (undoBar && _mlLastRecordingCount > 0) {
+    if (undoLabel) undoLabel.textContent = `Discard last recording (${_mlLastRecordingCount} samples)`;
+    undoBar.style.display = '';
+  }
+
+  mlRefreshSampleCounts();
+}
+
+// ── mlUndoLastRecording ────────────────────────────────────────────────────
+async function mlUndoLastRecording() {
+  if (!_mlLastRecordingId || !_mlSelectedHand) return;
+  const select  = document.getElementById('mlJointSelect');
+  const undoBtn = document.getElementById('mlUndoBtn');
+  const undoBar = document.getElementById('mlUndoBar');
+  if (!select || !undoBtn) return;
+
+  const joint = `${select.value}-${_mlSelectedHand}`;
+  undoBtn.disabled    = true;
+  undoBtn.textContent = 'Removing...';
+
+  try {
+    const snap  = await db.collection('trainingChunks').where('joint', '==', joint).get();
+    const batch = db.batch();
+    const rid   = _mlLastRecordingId;
+
+    for (const doc of snap.docs) {
+      const kept = (doc.data().samples || []).filter(s => s.recordingId !== rid);
+      if (kept.length !== (doc.data().samples || []).length) {
+        batch.update(doc.ref, { samples: kept });
+      }
+    }
+    await batch.commit();
+
+    const remaining = snap.docs.flatMap(d => (d.data().samples || []).filter(s => s.recordingId !== rid));
+    const newMeta   = { joint, totalSamples: remaining.length };
+    for (const s of remaining) {
+      const bk = `histogram.b${Math.min(17, Math.floor(s.trueAngle / 10))}`;
+      newMeta[bk] = (newMeta[bk] || 0) + 1;
+      const lm     = s.landmarks;
+      const lmObjs = Array.isArray(lm[0])
+        ? lm.map(([x, y, z]) => ({ x, y, z }))
+        : Array.from({ length: lm.length / 3 }, (_, i) => ({ x: lm[i*3], y: lm[i*3+1], z: lm[i*3+2] }));
+      const orient = mlClassifyOrientation(lmObjs);
+      const gk = `grid_${orient}_${mlAngleBucket(s.trueAngle)}`;
+      newMeta[gk] = (newMeta[gk] || 0) + 1;
+    }
+    await db.collection('trainingMeta').doc(joint).set(newMeta);
+
+    _mlLastRecordingId    = null;
+    _mlLastRecordingCount = 0;
+    undoBtn.textContent = 'Removed!';
+    mlRefreshSampleCounts();
+    setTimeout(() => { if (undoBar) undoBar.style.display = 'none'; }, 900);
+  } catch (e) {
+    console.error('mlUndoLastRecording:', e);
+    undoBtn.disabled    = false;
+    undoBtn.textContent = 'Discard';
+  }
+}
+
+// ── mlClearJoint ───────────────────────────────────────────────────────────
+async function mlClearJoint() {
+  const select  = document.getElementById('mlJointSelect');
+  const clearBtn = document.querySelector('.ml-clear-btn');
+  if (!select) return;
+
+  if (!_mlSelectedHand) { alert('Select LEFT or RIGHT before clearing.'); return; }
+  const hand = _mlSelectedHand;
+
+  const joint = `${select.value}-${hand}`;
+  if (clearBtn) { clearBtn.disabled = true; clearBtn.textContent = 'Clearing...'; }
+
+  try {
+    const snap  = await db.collection('trainingChunks').where('joint', '==', joint).get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    batch.delete(db.collection('trainingMeta').doc(joint));
+    await batch.commit();
+
+    _mlLastRecordingId    = null;
+    _mlLastRecordingCount = 0;
+    const undoBar = document.getElementById('mlUndoBar');
+    if (undoBar) undoBar.style.display = 'none';
+    if (clearBtn) clearBtn.textContent = 'Cleared!';
+    setTimeout(() => { if (clearBtn) { clearBtn.disabled = false; clearBtn.textContent = 'Clear all samples for this joint'; } }, 1200);
+    mlRefreshSampleCounts();
+  } catch (e) {
+    console.error('mlClearJoint:', e);
+    if (clearBtn) { clearBtn.disabled = false; clearBtn.textContent = 'Clear all samples for this joint'; }
+  }
+}
+
+// ── trainMLModel ───────────────────────────────────────────────────────────
+async function trainMLModel() {
+  if (!window.tf || !_mlSelectedHand) return;
+  const select       = document.getElementById('mlJointSelect');
+  const trainBtn     = document.getElementById('mlTrainBtn');
+  const statusEl     = document.getElementById('mlTrainStatus');
+  const progressWrap = document.getElementById('mlProgressWrap');
+  const progressBar  = document.getElementById('mlProgressBar');
+  if (!select || !trainBtn || !statusEl) return;
+
+  const joint = `${select.value}-${_mlSelectedHand}`;
+  trainBtn.disabled    = true;
+  trainBtn.textContent = 'Loading samples...';
+  if (statusEl)      statusEl.textContent  = '';
+  if (progressWrap)  progressWrap.style.display = 'block';
+  if (progressBar)   progressBar.style.width    = '0%';
+
+  try {
+    const snap    = await db.collection('trainingChunks').where('joint', '==', joint).get();
+    const samples = snap.docs.flatMap(d => d.data().samples);
+
+    if (samples.length === 0) {
+      statusEl.textContent = 'No samples found.';
+      trainBtn.disabled = false; trainBtn.textContent = 'Train Model';
+      return;
+    }
+
+    const hybridSamples = samples.filter(s => Array.isArray(s.imageFeatures) && s.imageFeatures.length === 256);
+    const useHybrid     = hybridSamples.length >= 10;
+
+    statusEl.textContent = useHybrid
+      ? `Training hybrid model on ${hybridSamples.length} samples...`
+      : `Training on ${samples.length} samples...${hybridSamples.length > 0 ? ` (${hybridSamples.length} have visual features — need 10 for hybrid)` : ''}`;
+
+    const epochs = 100;
+    let model, mae;
+
+    if (useHybrid) {
+      const imgXs = window.tf.tensor2d(hybridSamples.map(s => s.imageFeatures));
+      const lmXs  = window.tf.tensor2d(hybridSamples.map(s => s.landmarks.flat()));
+      const ys    = window.tf.tensor2d(hybridSamples.map(s => [s.trueAngle / 180]));
+
+      const imgInput = window.tf.input({ shape: [256] });
+      const lmInput  = window.tf.input({ shape: [63] });
+      const merged   = window.tf.layers.concatenate().apply([imgInput, lmInput]);
+      const d1       = window.tf.layers.dense({ units: 128, activation: 'relu' }).apply(merged);
+      const d2       = window.tf.layers.dense({ units: 64,  activation: 'relu' }).apply(d1);
+      const out      = window.tf.layers.dense({ units: 1 }).apply(d2);
+      model          = window.tf.model({ inputs: [imgInput, lmInput], outputs: out });
+      model.compile({ optimizer: window.tf.train.adam(0.001), loss: 'meanSquaredError' });
+
+      await model.fit([imgXs, lmXs], ys, {
+        epochs,
+        validationSplit: 0.1,
+        callbacks: { onEpochEnd: (epoch) => {
+          if (progressBar) progressBar.style.width = `${Math.round((epoch + 1) / epochs * 100)}%`;
+        }},
+      });
+
+      const pred       = model.predict([imgXs, lmXs]);
+      const predAngles = Array.from(pred.dataSync()).map(v => v * 180);
+      mae              = predAngles.reduce((s, v, i) => s + Math.abs(v - hybridSamples[i].trueAngle), 0) / predAngles.length;
+      pred.dispose();
+
+      const weights = model.getWeights().map(w => Array.from(w.dataSync()));
+      await db.collection('mlModels').doc(joint).set({
+        type:        'hybrid',
+        topology:    JSON.stringify(model.toJSON()),
+        weights,
+        sampleCount: hybridSamples.length,
+        trainedAt:   new Date().toISOString(),
+        mae:         parseFloat(mae.toFixed(2)),
+      });
+
+      _mlModels.set(joint, { type: 'hybrid', model });
+      imgXs.dispose(); lmXs.dispose(); ys.dispose();
+    } else {
+      const xs = window.tf.tensor2d(samples.map(s => s.landmarks.flat()));
+      const ys = window.tf.tensor2d(samples.map(s => [s.trueAngle / 180]));
+
+      model = window.tf.sequential({ layers: [
+        window.tf.layers.dense({ inputShape: [63], units: 64, activation: 'relu' }),
+        window.tf.layers.dense({ units: 32, activation: 'relu' }),
+        window.tf.layers.dense({ units: 1 }),
+      ]});
+      model.compile({ optimizer: window.tf.train.adam(0.001), loss: 'meanSquaredError' });
+
+      await model.fit(xs, ys, {
+        epochs,
+        validationSplit: samples.length >= 10 ? 0.1 : 0,
+        callbacks: { onEpochEnd: (epoch) => {
+          if (progressBar) progressBar.style.width = `${Math.round((epoch + 1) / epochs * 100)}%`;
+        }},
+      });
+
+      const pred       = model.predict(xs);
+      const predAngles = Array.from(pred.dataSync()).map(v => v * 180);
+      mae              = predAngles.reduce((s, v, i) => s + Math.abs(v - samples[i].trueAngle), 0) / predAngles.length;
+      pred.dispose();
+
+      const weights = model.getWeights().map(w => Array.from(w.dataSync()));
+      await db.collection('mlModels').doc(joint).set({
+        topology:    JSON.stringify(model.toJSON()),
+        weights,
+        sampleCount: samples.length,
+        trainedAt:   new Date().toISOString(),
+        mae:         parseFloat(mae.toFixed(2)),
+      });
+
+      _mlModels.set(joint, { type: 'landmarks', model });
+      xs.dispose(); ys.dispose();
+    }
+
+    statusEl.textContent = `Done — avg error: ${mae.toFixed(1)}°`;
+    trainBtn.textContent = 'Train Again';
+    trainBtn.disabled    = false;
+    await mlRefreshModelsList();
+  } catch (e) {
+    statusEl.textContent = 'Training failed.';
+    trainBtn.textContent = 'Train Model';
+    trainBtn.disabled    = false;
+    console.error(e);
+  }
+}
+
+// ── mlSetHand ──────────────────────────────────────────────────────────────
+function mlSetHand(hand) {
+  _mlSelectedHand  = hand;
+  _mlSamplesLoaded = false;
+  _mlSamplesCache  = null;
+  const samplesBody    = document.getElementById('mlSamplesBody');
+  const samplesChevron = document.getElementById('mlSamplesChevron');
+  if (samplesBody)    samplesBody.style.display    = 'none';
+  if (samplesChevron) samplesChevron.textContent   = '▸';
+  const leftBtn  = document.getElementById('mlHandBtnLeft');
+  const rightBtn = document.getElementById('mlHandBtnRight');
+  if (leftBtn)  leftBtn.classList.toggle('active',  hand === 'left');
+  if (rightBtn) rightBtn.classList.toggle('active', hand === 'right');
+  mlRefreshSampleCounts();
+}
+
+// ── mlRefreshSampleCounts ──────────────────────────────────────────────────
+async function mlRefreshSampleCounts(joint) {
+  const select   = document.getElementById('mlJointSelect');
+  const baseKey  = joint || (select ? select.value : null);
+  if (!baseKey || !_mlSelectedHand) return;
+  const j        = `${baseKey}-${_mlSelectedHand}`;
+  const countEl  = document.getElementById('mlSampleCount');
+  const trainBtn = document.getElementById('mlTrainBtn');
+
+  try {
+    const [meta, allMeta] = await Promise.all([
+      db.collection('trainingMeta').doc(j).get(),
+      db.collection('trainingMeta').get(),
+    ]);
+    const jointCount  = meta.exists ? meta.data().totalSamples : 0;
+    const grandTotal  = allMeta.docs.reduce((sum, d) => sum + (d.data().totalSamples || 0), 0);
+
+    if (countEl) countEl.textContent = `${jointCount} sample${jointCount !== 1 ? 's' : ''}`;
+    if (trainBtn) {
+      trainBtn.disabled    = jointCount < 100;
+      trainBtn.textContent = jointCount < 100 ? `Train Model (need ${100 - jointCount} more)` : 'Train Model';
+    }
+
+    const labelEl = document.getElementById('mlStatJointLabel');
+    const jCountEl = document.getElementById('mlStatJointCount');
+    const totalEl  = document.getElementById('mlStatTotal');
+    if (labelEl && select) {
+      const optText = select.options[select.selectedIndex]?.text || baseKey;
+      const handStr = _mlSelectedHand ? ` (${_mlSelectedHand})` : '';
+      labelEl.textContent = `Samples for ${optText}${handStr}`;
+    }
+    if (jCountEl) jCountEl.textContent = jointCount;
+    if (totalEl)  totalEl.textContent  = grandTotal;
+
+    const docData = meta.exists ? meta.data() : {};
+    const grid = {};
+    Object.keys(docData).forEach(k => { if (k.startsWith('grid_')) grid[k] = docData[k]; });
+    mlRenderGrid(grid);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// ── mlClassifyOrientation / mlRenderGrid ───────────────────────────────────
+let _mlSuggestedAngle = null;
+
+function mlPalmNormal(landmarks) {
+  const w = landmarks[0], p1 = landmarks[5], p5 = landmarks[17];
+  const ax = p5.x - w.x, ay = p5.y - w.y, az = (p5.z || 0) - (w.z || 0);
+  const bx = p1.x - w.x, by = p1.y - w.y, bz = (p1.z || 0) - (w.z || 0);
+  const nx = ay * bz - az * by;
+  const ny = az * bx - ax * bz;
+  const nz = ax * by - ay * bx;
+  const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
+  return mag === 0 ? { nx: 0, ny: 0, nz: 0 } : { nx: nx / mag, ny: ny / mag, nz: nz / mag };
+}
+
+function mlClassifyOrientation(landmarks) {
+  const { nx, ny, nz } = mlPalmNormal(landmarks);
+  const ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
+  if (az >= ax && az >= ay) return nz > 0 ? 'toward' : 'away';
+  if (ay >= ax && ay >= az) return ny < 0 ? 'up' : 'down';  // image y inverted
+  return nx > 0 ? 'right' : 'left';
+}
+
+function mlRenderGrid(grid) {
+  const gridEl  = document.getElementById('mlCoverageGrid');
+  const labelEl = document.getElementById('mlNextAngleLabel');
+  const useBtn  = document.getElementById('mlUseBtn');
+  if (!gridEl) return;
+
+  const ORIENTS = [
+    { key: 'toward', label: 'TOWARD' },
+    { key: 'away',   label: 'AWAY'   },
+    { key: 'up',     label: 'UP'     },
+    { key: 'down',   label: 'DOWN'   },
+    { key: 'left',   label: 'LEFT'   },
+    { key: 'right',  label: 'RIGHT'  },
+  ];
+  const BUCKETS = [
+    { key: 'hyp', label: '<0',      mid: -15 },
+    { key: '0',   label: '0',       mid: 0   },
+    { key: '1',   label: '1-30',    mid: 15  },
+    { key: '31',  label: '31-60',   mid: 45  },
+    { key: '61',  label: '61-90',   mid: 75  },
+    { key: '91',  label: '91-120',  mid: 105 },
+    { key: '121', label: '121-150', mid: 135 },
+    { key: '151', label: '151-180', mid: 165 },
+  ];
+
+  const cells     = ORIENTS.map(o => BUCKETS.map(b => grid[`grid_${o.key}_${b.key}`] || 0));
+  const allCounts = cells.flat();
+  const minCount  = Math.min(...allCounts);
+  const minFlat   = allCounts.indexOf(minCount);
+  const minOi     = Math.floor(minFlat / BUCKETS.length);
+  const minBi     = minFlat % BUCKETS.length;
+  _mlSuggestedAngle = BUCKETS[minBi].mid;
+
+  if (labelEl) labelEl.textContent = `Suggested: ${_mlSuggestedAngle}° (${ORIENTS[minOi].label})`;
+  if (useBtn)  useBtn.disabled = false;
+
+  gridEl.innerHTML = `
+    <div class="ml-grid-row ml-grid-header">
+      <div class="ml-grid-orient-label"></div>
+      ${BUCKETS.map(b => `<div class="ml-grid-col-label">${b.label}</div>`).join('')}
+    </div>
+    ${ORIENTS.map((o, oi) => `
+      <div class="ml-grid-row">
+        <div class="ml-grid-orient-label">${o.label}</div>
+        ${BUCKETS.map((b, bi) => {
+          const count  = cells[oi][bi];
+          const pct    = Math.min(100, Math.round(count / 30 * 100));
+          const isDone = count >= 30;
+          const isMin  = oi === minOi && bi === minBi;
+          const style  = isMin || isDone ? '' : `--pct:${pct}%`;
+          return `<div class="ml-grid-cell${isDone ? ' ml-grid-cell--done' : ''}${isMin ? ' ml-grid-cell--target' : ''}" style="${style}" title="${count}/30"></div>`;
+        }).join('')}
+      </div>
+    `).join('')}
+  `;
+}
+
+function mlUseSuggested() {
+  if (_mlSuggestedAngle === null) return;
+  const slider = document.getElementById('mlAngleSlider');
+  if (slider) { slider.value = _mlSuggestedAngle; mlOnSlider(_mlSuggestedAngle); }
+}
+
+// ── mlRefreshModelsList ────────────────────────────────────────────────────
+async function mlRefreshModelsList() {
+  const list = document.getElementById('mlModelsList');
+  if (!list) return;
+
+  try {
+    const snap = await db.collection('mlModels').get();
+    if (snap.empty) {
+      list.textContent = 'No models trained yet.';
+      return;
+    }
+    list.innerHTML = snap.docs.map(doc => {
+      const d = doc.data();
+      return `<div class="ml-model-row">
+        <span class="ml-model-joint">${doc.id}</span>
+        <span class="ml-model-meta">${d.sampleCount} samples — ${d.mae}° avg error</span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    list.textContent = 'Failed to load.';
+    console.error(e);
+  }
+}
+
+// ── mlFlipCamera ───────────────────────────────────────────────────────────
+function mlFlipCamera() {
+  _mlTrainerFacingMode = _mlTrainerFacingMode === 'environment' ? 'user' : 'environment';
+  if (_mlTrainerCamera) { _mlTrainerCamera.stop(); _mlTrainerCamera = null; }
+  Object.keys(_mlFilterStates).forEach(k => delete _mlFilterStates[k]);
+  mlStartCamera();
+}
+
+// ── mlToggleStats ──────────────────────────────────────────────────────────
+function mlToggleStats() {
+  const body    = document.getElementById('mlStatsBody');
+  const chevron = document.getElementById('mlStatsChevron');
+  const card    = document.getElementById('mlStatsCard');
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (chevron) chevron.textContent = open ? '▾' : '▸';
+  if (open && card) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 20);
+}
+
+// ── mlToggleModels ─────────────────────────────────────────────────────────
+function mlToggleModels() {
+  const body    = document.getElementById('mlModelsBody');
+  const chevron = document.getElementById('mlModelsChevron');
+  const card    = document.getElementById('mlModelsCard');
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display  = open ? 'block' : 'none';
+  if (chevron) chevron.textContent = open ? '▾' : '▸';
+  if (open && card) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 20);
+}
+
+// ── mlToggleSamples ────────────────────────────────────────────────────────
+async function mlToggleSamples() {
+  const body    = document.getElementById('mlSamplesBody');
+  const chevron = document.getElementById('mlSamplesChevron');
+  const card    = document.getElementById('mlSamplesCard');
+  if (!body) return;
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (chevron) chevron.textContent = open ? '▾' : '▸';
+  if (open) {
+    if (!_mlSamplesLoaded) await mlLoadSamples();
+    if (card) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 20);
+  }
+}
+
+// ── mlLoadSamples ──────────────────────────────────────────────────────────
+async function mlLoadSamples() {
+  const select = document.getElementById('mlJointSelect');
+  const listEl = document.getElementById('mlSamplesList');
+  if (!select || !listEl || !_mlSelectedHand) return;
+
+  const joint = `${select.value}-${_mlSelectedHand}`;
+  listEl.innerHTML = '<div class="ml-samples-loading">Loading...</div>';
+
+  try {
+    const snap = await db.collection('trainingChunks').where('joint', '==', joint).get();
+    const all  = snap.docs.flatMap(d => d.data().samples || []);
+
+    _mlSamplesCache  = { joint, snap };
+    _mlSamplesLoaded = true;
+
+    mlRenderSamples(all);
+  } catch (e) {
+    console.error('mlLoadSamples:', e);
+    listEl.innerHTML = '<div class="ml-samples-loading">Failed to load.</div>';
+  }
+}
+
+// ── mlRenderSamples ────────────────────────────────────────────────────────
+function mlRenderSamples(samples) {
+  const listEl = document.getElementById('mlSamplesList');
+  if (!listEl) return;
+
+  if (!samples.length) {
+    listEl.innerHTML = '<div class="ml-samples-loading">No samples recorded yet.</div>';
+    return;
+  }
+
+  // Group by date, then by recordingId within each date
+  const byDate = {};
+  for (const s of samples) {
+    const date = (s.recordedAt || '').slice(0, 10) || 'Unknown';
+    if (!byDate[date]) byDate[date] = {};
+    const rid = s.recordingId || `__manual_${s.recordedAt}`;
+    if (!byDate[date][rid]) byDate[date][rid] = [];
+    byDate[date][rid].push(s);
+  }
+
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  listEl.innerHTML = dates.map((date, di) => {
+    const sessions = byDate[date];
+    const rids     = Object.keys(sessions).sort((a, b) => {
+      const ta = sessions[a][0]?.recordedAt || '';
+      const tb = sessions[b][0]?.recordedAt || '';
+      return tb.localeCompare(ta);
+    });
+    const dateTotal = rids.reduce((n, r) => n + sessions[r].length, 0);
+    const bodyId    = `mlSamplesDate_${di}`;
+
+    const rows = rids.map(rid => {
+      const ss      = sessions[rid];
+      const time    = new Date(ss[0].recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const minAng  = Math.min(...ss.map(s => s.trueAngle));
+      const maxAng  = Math.max(...ss.map(s => s.trueAngle));
+      const isManual = rid.startsWith('__manual_');
+      const deleteArg = isManual ? `null,'${ss[0].recordedAt}',this` : `'${rid}',null,this`;
+      const angleStr  = minAng === maxAng ? `${minAng}°` : `${minAng}°–${maxAng}°`;
+      return `<div class="ml-sample-session">
+        <span class="ml-sample-session-info">${time} — ${ss.length} sample${ss.length !== 1 ? 's' : ''} — ${angleStr}</span>
+        <button class="ml-sample-delete-btn" onclick="mlDeleteSession(${deleteArg})">Delete</button>
+      </div>`;
+    }).join('');
+
+    return `<div class="ml-samples-date-group">
+      <button class="ml-samples-date-hdr" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.ml-samples-date-chevron').textContent=this.nextElementSibling.style.display===''?'▾':'▸'">
+        <span>${date} <span class="ml-samples-date-count">(${dateTotal})</span></span>
+        <span class="ml-samples-date-chevron">▸</span>
+      </button>
+      <div id="${bodyId}" class="ml-samples-date-body" style="display:none">${rows}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── mlDeleteSession ────────────────────────────────────────────────────────
+async function mlDeleteSession(recordingId, fallbackRecordedAt, btn) {
+  const select = document.getElementById('mlJointSelect');
+  if (!select || !_mlSelectedHand || !_mlSamplesCache) return;
+
+  const joint = `${select.value}-${_mlSelectedHand}`;
+  if (btn) { btn.disabled = true; btn.textContent = 'Removing...'; }
+
+  try {
+    const { snap } = _mlSamplesCache;
+    const batch    = db.batch();
+
+    const filter = s => recordingId
+      ? s.recordingId !== recordingId
+      : s.recordedAt  !== fallbackRecordedAt;
+
+    for (const doc of snap.docs) {
+      const orig = doc.data().samples || [];
+      const kept = orig.filter(filter);
+      if (kept.length !== orig.length) batch.update(doc.ref, { samples: kept });
+    }
+    await batch.commit();
+
+    // Recalculate metadata from remaining samples
+    const remaining = snap.docs.flatMap(d => (d.data().samples || []).filter(filter));
+    const newMeta   = { joint, totalSamples: remaining.length };
+    for (const s of remaining) {
+      const bk = `histogram.b${Math.min(17, Math.floor(s.trueAngle / 10))}`;
+      newMeta[bk] = (newMeta[bk] || 0) + 1;
+      const lm     = s.landmarks;
+      const lmObjs = Array.isArray(lm[0])
+        ? lm.map(([x, y, z]) => ({ x, y, z }))
+        : Array.from({ length: lm.length / 3 }, (_, i) => ({ x: lm[i*3], y: lm[i*3+1], z: lm[i*3+2] }));
+      const orient = mlClassifyOrientation(lmObjs);
+      const gk     = `grid_${orient}_${mlAngleBucket(s.trueAngle)}`;
+      newMeta[gk]  = (newMeta[gk] || 0) + 1;
+    }
+    await db.collection('trainingMeta').doc(joint).set(newMeta);
+
+    // Update local cache and re-render
+    _mlSamplesCache = { joint, snap: { docs: snap.docs.map(d => ({ ref: d.ref, data: () => ({ ...d.data(), samples: (d.data().samples || []).filter(filter) }) })) } };
+    mlRenderSamples(remaining);
+    mlRefreshSampleCounts();
+  } catch (e) {
+    console.error('mlDeleteSession:', e);
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+  }
+}
+
+// ── mlTrainerBack ──────────────────────────────────────────────────────────
+function mlTrainerBack() {
+  if (_mlRecording) mlStopRecording();
+  if (_mlTrainerCamera) { _mlTrainerCamera.stop(); _mlTrainerCamera = null; }
+  _mlMpHands = null;
+  _mlCurrentLandmarks = null;
+  const video = document.getElementById('mlVideo');
+  if (video?.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    video.classList.remove('ready');
+  }
+  Object.keys(_mlFilterStates).forEach(k => delete _mlFilterStates[k]);
+  showScreen('therapistScreen');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -3394,8 +5272,16 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode, startCalibration, calibBack,
+  startSweepCalibration, sweepBack, sweepSave, sweepToggleDebug, sweepCopyLog, sweepFlipCamera,
+  sweepStartCapture, sweepResetJoint,
+
+  // ML Trainer
+  startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
+  trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint, mlSetHand, mlDeleteSession,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
+  openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
+  apmEnterCreateMode, apmExitCreateMode, apmSaveCustomExercise,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
 
   // Joint selector

@@ -8,5 +8,6 @@ export default defineConfig({
   },
   server: {
     host: 'localhost',
+    hmr: { overlay: false },
   },
 });
