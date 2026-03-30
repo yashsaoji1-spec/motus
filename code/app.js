@@ -23,6 +23,7 @@ let selectedProtocol = null;
 let _exercisesProtocols = [];
 let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
 let editingPatientEmail = null;
+var activeSheetProtocol = null;
 let _protoPatientEmail = null;
 let _apmNewExCat = false;
 
@@ -51,8 +52,10 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const db   = firebase.firestore();
 const auth = firebase.auth();
 
-const CLOUDINARY_CLOUD  = 'dslbugsdg';
-const CLOUDINARY_PRESET = 'phalanx-videos';
+db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+  if (err.code === 'failed-precondition') console.warn('Persistence failed: multiple tabs open');
+  else if (err.code === 'unimplemented') console.warn('Persistence not available in this browser');
+});
 
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
@@ -143,9 +146,6 @@ function showScreen(screenId) {
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop(); mediaRecorder = null; recordedChunks = [];
-    }
     currentFacingMode = 'user';
   }
 
@@ -406,38 +406,32 @@ async function updatePatientHomeScreen() {
     getConnectedTherapist()
   ]);
 
-  const strip = document.getElementById('patientProtocolStrip');
-  if (protocols.length > 0 && strip) {
-    strip.style.display = 'flex';
-    document.getElementById('protocolStripExercise').textContent =
-      protocols.length === 1
-        ? (exerciseLabels[protocols[0].exerciseType] || protocols[0].exerciseType)
-        : `${protocols.length} exercises assigned`;
-    document.getElementById('protocolStripMeta').textContent =
-      protocols.length === 1
-        ? 'Assigned by ' + protocols[0].assignedBy
-        : 'Tap "My Exercises" to choose';
 
-    const today         = new Date().toDateString();
-    const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
-    const currentIds    = new Set(protocols.map(p => p.id).filter(Boolean));
-    const done          = todaySessions.filter(s => s.protocolId && currentIds.has(s.protocolId)).length;
-    const required      = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
-    const statusEl = document.getElementById('protocolStripStatus');
-    if (statusEl) {
-      if (done >= required) {
-        statusEl.textContent = 'Done';
-        statusEl.className   = 'protocol-strip-status status-done';
-      } else if (done > 0) {
-        statusEl.textContent = `${done} / ${required} sets`;
-        statusEl.className   = 'protocol-strip-status status-partial';
-      } else {
-        statusEl.textContent = `${required} sets`;
-        statusEl.className   = 'protocol-strip-status status-pending';
-      }
+
+  // Today's Plan card
+  const planCard = document.getElementById('todaysPlanCard');
+  const planList = document.getElementById('todaysPlanList');
+  if (planCard && planList && protocols.length > 0) {
+    planCard.style.display = 'block';
+    planList.innerHTML = protocols.map(p => {
+      const name = exerciseLabels[p.exerciseType] || p.exerciseType;
+      const dose = `${p.sets || 3} × ${p.reps || 10} reps`;
+      return `<div class="todays-plan-item"><span class="todays-plan-name">${name}</span><span class="todays-plan-dose">${dose}</span></div>`;
+    }).join('');
+  } else if (planCard) {
+    planCard.style.display = 'none';
+  }
+
+  // My Exercises card subtitle
+  const exSub = document.getElementById('myExercisesSub');
+  if (exSub) {
+    if (protocols.length > 0) {
+      const firstEx = exerciseLabels[protocols[0].exerciseType] || protocols[0].exerciseType;
+      const firstDose = `${protocols[0].sets || 3} sets × ${protocols[0].reps || 10} reps`;
+      exSub.textContent = `${firstEx} — ${firstDose}`;
+    } else {
+      exSub.textContent = 'No exercises assigned yet';
     }
-  } else if (strip) {
-    strip.style.display = 'none';
   }
 
   if (therapistEmail) {
@@ -453,7 +447,7 @@ async function updatePatientHomeScreen() {
   const bestEl  = document.getElementById('streakBest');
   if (badgeEl && streak.current > 0) {
     badgeEl.style.display = 'flex';
-    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame"></span>');
+    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame"><svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><path d="M12 23c-3.6 0-8-2.4-8-8.5C4 9.8 9 4.3 11.4 2c.4-.3.9 0 .9.5-.2 3 1.6 5.2 3.2 6.8 1.5 1.5 3.5 3 3.5 5.2 0 4.5-3 8.5-7 8.5z"/></svg></span>');
     countEl.textContent   = streak.current;
     labelEl.textContent   = 'day streak';
     if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
@@ -658,8 +652,15 @@ async function deleteProtocol(patientEmail, protocolId) {
   } else {
     await db.collection('protocols').doc(patientEmail).set({ items: updated });
   }
-  const snap = await db.collection('users').doc(patientEmail).get();
-  if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  const refreshed = await getProtocols(patientEmail);
+  const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
+  if (protoBody) {
+    protoBody.innerHTML = buildProtocolForm(patientEmail, refreshed);
+    updateExerciseParamsUI('full_fist', null);
+  } else {
+    const snap = await db.collection('users').doc(patientEmail).get();
+    if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  }
 }
 
 async function editProtocol(patientEmail, protocolId) {
@@ -859,28 +860,47 @@ async function showExercisesScreen() {
 
   _exercisesProtocols = protocols;
 
-  inner.innerHTML = `<div class="exs-card-grid">${protocols.map((p, i) => {
+  const EXS_COLLAPSED_MAX = 3;
+  const cards = protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
-    const progressText = isDone
-      ? `<span class="exs-done-badge">Done today</span>`
-      : doneSets > 0
-        ? `<span class="exs-progress-text">${doneSets} / ${totalSetsNeeded} sets done today</span>`
-        : '';
-    return `
-    <div class="exs-hero-card ${isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : ''}">
-      <div class="exs-hero-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</div>
-      <div class="exs-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
-      <div class="exs-assigned-by">Prescribed by ${p.assignedBy}</div>
-      ${p.notes ? `<p class="exs-notes-text">"${p.notes}"</p>` : ''}
-      ${progressText}
-      <button class="exs-start-btn"
-        onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">${isDone ? 'Do Again' : 'Start Session'}</button>
+    const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
+    const badge = isDone ? '<span class="exs-row-badge done">Done</span>'
+      : doneSets > 0 ? `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
+    return `<div class="exs-row ${statusCls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
+      <div class="exs-row-left">
+        <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+        <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
+      </div>
+      <div class="exs-row-right">
+        ${badge}
+        <span class="exs-row-sets">${totalSetsNeeded} sets</span>
+        <svg class="exs-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
     </div>`;
-  }).join('')}</div>`;
+  });
+  const showToggle = protocols.length > EXS_COLLAPSED_MAX;
+  inner.innerHTML = `<div class="exs-list" id="exsList">
+    ${cards.map((c, i) => i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
+  </div>
+  ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">Show all ${protocols.length} exercises</button>` : ''}`;
 
   showScreen('exercisesScreen');
+}
+
+function toggleExerciseList() {
+  const list = document.getElementById('exsList');
+  const btn = document.querySelector('.exs-toggle-btn');
+  if (!list || !btn) return;
+  const hidden = list.querySelectorAll('.exs-hidden');
+  if (hidden.length) {
+    hidden.forEach(el => el.classList.remove('exs-hidden'));
+    btn.textContent = 'Show less';
+  } else {
+    list.querySelectorAll('.exs-row').forEach((el, i) => { if (i >= 3) el.classList.add('exs-hidden'); });
+    btn.textContent = `Show all ${list.querySelectorAll('.exs-row').length} exercises`;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -905,12 +925,12 @@ async function loadConnectedPatients() {
     item.className  = 'patient-item';
     const sessions  = await getPatientSessions(patient.email);
     const compliance = calcCompliance(sessions);
-    const statusColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
+    const statusColor = compliance >= 80 ? 'var(--success)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
     item.innerHTML = `
       <div class="patient-name">${patient.name}</div>
-      <div class="patient-connected" style="color:${statusColor}">
-        ● ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
+      <div class="patient-connected">
+        <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
       </div>`;
     item.onclick = () => {
       document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
@@ -973,8 +993,10 @@ function getDemoSessions(patientEmail) {
 }
 
 async function getPatientSessions(patientEmail) {
+  const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
   const snap = await db.collection('sessions')
     .where('patientEmail', '==', patientEmail)
+    .where('date', '>=', cutoff)
     .orderBy('date', 'asc').get();
   const stored = snap.docs.map(d => d.data());
   return [...getDemoSessions(patientEmail), ...stored]
@@ -1037,9 +1059,9 @@ async function showRealPatient(patient) {
       const input = document.getElementById('therapistMsgInput');
       await sendMessage(currentUser.email, patient.email, input.value);
       input.value = '';
-      await renderThread('therapistMsgThread', currentUser.email, patient.email);
+      await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     };
-    await renderThread('therapistMsgThread', currentUser.email, patient.email);
+    await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     enableMobilePatientDetail(panel);
     await ejsInit(patient.email, sessions);
     return;
@@ -1053,10 +1075,7 @@ async function showRealPatient(patient) {
   const recent          = sessions.slice(-8);
   const romData         = recent.map(s => s.rom  || 0);
   const painData        = recent.map(s => s.pain || 0);
-  const labels          = recent.map(s => {
-    const d = new Date(s.date);
-    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-  });
+  const labels          = buildChartLabels(recent);
 
   panel.innerHTML = `
     <div class="patient-panel-hdr">
@@ -1066,7 +1085,7 @@ async function showRealPatient(patient) {
     <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
     <button class="sweep-launch-btn" onclick="startMLTrainer()">ML Trainer</button>
     <div class="stats-row">
-      <div class="stat-card"><div class="stat-value" style="color:${complianceColor}">${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
+      <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
       <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain Rating</div></div>
     </div>
@@ -1074,23 +1093,21 @@ async function showRealPatient(patient) {
       <div class="stat-card stat-card-full"><div class="stat-value stat-value-sm">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
     </div>
     <div class="tp-charts-grid">
-    ${makeCollapsible('rom',     'Range of Motion Over Time', '<canvas id="romChart" height="100"></canvas>', true)}
-    ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="100"></canvas>', true)}
+    ${makeCollapsible('rom',     'Range of motion over time', '<canvas id="romChart" height="160"></canvas>', true)}
+    ${makeCollapsible('pain',    'Pain rating over time',     '<canvas id="painChart" height="160"></canvas>', true)}
     </div>
     ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
     ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
     ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
+  const tRomCfg = buildChartConfig(romData, { type: 'rom', color: '#0B6CB0', fillColor: 'rgba(11,108,176,0.06)' });
   new Chart(document.getElementById('romChart').getContext('2d'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: romData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 180 } } }
+    type: 'line', data: { labels, datasets: [tRomCfg.dataset] }, options: tRomCfg.options
   });
+  const tPainCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
   new Chart(document.getElementById('painChart').getContext('2d'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 4, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, min: 0, max: 10 } } }
+    type: 'line', data: { labels, datasets: [tPainCfg.dataset] }, options: tPainCfg.options
   });
 
   await markRead(currentUser.email, patient.email);
@@ -1098,61 +1115,122 @@ async function showRealPatient(patient) {
     const input = document.getElementById('therapistMsgInput');
     await sendMessage(currentUser.email, patient.email, input.value);
     input.value = '';
-    await renderThread('therapistMsgThread', currentUser.email, patient.email);
+    await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   };
-  await renderThread('therapistMsgThread', currentUser.email, patient.email);
+  await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   enableMobilePatientDetail(panel);
   await ejsInit(patient.email, sessions);
   updateExerciseParamsUI('full_fist', null);
 }
 
-function buildSessionHistory(sessions, patientName) {
-  if (sessions.length === 0) {
-    return `<div class="session-history-card"><h4>Session History</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
+function groupSetsIntoSessions(sets) {
+  if (sets.length === 0) return [];
+  const sorted = [...sets].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const groups = [];
+  let cur = { sets: [sorted[0]], protocolId: sorted[0].protocolId || '' };
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = (new Date(sorted[i].date) - new Date(sorted[i - 1].date)) / 60000;
+    const sameProto = (sorted[i].protocolId || '') === cur.protocolId;
+    if (gap <= 30 && sameProto) { cur.sets.push(sorted[i]); }
+    else { groups.push(cur); cur = { sets: [sorted[i]], protocolId: sorted[i].protocolId || '' }; }
   }
-  const VIDEO_EXPIRY_DAYS = 30;
-  const nameSafe = (patientName || '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
-  const rows = [...sessions].reverse().map(s => {
-    const d       = new Date(s.date);
+  groups.push(cur);
+  return groups.map(g => {
+    const s = g.sets;
+    const totalReps = s.reduce((sum, x) => sum + (x.reps || 0), 0);
+    const maxROM = Math.max(...s.map(x => x.rom || 0));
+    const avgPain = s.length ? s.reduce((sum, x) => sum + (x.pain || 0), 0) / s.length : 0;
+    const dur = Math.round((new Date(s[s.length - 1].date) - new Date(s[0].date)) / 60000);
+    return {
+      date: s[0].date, sets: s, setsCompleted: s.length,
+      totalReps, maxROM, avgPain, durationMin: dur,
+      exerciseType: s[0].exerciseType || '', protocolId: g.protocolId
+    };
+  });
+}
+
+function toggleShExpand(id) {
+  document.getElementById(id)?.classList.toggle('sh-expanded');
+}
+
+const SH_PAGE_SIZE = 15;
+let shVisibleCount = SH_PAGE_SIZE;
+
+function shLoadMore() {
+  shVisibleCount += SH_PAGE_SIZE;
+  const body = document.querySelector('#tps-history .tp-colsec-body');
+  if (body && window._lastHistorySessions) {
+    body.innerHTML = buildSessionHistory(window._lastHistorySessions);
+  }
+}
+
+function buildSessionHistory(sessions) {
+  window._lastHistorySessions = sessions;
+  if (sessions.length === 0) {
+    return `<div class="session-history-card"><h4>Session history</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
+  }
+  const grouped = groupSetsIntoSessions(sessions);
+  const allReversed = [...grouped].reverse();
+  const visible = allReversed.slice(0, shVisibleCount);
+  const hasMore = allReversed.length > shVisibleCount;
+  const rows = visible.map((g, gi) => {
+    const d = new Date(g.date);
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const pain      = s.pain || 0;
-    const rom       = s.rom  || 0;
-    const painColor = pain <= 3 ? 'var(--green)' : pain <= 6 ? '#f59e0b' : 'var(--danger)';
-    const romColor  = rom >= 120 ? 'var(--green)' : rom >= 80 ? '#f59e0b' : 'var(--muted)';
-    const exLabel   = s.exerciseType ? (exerciseLabels[s.exerciseType] || s.exerciseType) : '';
-    const sessionAge = (Date.now() - new Date(s.date).getTime()) / (1000 * 60 * 60 * 24);
-    const videoCell = s.videoUrl && sessionAge <= VIDEO_EXPIRY_DAYS
-      ? `<td class="sh-cell sh-video"><span class="session-video-actions"><button class="session-video-btn" onclick="openVideoModal('${s.videoUrl}','${s.date}','${nameSafe}')">▶ Watch</button><button class="session-video-btn session-video-btn--dl" onclick="downloadSessionVideo('${s.videoUrl}','${s.date}','${nameSafe}')">↓</button></span></td>`
-      : s.videoUrl && sessionAge > VIDEO_EXPIRY_DAYS
-        ? `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--expired">Expired</span></span></td>`
-        : `<td class="sh-cell sh-video"><span class="session-video-actions"><span class="session-video-btn session-video-btn--none">No video</span></span></td>`;
+    const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
+    const romColor = g.maxROM >= 120 ? 'var(--success)' : g.maxROM >= 80 ? '#f59e0b' : 'var(--danger)';
+    const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
+    const rowId = `sh-exp-${gi}`;
+    const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
+    const hasVideo = g.sets.some(s => s.videoUrl);
+    const setDetail = g.sets.map((s, si) => {
+      const sp = s.pain || 0, sr = s.rom || 0;
+      const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
+      const src = sr >= 120 ? 'var(--success)' : sr >= 80 ? '#f59e0b' : 'var(--danger)';
+      const t = new Date(s.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      return `<div class="sh-set-detail-row">
+        <span class="sh-set-label">Set ${si + 1}</span>
+        <span class="sh-set-time">${t}</span>
+        <span class="sh-set-val">${s.reps || 0} reps</span>
+        <span class="sh-set-val"><span class="sh-indicator" style="background:${src}"></span>${sr}°</span>
+        <span class="sh-set-val"><span class="sh-indicator" style="background:${spc}"></span>${sp}/10</span>
+      </div>`;
+    }).join('');
     return `
-      <tr class="sh-row">
-        <td class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></td>
-        <td class="sh-cell sh-exercise">${exLabel}</td>
-        <td class="sh-cell sh-reps">${s.reps || 0}</td>
-        <td class="sh-cell sh-rom" style="color:${romColor}">${rom}°</td>
-        <td class="sh-cell sh-pain"><span class="session-pain-dot" style="background:${painColor}"></span><span style="color:${painColor}">${pain}/10</span></td>
-        ${videoCell}
-      </tr>`;
+      <div class="sh-row sh-row-expandable" id="${rowId}" onclick="toggleShExpand('${rowId}')">
+        <div class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></div>
+        <div class="sh-cell sh-exercise">${exLabel}</div>
+        <div class="sh-cell sh-setsreps">${g.setsCompleted} × ${g.totalReps}</div>
+        <div class="sh-cell sh-rom"><span class="sh-indicator" style="background:${romColor}"></span>${g.maxROM}°</div>
+        <div class="sh-cell sh-pain"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}</div>
+        <div class="sh-cell sh-actions">${hasVideo ? '<svg class="sh-play-icon" width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>' : ''}</div>
+      </div>
+      <div class="sh-detail-wrap" id="${rowId}-detail">
+        <div class="sh-detail-inner">
+          <div class="sh-detail-meta">
+            <span class="sh-meta-chip">${g.setsCompleted} set${g.setsCompleted !== 1 ? 's' : ''}</span>
+            <span class="sh-meta-chip">${durLabel}</span>
+          </div>
+          <div class="sh-set-detail-list">${setDetail}</div>
+        </div>
+      </div>`;
   }).join('');
+  const loadMoreBtn = hasMore ? `<button class="sh-load-more" onclick="shLoadMore()">Show more (${allReversed.length - shVisibleCount} remaining)</button>` : '';
   return `
     <div class="session-history-card">
-      <h4>Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}</h4>
-      <div class="sh-table-wrap">
-        <table class="sh-table">
-          <thead><tr>
-            <th class="sh-th">Date</th>
-            <th class="sh-th">Exercise</th>
-            <th class="sh-th">Reps</th>
-            <th class="sh-th">ROM</th>
-            <th class="sh-th">Pain</th>
-            <th class="sh-th">Video</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+      <h4>Session history</h4>
+      <div class="sh-grid-wrap">
+        <div class="sh-grid-header">
+          <div class="sh-hdr">Date</div>
+          <div class="sh-hdr">Exercise</div>
+          <div class="sh-hdr">Sets × Reps</div>
+          <div class="sh-hdr">ROM</div>
+          <div class="sh-hdr">Pain</div>
+          <div class="sh-hdr"></div>
+        </div>
+        ${rows}
       </div>
+      ${loadMoreBtn}
     </div>`;
 }
 
@@ -1553,40 +1631,51 @@ function checkExerciseState(landmarks) {
   return { isFlexed, isExtended, repAngle, conditions: results };
 }
 
+let _lastFeedback = '', _feedbackTimer = null;
 function updateRepFeedback(state) {
   const el = document.getElementById('repFeedback');
   if (!el) return;
 
   if (!currentExerciseParams || !state) {
+    _lastFeedback = '';
+    clearTimeout(_feedbackTimer);
     el.textContent = '';
     return;
   }
 
   const needBend = fingerState !== 'flexed';
+  let msg;
 
   // Distance / abduction metrics — no per-finger conditions
   if (!state.conditions) {
     const isAbduction = currentExerciseParams.metric === 'abduction';
     if (isAbduction) {
-      el.textContent = needBend ? 'Spread your fingers' : 'Bring your fingers together';
+      msg = needBend ? 'Spread your fingers' : 'Bring your fingers together';
     } else {
-      el.textContent = needBend ? 'Close your hand' : 'Open your hand';
+      msg = needBend ? 'Close your hand' : 'Open your hand';
     }
-    return;
+  } else {
+    // Angle metric — find which fingers still need to move
+    const pending = needBend
+      ? state.conditions.filter(c => !c.isFlexed)
+      : state.conditions.filter(c => !c.isExtended);
+
+    const targets = pending.length > 0 ? pending : state.conditions;
+    const names   = [...new Set(targets.map(c => fingerLabel(c.finger)))];
+    const fingerStr = names.length === 1
+      ? names[0]
+      : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+
+    msg = needBend ? `Bend your ${fingerStr}` : `Straighten your ${fingerStr}`;
   }
 
-  // Angle metric — find which fingers still need to move
-  const pending = needBend
-    ? state.conditions.filter(c => !c.isFlexed)
-    : state.conditions.filter(c => !c.isExtended);
-
-  const targets = pending.length > 0 ? pending : state.conditions;
-  const names   = [...new Set(targets.map(c => fingerLabel(c.finger)))];
-  const fingerStr = names.length === 1
-    ? names[0]
-    : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
-
-  el.textContent = needBend ? `Bend your ${fingerStr}` : `Straighten your ${fingerStr}`;
+  if (msg === _lastFeedback) return;
+  _lastFeedback = msg;
+  clearTimeout(_feedbackTimer);
+  _feedbackTimer = setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => { el.textContent = msg; el.style.opacity = '1'; }, 120);
+  }, 300);
 }
 
 function fingerLabel(finger) {
@@ -1682,32 +1771,29 @@ function updateRepUI() {
       document.getElementById('nextSetBtn').textContent = 'Finish Session';
     }
     document.getElementById('congratsOverlay').classList.add('show');
+    const camCtrl = document.querySelector('.cam-controls');
+    if (camCtrl) camCtrl.style.display = 'none';
     sessionPaused = true;
   }
 }
 
 async function saveSession() {
+  const now = new Date();
   const doc = {
     patientEmail:   currentUser.email,
-    date:           new Date().toISOString(),
+    date:           now.toISOString(),
     reps:           repCount,
     pain:           parseInt(document.getElementById('painSliderCongrats').value),
     rom:            lastROM,
     tam:            lastTAM,
     therapistEmail: await getConnectedTherapist(),
     exerciseType:   selectedProtocol?.exerciseType || '',
-    protocolId:     selectedProtocol?.id || ''
+    protocolId:     selectedProtocol?.id || '',
+    expireAt:       new Date(now.getTime() + 90 * 86400000)
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-  const docRef = await db.collection('sessions').add(doc);
-  _pendingSessionDocId = docRef.id;
+  await db.collection('sessions').add(doc);
   jointMaxAngles = {}; // reset after save so each set starts fresh
-
-  if (recordingSupported) {
-    const blob = await stopRecording();
-    uploadSessionVideo(blob, docRef.id, currentUser.email);
-    startRecording(document.getElementById('patientCanvas'));
-  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1799,6 +1885,8 @@ async function advanceSet() {
   }
   setsComplete++;
   document.getElementById('congratsOverlay').classList.remove('show');
+  const camCtrlRestore = document.querySelector('.cam-controls');
+  if (camCtrlRestore) camCtrlRestore.style.display = '';
   document.getElementById('allSetsComplete').style.display = 'none';
   document.getElementById('nextSetBtn').textContent = 'Start Next Set';
   if (setsComplete >= totalSets) { showSessionSummary(); return; }
@@ -1856,9 +1944,9 @@ function showSessionSummary(partialReps = 0) {
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
     message = 'Pain was high today. Consider mentioning this to your therapist.';
   } else if (maxROM >= 120) {
-    message = 'Excellent range of motion today! You\'re making great progress.';
+    message = 'Excellent range of motion today. Keep it up.';
   } else if (maxROM >= 80) {
-    message = 'Good session. Consistency is key — keep it up!';
+    message = 'Good session. Consistency is key.';
   } else if (totalRepsCompleted === 0) {
     message = 'Session recorded. Start moving to track your range of motion next time.';
   } else {
@@ -1884,30 +1972,28 @@ async function completeSessionEarly() {
 
   // Hide congrats overlay if visible
   document.getElementById('congratsOverlay').classList.remove('show');
+  const camCtrlEnd = document.querySelector('.cam-controls');
+  if (camCtrlEnd) camCtrlEnd.style.display = '';
 
   // Save current partial set if any reps were completed
   if (repCount > 0) {
     const painVal = parseInt(document.getElementById('painSlider').value);
     setPainValues.push(painVal);
+    const endNow = new Date();
     const doc = {
       patientEmail:   currentUser.email,
-      date:           new Date().toISOString(),
+      date:           endNow.toISOString(),
       reps:           repCount,
       pain:           painVal,
       rom:            lastROM,
       tam:            lastTAM,
       therapistEmail: await getConnectedTherapist(),
       exerciseType:   selectedProtocol?.exerciseType || '',
-      protocolId:     selectedProtocol?.id || ''
+      protocolId:     selectedProtocol?.id || '',
+      expireAt:       new Date(endNow.getTime() + 90 * 86400000)
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-    const docRef = await db.collection('sessions').add(doc);
-    _pendingSessionDocId = docRef.id;
-  }
-
-  if (recordingSupported) {
-    const blob = await stopRecording();
-    if (_pendingSessionDocId) uploadSessionVideo(blob, _pendingSessionDocId, currentUser.email);
+    await db.collection('sessions').add(doc);
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -1919,13 +2005,9 @@ async function completeSessionEarly() {
 
 let currentFacingMode = 'user';
 
-async function flipCamera() {
+function flipCamera() {
   currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    await stopRecording();
-    recordedChunks = [];
-  }
   startCamera();
 }
 
@@ -1935,9 +2017,42 @@ function isMobile() {
 
 let mpCamera = null;
 
+var calHintTimer = null;
+var calHandDetected = false;
+
+function showCalOverlay() {
+  calHandDetected = false;
+  var overlay = document.getElementById('calOverlay');
+  var hint = document.getElementById('calHint');
+  var error = document.getElementById('calError');
+  overlay.style.display = 'flex';
+  overlay.classList.remove('fade-out');
+  hint.style.display = 'none';
+  error.style.display = 'none';
+  calHintTimer = setTimeout(function() {
+    hint.style.display = 'block';
+  }, 15000);
+}
+
+function hideCalOverlay() {
+  if (calHandDetected) return;
+  calHandDetected = true;
+  clearTimeout(calHintTimer);
+  var overlay = document.getElementById('calOverlay');
+  overlay.classList.add('fade-out');
+  setTimeout(function() { overlay.style.display = 'none'; }, 300);
+}
+
+function showCalError(msg) {
+  clearTimeout(calHintTimer);
+  document.getElementById('calOverlay').style.display = 'none';
+  var error = document.getElementById('calError');
+  document.getElementById('calErrorMsg').textContent = msg;
+  error.style.display = 'flex';
+}
+
 function startCamera() {
   if (mpCamera) return;
-  mediaRecorder = null; recordedChunks = []; recordingSupported = false; _pendingSessionDocId = null;
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
@@ -1945,7 +2060,7 @@ function startCamera() {
   try {
     hands = new window.Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
   } catch(e) {
-    alert('Hands init error: ' + e.message);
+    showCalError('Hand tracking unavailable');
     return;
   }
   hands.setOptions({ maxNumHands: 1, modelComplexity: isMobile() ? 0 : 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
@@ -1990,7 +2105,6 @@ function startCamera() {
             sessionCanvas.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
             document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
             processFrame();
-            startRecording(sessionCanvas);
           };
           mpCamera = {
             stop: () => {
@@ -2000,19 +2114,23 @@ function startCamera() {
             }
           };
         })
-        .catch(err => { alert('Camera error: ' + err.name + ': ' + err.message); });
+        .catch(err => { showCalError('Camera unavailable — check permissions'); });
     };
 
     doGetUserMedia();
   } else {
+    sessionVideo.addEventListener('loadedmetadata', () => {
+      sessionCanvas.width  = sessionVideo.videoWidth;
+      sessionCanvas.height = sessionVideo.videoHeight;
+      document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
+    }, { once: true });
     mpCamera = new window.Camera(sessionVideo, {
       onFrame: async () => {
         if (sessionVideo.readyState >= 2) await hands.send({ image: sessionVideo });
       },
-      width: 640, height: 480,
+      width: 1280, height: 720,
     });
     mpCamera.start();
-    startRecording(sessionCanvas);
   }
 }
 
@@ -2020,67 +2138,166 @@ function startCamera() {
    SECTION 12: PROGRESS SCREEN
    ══════════════════════════════════════════════════════════════════════════ */
 
+function buildChartLabels(sessions) {
+  const dates = sessions.map(s => new Date(s.date));
+  const uniqueDays = new Set(dates.map(d => d.toDateString()));
+  if (uniqueDays.size <= 1) {
+    return dates.map(d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+  }
+  const dayCounts = {};
+  dates.forEach(d => { const k = d.toDateString(); dayCounts[k] = (dayCounts[k] || 0) + 1; });
+  return dates.map(d => {
+    const dayStr = `${d.getMonth() + 1}/${d.getDate()}`;
+    return dayCounts[d.toDateString()] > 1
+      ? `${dayStr} ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+      : dayStr;
+  });
+}
+
+function buildChartConfig(data, { type, color, fillColor }) {
+  const vals = data.filter(v => v != null && v !== 0);
+  const dataMin = vals.length ? Math.min(...vals) : 0;
+  const dataMax = vals.length ? Math.max(...vals) : (type === 'pain' ? 10 : 180);
+  const range = dataMax - dataMin || 10;
+  const pad = range * 0.2;
+  const yMin = Math.max(0, Math.floor((dataMin - pad) / 5) * 5);
+  const yMax = type === 'pain'
+    ? Math.min(10, Math.ceil((dataMax + pad)))
+    : Math.ceil((dataMax + pad) / 10) * 10;
+  return {
+    dataset: {
+      data, borderColor: color, backgroundColor: fillColor,
+      borderWidth: 2, pointBackgroundColor: color,
+      pointRadius: 4, pointHoverRadius: 6,
+      pointBorderColor: '#fff', pointBorderWidth: 1.5,
+      tension: 0.35, fill: true
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          ticks: { color: '#6B7A99', maxRotation: 0, autoSkip: true, maxTicksLimit: 6 },
+          grid: { color: 'rgba(200,216,212,0.5)', drawBorder: false }
+        },
+        y: {
+          min: yMin, max: yMax,
+          ticks: { color: '#6B7A99', stepSize: type === 'pain' ? 1 : undefined },
+          grid: { color: 'rgba(200,216,212,0.5)', drawBorder: false }
+        }
+      }
+    }
+  };
+}
+
 async function showProgressScreen() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   showScreen('progressScreen');
   await renderProgressScreen();
 }
 
+function buildPatientSessionHistory(sessions) {
+  if (!sessions || !sessions.length) return '';
+  var html = '<div class="prog-history-card"><div class="prog-grid-header">' +
+    '<span>Date</span><span>Exercise</span><span>Sets</span><span>Pain</span></div>';
+  sessions.slice(0, 20).forEach(function(s) {
+    var date = s.timestamp ? timeAgo(s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : '\u2014';
+    var exercise = s.exerciseName || s.label || '\u2014';
+    var sets = (s.completedSets || 0) + '/' + (s.totalSets || s.sets || '\u2014');
+    var pain = s.avgPain != null ? s.avgPain.toFixed(1) : '\u2014';
+    html += '<div class="prog-grid-row"><span>' + date + '</span><span>' + exercise + '</span><span>' + sets + '</span><span>' + pain + '</span></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
 async function renderProgressScreen() {
-  const sessions = currentUser ? await getPatientSessions(currentUser.email) : [];
-  const content  = document.getElementById('progressContent');
-  if (sessions.length === 0) {
-    content.innerHTML = `<div class="no-progress-msg">No sessions recorded yet.<br/>Complete a set of reps to see your progress here.</div>`;
+  var sessions = [];
+  if (currentUser && currentUser.email) {
+    sessions = await getPatientSessions(currentUser.email);
+  }
+  const content = document.getElementById('progressContent');
+
+  if (!sessions.length) {
+    content.innerHTML = '<div class="prog-empty">' +
+      '<div class="prog-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>' +
+      '<p>Complete your first session to start tracking progress.</p>' +
+      '</div>';
     return;
   }
-  const totalReps = sessions.reduce((s, x) => s + (x.reps || 0), 0);
-  const avgROM    = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
-  const bestROM   = Math.max(...sessions.map(s => s.rom || 0));
-  const avgPain   = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
-  const recent    = sessions.slice(-10);
-  const romData   = recent.map(s => s.rom || 0);
-  const painData  = recent.map(s => s.pain || 0);
-  const labels    = recent.map(s => { const d = new Date(s.date); return `${d.getMonth()+1}/${d.getDate()}`; });
-  const historyHTML = [...sessions].reverse().map(s => {
-    const d       = new Date(s.date);
-    const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    return `
-      <div class="progress-session-card">
-        <div><div class="progress-session-date">${dateStr}</div></div>
-        <div class="progress-session-stats">
-          <div class="progress-stat"><div class="progress-stat-value">${s.reps || 0}</div><div class="progress-stat-label">Reps</div></div>
-          <div class="progress-stat"><div class="progress-stat-value">${s.rom || 0}°</div><div class="progress-stat-label">ROM</div></div>
-          <div class="progress-stat"><div class="progress-stat-value" style="color:#ef4444">${s.pain || 0}</div><div class="progress-stat-label">Pain</div></div>
-        </div>
-      </div>`;
-  }).join('');
-  content.innerHTML = `
-    <div class="stats-row" style="margin-bottom:24px;">
-      <div class="stat-card"><div class="stat-value">${sessions.length}</div><div class="stat-label">Total Sessions</div></div>
-      <div class="stat-card"><div class="stat-value">${totalReps}</div><div class="stat-label">Total Reps</div></div>
-      <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg ROM</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:#0B6CB0">${bestROM}°</div><div class="stat-label">Best ROM</div></div>
-      <div class="stat-card"><div class="stat-value" style="color:#ef4444">${avgPain}</div><div class="stat-label">Avg Pain</div></div>
-    </div>
-    <div class="chart-card" style="margin-bottom:24px;">
-      <h4>Range of Motion Over Time</h4>
-      <canvas id="patientRomChart" height="100"></canvas>
-    </div>
-    <div class="chart-card" style="margin-bottom:24px;">
-      <h4>Pain Level Over Time</h4>
-      <canvas id="patientPainChart" height="100"></canvas>
-    </div>
-    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Session History</p>
-    <div class="progress-history-grid">${historyHTML}</div>`;
-  new Chart(document.getElementById('patientRomChart').getContext('2d'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: romData, borderColor: '#0B6CB0', backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 2, pointBackgroundColor: '#10B981', pointRadius: 5, pointBorderColor: '#0B6CB0', pointBorderWidth: 2, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' } }, y: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' }, min: 0, max: 180 } } }
+
+  const now = Date.now();
+  const msPerDay = 86400000;
+  const last7 = sessions.filter(function(s) {
+    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    return ts && (now - ts.getTime()) <= 7 * msPerDay;
   });
-  new Chart(document.getElementById('patientPainChart').getContext('2d'), {
+  const prior7 = sessions.filter(function(s) {
+    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    if (!ts) return false;
+    var age = now - ts.getTime();
+    return age > 7 * msPerDay && age <= 14 * msPerDay;
+  });
+
+  const sessionsThisWeek = last7.length;
+
+  var painTrendValue = null;
+  var painTrendClass = '';
+  var painTrendDisplay = '\u2014';
+  if (last7.length && prior7.length) {
+    const avgLast = last7.reduce(function(s, x) { return s + (x.avgPain || 0); }, 0) / last7.length;
+    const avgPrior = prior7.reduce(function(s, x) { return s + (x.avgPain || 0); }, 0) / prior7.length;
+    const diff = avgLast - avgPrior;
+    if (diff < 0) {
+      painTrendDisplay = '\u2193 ' + Math.abs(diff).toFixed(1);
+      painTrendClass = 'improving';
+    } else if (diff > 0) {
+      painTrendDisplay = '\u2191 ' + diff.toFixed(1);
+      painTrendClass = 'worsening';
+    } else {
+      painTrendDisplay = '\u2192 0.0';
+    }
+  }
+
+  const bestROM = sessions.reduce(function(best, s) { return Math.max(best, s.rom || s.maxROM || 0); }, 0);
+
+  const recent = sessions.slice(-10);
+  const romData = recent.map(function(s) { return s.rom || s.maxROM || 0; });
+  const labels = recent.map(function(s) {
+    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    return ts ? ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  });
+
+  content.innerHTML =
+    '<div class="prog-stats-row">' +
+      '<div class="prog-stat-card"><div class="prog-stat-value">' + sessionsThisWeek + '/7</div><div class="prog-stat-label">This week</div></div>' +
+      '<div class="prog-stat-card"><div class="prog-stat-value ' + painTrendClass + '">' + painTrendDisplay + '</div><div class="prog-stat-label">Pain trend</div></div>' +
+      '<div class="prog-stat-card"><div class="prog-stat-value">' + (bestROM ? bestROM + '\u00b0' : '\u2014') + '</div><div class="prog-stat-label">Best ROM</div></div>' +
+    '</div>' +
+    '<div class="prog-chart-card"><canvas id="progRomChart"></canvas></div>' +
+    buildPatientSessionHistory(sessions);
+
+  new Chart(document.getElementById('progRomChart').getContext('2d'), {
     type: 'line',
-    data: { labels, datasets: [{ data: painData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 2, pointBackgroundColor: '#ef4444', pointRadius: 5, pointBorderColor: '#CC2936', pointBorderWidth: 2, tension: 0.4, fill: true }] },
-    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' } }, y: { ticks: { color: '#6B7A99' }, grid: { color: '#C8D8D4' }, min: 0, max: 10 } } }
+    data: {
+      labels: labels,
+      datasets: [{
+        data: romData,
+        borderColor: '#0B6CB0',
+        backgroundColor: 'rgba(11,108,176,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointBackgroundColor: '#0B6CB0'
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 11 } } },
+        y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 11 } } }
+      }
+    }
   });
 }
 
@@ -2147,7 +2364,6 @@ function buildJointSelector(patientEmail) {
         </div>
         <div class="ejs-joint-card-label">${data.label}</div>
         <div class="ejs-joint-card-name">${data.fullName.split(' ').slice(0,2).join(' ')}</div>
-        <div class="ejs-joint-card-lm">LM ${data.lm}</div>
       </div>`;
     }).join('');
     return `<div class="ejs-finger-block">
@@ -2165,7 +2381,7 @@ function buildJointSelector(patientEmail) {
     `<div class="ejs-finger-pill" id="ejspill-${f}" data-finger="${f}"
           style="border-color:${EJS_FINGER_COLORS[f]};color:${EJS_FINGER_COLORS[f]}"
           onclick="ejsQuickSelectFinger('${f}')">
-      ${f.slice(0,3).toUpperCase()}
+      ${EJS_FINGER_LABELS[f]}
     </div>`
   ).join('');
 
@@ -2181,37 +2397,80 @@ function buildJointSelector(patientEmail) {
       <div class="ejs-hand-col">
         <span class="ejs-view-label">Palmar View</span>
         <div class="ejs-svg-wrap" id="ejsSvgWrap-${patientEmail.replace(/[@.]/g,'_')}">
-          <svg viewBox="0 0 220 340" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
-            <path class="ejs-palm" d="M 60 200 Q 42 215 44 255 Q 46 290 80 305 Q 110 318 145 310 Q 178 302 185 270 Q 192 238 180 210 Z"/>
-            <path class="ejs-finger-seg" d="M 52 195 Q 32 185 22 160 Q 14 138 28 122 Q 42 108 58 120 Q 68 130 70 158 L 72 190"/>
-            <path class="ejs-finger-seg" d="M 85 198 Q 82 165 80 138 Q 78 112 80 90 Q 82 70 94 65 Q 106 60 114 70 Q 121 80 118 104 Q 115 130 113 158 Q 111 180 110 198"/>
-            <path class="ejs-finger-seg" d="M 112 197 Q 110 163 109 135 Q 108 107 110 84 Q 112 62 124 56 Q 136 50 144 60 Q 152 70 149 94 Q 146 120 144 148 Q 142 172 141 197"/>
-            <path class="ejs-finger-seg" d="M 143 197 Q 144 166 146 141 Q 148 116 152 95 Q 156 76 166 73 Q 176 70 182 80 Q 188 92 183 114 Q 178 138 174 162 Q 170 182 168 197"/>
-            <path class="ejs-finger-seg" d="M 170 200 Q 173 178 177 160 Q 181 140 186 122 Q 191 106 199 104 Q 208 102 212 113 Q 216 126 210 146 Q 204 166 199 184 Q 195 196 192 206"/>
-            <!-- Thumb joints -->
-            <g class="ejs-jdot" id="ejsdot-thumb-mcp" onclick="ejsDotClick('thumb','mcp')"><circle class="ejs-dot-outer" cx="60" cy="178" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="60" cy="178" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="60" y="178" fill="#F5A623">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-thumb-pip" onclick="ejsDotClick('thumb','pip')"><circle class="ejs-dot-outer" cx="46" cy="150" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="46" cy="150" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="46" y="150" fill="#F5A623">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-thumb-tip" onclick="ejsDotClick('thumb','tip')"><circle class="ejs-dot-outer" cx="30" cy="125" r="7" stroke="#F5A623"/><circle class="ejs-dot-inner" cx="30" cy="125" r="3.5" fill="#F5A623"/><text class="ejs-dot-text" x="30" y="125" fill="#F5A623">T</text></g>
-            <!-- Index joints -->
-            <g class="ejs-jdot" id="ejsdot-index-mcp" onclick="ejsDotClick('index','mcp')"><circle class="ejs-dot-outer" cx="100" cy="193" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="100" cy="193" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="100" y="193" fill="#2D7FF9">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-index-pip" onclick="ejsDotClick('index','pip')"><circle class="ejs-dot-outer" cx="96" cy="148" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="96" cy="148" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="96" y="148" fill="#2D7FF9">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-index-dip" onclick="ejsDotClick('index','dip')"><circle class="ejs-dot-outer" cx="94" cy="108" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="94" cy="108" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="94" y="108" fill="#2D7FF9">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-index-tip" onclick="ejsDotClick('index','tip')"><circle class="ejs-dot-outer" cx="92" cy="72" r="7" stroke="#2D7FF9"/><circle class="ejs-dot-inner" cx="92" cy="72" r="3.5" fill="#2D7FF9"/><text class="ejs-dot-text" x="92" y="72" fill="#2D7FF9">T</text></g>
-            <!-- Middle joints -->
-            <g class="ejs-jdot" id="ejsdot-middle-mcp" onclick="ejsDotClick('middle','mcp')"><circle class="ejs-dot-outer" cx="126" cy="192" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="126" cy="192" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="126" y="192" fill="#00C9B1">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-middle-pip" onclick="ejsDotClick('middle','pip')"><circle class="ejs-dot-outer" cx="127" cy="145" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="127" cy="145" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="127" y="145" fill="#00C9B1">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-middle-dip" onclick="ejsDotClick('middle','dip')"><circle class="ejs-dot-outer" cx="128" cy="103" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="128" cy="103" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="128" y="103" fill="#00C9B1">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-middle-tip" onclick="ejsDotClick('middle','tip')"><circle class="ejs-dot-outer" cx="129" cy="65" r="7" stroke="#00C9B1"/><circle class="ejs-dot-inner" cx="129" cy="65" r="3.5" fill="#00C9B1"/><text class="ejs-dot-text" x="129" y="65" fill="#00C9B1">T</text></g>
-            <!-- Ring joints -->
-            <g class="ejs-jdot" id="ejsdot-ring-mcp" onclick="ejsDotClick('ring','mcp')"><circle class="ejs-dot-outer" cx="158" cy="192" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="158" cy="192" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="158" y="192" fill="#A78BFA">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-ring-pip" onclick="ejsDotClick('ring','pip')"><circle class="ejs-dot-outer" cx="162" cy="147" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="162" cy="147" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="162" y="147" fill="#A78BFA">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-ring-dip" onclick="ejsDotClick('ring','dip')"><circle class="ejs-dot-outer" cx="166" cy="107" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="166" cy="107" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="166" y="107" fill="#A78BFA">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-ring-tip" onclick="ejsDotClick('ring','tip')"><circle class="ejs-dot-outer" cx="170" cy="72" r="7" stroke="#A78BFA"/><circle class="ejs-dot-inner" cx="170" cy="72" r="3.5" fill="#A78BFA"/><text class="ejs-dot-text" x="170" y="72" fill="#A78BFA">T</text></g>
-            <!-- Pinky joints -->
-            <g class="ejs-jdot" id="ejsdot-pinky-mcp" onclick="ejsDotClick('pinky','mcp')"><circle class="ejs-dot-outer" cx="183" cy="197" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="183" cy="197" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="183" y="197" fill="#F04B4B">M</text></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-pip" onclick="ejsDotClick('pinky','pip')"><circle class="ejs-dot-outer" cx="190" cy="158" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="190" cy="158" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="190" y="158" fill="#F04B4B">P</text></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-dip" onclick="ejsDotClick('pinky','dip')"><circle class="ejs-dot-outer" cx="196" cy="126" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="196" cy="126" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="196" y="126" fill="#F04B4B">D</text></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-tip" onclick="ejsDotClick('pinky','tip')"><circle class="ejs-dot-outer" cx="202" cy="108" r="7" stroke="#F04B4B"/><circle class="ejs-dot-inner" cx="202" cy="108" r="3.5" fill="#F04B4B"/><text class="ejs-dot-text" x="202" y="108" fill="#F04B4B">T</text></g>
+          <svg viewBox="0 -16 200 298" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
+            <defs>
+              <linearGradient id="handGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#e8eff8"/>
+                <stop offset="100%" stop-color="#d4dde9"/>
+              </linearGradient>
+            </defs>
+            <g class="ejs-hand-group">
+              <path class="ejs-hand-shape" fill="url(#handGrad)" d="
+                M 98,278
+                C 136,278 166,260 176,236
+                C 184,216 186,194 186,174
+                C 186,160 182,150 176,144
+                C 172,138 170,126 169,106
+                C 168,82 167,60 167,44
+                C 166,32 163,26 157,26
+                C 151,26 148,32 147,44
+                C 147,60 147,82 147,106
+                C 147,126 147,138 147,144
+                C 145,150 142,152 140,150
+                C 138,148 139,142 139,136
+                C 140,106 140,72 140,42
+                C 140,22 139,10 138,2
+                C 136,-4 133,-6 128,-6
+                C 123,-6 120,-4 118,2
+                C 117,10 116,22 116,42
+                C 116,72 116,106 116,136
+                C 115,144 112,148 109,146
+                C 106,144 106,140 106,136
+                C 107,104 107,66 107,32
+                C 107,12 106,0 105,-4
+                C 103,-10 100,-14 95,-14
+                C 90,-14 87,-10 85,-4
+                C 84,0 83,12 83,32
+                C 83,66 83,104 83,136
+                C 82,144 79,148 76,146
+                C 74,144 74,140 74,136
+                C 75,106 76,72 76,38
+                C 76,20 75,8 74,2
+                C 72,-2 69,-4 64,-4
+                C 59,-4 56,-2 54,2
+                C 53,8 52,20 52,38
+                C 52,72 52,106 52,140
+                C 50,158 46,174 42,184
+                C 38,190 36,184 36,172
+                C 37,150 39,128 40,104
+                C 41,84 42,70 42,58
+                C 42,46 38,38 31,38
+                C 24,38 20,46 19,58
+                C 18,70 18,84 18,104
+                C 17,132 16,162 15,184
+                C 10,212 12,242 30,260
+                C 48,274 74,278 98,278
+                Z"/>
+            </g>
+            <g class="ejs-jdot" id="ejsdot-thumb-mcp" onclick="ejsDotClick('thumb','mcp')"><circle class="ejs-dot" cx="34" cy="148" r="5" data-finger="thumb"/></g>
+            <g class="ejs-jdot" id="ejsdot-thumb-pip" onclick="ejsDotClick('thumb','pip')"><circle class="ejs-dot" cx="30" cy="108" r="5" data-finger="thumb"/></g>
+            <g class="ejs-jdot" id="ejsdot-thumb-tip" onclick="ejsDotClick('thumb','tip')"><circle class="ejs-dot" cx="30" cy="74" r="5" data-finger="thumb"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-mcp" onclick="ejsDotClick('index','mcp')"><circle class="ejs-dot" cx="64" cy="130" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-pip" onclick="ejsDotClick('index','pip')"><circle class="ejs-dot" cx="64" cy="88" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-dip" onclick="ejsDotClick('index','dip')"><circle class="ejs-dot" cx="64" cy="52" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-index-tip" onclick="ejsDotClick('index','tip')"><circle class="ejs-dot" cx="64" cy="22" r="5" data-finger="index"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-mcp" onclick="ejsDotClick('middle','mcp')"><circle class="ejs-dot" cx="95" cy="128" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-pip" onclick="ejsDotClick('middle','pip')"><circle class="ejs-dot" cx="95" cy="82" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-dip" onclick="ejsDotClick('middle','dip')"><circle class="ejs-dot" cx="95" cy="40" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-middle-tip" onclick="ejsDotClick('middle','tip')"><circle class="ejs-dot" cx="95" cy="8" r="5" data-finger="middle"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-mcp" onclick="ejsDotClick('ring','mcp')"><circle class="ejs-dot" cx="128" cy="126" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-pip" onclick="ejsDotClick('ring','pip')"><circle class="ejs-dot" cx="128" cy="84" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-dip" onclick="ejsDotClick('ring','dip')"><circle class="ejs-dot" cx="128" cy="48" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-ring-tip" onclick="ejsDotClick('ring','tip')"><circle class="ejs-dot" cx="128" cy="18" r="5" data-finger="ring"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-mcp" onclick="ejsDotClick('pinky','mcp')"><circle class="ejs-dot" cx="157" cy="130" r="5" data-finger="pinky"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-pip" onclick="ejsDotClick('pinky','pip')"><circle class="ejs-dot" cx="157" cy="100" r="5" data-finger="pinky"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-dip" onclick="ejsDotClick('pinky','dip')"><circle class="ejs-dot" cx="157" cy="72" r="5" data-finger="pinky"/></g>
+            <g class="ejs-jdot" id="ejsdot-pinky-tip" onclick="ejsDotClick('pinky','tip')"><circle class="ejs-dot" cx="157" cy="48" r="5" data-finger="pinky"/></g>
           </svg>
         </div>
         <div class="ejs-finger-strip">${pills}</div>
@@ -2227,7 +2486,7 @@ function buildJointSelector(patientEmail) {
       <!-- RIGHT: Info panel -->
       <div class="ejs-info-col">
         <div class="ejs-info-empty" id="ejsInfoEmpty">
-          <div class="ejs-info-empty-icon"></div>
+          <div class="ejs-info-empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg></div>
           <div class="ejs-info-empty-text">Tap any joint on the diagram or in the grid to view clinical details and toggle tracking.</div>
         </div>
         <div class="ejs-info-detail" id="ejsInfoDetail">
@@ -2261,7 +2520,10 @@ function buildJointSelector(patientEmail) {
           </div>
         </div>
         <div class="ejs-tracked-summary">
-          <div class="ejs-tracked-title">Currently Tracking</div>
+          <div class="ejs-tracked-header">
+            <div class="ejs-tracked-title">Tracked Joints</div>
+            <div class="ejs-tracked-count" id="ejsTrackedCount"></div>
+          </div>
           <div class="ejs-tracked-chips" id="ejsTrackedChips"><span class="ejs-tracked-empty">None selected</span></div>
         </div>
       </div>
@@ -2400,6 +2662,7 @@ function ejsDotClick(finger, joint) {
 function ejsSelectCard(key) {
   const data = EJS_JOINT_DATA[key];
   if (!data || data.lm === null) return;
+  ejsToggleJoint(key);
   ejsShowInfo(key);
 }
 
@@ -2457,7 +2720,8 @@ function ejsShowInfo(key) {
   const btn = document.getElementById('ejsTrackBtn');
   if (selectedJoints.has(key)) {
     btn.className   = 'ejs-track-btn ejs-track-remove';
-    btn.textContent = '- Remove from Tracking';
+    btn.textContent = '✕ Remove from Tracking';
+    btn.style.background = '';
   } else {
     btn.className   = 'ejs-track-btn ejs-track-add';
     btn.textContent = '+ Track This Joint';
@@ -2484,8 +2748,9 @@ function ejsRefreshUI() {
       if (chk) chk.classList.toggle('ejs-check-on', sel);
       if (sel) count++;
     });
+    const validCount = EJS_JOINTS.filter(j => { const d = EJS_JOINT_DATA[`${finger}-${j}`]; return d && d.lm !== null; }).length;
     const fc = document.getElementById(`ejsfcount-${finger}`);
-    if (fc) fc.textContent = `${count} / ${EJS_JOINTS.length}`;
+    if (fc) fc.textContent = `${count} / ${validCount}`;
   });
 
   // SVG dots
@@ -2494,7 +2759,10 @@ function ejsRefreshUI() {
       const key  = `${finger}-${joint}`;
       const dot  = document.getElementById(`ejsdot-${finger}-${joint}`);
       if (!dot) return;
-      dot.classList.toggle('ejs-dot-selected', selectedJoints.has(key));
+      const selected = selectedJoints.has(key);
+      dot.classList.toggle('ejs-dot-selected', selected);
+      const circle = dot.querySelector('.ejs-dot');
+      if (circle) circle.style.stroke = selected ? EJS_FINGER_COLORS[finger] : '';
     });
   });
 
@@ -2532,7 +2800,8 @@ function ejsRefreshUI() {
     if (btn && data) {
       if (selectedJoints.has(ejsActiveInfoKey)) {
         btn.className   = 'ejs-track-btn ejs-track-remove';
-        btn.textContent = '- Remove from Tracking';
+        btn.textContent = '✕ Remove from Tracking';
+        btn.style.background = '';
       } else {
         btn.className   = 'ejs-track-btn ejs-track-add';
         btn.textContent = '+ Track This Joint';
@@ -2544,18 +2813,30 @@ function ejsRefreshUI() {
 
 function ejsRenderChips() {
   const wrap = document.getElementById('ejsTrackedChips');
+  const countEl = document.getElementById('ejsTrackedCount');
   if (!wrap) return;
+  const totalValid = Object.values(EJS_JOINT_DATA).filter(d => d.lm !== null).length;
+  if (countEl) countEl.textContent = selectedJoints.size > 0 ? `${selectedJoints.size} of ${totalValid}` : '';
   if (selectedJoints.size === 0) {
     wrap.innerHTML = '<span class="ejs-tracked-empty">None selected</span>';
     return;
   }
-  wrap.innerHTML = [...selectedJoints].map(key => {
+  const grouped = {};
+  [...selectedJoints].forEach(key => {
     const data = EJS_JOINT_DATA[key];
-    if (!data) return '';
-    return `<button class="ejs-chip" style="background:${EJS_FINGER_COLORS[data.finger]}"
-                    onclick="ejsRemoveChip('${key}')">
-      ${EJS_FINGER_LABELS[data.finger].slice(0,3)} ${data.label} <span>×</span>
-    </button>`;
+    if (!data) return;
+    if (!grouped[data.finger]) grouped[data.finger] = [];
+    grouped[data.finger].push({ key, data });
+  });
+  wrap.innerHTML = EJS_FINGERS.filter(f => grouped[f]).map(finger => {
+    const color = EJS_FINGER_COLORS[finger];
+    const chips = grouped[finger].map(({ key, data }) =>
+      `<button class="ejs-chip" style="color:${color};border-color:${color}22;background:${color}0D" onclick="ejsRemoveChip('${key}')">${data.label}<span class="ejs-chip-x">×</span></button>`
+    ).join('');
+    return `<div class="ejs-tracked-finger-row">
+      <span class="ejs-tracked-finger-label" style="color:${color}">${EJS_FINGER_LABELS[finger]}</span>
+      <div class="ejs-tracked-finger-chips">${chips}</div>
+    </div>`;
   }).join('');
 }
 
@@ -3027,6 +3308,21 @@ function formatMsgTime(isoStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + time;
 }
 
+function timeAgo(isoStr) {
+  const d = new Date(isoStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffSec < 60) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay <= 7) return `${diffDay}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
 async function getThread(a, b) {
@@ -3061,22 +3357,39 @@ async function unreadCount(toEmail, fromEmail) {
 
 // ── Shared thread renderer ────────────────────────────────────────────────────
 
-async function renderThread(containerId, myEmail, otherEmail) {
+function toggleMsgSend() {
+  const input = document.getElementById('msgInput');
+  const btn = document.getElementById('msgSendBtn');
+  if (btn) btn.disabled = !input.value.trim();
+}
+
+async function renderThread(containerId, myEmail, otherEmail, emptyMsg) {
   const el = document.getElementById(containerId);
   if (!el) return;
   const thread = await getThread(myEmail, otherEmail);
   if (!thread.length) {
-    el.innerHTML = '<p class="msg-empty">No messages yet.</p>';
+    el.innerHTML = `<div class="msg-empty">${escapeHtml(emptyMsg || 'Send a message')}</div>`;
     return;
   }
-  el.innerHTML = thread.map(m => {
+  let html = '';
+  for (let i = 0; i < thread.length; i++) {
+    const m = thread[i];
     const mine = m.from === myEmail;
-    const time = formatMsgTime(m.timestamp);
-    return `<div class="msg-bubble ${mine ? 'msg-mine' : 'msg-theirs'}">
-      <div class="msg-text">${escapeHtml(m.text)}</div>
-      <div class="msg-time">${time}</div>
-    </div>`;
-  }).join('');
+    const cls = mine ? 'sent' : 'received';
+    html += `<div class="msg-bubble ${cls}">${escapeHtml(m.text)}</div>`;
+    const next = thread[i + 1];
+    const isLastInCluster = !next || next.from !== m.from;
+    if (isLastInCluster) {
+      html += `<div class="msg-timestamp ${cls}">${timeAgo(m.timestamp)}</div>`;
+    }
+    if (mine && m.read) {
+      const hasLaterSentRead = thread.slice(i + 1).some(n => n.from === myEmail && n.read);
+      if (!hasLaterSentRead) {
+        html += '<div class="msg-read-indicator">Read</div>';
+      }
+    }
+  }
+  el.innerHTML = html;
   el.scrollTop = el.scrollHeight;
 }
 
@@ -3088,7 +3401,7 @@ async function openPatientMessaging() {
   await markRead(currentUser.email, tEmail);
   const tSnap = await db.collection('users').doc(tEmail).get();
   document.getElementById('msgHeaderTitle').textContent = tSnap.exists ? tSnap.data().name : 'Your Therapist';
-  await renderThread('msgThread', currentUser.email, tEmail);
+  await renderThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
   showScreen('messagingScreen');
 }
 
@@ -3096,130 +3409,69 @@ async function sendMessageFromPatient() {
   const tEmail = await getConnectedTherapist();
   if (!tEmail) return;
   const input = document.getElementById('msgInput');
+  if (!input.value.trim()) return;
   await sendMessage(currentUser.email, tEmail, input.value);
   input.value = '';
-  await renderThread('msgThread', currentUser.email, tEmail);
+  toggleMsgSend();
+  await renderThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
 }
 
 // ── Therapist-side panel builder ──────────────────────────────────────────────
 
 function buildMessagePanel(patientEmail) {
   return `<div class="therapist-msg-panel">
-    <div class="section-title" style="font-size:0.85rem; font-weight:700; color:#6B7A99; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Messages</div>
     <div class="therapist-msg-thread" id="therapistMsgThread"></div>
-    <div class="therapist-msg-row">
+    <div class="therapist-msg-input-wrap">
       <input type="text" id="therapistMsgInput" class="therapist-msg-input" placeholder="Send a message…" />
-      <button id="therapistMsgSend" class="therapist-msg-send">Send</button>
+      <button id="therapistMsgSend" class="therapist-msg-send">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
     </div>
   </div>`;
 }
 
-// ── Video Recording Utilities ────────────────────────────────────────────────
+function copyClinicCode() {
+  const code = document.getElementById('therapistCode').textContent;
+  navigator.clipboard.writeText(code);
+}
 
-function getRecordingMimeType() {
-  const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
-  for (const mime of candidates) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mime)) return mime;
+/* ══════════════════════════════════════════════════════════════════════════
+   BOTTOM SHEET — Exercise detail
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function showExerciseDetail(protocol) {
+  activeSheetProtocol = protocol;
+  document.getElementById('sheetExName').textContent = protocol.exerciseName || protocol.label || 'Exercise';
+  var sets = protocol.sets || 3;
+  var reps = protocol.reps || 10;
+  var rest = protocol.restSeconds || 30;
+  document.getElementById('sheetExRx').textContent = sets + ' sets \u00d7 ' + reps + ' reps \u00b7 ' + rest + 's rest';
+  var notesEl = document.getElementById('sheetExNotes');
+  if (protocol.notes) {
+    notesEl.textContent = protocol.notes;
+    notesEl.style.display = 'block';
+  } else {
+    notesEl.style.display = 'none';
   }
-  return null;
+  document.getElementById('sheetBeginBtn').onclick = function() {
+    dismissExerciseDetail();
+    startSessionWithProtocol(activeSheetProtocol);
+  };
+  document.getElementById('sheetBackdrop').style.display = 'block';
+  var sheet = document.getElementById('exerciseSheet');
+  sheet.classList.remove('dismissing');
+  sheet.style.display = 'block';
 }
 
-function startRecording(canvas) {
-  const mime = getRecordingMimeType();
-  if (!mime || typeof MediaRecorder === 'undefined') { recordingSupported = false; return; }
-  recordingSupported = true;
-  recordedChunks = [];
-  let stream;
-  try { stream = canvas.captureStream(30); } catch(e) { recordingSupported = false; return; }
-  try {
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 400_000 });
-  } catch(e) { recordingSupported = false; return; }
-  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
-  mediaRecorder.start(1000);
-  showRecordingIndicator();
-}
-
-function stopRecording() {
-  return new Promise(resolve => {
-    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-      hideRecordingIndicator(); resolve(null); return;
-    }
-    mediaRecorder.onstop = () => {
-      hideRecordingIndicator();
-      if (recordedChunks.length === 0) { resolve(null); return; }
-      const mime = mediaRecorder.mimeType || 'video/webm';
-      const blob = new Blob(recordedChunks, { type: mime });
-      recordedChunks = []; mediaRecorder = null;
-      resolve(blob);
-    };
-    mediaRecorder.stop();
-  });
-}
-
-async function uploadSessionVideo(blob, docId, patientEmail) {
-  if (!blob || !docId) return;
-  try {
-    const form = new FormData();
-    form.append('file', blob);
-    form.append('upload_preset', CLOUDINARY_PRESET);
-    form.append('public_id', `sessions/${patientEmail}/${docId}`);
-    const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
-  } catch(e) {
-    console.error('Session video upload failed:', e?.message || e);
-  }
-}
-
-function showRecordingIndicator() {
-  const el = document.getElementById('recordingIndicator');
-  if (el) el.style.display = 'flex';
-}
-
-function hideRecordingIndicator() {
-  const el = document.getElementById('recordingIndicator');
-  if (el) el.style.display = 'none';
-}
-
-async function downloadSessionVideo(url, date, patientName) {
-  const d    = new Date(date);
-  const ts   = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const ext  = url.includes('.mp4') ? 'mp4' : 'webm';
-  const name = patientName ? `${patientName}-${ts}` : ts;
-  try {
-    const res  = await fetch(url);
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href     = blobUrl;
-    a.download = `phalanx-session-${name}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-  } catch(e) {
-    window.open(url, '_blank');
-  }
-}
-
-function openVideoModal(videoUrl, sessionDate, patientName) {
-  const modal  = document.getElementById('videoModal');
-  const player = document.getElementById('videoModalPlayer');
-  const dlBtn  = document.getElementById('videoModalDownload');
-  player.src = videoUrl;
-  if (dlBtn) {
-    dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate || new Date().toISOString(), patientName);
-  }
-  modal.style.display = 'flex';
-  player.play().catch(() => {});
-}
-
-function closeVideoModal() {
-  const modal  = document.getElementById('videoModal');
-  const player = document.getElementById('videoModalPlayer');
-  player.pause(); player.src = '';
-  modal.style.display = 'none';
+function dismissExerciseDetail() {
+  var sheet = document.getElementById('exerciseSheet');
+  sheet.classList.add('dismissing');
+  setTimeout(function() {
+    sheet.style.display = 'none';
+    sheet.classList.remove('dismissing');
+    document.getElementById('sheetBackdrop').style.display = 'none';
+  }, 200);
+  activeSheetProtocol = null;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -4984,9 +5236,6 @@ function mlTrainerBack() {
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
 Object.assign(window, {
-  // Video modal
-  openVideoModal, closeVideoModal, downloadSessionVideo,
-
   // Auth
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
@@ -4995,6 +5244,9 @@ Object.assign(window, {
 
   // Navigation
   showScreen,
+
+  // Bottom sheet
+  showExerciseDetail, dismissExerciseDetail,
 
   // Patient flows
   startScanSession, startSessionWithProtocol, showExercisesScreen,
@@ -5005,7 +5257,7 @@ Object.assign(window, {
   toggleSound,
 
   // Therapist panel
-  startCalibration, calibBack,
+  copyClinicCode, startCalibration, calibBack,
   startSweepCalibration, sweepBack, sweepSave, sweepToggleDebug, sweepCopyLog, sweepFlipCamera,
   sweepStartCapture, sweepResetJoint,
 
@@ -5021,6 +5273,9 @@ Object.assign(window, {
   // Joint selector
   ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
   ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
+
+  // Session history
+  shLoadMore, toggleShExpand,
 
   // Exposed array for exercises screen start buttons
   get _exercisesProtocols() { return _exercisesProtocols; },
