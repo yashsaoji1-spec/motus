@@ -2053,7 +2053,6 @@ function showCalError(msg) {
 
 function startCamera() {
   if (mpCamera) return;
-  showCalOverlay();
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
