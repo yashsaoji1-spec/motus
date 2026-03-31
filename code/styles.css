@@ -279,6 +279,22 @@ body {
 }
 .clinic-badge:hover { background: var(--border-light); }
 .clinic-badge-code { font-family: 'DM Mono', monospace; font-weight: 600; letter-spacing: 0.08em; color: var(--text); }
+.sidebar-ml-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 150ms ease, box-shadow 150ms ease;
+  margin-bottom: 8px;
+}
+.sidebar-ml-btn:hover { background: #0960A0; box-shadow: 0 2px 8px var(--accent-glow); }
 
 /* ── Patient home ─────────────────────────────────────────────────────────── */
 #patientScreen {
@@ -630,6 +646,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   color: var(--accent); height: 1.4rem; line-height: 1.4rem;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   transition: opacity 0.12s ease;
+}
+.cam-ml-status {
+  text-align: center; font-size: 0.7rem; color: var(--muted);
+  min-height: 1.1rem; line-height: 1.1rem; letter-spacing: 0.3px;
+}
+.cam-ml-status .ml-tag {
+  display: inline-block; background: var(--accent-dim); color: var(--accent);
+  font-weight: 600; font-size: 0.68rem; padding: 0 5px;
+  border-radius: 3px; margin-left: 3px;
 }
 .cam-pain-strip {
   display: flex; align-items: center; gap: var(--space-3);
@@ -1313,7 +1338,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    ══════════════════════════════════════════════════════════════════════════ */
 
 #calibrationScreen,
-#sweepCalibrationScreen,
 #mlTrainerScreen {
   flex-direction: column;
   height: 100vh;
@@ -1727,383 +1751,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tp-charts-grid .tp-colsec { margin-bottom: 0; }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SWEEP CALIBRATION SCREEN
-   Reuses .calib-* for camera layout, header, overlay, scan line.
-   New rules only for sweep-specific controls.
-   ══════════════════════════════════════════════════════════════════════════ */
-
-/* Shared panel card */
-.sweep-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 10px;
-  flex-shrink: 0;
-}
-.sweep-panel-grow { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.sweep-panel-title {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.6rem;
-  color: var(--muted);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.sweep-panel-val {
-  font-size: 0.75rem;
-  color: var(--accent);
-  font-weight: 700;
-  font-family: 'Space Mono', monospace;
-  margin-left: auto;
-}
-
-/* Distance bar */
-.sweep-distance-bar {
-  display: flex;
-  gap: 3px;
-}
-.sweep-dist-seg {
-  flex: 1;
-  text-align: center;
-  font-family: 'Space Mono', monospace;
-  font-size: 0.48rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 5px 4px;
-  border-radius: 2px;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  background: var(--bg);
-  transition: all 0.15s;
-}
-.sweep-dist-seg.active {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-#sweepDistGood.active {
-  background: var(--green-dim);
-  border-color: var(--green);
-  color: var(--green-dark);
-}
-#sweepDistTooClose.active,
-#sweepDistTooFar.active {
-  background: rgba(204, 41, 54, 0.07);
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-/* Metrics readout (debug mode) */
-.sweep-metrics-panel { display: none; }
-.sweep-metrics-readout {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.58rem;
-  color: var(--muted);
-  line-height: 1.6;
-  margin: 0;
-  white-space: pre;
-}
-
-/* Sweep header */
-.sweep-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  background: var(--bg);
-  z-index: 1;
-}
-.sweep-back-btn {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  padding: 8px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  cursor: pointer;
-  font-weight: 600;
-  flex-shrink: 0;
-  transition: all 0.15s;
-}
-.sweep-back-btn:hover { border-color: var(--accent); color: var(--accent); }
-.sweep-header-title {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.65rem;
-  color: var(--muted);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  flex: 1;
-  text-align: center;
-}
-.sweep-header-btn {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.06em;
-  padding: 6px 12px;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.15s;
-  text-transform: uppercase;
-}
-.sweep-header-btn:hover { border-color: var(--accent-glow); color: var(--accent); }
-
-/* Camera wrap — nicer border for sweep */
-.sweep-camera-wrap {
-  border: 2px solid var(--border) !important;
-  border-radius: 16px !important;
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
-}
-
-/* Tracking dot — bottom-left of camera, light blue when active */
-.sweep-track-dot {
-  position: absolute;
-  bottom: 14px;
-  left: 14px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--border);
-  z-index: 5;
-  transition: background 0.3s, box-shadow 0.3s;
-}
-.sweep-track-dot.active {
-  background: #7dd3fc;
-  box-shadow: 0 0 10px rgba(125, 211, 252, 0.7);
-}
-
-/* Flip camera button — bottom-right of camera */
-.sweep-flip-btn {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  z-index: 5;
-  font-family: 'Space Mono', monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  cursor: pointer;
-  backdrop-filter: blur(4px);
-  transition: all 0.15s;
-}
-.sweep-flip-btn:hover { background: #fff; border-color: var(--accent); }
-
-/* Joint completion grid */
-.sweep-grid {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-.sweep-grid-row {
-  display: grid;
-  grid-template-columns: 36px repeat(5, 1fr);
-  gap: 4px;
-  align-items: start;
-}
-.sweep-grid-row:not(.sweep-grid-header) {
-  flex: 1;
-}
-.sweep-grid-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  height: 100%;
-}
-.sweep-cell-data {
-  justify-content: center;
-  gap: 6px;
-}
-.sweep-grid-label {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.6rem;
-  color: var(--muted);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  text-align: right;
-  padding-right: 6px;
-}
-.sweep-grid-col-label {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.6rem;
-  color: var(--muted);
-  letter-spacing: 0.05em;
-  text-align: center;
-  padding-bottom: 4px;
-}
-.sweep-grid-header { margin-bottom: 1px; }
-
-/* Joint dots */
-.sweep-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  transition: all 0.2s;
-  cursor: pointer;
-}
-.sweep-dot.untuned {
-  background: var(--bg);
-  border-color: var(--border);
-  opacity: 0.4;
-}
-.sweep-dot.in-range {
-  background: #d4a017;
-  border-color: #a07800;
-}
-.sweep-dot.captured {
-  background: var(--green);
-  border-color: var(--green-dark);
-  box-shadow: 0 0 6px var(--green-glow);
-}
-.sweep-dot.cooldown {
-  background: #555;
-  border-color: #444;
-  opacity: 0.5;
-  animation: sweep-dot-pulse 0.8s ease-in-out infinite alternate;
-}
-@keyframes sweep-dot-pulse {
-  from { opacity: 0.3; }
-  to   { opacity: 0.6; }
-}
-.sweep-dot-disabled {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1px solid transparent;
-  background: transparent;
-  opacity: 0.2;
-}
-/* Live angle (current frame) */
-.sweep-live-val {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1.2;
-}
-
-/* Best recorded angle */
-.sweep-best-val {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.75rem;
-  color: var(--green-dark);
-  line-height: 1.2;
-}
-
-/* Guidance text */
-.sweep-guidance {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.6rem;
-  color: var(--accent);
-  letter-spacing: 0.04em;
-  text-align: center;
-  padding: 6px 0 2px;
-  border-top: 1px solid var(--border);
-  margin-top: auto;
-}
-
-/* Debug panel */
-.sweep-debug-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px 10px;
-  flex-shrink: 0;
-}
-.sweep-debug-log {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.42rem;
-  color: var(--muted);
-  line-height: 1.6;
-  white-space: pre;
-  overflow-x: auto;
-  margin: 0;
-  padding: 0;
-}
-
-/* Launch button in therapist patient panel */
-.sweep-launch-btn {
-  display: inline-block;
-  margin-bottom: 16px;
-  padding: 8px 16px;
-  background: transparent;
-  border: 1px solid var(--accent-glow);
-  border-radius: 6px;
-  color: var(--accent);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.sweep-launch-btn:hover {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-}
-
-/* Sweep video/canvas — mirrored by default (corrects front webcam on desktop).
-   Mobile rear camera overrides to none via JS. Same pattern as patient session. */
-#sweepVideo {
-  position: absolute;
-  inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  transform: scaleX(-1);
-  opacity: 0;
-  transition: opacity 0.4s;
-}
-#sweepVideo.ready { opacity: 1; }
-
-#sweepCanvas {
-  position: absolute;
-  inset: 0;
-  width: 100%; height: 100%;
-  transform: scaleX(-1);
-}
-
-/* Save button */
-.sweep-save-btn {
-  width: 100%;
-  padding: 11px;
-  background: var(--gradient-cta);
-  border: none;
-  border-radius: 6px;
-  color: #fff;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-.sweep-save-btn:hover { background: var(--gradient-cta-hover); }
-.sweep-save-btn:disabled { opacity: 0.6; cursor: default; }
-
-/* ══════════════════════════════════════════════════════════════════════════
    ML ANGLE TRAINER
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* ML trainer video/canvas — same pattern as #sweepVideo/#sweepCanvas */
+/* ML trainer video/canvas */
 #mlVideo {
   position: absolute;
   inset: 0;
@@ -2854,7 +2505,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* Calibration — mobile: stack columns */
 #calibrationScreen,
-#sweepCalibrationScreen,
 #mlTrainerScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
 .calib-main { flex-direction: column; overflow: visible; }
 .calib-right-col { overflow: visible; flex: none; }
@@ -2941,16 +2591,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
   /* Calibration — side by side */
   #calibrationScreen,
-  #sweepCalibrationScreen,
   #mlTrainerScreen { height: 100vh; overflow: hidden; }
   .calib-main { flex-direction: row; overflow: hidden; }
   .calib-right-col { overflow: auto; flex: 1; }
   .calib-readout-panel { overflow-y: auto; flex: 1; }
   .calib-camera-col { flex: 1; width: auto; height: 100%; }
   .calib-camera-wrap { height: 100%; aspect-ratio: auto; }
-  /* Sweep: give right column more space for controls */
-  #sweepCalibrationScreen .calib-camera-col { flex: 0 0 44%; }
-  #sweepCalibrationScreen .calib-right-col { flex: 1; min-width: 300px; overflow-y: auto; }
   #mlTrainerScreen .calib-camera-col { flex: 0 0 44%; }
   #mlTrainerScreen .calib-right-col { flex: 1; min-width: 300px; overflow-y: auto; }
 

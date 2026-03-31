@@ -102,7 +102,7 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 | `connections`   | `{therapistEmail}`   | `{ patients: [email, …] }` |
 | `protocols`     | `{patientEmail}`     | `{ items: [{ id, exerciseType, reps, sets, frequency, assignedBy, notes?, exerciseParams? }, …] }` |
 | `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles?, videoUrl? }` |
-| `calibration`   | `{patientEmail}`     | `{ joints: { [key]: { angle, metricVal } }, recordedAt, recordedBy }` — best angle per joint from sweep calibration; `metricVal` is the 0–1 orientation metric value at time of recording (whichever metric was specified in `SWEEP_JOINT_RULES[key].metric`) |
+| `calibration`   | `{patientEmail}`     | `{ joints: { [key]: { angle, metricVal } }, recordedAt, recordedBy }` — best angle per joint from calibration |
 | `messages`      | auto-id              | `{ from, to, participants, text, timestamp, read }` |
 | `jointTracking`   | `{patientEmail}`           | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
 | `customExercises` | auto-id                    | `{ id, name, cat, dr, ds, df, desc, createdBy }` — therapist-created exercises; loaded and merged into `PROTOCOL_CATALOG` on `openAddProtocol`; `id` is a slug derived from `name` |
@@ -160,7 +160,6 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `progressScreen`           | Patient progress history                                       |
 | `messagingScreen`          | In-app patient↔therapist messaging thread                      |
 | `calibrationScreen`        | Therapist-facing live joint angle diagnostic (Section 14); in HTML/JS but not accessible from UI currently |
-| `sweepCalibrationScreen`   | Sweep calibration — therapist sweeps rear camera around patient's stationary hand (Section 16); wired to UI via "Sweep Calibration" button in `showRealPatient()`; records joint angles only when **Start Capture** is pressed AND camera orientation satisfies per-joint rules in `SWEEP_JOINT_RULES`; 13 of 14 joints have empirically-derived rules (ring-dip left null — MediaPipe landmarks unreliable for that joint); clicking a dot resets that joint with a 3s cooldown |
 | `mlTrainerScreen`          | ML Angle Trainer — therapist trains per-joint per-hand angle regression models (Section 17); hand selected via persistent LEFT/RIGHT toggle buttons (auto-updated when camera detects a hand, but can be manually overridden — no live tracking required for data ops); angle set via slider + submit (single frame) or recording mode (auto-capture ~2/sec while moving hand); recording locks slider, shows blinking dot + live counter; after stop shows undo bar to discard the recording by `recordingId`; "Clear all samples" button wipes all chunks + meta for selected joint-hand; shows coverage grid with suggested angle; collapsible sample counts + trained models panels; session notes textarea |
 
 ## Role Split
@@ -226,12 +225,7 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 13  | Joint Selector (Enhanced) — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, `ejsDotClick`, `ejsSelectCard`, `ejsToggleFromInfo`, `ejsRemoveChip`, `ejsQuickSelectFinger`, `ejsSelectAll`, `ejsClearAll` |
 | 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })`; `calibBack` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
-| 16  | Sweep Calibration — full rules-based hand tracking system; see expanded section below |
 | 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `mlAutoCapture`, `mlStartRecording`, `mlStopRecording`, `mlUndoLastRecording`, `mlClearJoint`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlSetHand`, `mlRefreshSampleCounts`, `mlRenderGrid`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`; globals: `_mlModels` (Map), `_mlCurrentHand` (live camera detection only), `_mlSelectedHand` (persistent — used by all data ops), `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlSuggestedAngle`, `_mlRecording`, `_mlRecordingId`, `_mlLastRecordingId` |
-
-## Section 16: Sweep Calibration
-
-Full code reference: see `ml_trainer/ml-training-guide.md`
 
 ## Screen Persistence (sessionStorage)
 
@@ -240,7 +234,7 @@ Full code reference: see `ml_trainer/ml-training-guide.md`
 On login, `loginSuccess()` reads `savedScreen = sessionStorage.getItem('phalanx_screen')` **before** any `showScreen()` call (critical — any `showScreen()` call overwrites the value). After routing to the role's default screen, `restoreScreen(saved)` navigates to the saved screen if it matches the user's role:
 - Therapist: `mlTrainerScreen` → re-open ML trainer (calls `openMLTrainer()`)
 - Patient: `exercisesScreen` → call `showExercisesScreen()`; `progressScreen` → call `showProgressScreen()`
-- Sweep calibration and camera screens cannot be restored (require runtime state) — fall back to role default
+- Camera screen cannot be restored (requires runtime state) — fall back to role default
 
 `logout()` calls `sessionStorage.removeItem('phalanx_screen')`.
 
