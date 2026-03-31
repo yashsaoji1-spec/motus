@@ -69,6 +69,14 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     const snap = await db.collection('users').doc(firebaseUser.email).get();
     currentUser = { email: firebaseUser.email, ...snap.data() };
     currentRole = currentUser.role;
+    // Require email verification for non-admin accounts (demo accounts exempt)
+    const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com']);
+    if (!firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
+      await auth.signOut();
+      showScreen('loginScreen');
+      showError('loginError', 'Please verify your email before signing in. Check your inbox for the verification link.');
+      return;
+    }
     await loginSuccess();
     loadMLModels();
   } catch (e) {
@@ -127,12 +135,11 @@ const screenTitles = {
   therapistScreen:    'PhalanX — Therapist Dashboard',
   exercisesScreen:    'PhalanX — My Exercises',
   progressScreen:     'PhalanX — My Progress',
-  calibrationScreen:  'PhalanX — Calibration',
   pendingScreen:      'PhalanX — Pending Approval',
   adminScreen:        'PhalanX — Admin Panel',
 };
 
-const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'roleScreen', 'connectScreen', 'pendingScreen']);
+const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'roleScreen', 'connectScreen', 'pendingScreen', 'consentScreen']);
 
 function showScreen(screenId) {
   const prevActive = document.querySelector('.screen.active');
@@ -149,11 +156,6 @@ function showScreen(screenId) {
     currentFacingMode = 'user';
   }
 
-  // Stop calibration camera when leaving calibration screen
-  if (screenId !== 'calibrationScreen' && calibMpCamera) {
-    calibMpCamera.stop();
-    calibMpCamera = null;
-  }
 
   // Reset forgot-password form if navigating away mid-flow
   if (screenId !== 'forgotScreen') {
@@ -184,18 +186,41 @@ function hideError(id)      { document.getElementById(id).style.display = 'none'
    SECTION 3: LOGIN / SIGNUP / FORGOT
    ══════════════════════════════════════════════════════════════════════════ */
 
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutes
+let _loginAttempts  = 0;
+let _loginLockedUntil = 0;
+
 async function handleLogin() {
   hideError('loginError');
+
+  const now = Date.now();
+  if (now < _loginLockedUntil) {
+    const secsLeft = Math.ceil((_loginLockedUntil - now) / 1000);
+    showError('loginError', `Too many failed attempts. Try again in ${secsLeft} seconds.`);
+    return;
+  }
+
   const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
   if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
   try {
     await auth.signInWithEmailAndPassword(email, password);
+    _loginAttempts = 0;
     // onAuthStateChanged handles routing
   } catch (e) {
+    if (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+      _loginAttempts++;
+      if (_loginAttempts >= LOGIN_MAX_ATTEMPTS) {
+        _loginLockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+        _loginAttempts = 0;
+        showError('loginError', 'Too many failed attempts. Account locked for 15 minutes.');
+        return;
+      }
+    }
     showError('loginError',
       (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential')
-        ? 'Incorrect email or password. Try again.'
+        ? `Incorrect email or password. ${LOGIN_MAX_ATTEMPTS - _loginAttempts} attempt(s) remaining.`
         : (e.message || 'Sign in failed. Please try again.'));
   }
 }
@@ -208,12 +233,15 @@ async function handleSignup() {
   if (!name || !email || !password) { showError('signupError', 'Please fill in all fields.'); return; }
   if (name.length < 2) { showError('signupError', 'Please enter your full name.'); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('signupError', 'Please enter a valid email address.'); return; }
-  if (password.length < 6) { showError('signupError', 'Password must be at least 6 characters.'); return; }
+  if (password.length < 8) { showError('signupError', 'Password must be at least 8 characters.'); return; }
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     const roleToSave = selectedRole === 'therapist' ? 'therapist_pending' : 'patient';
     await db.collection('users').doc(cred.user.email).set({ name, role: roleToSave });
-    // onAuthStateChanged handles routing
+    await cred.user.sendEmailVerification();
+    await auth.signOut();
+    showScreen('loginScreen');
+    showError('loginError', 'Account created. Check your email to verify before signing in.');
   } catch (e) {
     showError('signupError',
       e.code === 'auth/email-already-in-use'
@@ -237,10 +265,8 @@ async function handleForgot() {
       showScreen('loginScreen');
     }, 3000);
   } catch (e) {
-    showError('forgotError',
-      e.code === 'auth/user-not-found'
-        ? 'No account found with that email.'
-        : (e.message || 'Password reset failed. Please try again.'));
+    // Don't distinguish user-not-found — prevents account enumeration
+    showError('forgotError', 'If an account exists with that email, a reset link has been sent.');
   }
 }
 
@@ -288,18 +314,46 @@ async function loginSuccess() {
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
-    // patient
-    const therapistEmail = await getConnectedTherapist();
-    if (therapistEmail) {
-      showScreen('patientScreen');
-      await updatePatientHomeScreen();
-      await initSetTracker();
-    } else {
-      showScreen('connectScreen');
+    // patient -- require consent before any PHI screen
+    if (!currentUser.consentGiven) {
+      showScreen('consentScreen');
+      return;
     }
+    await routePatient();
   }
 
   await restoreScreen(savedScreen);
+}
+
+async function routePatient() {
+  const therapistEmail = await getConnectedTherapist();
+  if (therapistEmail) {
+    showScreen('patientScreen');
+    await updatePatientHomeScreen();
+    await initSetTracker();
+  } else {
+    showScreen('connectScreen');
+  }
+}
+
+async function acceptConsent() {
+  const timestamp = new Date().toISOString();
+  try {
+    await db.collection('users').doc(currentUser.email).update({
+      consentGiven: true,
+      consentTimestamp: timestamp,
+    });
+  } catch (e) {
+    const err = document.getElementById('consentError');
+    if (err) {
+      err.textContent = 'Failed to save consent. Please check your connection and try again.';
+      err.style.display = 'block';
+    }
+    return;
+  }
+  currentUser.consentGiven = true;
+  currentUser.consentTimestamp = timestamp;
+  await routePatient();
 }
 
 async function restoreScreen(saved) {
@@ -320,7 +374,6 @@ async function restoreScreen(saved) {
 
 function logout() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
-  if (calibMpCamera) { calibMpCamera.stop(); calibMpCamera = null; }
   if (restTimerInterval) { clearInterval(restTimerInterval); restTimerInterval = null; }
   sessionStorage.removeItem('phalanx_screen');
   auth.signOut();
@@ -959,11 +1012,6 @@ function enableMobilePatientDetail(panel) {
   if (window.innerWidth >= 1024) return;
   document.getElementById('therapistScreen').classList.add('tp-mobile-detail');
   panel.insertAdjacentHTML('afterbegin', '<div style="margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button></div>');
-}
-
-// ── Calibration back button (named so Vite module can export it) ──────────────
-function calibBack() {
-  showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen');
 }
 
 // Seeded sessions for demo patient — always present regardless of localStorage state.
@@ -2886,415 +2934,6 @@ function ejsClearAll() {
   selectedJoints.clear();
   ejsOnSelectionChange();
 }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   SECTION 14: CALIBRATION SCREEN  (from script.js / index.html)
-   All variables and DOM references are prefixed "calib" to avoid collisions.
-   ══════════════════════════════════════════════════════════════════════════ */
-
-// ── Active joints state ───────────────────────────────────────────────────────
-const calibActiveJoints = {
-  thumb:  { mcp: true,  pip: true,  dip: false },
-  index:  { mcp: true,  pip: true,  dip: true  },
-  middle: { mcp: true,  pip: true,  dip: true  },
-  ring:   { mcp: true,  pip: true,  dip: true  },
-  pinky:  { mcp: true,  pip: true,  dip: true  },
-};
-
-// ── Finger joint definitions ──────────────────────────────────────────────────
-const CALIB_FINGERS = {
-  thumb:  { mcp: { a:0, b:2,  c:3,  id:'calib-thumb-mcp'  }, pip: { a:2,  b:3,  c:4,  id:'calib-thumb-pip'  }, dip: null },
-  index:  { mcp: { a:0, b:5,  c:6,  id:'calib-index-mcp'  }, pip: { a:5,  b:6,  c:7,  id:'calib-index-pip'  }, dip: { a:6,  b:7,  c:8,  id:'calib-index-dip'  } },
-  middle: { mcp: { a:0, b:9,  c:10, id:'calib-middle-mcp' }, pip: { a:9,  b:10, c:11, id:'calib-middle-pip' }, dip: { a:10, b:11, c:12, id:'calib-middle-dip' } },
-  ring:   { mcp: { a:0, b:13, c:14, id:'calib-ring-mcp'   }, pip: { a:13, b:14, c:15, id:'calib-ring-pip'   }, dip: { a:14, b:15, c:16, id:'calib-ring-dip'   } },
-  pinky:  { mcp: { a:0, b:17, c:18, id:'calib-pinky-mcp'  }, pip: { a:17, b:18, c:19, id:'calib-pinky-pip'  }, dip: { a:18, b:19, c:20, id:'calib-pinky-dip'  } },
-};
-
-const CALIB_FINGER_FULL = {
-  thumb: 'Thumb', index: 'Index', middle: 'Middle', ring: 'Ring', pinky: 'Pinky'
-};
-
-const CALIB_JOINT_MAX = { mcp: 110, pip: 115, dip: 70 };
-
-const CALIB_FINGER_THRESHOLDS = {
-  thumb: 0.05, index: 0.05, middle: 0.018, ring: 0.018, pinky: 0.05,
-};
-
-const CALIB_TIP_INDICES = new Set([4, 8, 12, 16, 20]);
-
-// ── One Euro Filter (calib-scoped) ────────────────────────────────────────────
-const CALIB_ONE_EURO_MINCUTOFF = 0.3;
-const CALIB_ONE_EURO_BETA      = 0.1;
-const CALIB_ONE_EURO_DCUTOFF   = 1.0;
-const calibFilterStates = {};
-
-function calibOneEuroFilter(id, rawValue, timestamp) {
-  if (!calibFilterStates[id]) {
-    calibFilterStates[id] = { prevValue: rawValue, prevDeriv: 0, prevTime: timestamp };
-    return rawValue;
-  }
-  const state = calibFilterStates[id];
-  const dt    = timestamp - state.prevTime || 1/60;
-  const alpha_d = calibAlphaFor(CALIB_ONE_EURO_DCUTOFF, dt);
-  const deriv   = alpha_d * ((rawValue - state.prevValue) / dt) + (1 - alpha_d) * state.prevDeriv;
-  const cutoff  = CALIB_ONE_EURO_MINCUTOFF + CALIB_ONE_EURO_BETA * Math.abs(deriv);
-  const alpha   = calibAlphaFor(cutoff, dt);
-  const value   = alpha * rawValue + (1 - alpha) * state.prevValue;
-  state.prevValue = value;
-  state.prevDeriv = deriv;
-  state.prevTime  = timestamp;
-  return Math.round(value);
-}
-
-function calibAlphaFor(cutoff, dt) {
-  const r = 2 * Math.PI * cutoff * dt;
-  return r / (r + 1);
-}
-
-function calibClearBuffers() {
-  for (const key of Object.keys(calibFilterStates)) delete calibFilterStates[key];
-}
-
-// ── Per-landmark stability tracking ──────────────────────────────────────────
-const CALIB_LANDMARK_PREV = {};
-
-function calibLandmarkJumped(index, lm, threshold) {
-  const prev = CALIB_LANDMARK_PREV[index];
-  if (!prev) { CALIB_LANDMARK_PREV[index] = { x: lm.x, y: lm.y }; return false; }
-  const dist = Math.sqrt((lm.x-prev.x)**2 + (lm.y-prev.y)**2);
-  CALIB_LANDMARK_PREV[index] = { x: lm.x, y: lm.y };
-  return dist > threshold;
-}
-
-// ── Angle calculation ─────────────────────────────────────────────────────────
-function calibGetAngle(a, b, c) {
-  const ba = { x: a.x-b.x, y: a.y-b.y, z: (a.z||0)-(b.z||0) };
-  const bc = { x: c.x-b.x, y: c.y-b.y, z: (c.z||0)-(b.z||0) };
-  const dotVal = ba.x*bc.x + ba.y*bc.y + ba.z*bc.z;
-  const magBA  = Math.sqrt(ba.x**2 + ba.y**2 + ba.z**2);
-  const magBC  = Math.sqrt(bc.x**2 + bc.y**2 + bc.z**2);
-  if (magBA === 0 || magBC === 0) return 0;
-  const cos = Math.max(-1, Math.min(1, dotVal / (magBA * magBC)));
-  return Math.round(180 - Math.acos(cos) * (180 / Math.PI));
-}
-
-// ── Compute one joint ─────────────────────────────────────────────────────────
-function calibComputeJoint(joint, landmarks, threshold) {
-  const aJ = calibLandmarkJumped(joint.a, landmarks[joint.a], threshold);
-  const bJ = calibLandmarkJumped(joint.b, landmarks[joint.b], threshold);
-  const cJ = calibLandmarkJumped(joint.c, landmarks[joint.c], threshold);
-  if (!aJ && !bJ && !cJ) {
-    const raw = calibGetAngle(landmarks[joint.a], landmarks[joint.b], landmarks[joint.c]);
-    return calibOneEuroFilter(joint.id, raw, performance.now() / 1000);
-  }
-  return calibFilterStates[joint.id]?.prevValue ? Math.round(calibFilterStates[joint.id].prevValue) : 0;
-}
-
-// ── Joint display label (thumb uses MP / IP instead of MCP / DIP) ────────────
-function calibJointLabel(finger, joint) {
-  if (finger === 'thumb') {
-    if (joint === 'mcp') return 'MP';
-    if (joint === 'dip') return 'IP';
-  }
-  return joint.toUpperCase();
-}
-
-// ── Sync finger toggle button active state ────────────────────────────────────
-function calibUpdateFingerToggles() {
-  for (const finger of Object.keys(calibActiveJoints)) {
-    const btn = document.querySelector(`.calib-finger-toggle[data-finger="${finger}"]`);
-    if (!btn) continue;
-    const anyActive = Object.entries(calibActiveJoints[finger]).some(([j, v]) => {
-      if (finger === 'thumb' && j === 'dip') return false;
-      return v;
-    });
-    btn.classList.toggle('finger-off', !anyActive);
-  }
-}
-
-// ── Rebuild readout DOM ───────────────────────────────────────────────────────
-function calibRebuildReadouts() {
-  const panel = document.getElementById('calibReadoutPanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  let count = 0;
-
-  for (const finger of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
-    const hasActive = ['mcp','pip','dip'].some(j =>
-      calibActiveJoints[finger][j] && !(finger === 'thumb' && j === 'dip') && CALIB_FINGERS[finger][j]
-    );
-    if (!hasActive) continue;
-
-    const label = document.createElement('div');
-    label.className = 'calib-readout-group-label';
-    label.innerHTML = `<strong>${CALIB_FINGER_FULL[finger]}</strong>`;
-    panel.appendChild(label);
-
-    for (const joint of ['mcp', 'pip', 'dip']) {
-      if (!calibActiveJoints[finger][joint]) continue;
-      if (finger === 'thumb' && joint === 'dip') continue;
-
-      const row = document.createElement('div');
-      row.className = 'calib-readout-row';
-      row.id = `calib-readout-${finger}-${joint}`;
-      row.innerHTML = `
-        <div class="calib-readout-label">
-          <span>${CALIB_FINGER_FULL[finger]} ${calibJointLabel(finger, joint)}</span>
-          <span class="calib-readout-val" id="calib-rval-${finger}-${joint}">—</span>
-        </div>
-        <div class="calib-readout-bar-wrap">
-          <div class="calib-readout-bar" id="calib-rbar-${finger}-${joint}"></div>
-        </div>`;
-      panel.appendChild(row);
-      count++;
-    }
-  }
-
-  if (count === 0) {
-    panel.innerHTML = '<div class="calib-readout-empty">No joints selected</div>';
-  }
-  calibUpdateFingerToggles();
-}
-
-// ── Update readouts ───────────────────────────────────────────────────────────
-function calibUpdateReadouts(landmarks) {
-  for (const finger of Object.keys(CALIB_FINGERS)) {
-    const threshold = CALIB_FINGER_THRESHOLDS[finger];
-    for (const joint of ['mcp', 'pip', 'dip']) {
-      if (!calibActiveJoints[finger][joint]) continue;
-      const jDef = CALIB_FINGERS[finger][joint];
-      if (!jDef) continue;
-      const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
-      if (!valEl || !barEl) continue;
-      const smoothed = calibComputeJoint(jDef, landmarks, threshold);
-      valEl.textContent = Math.min(smoothed, CALIB_JOINT_MAX[joint]) + '°';
-      barEl.style.width = Math.min(100, (smoothed / CALIB_JOINT_MAX[joint]) * 100) + '%';
-    }
-  }
-}
-
-// ── Clear readouts ────────────────────────────────────────────────────────────
-function calibClearReadouts() {
-  for (const finger of Object.keys(CALIB_FINGERS)) {
-    for (const joint of ['mcp', 'pip', 'dip']) {
-      const valEl = document.getElementById(`calib-rval-${finger}-${joint}`);
-      const barEl = document.getElementById(`calib-rbar-${finger}-${joint}`);
-      if (valEl) valEl.textContent = '—';
-      if (barEl) barEl.style.width = '0%';
-    }
-  }
-  calibClearBuffers();
-}
-
-// ── Draw landmarks ────────────────────────────────────────────────────────────
-function calibDrawLandmarks(ctx, landmarks) {
-  window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, {
-    color: 'rgba(0, 229, 192, 0.45)', lineWidth: 2,
-  });
-  landmarks.forEach((lm, i) => {
-    const x = lm.x * ctx.canvas.width;
-    const y = lm.y * ctx.canvas.height;
-    ctx.beginPath();
-    ctx.arc(x, y, CALIB_TIP_INDICES.has(i) ? 7 : 4, 0, Math.PI * 2);
-    ctx.fillStyle   = CALIB_TIP_INDICES.has(i) ? '#00e5c0' : 'rgba(0,229,192,0.7)';
-    ctx.shadowBlur  = CALIB_TIP_INDICES.has(i) ? 14 : 5;
-    ctx.shadowColor = '#00e5c0';
-    ctx.fill();
-    ctx.shadowBlur  = 0;
-  });
-}
-
-// ── Calib status helpers ──────────────────────────────────────────────────────
-function calibSetStatus(msg, state = 'idle') {
-  const calibDot  = document.getElementById('calibDot');
-  const calibText = document.getElementById('calibStatusText');
-  if (!calibDot || !calibText) return;
-  calibText.textContent = msg;
-  calibText.className   = state === 'active' ? 'active' : '';
-  calibDot.className = 'dot' + (state === 'active' ? ' active' : state === 'error' ? ' error' : '');
-}
-
-// ── MediaPipe results callback (calib) ────────────────────────────────────────
-function calibOnResults(results) {
-  const calibCanvas = document.getElementById('calibCanvas');
-  const calibCtx    = calibCanvas.getContext('2d');
-  const calibHandCount = document.getElementById('calibHandCount');
-  const calibCameraWrapEl = document.getElementById('calibCameraWrap');
-
-  // Center-crop to square (matches video's object-fit:cover) — from feature/ui
-  const srcW = results.image.width;
-  const srcH = results.image.height;
-  const size  = Math.min(srcW, srcH);
-  const cropX = (srcW - size) / 2;
-  const cropY = (srcH - size) / 2;
-
-  calibCanvas.width  = size;
-  calibCanvas.height = size;
-
-  calibCtx.save();
-  calibCtx.clearRect(0, 0, size, size);
-  calibCtx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
-
-  const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
-  if (calibHandCount) calibHandCount.textContent = `${count} hand${count !== 1 ? 's' : ''}`;
-
-  if (count > 0) {
-    calibSetStatus('Tracking active', 'active');
-    if (calibCameraWrapEl) calibCameraWrapEl.classList.add('scanning');
-    for (const landmarks of results.multiHandLandmarks) {
-      // Remap landmarks into cropped square coordinate space for drawing
-      const drawLandmarks = landmarks.map(lm => ({
-        ...lm,
-        x: (lm.x * srcW - cropX) / size,
-        y: (lm.y * srcH - cropY) / size,
-      }));
-      calibDrawLandmarks(calibCtx, drawLandmarks);
-      calibUpdateReadouts(landmarks); // original coords for angle math
-    }
-  } else {
-    calibSetStatus('Point camera at hand', 'idle');
-    if (calibCameraWrapEl) calibCameraWrapEl.classList.remove('scanning');
-    calibClearReadouts();
-  }
-
-  calibCtx.restore();
-}
-
-// ── Init calibration camera ───────────────────────────────────────────────────
-let calibMpCamera = null;
-
-async function startCalibration() {
-  showScreen('calibrationScreen');
-
-  // Rebuild readouts fresh each time we enter
-  calibRebuildReadouts();
-
-  if (calibMpCamera) return; // already running
-
-  const calibVideo   = document.getElementById('calibVideo');
-  const calibOverlay = document.getElementById('calibOverlay');
-  const calibOverlayMsg = document.getElementById('calibOverlayMsg');
-
-  calibSetStatus('Loading...', 'idle');
-  if (calibOverlayMsg) calibOverlayMsg.textContent = 'LOADING MEDIAPIPE...';
-
-  const hands = new window.Hands({
-    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-  });
-
-  hands.setOptions({
-    maxNumHands: 2,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.85,
-    minTrackingConfidence: 0.75,
-  });
-
-  hands.onResults(calibOnResults);
-
-  if (calibOverlayMsg) calibOverlayMsg.textContent = 'REQUESTING CAMERA...';
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: 1280, height: 720 },
-    });
-
-    calibVideo.srcObject = stream;
-    calibVideo.onloadedmetadata = () => calibVideo.play();
-    calibVideo.onplaying = () => {
-      calibVideo.classList.add('ready');
-      if (calibOverlay) calibOverlay.classList.add('hidden');
-      calibSetStatus('Point camera at hand', 'idle');
-    };
-
-    calibMpCamera = new window.Camera(calibVideo, {
-      onFrame: async () => { await hands.send({ image: calibVideo }); },
-      width: 1280, height: 720,
-    });
-
-    calibMpCamera.start();
-
-  } catch (err) {
-    if (calibOverlay) calibOverlay.classList.remove('hidden');
-    if (calibOverlayMsg) calibOverlayMsg.textContent = 'CAMERA ACCESS DENIED';
-    calibSetStatus('Camera denied', 'error');
-    console.error(err);
-  }
-}
-
-// ── Wire up calibration toggle grid (runs after DOM ready) ────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  // Finger toggle buttons
-  document.querySelectorAll('.calib-finger-toggle').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const finger = btn.dataset.finger;
-      const anyOn = Object.entries(calibActiveJoints[finger]).some(([j, v]) => {
-        if (finger === 'thumb' && j === 'dip') return false;
-        return v;
-      });
-      const newState = !anyOn;
-      for (const joint of Object.keys(calibActiveJoints[finger])) {
-        if (finger === 'thumb' && joint === 'dip') continue;
-        calibActiveJoints[finger][joint] = newState;
-      }
-      document.querySelectorAll(`.calib-grid-cell[data-finger="${finger}"]`).forEach(cell => {
-        const j = cell.dataset.joint;
-        if (finger === 'thumb' && j === 'dip') return;
-        cell.querySelector('.calib-cell-inner').classList.toggle('active', calibActiveJoints[finger][j]);
-      });
-      calibRebuildReadouts();
-    });
-  });
-
-  // Cell toggles
-  document.querySelectorAll('.calib-grid-cell').forEach(cell => {
-    cell.addEventListener('click', () => {
-      const finger = cell.dataset.finger;
-      const joint  = cell.dataset.joint;
-      if (finger === 'thumb' && joint === 'dip') return;
-      calibActiveJoints[finger][joint] = !calibActiveJoints[finger][joint];
-      cell.querySelector('.calib-cell-inner').classList.toggle('active', calibActiveJoints[finger][joint]);
-      calibRebuildReadouts();
-    });
-  });
-
-  // ALL button
-  const allBtn = document.getElementById('calibAllBtn');
-  if (allBtn) {
-    allBtn.addEventListener('click', () => {
-      for (const finger of Object.keys(calibActiveJoints)) {
-        for (const joint of Object.keys(calibActiveJoints[finger])) {
-          if (finger === 'thumb' && joint === 'dip') continue;
-          calibActiveJoints[finger][joint] = true;
-        }
-      }
-      document.querySelectorAll('.calib-grid-cell').forEach(cell => {
-        const f = cell.dataset.finger;
-        const j = cell.dataset.joint;
-        if (f === 'thumb' && j === 'dip') return;
-        cell.querySelector('.calib-cell-inner').classList.add('active');
-      });
-      calibRebuildReadouts();
-    });
-  }
-
-  // NONE button
-  const noneBtn = document.getElementById('calibNoneBtn');
-  if (noneBtn) {
-    noneBtn.addEventListener('click', () => {
-      for (const finger of Object.keys(calibActiveJoints)) {
-        for (const joint of Object.keys(calibActiveJoints[finger])) {
-          calibActiveJoints[finger][joint] = false;
-        }
-      }
-      document.querySelectorAll('.calib-cell-inner').forEach(el => el.classList.remove('active'));
-      calibRebuildReadouts();
-    });
-  }
-
-  // Build initial readouts
-  calibRebuildReadouts();
-});
 
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 15: MESSAGING  (patient ↔ therapist in-app thread)
@@ -5254,7 +4893,7 @@ Object.assign(window, {
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
   logout, requestLogout, closeLogoutModal, confirmLogout,
-  approveTherapist, rejectTherapist,
+  approveTherapist, rejectTherapist, acceptConsent,
 
   // Navigation
   showScreen,
@@ -5271,7 +4910,7 @@ Object.assign(window, {
   toggleSound,
 
   // Therapist panel
-  copyClinicCode, startCalibration, calibBack,
+  copyClinicCode,
   startSweepCalibration, sweepBack, sweepSave, sweepToggleDebug, sweepCopyLog, sweepFlipCamera,
   sweepStartCapture, sweepResetJoint,
 

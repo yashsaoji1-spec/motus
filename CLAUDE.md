@@ -159,7 +159,6 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `therapistScreen`          | Therapist dashboard (patient list + collapsible sections: charts, joint monitoring, session history, protocol form, messages) |
 | `progressScreen`           | Patient progress history                                       |
 | `messagingScreen`          | In-app patient↔therapist messaging thread                      |
-| `calibrationScreen`        | Therapist-facing live joint angle diagnostic (Section 14); in HTML/JS but not accessible from UI currently |
 | `mlTrainerScreen`          | ML Angle Trainer — therapist trains per-joint per-hand angle regression models (Section 17); hand selected via persistent LEFT/RIGHT toggle buttons (auto-updated when camera detects a hand, but can be manually overridden — no live tracking required for data ops); angle set via slider + submit (single frame) or recording mode (auto-capture ~2/sec while moving hand); recording locks slider, shows blinking dot + live counter; after stop shows undo bar to discard the recording by `recordingId`; "Clear all samples" button wipes all chunks + meta for selected joint-hand; shows coverage grid with suggested angle; collapsible sample counts + trained models panels; session notes textarea |
 
 ## Role Split
@@ -223,7 +222,6 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS); calls `startRecording(sessionCanvas)` after camera starts; `flipCamera` discards pre-flip footage and restarts recording; `isMobile`; `updateMLStatusLine` (called on hand-label change — shows which exercise joints are using trained ML models vs raw MediaPipe; blank for non-angle exercises); recording utilities: `getRecordingMimeType`, `startRecording` (**400 kbps** via `videoBitsPerSecond: 400_000`), `stopRecording`, `uploadSessionVideo` (Cloudinary fetch), `showRecordingIndicator`, `hideRecordingIndicator`, `openVideoModal(videoUrl, sessionDate, patientName)` (wires modal download button), `closeVideoModal`, `downloadSessionVideo(url, date, patientName)` (fetches blob → triggers download as `phalanx-session-{PatientName}-{YYYY-MM-DD}.{ext}`; falls back to `window.open` if fetch blocked by CORS) |
 | 12  | Progress Screen — session history display |
 | 13  | Joint Selector (Enhanced) — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, `ejsDotClick`, `ejsSelectCard`, `ejsToggleFromInfo`, `ejsRemoveChip`, `ejsQuickSelectFinger`, `ejsSelectAll`, `ejsClearAll` |
-| 14  | Calibration Screen — `startCalibration` uses same desktop/mobile split as `startCamera`: desktop uses MediaPipe `Camera` class; mobile uses direct `getUserMedia` + `requestAnimationFrame`, sets `.calib-camera-wrap` aspect ratio from video dimensions to prevent distortion; **iOS Safari fix**: draws video to canvas first, then `hands.send({ image: calibCanvas })`; `calibBack` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 | 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `mlAutoCapture`, `mlStartRecording`, `mlStopRecording`, `mlUndoLastRecording`, `mlClearJoint`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlSetHand`, `mlRefreshSampleCounts`, `mlRenderGrid`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`; globals: `_mlModels` (Map), `_mlCurrentHand` (live camera detection only), `_mlSelectedHand` (persistent — used by all data ops), `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlSuggestedAngle`, `_mlRecording`, `_mlRecordingId`, `_mlLastRecordingId` |
 
@@ -257,16 +255,3 @@ Admin accounts are created **manually** by Yash:
 1. Firebase Auth console → Add user → set email + password
 2. Firestore → `users/{email}` → `{ name: "...", role: "admin" }`
 
-## Known Issues (Pending Fix)
-
-### Consent Screen Inaccuracies (`consentScreen` in `index.html`)
-
-Two claims in the "How we use it" section are inaccurate and need to be corrected before launch:
-
-1. **"Camera video is processed on-device and never stored" — FALSE.**
-   The app records session video at 400 kbps (`startRecording` in Section 11) and uploads it to Cloudinary. The `videoUrl` is persisted on every session Firestore document. This claim directly contradicts actual behavior.
-
-2. **"You may request deletion of your data at any time" — UNFULFILLABLE.**
-   There is no deletion UI, form, or mechanism anywhere in the app. Until one is built, this claim should either be removed or reworded to set accurate expectations.
-
-**Action needed:** Update the consent screen copy to accurately describe video recording and Cloudinary storage, and either implement a data deletion path or remove the deletion promise.

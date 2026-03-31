@@ -87,6 +87,49 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     CONSENT
+═══════════════════════════════════════════════════════ -->
+<div id="consentScreen" class="screen">
+  <div class="auth-box" style="max-width:480px">
+    <h1>phalanX</h1>
+    <p class="auth-subtitle">Before you begin</p>
+    <div style="background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;text-align:left">
+      <p style="font-size:0.85rem;font-weight:600;color:var(--accent);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px">What we collect</p>
+      <ul style="font-size:0.875rem;color:var(--text);line-height:1.7;padding-left:1.25rem">
+        <li>Hand and finger movement data via your device camera</li>
+        <li>Exercise performance (reps, range of motion, pain level)</li>
+        <li>Session history shared with your assigned therapist</li>
+        <li>Messages between you and your therapist</li>
+      </ul>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;text-align:left">
+      <p style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px">How we use it</p>
+      <ul style="font-size:0.875rem;color:var(--muted);line-height:1.7;padding-left:1.25rem">
+        <li>Your data is only shared with your connected therapist</li>
+        <li>Session video may be recorded and stored securely for review by your therapist. Recordings are automatically removed after 30 days.</li>
+        <li>Data is encrypted in transit and stored securely</li>
+        <li>Contact your therapist if you have questions about your data</li>
+      </ul>
+    </div>
+    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1.5rem;text-align:left">
+      <input type="checkbox" id="consentCheckbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)" />
+      <span style="font-size:0.875rem;color:var(--text);line-height:1.5">
+        I understand how my health data will be collected and used, and I consent to participate in PhalanX hand rehabilitation.
+      </span>
+    </label>
+    <button class="auth-btn" onclick="if(document.getElementById('consentCheckbox').checked){acceptConsent()}else{document.getElementById('consentError').style.display='block'}">
+      Continue
+    </button>
+    <div id="consentError" class="auth-error" style="display:none;margin-top:0.75rem">
+      Please check the box to confirm your consent before continuing.
+    </div>
+    <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem;text-align:center;line-height:1.5">
+      Questions? Contact your therapist or email support before proceeding.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      PENDING APPROVAL
 ═══════════════════════════════════════════════════════ -->
 <div id="pendingScreen" class="screen">
@@ -355,91 +398,6 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     CALIBRATION SCREEN  (merged from index.html)
-═══════════════════════════════════════════════════════ -->
-<div id="calibrationScreen" class="screen">
-
-  <header class="calib-header">
-    <div class="calib-logo">phalanX<span>.dev</span></div>
-    <div class="calib-phase-tag">Calibration — Joint Angles</div>
-    <div class="calib-spacer"></div>
-    <div class="calib-status-pill">
-      <div class="dot" id="calibDot"></div>
-      <span id="calibStatusText">Initializing...</span>
-      <span id="calibHandCount">0 hands</span>
-    </div>
-    <button class="calib-back-btn" onclick="calibBack()">← Back</button>
-  </header>
-
-  <div class="calib-main">
-
-    <!-- LEFT: Camera -->
-    <div class="calib-camera-col">
-      <div class="calib-camera-wrap" id="calibCameraWrap">
-        <div class="calib-scan-line"></div>
-        <video id="calibVideo" playsinline autoplay muted></video>
-        <canvas id="calibCanvas"></canvas>
-        <div class="calib-overlay" id="calibOverlay">
-          <div class="calib-spinner"></div>
-          <div class="calib-overlay-text" id="calibOverlayMsg">LOADING MEDIAPIPE...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: Controls + Readouts -->
-    <div class="calib-right-col">
-
-      <!-- Toggle grid -->
-      <div class="calib-toggle-panel">
-        <div class="calib-toggle-header">
-          <span class="calib-panel-title">JOINTS</span>
-          <button class="calib-all-btn" id="calibAllBtn">ALL</button>
-          <button class="calib-all-btn" id="calibNoneBtn">NONE</button>
-        </div>
-
-        <div class="calib-joint-grid">
-          <!-- Finger toggle buttons -->
-          <div class="calib-finger-toggle" data-finger="thumb">THB</div>
-          <div class="calib-finger-toggle" data-finger="index">IDX</div>
-          <div class="calib-finger-toggle" data-finger="middle">MID</div>
-          <div class="calib-finger-toggle" data-finger="ring">RNG</div>
-          <div class="calib-finger-toggle" data-finger="pinky">PNK</div>
-
-          <!-- MCP row -->
-          <div class="calib-grid-cell" data-finger="thumb"  data-joint="mcp"><div class="calib-cell-inner active">MP</div></div>
-          <div class="calib-grid-cell" data-finger="index"  data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
-          <div class="calib-grid-cell" data-finger="middle" data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
-          <div class="calib-grid-cell" data-finger="ring"   data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
-          <div class="calib-grid-cell" data-finger="pinky"  data-joint="mcp"><div class="calib-cell-inner active">MCP</div></div>
-
-          <!-- PIP row -->
-          <div class="calib-grid-cell" data-finger="thumb"  data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
-          <div class="calib-grid-cell" data-finger="index"  data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
-          <div class="calib-grid-cell" data-finger="middle" data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
-          <div class="calib-grid-cell" data-finger="ring"   data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
-          <div class="calib-grid-cell" data-finger="pinky"  data-joint="pip"><div class="calib-cell-inner active">PIP</div></div>
-
-          <!-- DIP row -->
-          <div class="calib-grid-cell" data-finger="thumb"  data-joint="dip"><div class="calib-cell-inner">IP</div></div>
-          <div class="calib-grid-cell" data-finger="index"  data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
-          <div class="calib-grid-cell" data-finger="middle" data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
-          <div class="calib-grid-cell" data-finger="ring"   data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
-          <div class="calib-grid-cell" data-finger="pinky"  data-joint="dip"><div class="calib-cell-inner active">DIP</div></div>
-        </div>
-      </div>
-
-      <!-- Readout list -->
-      <div class="calib-readout-panel" id="calibReadoutPanel">
-        <!-- Populated by JS -->
-      </div>
-
-    </div>
-  </div>
-
-  <footer class="calib-footer">phalanX — Built with MediaPipe by Google (Apache 2.0)</footer>
-
-</div>
 
 <!-- ═══════════════════════════════════════════════════════
      ML ANGLE TRAINER
