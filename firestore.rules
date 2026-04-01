@@ -1,13 +1,190 @@
 rules_version = '2';
 
 // PhalanX — Firestore Security Rules
-// Simplified: any authenticated user can read/write all collections.
-// Tighter per-collection rules can be re-added once login is confirmed working.
+// Per-collection rules enforcing role-based access.
+// Roles: patient, therapist, therapist_pending, admin (stored in users/{email}.role)
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // -- Helpers --
+
+    function isAuth() {
+      return request.auth != null;
     }
+
+    function myEmail() {
+      return request.auth.token.email;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(myEmail())).data.role;
+    }
+
+    function isTherapist() {
+      return myRole() == 'therapist';
+    }
+
+    function isPatient() {
+      return myRole() == 'patient';
+    }
+
+    function isAdmin() {
+      return myRole() == 'admin';
+    }
+
+    // True if the current therapist has this patient in their connections doc.
+    function connectedToPatient(patientEmail) {
+      return exists(/databases/$(database)/documents/connections/$(myEmail())) &&
+        patientEmail in get(/databases/$(database)/documents/connections/$(myEmail())).data.patients;
+    }
+
+    // True if any therapist connected to this patient is the current user.
+    // Used for reads keyed by patientEmail when the caller is a therapist.
+    function therapistCanAccessPatient(patientEmail) {
+      return isTherapist() && connectedToPatient(patientEmail);
+    }
+
+
+    // -- users/{email} --
+    // Any authenticated user can read (needed for name lookups, role checks).
+    // Users write their own doc; admin can write any doc (role approval).
+    match /users/{email} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (myEmail() == email || isAdmin());
+    }
+
+
+    // -- connections/{therapistEmail} --
+    // Therapist manages their own connection list.
+    // Patients can update (but not create/delete) to add themselves via connect code.
+    match /connections/{therapistEmail} {
+      allow read: if isAuth() && (myEmail() == therapistEmail || isAdmin());
+      allow create, delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
+      // Patients may only append their own email to the patients array — no other mutations.
+      allow update: if isAuth() && (
+        myEmail() == therapistEmail ||
+        isAdmin() ||
+        (isPatient() &&
+          request.resource.data.patients.hasAll(resource.data.patients) &&
+          request.resource.data.patients.hasOnly(resource.data.patients.concat([myEmail()])))
+      );
+    }
+
+
+    // -- protocols/{patientEmail} --
+    // Patient reads their own; therapist reads+writes for connected patients.
+    match /protocols/{patientEmail} {
+      allow read: if isAuth() && (
+        myEmail() == patientEmail ||
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+      allow write: if isAuth() && (
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+    }
+
+
+    // -- sessions (auto-id) --
+    // Patient creates + updates their own sessions (two-step: create then update with videoUrl).
+    // Therapist reads + updates sessions for connected patients.
+    match /sessions/{sessionId} {
+      allow read: if isAuth() && (
+        myEmail() == resource.data.patientEmail ||
+        (isTherapist() && connectedToPatient(resource.data.patientEmail)) ||
+        isAdmin()
+      );
+      allow create: if isAuth() && (
+        myEmail() == request.resource.data.patientEmail ||
+        isAdmin()
+      );
+      allow update: if isAuth() && (
+        myEmail() == resource.data.patientEmail ||
+        (isTherapist() && connectedToPatient(resource.data.patientEmail)) ||
+        isAdmin()
+      );
+      allow delete: if isAuth() && isAdmin();
+    }
+
+
+    // -- calibration/{patientEmail} --
+    // Patient reads their own; therapist reads+writes for connected patients.
+    match /calibration/{patientEmail} {
+      allow read: if isAuth() && (
+        myEmail() == patientEmail ||
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+      allow write: if isAuth() && (
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+    }
+
+
+    // -- messages (auto-id, fields: participants: [email, email]) --
+    // Only participants can read/write their thread.
+    match /messages/{messageId} {
+      allow read: if isAuth() && (
+        myEmail() in resource.data.participants ||
+        isAdmin()
+      );
+      allow create: if isAuth() && myEmail() in request.resource.data.participants;
+      allow update: if isAuth() && myEmail() in resource.data.participants;
+      allow delete: if isAuth() && isAdmin();
+    }
+
+
+    // -- jointTracking/{patientEmail} --
+    // Patient reads their own; therapist reads+writes for connected patients.
+    match /jointTracking/{patientEmail} {
+      allow read: if isAuth() && (
+        myEmail() == patientEmail ||
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+      allow write: if isAuth() && (
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+    }
+
+
+    // -- customExercises (auto-id, field: createdBy) --
+    // Any auth user reads (exercises are loaded into the protocol catalog for all therapists).
+    // Therapists create their own; only creator or admin can modify/delete.
+    match /customExercises/{exerciseId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && isTherapist() &&
+        request.resource.data.createdBy == myEmail();
+      allow update, delete: if isAuth() && (
+        (isTherapist() && resource.data.createdBy == myEmail()) ||
+        isAdmin()
+      );
+    }
+
+
+    // -- trainingChunks (auto-id) -- ML training samples
+    // Therapist-only read/write. No patient access needed.
+    match /trainingChunks/{chunkId} {
+      allow read, write: if isAuth() && (isTherapist() || isAdmin());
+    }
+
+
+    // -- trainingMeta/{joint-hand} -- ML coverage metadata
+    match /trainingMeta/{jointHand} {
+      allow read, write: if isAuth() && (isTherapist() || isAdmin());
+    }
+
+
+    // -- mlModels/{joint-hand} -- Trained angle models
+    // Patients read during live sessions; therapists write.
+    match /mlModels/{jointHand} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (isTherapist() || isAdmin());
+    }
+
   }
 }

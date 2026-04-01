@@ -33,6 +33,9 @@ let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
 let recordingSupported   = false;  // false on iOS/unsupported browsers — skip all recording logic
 let _pendingSessionDocId = null;   // Firestore doc ID to patch with videoUrl after upload completes
 
+const CLOUDINARY_CLOUD  = 'dslbugsdg';
+const CLOUDINARY_PRESET = 'phalanx-videos';
+
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
 // Required Firestore composite indexes (create in Firebase console → Firestore → Indexes):
@@ -152,6 +155,12 @@ function showScreen(screenId) {
 
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      recordedChunks = [];
+      mediaRecorder = null;
+      hideRecordingIndicator();
+    }
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
     currentFacingMode = 'user';
   }
@@ -561,6 +570,10 @@ function calcStreak(sessions) {
   return { current, best };
 }
 
+async function startSessionByIndex(i) {
+  await startSessionWithProtocol(_exercisesProtocols[i]);
+}
+
 async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
   trackedJoints  = await loadTrackedJoints(currentUser.email);
@@ -682,6 +695,19 @@ const FINGER_LANDMARK_MAP = {
   ring:   { mcp:[0,13,14], pip:[13,14,16], dip:[14,15,16]  },
   pinky:  { mcp:[0,17,18], pip:[17,18,20], dip:[18,19,20]  },
 };
+
+// {a,b,c} format used by sweep calibration and TAM calc
+const CALIB_FINGERS = Object.fromEntries(
+  Object.entries(FINGER_LANDMARK_MAP).map(([finger, joints]) => [
+    finger,
+    Object.fromEntries(
+      Object.entries(joints).map(([joint, arr]) => [
+        joint,
+        arr ? { a: arr[0], b: arr[1], c: arr[2] } : null,
+      ])
+    ),
+  ])
+);
 
 async function getProtocols(patientEmail) {
   const doc = await db.collection('protocols').doc(patientEmail).get();
@@ -921,7 +947,7 @@ async function showExercisesScreen() {
     const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
     const badge = isDone ? '<span class="exs-row-badge done">Done</span>'
       : doneSets > 0 ? `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
-    return `<div class="exs-row ${statusCls}" onclick="startSessionWithProtocol(_exercisesProtocols[${i}])">
+    return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
       <div class="exs-row-left">
         <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
         <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
@@ -1208,12 +1234,13 @@ function shLoadMore() {
   shVisibleCount += SH_PAGE_SIZE;
   const body = document.querySelector('#tps-history .tp-colsec-body');
   if (body && window._lastHistorySessions) {
-    body.innerHTML = buildSessionHistory(window._lastHistorySessions);
+    body.innerHTML = buildSessionHistory(window._lastHistorySessions, window._lastHistoryPatientName);
   }
 }
 
-function buildSessionHistory(sessions) {
-  window._lastHistorySessions = sessions;
+function buildSessionHistory(sessions, patientName) {
+  window._lastHistorySessions   = sessions;
+  window._lastHistoryPatientName = patientName || '';
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session history</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
@@ -1230,7 +1257,9 @@ function buildSessionHistory(sessions) {
     const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
     const rowId = `sh-exp-${gi}`;
     const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
-    const hasVideo = g.sets.some(s => s.videoUrl);
+    const hasVideo  = g.sets.some(s => s.videoUrl);
+    const videoUrl  = hasVideo ? g.sets.find(s => s.videoUrl).videoUrl : null;
+    const isExpired = hasVideo && (Date.now() - new Date(g.date).getTime()) > 30 * 86400000;
     const setDetail = g.sets.map((s, si) => {
       const sp = s.pain || 0, sr = s.rom || 0;
       const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
@@ -1251,7 +1280,7 @@ function buildSessionHistory(sessions) {
         <div class="sh-cell sh-setsreps">${g.setsCompleted} × ${g.totalReps}</div>
         <div class="sh-cell sh-rom"><span class="sh-indicator" style="background:${romColor}"></span>${g.maxROM}°</div>
         <div class="sh-cell sh-pain"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}</div>
-        <div class="sh-cell sh-actions">${hasVideo ? '<svg class="sh-play-icon" width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>' : ''}</div>
+        <div class="sh-cell sh-actions">${hasVideo && !isExpired ? `<button class="sh-video-btn" onclick="event.stopPropagation(); openVideoModal('${videoUrl}', '${g.date}', '${window._lastHistoryPatientName}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg></button>` : hasVideo && isExpired ? '<span class="sh-video-expired">Expired</span>' : ''}</div>
       </div>
       <div class="sh-detail-wrap" id="${rowId}-detail">
         <div class="sh-detail-inner">
@@ -1739,7 +1768,7 @@ function calcFingerTAM(landmarks, finger) {
   for (const joint of ['mcp', 'pip', 'dip']) {
     const j = jDefs[joint];
     if (!j) continue;
-    total += calibGetAngle(landmarks[j.a], landmarks[j.b], landmarks[j.c]);
+    total += getJointAngle(landmarks, [j.a, j.b, j.c]);
   }
   return total;
 }
@@ -1840,7 +1869,8 @@ async function saveSession() {
     expireAt:       new Date(now.getTime() + 90 * 86400000)
   };
   if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-  await db.collection('sessions').add(doc);
+  const ref = await db.collection('sessions').add(doc);
+  _pendingSessionDocId = ref.id;
   jointMaxAngles = {}; // reset after save so each set starts fresh
 }
 
@@ -1937,7 +1967,14 @@ async function advanceSet() {
   if (camCtrlRestore) camCtrlRestore.style.display = '';
   document.getElementById('allSetsComplete').style.display = 'none';
   document.getElementById('nextSetBtn').textContent = 'Start Next Set';
-  if (setsComplete >= totalSets) { showSessionSummary(); return; }
+  if (setsComplete >= totalSets) {
+    if (recordingSupported) {
+      const videoBlob = await stopRecording();
+      if (videoBlob && videoBlob.size > 0) uploadSessionVideo(videoBlob, _pendingSessionDocId);
+    }
+    showSessionSummary();
+    return;
+  }
   currentSet++;
   repCount = 0;
   fingerState = 'unknown';
@@ -2011,6 +2048,12 @@ async function dismissSummary() {
   await updatePatientHomeScreen();
 }
 
+async function dismissSummaryToProgress() {
+  document.getElementById('sessionSummaryOverlay').style.display = 'none';
+  await initSetTracker();
+  await showProgressScreen();
+}
+
 async function completeSessionEarly() {
   // Stop rest timer if running
   clearInterval(restTimerInterval);
@@ -2041,7 +2084,19 @@ async function completeSessionEarly() {
       expireAt:       new Date(endNow.getTime() + 90 * 86400000)
     };
     if (Object.keys(jointMaxAngles).length > 0) doc.jointAngles = { ...jointMaxAngles };
-    await db.collection('sessions').add(doc);
+    const ref = await db.collection('sessions').add(doc);
+    if (recordingSupported) {
+      const videoBlob = await stopRecording();
+      if (videoBlob && videoBlob.size > 0) uploadSessionVideo(videoBlob, ref.id);
+    }
+  } else {
+    // No reps — discard recording
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      recordedChunks = [];
+      mediaRecorder = null;
+      hideRecordingIndicator();
+    }
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
@@ -2055,6 +2110,13 @@ let currentFacingMode = 'user';
 
 function flipCamera() {
   currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+  // Discard pre-flip recording — startCamera will begin a fresh one
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    recordedChunks = [];
+    mediaRecorder = null;
+    hideRecordingIndicator();
+  }
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   startCamera();
 }
@@ -2167,6 +2229,8 @@ function startCamera() {
             sessionCanvas.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
             document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
             processFrame();
+            recordingSupported = typeof MediaRecorder !== 'undefined' && !!getRecordingMimeType();
+            startRecording(sessionCanvas);
           };
           mpCamera = {
             stop: () => {
@@ -2193,7 +2257,128 @@ function startCamera() {
       width: 1280, height: 720,
     });
     mpCamera.start();
+    recordingSupported = typeof MediaRecorder !== 'undefined' && !!getRecordingMimeType();
+    startRecording(sessionCanvas);
   }
+}
+
+// ── Recording pipeline ──
+
+function getRecordingMimeType() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const types = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4'
+  ];
+  for (const t of types) {
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
+function showRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'flex';
+}
+
+function hideRecordingIndicator() {
+  const el = document.getElementById('recordingIndicator');
+  if (el) el.style.display = 'none';
+}
+
+function startRecording(canvas) {
+  if (!recordingSupported) return;
+  recordedChunks = [];
+  const mimeType = getRecordingMimeType();
+  if (!mimeType) { recordingSupported = false; return; }
+  let stream;
+  try { stream = canvas.captureStream(); } catch(e) { recordingSupported = false; return; }
+  try {
+    mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 400_000 });
+  } catch(e) { recordingSupported = false; return; }
+  mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+  mediaRecorder.start(1000);
+  showRecordingIndicator();
+}
+
+function stopRecording() {
+  return new Promise(resolve => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+      hideRecordingIndicator();
+      resolve(null);
+      return;
+    }
+    const mimeType = mediaRecorder.mimeType;
+    mediaRecorder.onstop = () => {
+      const blob = recordedChunks.length > 0 ? new Blob(recordedChunks, { type: mimeType }) : null;
+      recordedChunks = [];
+      mediaRecorder = null;
+      hideRecordingIndicator();
+      resolve(blob);
+    };
+    mediaRecorder.stop();
+  });
+}
+
+// ── Upload pipeline ──
+
+async function uploadSessionVideo(blob, docId) {
+  if (!blob || blob.size === 0 || !docId) return;
+  try {
+    const form = new FormData();
+    form.append('file', blob);
+    form.append('upload_preset', CLOUDINARY_PRESET);
+    form.append('resource_type', 'video');
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
+      method: 'POST',
+      body: form
+    });
+    const data = await res.json();
+    if (data.secure_url) {
+      await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
+    } else {
+      console.warn('[phalanX] Cloudinary upload failed:', data.error?.message);
+    }
+  } catch(e) {
+    console.warn('[phalanX] Video upload error:', e);
+  }
+}
+
+// ── Video modal ──
+
+function openVideoModal(videoUrl, sessionDate, patientName) {
+  const player = document.getElementById('videoModalPlayer');
+  const dlBtn  = document.getElementById('videoModalDownload');
+  player.src = videoUrl;
+  dlBtn.onclick = () => downloadSessionVideo(videoUrl, sessionDate, patientName);
+  document.getElementById('videoModal').style.display = 'flex';
+}
+
+function closeVideoModal() {
+  document.getElementById('videoModal').style.display = 'none';
+  const player = document.getElementById('videoModalPlayer');
+  player.pause();
+  player.removeAttribute('src');
+  player.load();
+}
+
+function downloadSessionVideo(url, date, patientName) {
+  const safeName = (patientName || 'patient').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
+  const dateStr  = date ? new Date(date).toISOString().slice(0, 10) : 'unknown';
+  const ext      = url.includes('.mp4') ? 'mp4' : 'webm';
+  const filename = `phalanx-session-${safeName}-${dateStr}.${ext}`;
+  fetch(url)
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(() => window.open(url, '_blank'));
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -2260,14 +2445,42 @@ async function showProgressScreen() {
 
 function buildPatientSessionHistory(sessions) {
   if (!sessions || !sessions.length) return '';
-  var html = '<div class="prog-history-card"><div class="prog-grid-header">' +
-    '<span>Date</span><span>Exercise</span><span>Sets</span><span>Pain</span></div>';
-  sessions.slice(0, 20).forEach(function(s) {
-    var date = s.timestamp ? timeAgo(s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : '\u2014';
-    var exercise = s.exerciseName || s.label || '\u2014';
-    var sets = (s.completedSets || 0) + '/' + (s.totalSets || s.sets || '\u2014');
-    var pain = s.avgPain != null ? s.avgPain.toFixed(1) : '\u2014';
-    html += '<div class="prog-grid-row"><span>' + date + '</span><span>' + exercise + '</span><span>' + sets + '</span><span>' + pain + '</span></div>';
+  const grouped  = groupSetsIntoSessions(sessions);
+  const reversed = [...grouped].reverse().slice(0, 20);
+  const patientName = currentUser ? (currentUser.name || currentUser.email) : '';
+  var html = '<div class="prog-history-card">' +
+    '<div class="prog-grid-header">' +
+    '<span>Date</span><span>Exercise</span><span>Sets</span><span>Pain</span><span>Video</span>' +
+    '</div>';
+  reversed.forEach(function(g) {
+    var d        = new Date(g.date);
+    var dateStr  = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    var exercise = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
+    var sets     = g.setsCompleted;
+    var pain     = g.avgPain != null ? g.avgPain.toFixed(1) : '\u2014';
+    var hasVideo = g.sets.some(function(s) { return s.videoUrl; });
+    var videoUrl = hasVideo ? g.sets.find(function(s) { return s.videoUrl; }).videoUrl : null;
+    var isExpired = hasVideo && (Date.now() - d.getTime()) > 30 * 86400000;
+    var videoCell;
+    if (hasVideo && !isExpired) {
+      var safeUrl  = videoUrl.replace(/'/g, '%27');
+      var safeDate = g.date.replace(/'/g, '');
+      var safeName = patientName.replace(/'/g, '');
+      videoCell = '<button class="prog-video-btn" onclick="openVideoModal(\'' + safeUrl + '\',\'' + safeDate + '\',\'' + safeName + '\')">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>' +
+        '</button>';
+    } else if (hasVideo && isExpired) {
+      videoCell = '<span class="prog-video-expired">Expired</span>';
+    } else {
+      videoCell = '<span class="prog-video-none">\u2014</span>';
+    }
+    html += '<div class="prog-grid-row">' +
+      '<span>' + dateStr + '</span>' +
+      '<span>' + exercise + '</span>' +
+      '<span>' + sets + '</span>' +
+      '<span>' + pain + '</span>' +
+      '<span>' + videoCell + '</span>' +
+      '</div>';
   });
   html += '</div>';
   return html;
@@ -3415,7 +3628,7 @@ function sweepUpdateLiveAngles(landmarks) {
     const trained = getTrainedAngle(key, landmarks);
     const raw     = trained !== null
       ? trained
-      : Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+      : Math.round(getJointAngle(landmarks, [def.a, def.b, def.c]));
     const limits = SWEEP_ANGLE_LIMITS[joint];
     const angle  = limits ? Math.min(raw, limits[1]) : raw;
     el.textContent = angle + '°';
@@ -3566,7 +3779,7 @@ function sweepOnResults(results) {
 
     if (passing) {
       const val   = metrics[passing.metric];
-      const angle = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+      const angle = Math.round(getJointAngle(landmarks, [def.a, def.b, def.c]));
       const [minA, maxA] = SWEEP_ANGLE_LIMITS[joint] || SWEEP_ANGLE_LIMITS.pip;
       if (angle < minA || angle > maxA) { _sweepFrameCount[key] = 0; continue; }
       _sweepFrameCount[key] = (_sweepFrameCount[key] || 0) + 1;
@@ -3588,7 +3801,7 @@ function sweepOnResults(results) {
   if (SWEEP_DEBUG) {
     const frame = { t: performance.now().toFixed(0), ...Object.fromEntries(Object.entries(metrics).map(([k, v]) => [k, parseFloat(v.toFixed(3))])), angles: {} };
     for (const { key, def } of SWEEP_JOINTS) {
-      frame.angles[key] = Math.round(calibGetAngle(landmarks[def.a], landmarks[def.b], landmarks[def.c]));
+      frame.angles[key] = Math.round(getJointAngle(landmarks, [def.a, def.b, def.c]));
     }
     _sweepDebugLog.push(frame);
     if (_sweepDebugLog.length > 60) _sweepDebugLog.shift();
@@ -4142,7 +4355,7 @@ function mlOnResults(results) {
   const trained = getTrainedAngle(select.value, landmarks);
   const angle   = trained !== null
     ? trained
-    : Math.round(calibGetAngle(landmarks[jDef.def.a], landmarks[jDef.def.b], landmarks[jDef.def.c]));
+    : Math.round(getJointAngle(landmarks, [jDef.def.a, jDef.def.b, jDef.def.c]));
 
   liveEl.textContent  = angle + '°';
   liveEl.style.color  = trained !== null ? 'var(--green)' : '';
@@ -4902,12 +5115,13 @@ Object.assign(window, {
   showExerciseDetail, dismissExerciseDetail,
 
   // Patient flows
-  startScanSession, startSessionWithProtocol, showExercisesScreen,
+  startScanSession, startSessionWithProtocol, startSessionByIndex, showExercisesScreen,
   showProgressScreen, openPatientMessaging, sendMessageFromPatient,
 
   // Camera session
-  flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary,
+  flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary, dismissSummaryToProgress,
   toggleSound,
+  openVideoModal, closeVideoModal, downloadSessionVideo,
 
   // Therapist panel
   copyClinicCode,
