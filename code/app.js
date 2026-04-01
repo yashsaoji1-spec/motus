@@ -368,7 +368,6 @@ async function acceptConsent() {
 async function restoreScreen(saved) {
   if (!saved) return;
 
-  // sweepCalibrationScreen needs patientEmail arg — can't restore
   // cameraScreen session state is gone on refresh — can't restore
   // messagingScreen needs currentPatient set — can't restore
   if (currentRole === 'therapist') {
@@ -696,7 +695,7 @@ const FINGER_LANDMARK_MAP = {
   pinky:  { mcp:[0,17,18], pip:[17,18,20], dip:[18,19,20]  },
 };
 
-// {a,b,c} format used by sweep calibration and TAM calc
+// {a,b,c} format used by TAM calc
 const CALIB_FINGERS = Object.fromEntries(
   Object.entries(FINGER_LANDMARK_MAP).map(([finger, joints]) => [
     finger,
@@ -707,6 +706,17 @@ const CALIB_FINGERS = Object.fromEntries(
       ])
     ),
   ])
+);
+
+const SWEEP_JOINTS = Object.entries(CALIB_FINGERS).flatMap(([finger, joints]) =>
+  Object.entries(joints)
+    .filter(([, def]) => def)
+    .map(([joint, def]) => ({
+      key: `${finger}-${joint}`,
+      finger,
+      joint,
+      def,
+    }))
 );
 
 async function getProtocols(patientEmail) {
@@ -1119,8 +1129,6 @@ async function showRealPatient(patient) {
         <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient</p></div>
         <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
       </div>
-      <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
-      <button class="sweep-launch-btn" onclick="startMLTrainer()">ML Trainer</button>
       <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
@@ -1156,8 +1164,6 @@ async function showRealPatient(patient) {
       <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p></div>
       <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
     </div>
-    <button class="sweep-launch-btn" onclick="startSweepCalibration('${patient.email}')">Sweep Calibration</button>
-    <button class="sweep-launch-btn" onclick="startMLTrainer()">ML Trainer</button>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
       <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
@@ -1633,6 +1639,21 @@ function getMiddleFingerAngle(landmarks) {
   const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
   const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
   return 180 - Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * (180 / Math.PI);
+}
+
+function calibAlphaFor(cutoff, dt) {
+  const tau = 1 / (2 * Math.PI * Math.max(cutoff, 1e-6));
+  return 1 / (1 + tau / Math.max(dt, 1e-6));
+}
+
+function sweepIsRealHand(landmarks) {
+  return Array.isArray(landmarks) && landmarks.length >= 21;
+}
+
+function calibDrawLandmarks(ctx, landmarks) {
+  if (!ctx || !landmarks || !window.drawConnectors || !window.drawLandmarks || !window.HAND_CONNECTIONS) return;
+  window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, { color: '#2D7FF9', lineWidth: 2 });
+  window.drawLandmarks(ctx, landmarks, { color: '#2D7FF9', lineWidth: 1, radius: 2 });
 }
 
 // Generic 2D joint angle — 0° = straight, higher = more bent (matches calibration tool)
@@ -3341,686 +3362,6 @@ function dismissExerciseDetail() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SECTION 16: SWEEP CALIBRATION
-   Therapist sweeps camera around patient's stationary hand. Algorithm records
-   a joint's angle only when the camera orientation satisfies Yash's rule for
-   that joint — rules derived from empirical goniometer testing.
-
-   Workflow:
-   1. Set SWEEP_DEBUG = true, run sweep, hold joints at known angles.
-   2. Click COPY LOG → export JSON with all orientation metrics + angles.
-   3. Find frames where angles[joint] matches known true angle → read metrics.
-   4. Fill in SWEEP_JOINT_RULES[joint] = [{ metric, min, max }, ...].
-   ══════════════════════════════════════════════════════════════════════════ */
-
-const SWEEP_DEBUG           = true;  // shows METRICS panel and debug log
-const SWEEP_REQUIRED_FRAMES = 5;     // consecutive in-rule frames before recording
-
-// Per-joint orientation rules. null = not recorded. Array of { metric, min, max } — OR logic.
-// metric must be one of the keys returned by sweepComputeMetrics().
-const SWEEP_JOINT_RULES = {
-  'thumb-mcp':  [{ metric: 'palmNormalZ',    min: 0.70, max: 1.0 }],
-  'thumb-pip':  [{ metric: 'palmNormalZ',    min: 0.70, max: 1.0 }],
-  'index-mcp':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
-  'index-pip':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
-  'index-dip':  [{ metric: 'fingerZ_index',  min: 0.25, max: 1.0 }],
-  'middle-mcp': [{ metric: 'fingerZ_middle', min: 0.55, max: 1.0 }],
-  'middle-pip': [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
-  'middle-dip': [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
-  'ring-mcp':   [{ metric: 'fingerZ_ring',   min: 0.35, max: 1.0 }],
-  'ring-pip':   [{ metric: 'fingerZ_ring',   min: 0.25, max: 1.0 }],
-  'ring-dip':   null,
-  'pinky-mcp':  [{ metric: 'fingerZ_pinky',  min: 0.25, max: 1.0 }],
-  'pinky-pip':  [{ metric: 'lateralZ',       min: 0.70, max: 1.0 }],
-  'pinky-dip':  [{ metric: 'palmNormalZ',    min: 0.20, max: 1.0 }],
-};
-
-// ── One Euro Filter for landmarks ─────────────────────────────────────────
-// Reuses calibAlphaFor() from Section 14. Separate state and no Math.round
-// since landmark coords are normalized floats, not integer angles.
-const SWEEP_ONE_EURO_MINCUTOFF = 1.0;
-const SWEEP_ONE_EURO_BETA      = 0.1;
-const SWEEP_ONE_EURO_DCUTOFF   = 1.0;
-const _sweepFilterStates = {};
-
-function sweepOneEuroFilter(id, rawValue, timestamp) {
-  if (!_sweepFilterStates[id]) {
-    _sweepFilterStates[id] = { prevValue: rawValue, prevDeriv: 0, prevTime: timestamp };
-    return rawValue;
-  }
-  const state   = _sweepFilterStates[id];
-  const dt      = (timestamp - state.prevTime) || (1 / 60);
-  const alpha_d = calibAlphaFor(SWEEP_ONE_EURO_DCUTOFF, dt);
-  const deriv   = alpha_d * ((rawValue - state.prevValue) / dt) + (1 - alpha_d) * state.prevDeriv;
-  const cutoff  = SWEEP_ONE_EURO_MINCUTOFF + SWEEP_ONE_EURO_BETA * Math.abs(deriv);
-  const alpha   = calibAlphaFor(cutoff, dt);
-  const value   = alpha * rawValue + (1 - alpha) * state.prevValue;
-  state.prevValue = value;
-  state.prevDeriv = deriv;
-  state.prevTime  = timestamp;
-  return value;
-}
-
-// ── State ─────────────────────────────────────────────────────────────────
-let _sweepPatientEmail = '';
-let _sweepMpHands      = null;
-let _sweepMpCamera     = null;
-let _sweepDebugLog     = [];   // circular buffer, last 60 frames
-let _sweepFacingMode   = 'environment';  // default to rear camera
-
-// Anatomical angle limits — readings outside these are physically impossible
-// and indicate a bad MediaPipe frame. Used to gate recording only.
-const SWEEP_ANGLE_LIMITS = { mcp: [0, 100], pip: [0, 115], dip: [0, 90] };
-
-// All 14 joints derived from CALIB_FINGERS (Section 14): thumb MP/IP,
-// index/middle/ring/pinky MCP/PIP/DIP. Thumb DIP is null in CALIB_FINGERS
-// so it is naturally skipped.
-const SWEEP_JOINTS = (() => {
-  const out = [];
-  for (const [finger, joints] of Object.entries(CALIB_FINGERS)) {
-    for (const [joint, def] of Object.entries(joints)) {
-      if (!def) continue;
-      out.push({ key: `${finger}-${joint}`, finger, joint, def });
-    }
-  }
-  return out;
-})();
-
-// Per-joint state: best metric value seen when angle was recorded
-const _sweepJointState = {};
-const _sweepFrameCount = {};  // consecutive in-rule frames per joint
-const _sweepCooldowns  = {};  // key → ms timestamp when cooldown expires
-let   _sweepCapturing  = false;
-
-function sweepResetState() {
-  for (const { key } of SWEEP_JOINTS) {
-    _sweepJointState[key] = { bestMetricVal: 0, bestAngle: null };
-    _sweepFrameCount[key] = 0;
-    delete _sweepCooldowns[key];
-  }
-  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);
-  _sweepCapturing = false;
-  const captureBtn = document.getElementById('sweepCaptureBtn');
-  const saveBtn    = document.getElementById('sweepSaveBtn');
-  if (captureBtn) captureBtn.style.display = '';
-  if (saveBtn)    saveBtn.style.display    = 'none';
-}
-
-function sweepStartCapture() {
-  _sweepCapturing = true;
-  const captureBtn = document.getElementById('sweepCaptureBtn');
-  const saveBtn    = document.getElementById('sweepSaveBtn');
-  if (captureBtn) captureBtn.style.display = 'none';
-  if (saveBtn)    saveBtn.style.display    = '';
-}
-
-function sweepResetJoint(key) {
-  _sweepJointState[key] = { bestMetricVal: 0, bestAngle: null };
-  _sweepFrameCount[key] = 0;
-  _sweepCooldowns[key]  = performance.now() + 3000;
-  const dot    = document.getElementById(`sweep-dot-${key}`);
-  const bestEl = document.getElementById(`sweep-best-${key}`);
-  if (dot)    { dot.classList.remove('captured', 'in-range'); dot.classList.add('cooldown'); }
-  if (bestEl) bestEl.textContent = '—';
-}
-
-// ── Orientation metrics ────────────────────────────────────────────────────
-// Returns all measurable camera-orientation metrics from 3D landmarks.
-// Yash references these keys in SWEEP_JOINT_RULES after goniometer testing.
-function sweepComputeMetrics(landmarks) {
-  const lateralZ   = Math.abs(normZ(landmarks[5], landmarks[17]));
-  const palmNormalZ = Math.abs(sweepPalmNormalZ(landmarks));
-  return {
-    lateralZ,
-    palmNormalZ,
-    fingerZ_thumb:  Math.abs(normZ(landmarks[2],  landmarks[3])),
-    fingerZ_index:  Math.abs(normZ(landmarks[5],  landmarks[6])),
-    fingerZ_middle: Math.abs(normZ(landmarks[9],  landmarks[10])),
-    fingerZ_ring:   Math.abs(normZ(landmarks[13], landmarks[14])),
-    fingerZ_pinky:  Math.abs(normZ(landmarks[17], landmarks[18])),
-  };
-}
-
-function normZ(a, b) {
-  const dx = b.x - a.x, dy = b.y - a.y, dz = (b.z || 0) - (a.z || 0);
-  const mag = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  return mag === 0 ? 0 : dz / mag;
-}
-
-function sweepPalmNormalZ(landmarks) {
-  const w = landmarks[0], p1 = landmarks[5], p5 = landmarks[17];
-  const ax = p5.x - w.x, ay = p5.y - w.y, az = (p5.z || 0) - (w.z || 0);
-  const bx = p1.x - w.x, by = p1.y - w.y, bz = (p1.z || 0) - (w.z || 0);
-  const cz = ax * by - ay * bx;
-  const mag = Math.sqrt((ay * bz - az * by) ** 2 + (az * bx - ax * bz) ** 2 + cz ** 2);
-  return mag === 0 ? 0 : cz / mag;
-}
-
-// ── Real hand sanity check ─────────────────────────────────────────────────
-// Verifies that detected landmarks look like a real hand, not a face or object.
-// For each of the 4 fingers, the MCP→PIP segment should be at least as long
-// as the PIP→DIP segment (real hand anatomy). Face false-positives fail this.
-function sweepIsRealHand(landmarks) {
-  const fingers = [
-    [5, 6, 7],   // index  MCP, PIP, DIP
-    [9, 10, 11], // middle
-    [13, 14, 15], // ring
-    [17, 18, 19], // pinky
-  ];
-  let passes = 0;
-  for (const [a, b, c] of fingers) {
-    const d1 = Math.hypot(landmarks[b].x - landmarks[a].x, landmarks[b].y - landmarks[a].y);
-    const d2 = Math.hypot(landmarks[c].x - landmarks[b].x, landmarks[c].y - landmarks[b].y);
-    if (d1 > 0.01 && d2 > 0.005 && d1 >= d2 * 0.5 && d2 >= d1 * 0.25) passes++;
-  }
-  return passes >= 3;
-}
-
-// ── Distance detection ─────────────────────────────────────────────────────
-// Wrist (landmark 0) → middle MCP (landmark 9) in normalised coords scales
-// inversely with real distance. Thresholds from testing at ~30–50 cm.
-function sweepDistanceStatus(landmarks) {
-  const w = landmarks[0], m = landmarks[9];
-  const d = Math.sqrt((w.x - m.x) ** 2 + (w.y - m.y) ** 2);
-  if (d < 0.12) return 'too_far';
-  if (d > 0.38) return 'too_close';
-  return 'good';
-}
-
-// ── Guidance text ──────────────────────────────────────────────────────────
-function sweepGuidanceText() {
-  const untuned = SWEEP_JOINTS.filter(({ key }) => !SWEEP_JOINT_RULES[key]);
-  if (untuned.length > 0) return `${untuned.length} joint${untuned.length > 1 ? 's' : ''} have no rules set yet.`;
-  const missing = SWEEP_JOINTS.filter(({ key }) => _sweepJointState[key].bestAngle === null);
-  if (missing.length === 0) return 'All joints captured.';
-  const ulnar  = missing.filter(({ finger }) => finger === 'ring' || finger === 'pinky');
-  const radial = missing.filter(({ finger }) => finger === 'thumb' || finger === 'index' || finger === 'middle');
-  if (ulnar.length > radial.length)  return 'Tilt camera toward pinky side.';
-  if (radial.length > ulnar.length)  return 'Tilt camera toward thumb side.';
-  return 'Keep sweeping around the hand.';
-}
-
-// ── Build completion grid ──────────────────────────────────────────────────
-// Each cell shows: status dot, live angle (current frame), best recorded angle
-function sweepBuildGrid() {
-  const grid = document.getElementById('sweepGrid');
-  if (!grid) return;
-  const fingers      = ['thumb', 'index', 'middle', 'ring', 'pinky'];
-  const fingerLabels = { thumb: 'THB', index: 'IDX', middle: 'MID', ring: 'RNG', pinky: 'PNK' };
-  const joints       = ['mcp', 'pip', 'dip'];
-  const jointLabels  = { mcp: 'MCP', pip: 'PIP', dip: 'DIP' };
-
-  let html = '<div class="sweep-grid-row sweep-grid-header"><div class="sweep-grid-cell sweep-grid-label"></div>';
-  for (const f of fingers) html += `<div class="sweep-grid-cell sweep-grid-col-label">${fingerLabels[f]}</div>`;
-  html += '</div>';
-
-  for (const j of joints) {
-    html += `<div class="sweep-grid-row"><div class="sweep-grid-cell sweep-grid-label">${jointLabels[j]}</div>`;
-    for (const f of fingers) {
-      const disabled = f === 'thumb' && j === 'dip';
-      const key = `${f}-${j}`;
-      if (disabled) {
-        html += `<div class="sweep-grid-cell sweep-cell-data"><div class="sweep-dot sweep-dot-disabled"></div></div>`;
-      } else {
-        html += `<div class="sweep-grid-cell sweep-cell-data">
-          <div class="sweep-dot" id="sweep-dot-${key}" onclick="sweepResetJoint('${key}')"></div>
-          <div class="sweep-live-val" id="sweep-live-${key}">—</div>
-          <div class="sweep-best-val" id="sweep-best-${key}">—</div>
-        </div>`;
-      }
-    }
-    html += '</div>';
-  }
-  grid.innerHTML = html;
-}
-
-// ── Update grid UI ─────────────────────────────────────────────────────────
-// Three states per dot: untuned (gray, default) / in-range (yellow) / captured (green)
-function sweepUpdateGrid(metrics) {
-  let captured = 0;
-  for (const { key } of SWEEP_JOINTS) {
-    const state  = _sweepJointState[key];
-    const rules  = SWEEP_JOINT_RULES[key];
-    const dot    = document.getElementById(`sweep-dot-${key}`);
-    const bestEl = document.getElementById(`sweep-best-${key}`);
-
-    if (dot) {
-      const inCooldown = _sweepCooldowns[key] && performance.now() < _sweepCooldowns[key];
-      dot.classList.remove('untuned', 'in-range', 'captured', 'cooldown');
-      if (state.bestAngle !== null) {
-        dot.classList.add('captured');
-      } else if (inCooldown) {
-        dot.classList.add('cooldown');
-      } else if (!rules) {
-        dot.classList.add('untuned');
-      } else if (metrics && _sweepCapturing) {
-        if (rules.some(r => metrics[r.metric] >= r.min && metrics[r.metric] <= r.max)) dot.classList.add('in-range');
-      }
-    }
-
-    if (bestEl) bestEl.textContent = state.bestAngle !== null ? `${state.bestAngle}°` : '—';
-    if (state.bestAngle !== null) captured++;
-  }
-  const btn = document.getElementById('sweepSaveBtn');
-  if (btn) btn.textContent = `Save — ${captured}/14 captured`;
-}
-
-// ── Per-joint foreshortening check ────────────────────────────────────────
-// Returns false if either segment forming the angle lever arm is too short in
-// 2D relative to hand scale — indicating the segment is edge-on / occluded.
-// Hand scale = wrist→middle MCP distance (scales with camera distance).
-const SWEEP_FORESHORTENING_THRESHOLD = 0.12;
-
-function sweepJointReliable(landmarks, def) {
-  const handScale = Math.hypot(landmarks[9].x - landmarks[0].x, landmarks[9].y - landmarks[0].y);
-  if (handScale < 0.01) return false;
-  const seg1 = Math.hypot(landmarks[def.b].x - landmarks[def.a].x, landmarks[def.b].y - landmarks[def.a].y);
-  const seg2 = Math.hypot(landmarks[def.c].x - landmarks[def.b].x, landmarks[def.c].y - landmarks[def.b].y);
-  return seg1 >= SWEEP_FORESHORTENING_THRESHOLD * handScale
-      && seg2 >= SWEEP_FORESHORTENING_THRESHOLD * handScale;
-}
-
-// ── Update live angle display (current frame) ──────────────────────────────
-function sweepUpdateLiveAngles(landmarks) {
-  for (const { key, joint, def } of SWEEP_JOINTS) {
-    const el = document.getElementById(`sweep-live-${key}`);
-    if (!el) continue;
-    const trained = getTrainedAngle(key, landmarks);
-    const raw     = trained !== null
-      ? trained
-      : Math.round(getJointAngle(landmarks, [def.a, def.b, def.c]));
-    const limits = SWEEP_ANGLE_LIMITS[joint];
-    const angle  = limits ? Math.min(raw, limits[1]) : raw;
-    el.textContent = angle + '°';
-    el.style.color = trained !== null ? 'var(--green)' : '';
-  }
-}
-
-function sweepClearLiveAngles() {
-  for (const { key } of SWEEP_JOINTS) {
-    const el = document.getElementById(`sweep-live-${key}`);
-    if (el) el.textContent = '—';
-  }
-}
-
-// ── Update distance indicator UI ───────────────────────────────────────────
-function sweepUpdateDistance(status) {
-  const ids = { too_close: 'sweepDistTooClose', good: 'sweepDistGood', too_far: 'sweepDistTooFar' };
-  for (const [k, id] of Object.entries(ids)) {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('active', k === status);
-  }
-}
-
-// ── Update metrics readout (debug only) ───────────────────────────────────
-function sweepUpdateMetrics(metrics) {
-  if (!SWEEP_DEBUG || !metrics) return;
-  const el = document.getElementById('sweepMetricsReadout');
-  if (!el) return;
-  el.textContent = Object.entries(metrics)
-    .map(([k, v]) => `${k}: ${v.toFixed(3)}`).join('\n');
-}
-
-// ── Landmark drawing for sweep ─────────────────────────────────────────────
-// Tip landmarks (4,8,12,16,20) are used in DIP angle calculations but not drawn —
-// MediaPipe's tip positions are inaccurate for curled/occluded fingers, and the
-// large glowing dots from calibDrawLandmarks make that obvious. All other joints
-// are drawn as uniform small dots.
-const SWEEP_TIP_INDICES = new Set([4, 8, 12, 16, 20]);
-
-function sweepDrawLandmarks(ctx, landmarks) {
-  window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, {
-    color: 'rgba(0, 229, 192, 0.45)', lineWidth: 2,
-  });
-  landmarks.forEach((lm, i) => {
-    const x = lm.x * ctx.canvas.width;
-    const y = lm.y * ctx.canvas.height;
-    ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle  = 'rgba(0,229,192,0.7)';
-    ctx.shadowBlur = 5;
-    ctx.shadowColor = '#00e5c0';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  });
-}
-
-// ── MediaPipe results callback ─────────────────────────────────────────────
-function sweepOnResults(results) {
-  const canvas    = document.getElementById('sweepCanvas');
-  const wrap      = document.getElementById('sweepCameraWrap');
-  const trackDot  = document.getElementById('sweepTrackDot');
-  const guidEl    = document.getElementById('sweepGuidance');
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d');
-
-  // Center-crop to square (same pattern as calibOnResults)
-  const srcW = results.image.width;
-  const srcH = results.image.height;
-  const size = Math.min(srcW, srcH);
-  const cropX = (srcW - size) / 2;
-  const cropY = (srcH - size) / 2;
-  canvas.width  = size;
-  canvas.height = size;
-  ctx.save();
-  ctx.clearRect(0, 0, size, size);
-  ctx.drawImage(results.image, cropX, cropY, size, size, 0, 0, size, size);
-
-  const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
-
-  if (count === 0) {
-    if (trackDot) trackDot.classList.remove('active');
-    if (wrap)     wrap.classList.remove('scanning');
-    sweepUpdateDistance('none');
-    sweepUpdateMetrics(null);
-    sweepClearLiveAngles();
-    if (guidEl)  guidEl.textContent = 'Point camera at hand';
-    ctx.restore();
-    return;
-  }
-
-  const rawLandmarks = results.multiHandLandmarks[0];
-
-  // Sanity check on raw landmarks — reject non-hand detections (face, objects, etc.)
-  if (!sweepIsRealHand(rawLandmarks)) {
-    if (trackDot) trackDot.classList.remove('active');
-    if (wrap)     wrap.classList.remove('scanning');
-    sweepUpdateDistance('none');
-    sweepUpdateMetrics(null);
-    sweepClearLiveAngles();
-    for (const { key } of SWEEP_JOINTS) _sweepFrameCount[key] = 0;
-    ctx.restore();
-    return;
-  }
-
-  if (trackDot) trackDot.classList.add('active');
-  if (wrap)     wrap.classList.add('scanning');
-
-  // Smooth landmarks with One Euro Filter before any computation or drawing
-  const t = performance.now() / 1000;
-  const landmarks = rawLandmarks.map((lm, i) => ({
-    ...lm,
-    x: sweepOneEuroFilter(`${i}-x`, lm.x, t),
-    y: sweepOneEuroFilter(`${i}-y`, lm.y, t),
-    z: sweepOneEuroFilter(`${i}-z`, lm.z || 0, t),
-  }));
-
-  // Remap to cropped-square coords for drawing
-  const drawLandmarks = landmarks.map(lm => ({
-    ...lm,
-    x: (lm.x * srcW - cropX) / size,
-    y: (lm.y * srcH - cropY) / size,
-  }));
-  sweepDrawLandmarks(ctx, drawLandmarks);
-  ctx.restore();
-
-  const _sRawHand = (results.multiHandedness?.[0]?.label || '').toLowerCase();
-  _currentHandLabel = _sRawHand === 'left' ? 'right' : _sRawHand === 'right' ? 'left' : null;
-  extractVisualFeatures(canvas, landmarks).then(f => { _currentFrameFeatures = f; });
-
-  // Distance indicator — informational only, does not block recording
-  sweepUpdateDistance(sweepDistanceStatus(landmarks));
-
-  // Compute all orientation metrics
-  const metrics = sweepComputeMetrics(landmarks);
-  sweepUpdateMetrics(metrics);
-
-  // Update live angle display every frame
-  sweepUpdateLiveAngles(landmarks);
-
-  // Per-joint recording: only record when capturing is active and rule is satisfied
-  for (const { key, joint, def } of SWEEP_JOINTS) {
-    const rules = SWEEP_JOINT_RULES[key];
-    if (!rules || !_sweepCapturing) { _sweepFrameCount[key] = 0; continue; }
-    if (_sweepCooldowns[key] && performance.now() < _sweepCooldowns[key]) { _sweepFrameCount[key] = 0; continue; }
-
-    const passing = rules.find(r => metrics[r.metric] >= r.min && metrics[r.metric] <= r.max);
-
-    if (passing) {
-      const val   = metrics[passing.metric];
-      const angle = Math.round(getJointAngle(landmarks, [def.a, def.b, def.c]));
-      const [minA, maxA] = SWEEP_ANGLE_LIMITS[joint] || SWEEP_ANGLE_LIMITS.pip;
-      if (angle < minA || angle > maxA) { _sweepFrameCount[key] = 0; continue; }
-      _sweepFrameCount[key] = (_sweepFrameCount[key] || 0) + 1;
-      if (_sweepFrameCount[key] >= SWEEP_REQUIRED_FRAMES) {
-        if (_sweepJointState[key].bestAngle === null || val > _sweepJointState[key].bestMetricVal) {
-          _sweepJointState[key].bestMetricVal = val;
-          _sweepJointState[key].bestAngle     = angle;
-        }
-      }
-    } else {
-      _sweepFrameCount[key] = 0;
-    }
-  }
-
-  sweepUpdateGrid(metrics);
-  if (guidEl) guidEl.textContent = sweepGuidanceText();
-
-  // Debug frame logging — all metrics + all joint angles per frame
-  if (SWEEP_DEBUG) {
-    const frame = { t: performance.now().toFixed(0), ...Object.fromEntries(Object.entries(metrics).map(([k, v]) => [k, parseFloat(v.toFixed(3))])), angles: {} };
-    for (const { key, def } of SWEEP_JOINTS) {
-      frame.angles[key] = Math.round(getJointAngle(landmarks, [def.a, def.b, def.c]));
-    }
-    _sweepDebugLog.push(frame);
-    if (_sweepDebugLog.length > 60) _sweepDebugLog.shift();
-    const logEl = document.getElementById('sweepDebugLog');
-    if (logEl) {
-      logEl.textContent = _sweepDebugLog.slice(-5).map(f =>
-        Object.entries(f).filter(([k]) => k !== 't' && k !== 'angles').map(([k, v]) => `${k}:${v}`).join(' ')
-      ).join('\n');
-    }
-  }
-}
-
-// ── sweepToggleDebug / sweepCopyLog ────────────────────────────────────────
-function sweepToggleDebug() {
-  const panel = document.getElementById('sweepDebugPanel');
-  if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
-}
-
-function sweepCopyLog() {
-  navigator.clipboard.writeText(JSON.stringify(_sweepDebugLog, null, 2)).catch(() => {});
-}
-
-// ── sweepStartCamera ───────────────────────────────────────────────────────
-// Mobile: RAF loop + direct getUserMedia (iOS Safari fix — same as patient camera).
-// Desktop: window.Camera class. Reads _sweepFacingMode and _sweepMpHands.
-function sweepStartCamera() {
-  const video      = document.getElementById('sweepVideo');
-  const overlay    = document.getElementById('sweepOverlay');
-  const overlayMsg = document.getElementById('sweepOverlayMsg');
-
-  // On mobile, override CSS mirror based on facing mode (rear = none, front = scaleX(-1)).
-  // On desktop, CSS scaleX(-1) is always correct — front webcam raw image is naturally mirrored.
-  if (isMobile()) {
-    const mirror = _sweepFacingMode === 'user' ? 'scaleX(-1)' : 'none';
-    video.style.transform = mirror;
-    const sweepCanvas = document.getElementById('sweepCanvas');
-    if (sweepCanvas) sweepCanvas.style.transform = mirror;
-  }
-
-  if (overlayMsg) overlayMsg.textContent = 'REQUESTING CAMERA...';
-
-  if (isMobile()) {
-    let active = true;
-    _sweepMpCamera = { stop: () => { active = false; } };
-
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: _sweepFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    }).then(stream => {
-        video.srcObject = stream;
-        const offCanvas = document.createElement('canvas');
-        const offCtx    = offCanvas.getContext('2d');
-
-        const processFrame = async () => {
-          if (!active) return;
-          if (video.readyState >= 2) {
-            const maxW = 1280, maxH = 720;
-            const scale = Math.min(maxW / video.videoWidth, maxH / video.videoHeight, 1);
-            offCanvas.width  = Math.round(video.videoWidth  * scale);
-            offCanvas.height = Math.round(video.videoHeight * scale);
-            offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
-            try { await _sweepMpHands.send({ image: offCanvas }); } catch(e) {}
-          }
-          if (active) requestAnimationFrame(processFrame);
-        };
-
-        video.onloadedmetadata = () => {
-          video.play();
-          if (overlay)    overlay.classList.add('hidden');
-          video.classList.add('ready');
-          processFrame();
-        };
-
-        _sweepMpCamera = {
-          stop: () => {
-            active = false;
-            stream.getTracks().forEach(t => t.stop());
-            video.srcObject = null;
-            video.classList.remove('ready');
-          }
-        };
-      })
-      .catch(err => {
-        if (overlay)    overlay.classList.remove('hidden');
-        if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
-        console.error(err);
-      });
-  } else {
-    // Desktop: same RAF loop as mobile, send video directly (no offscreen canvas needed outside iOS Safari)
-    let active = true;
-    _sweepMpCamera = { stop: () => { active = false; } };
-
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: _sweepFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    }).then(stream => {
-      video.srcObject = stream;
-
-      const processFrame = async () => {
-        if (!active) return;
-        if (video.readyState >= 2) {
-          try { await _sweepMpHands.send({ image: video }); } catch(e) {}
-        }
-        if (active) requestAnimationFrame(processFrame);
-      };
-
-      video.onloadedmetadata = () => {
-        video.play();
-        if (overlay) overlay.classList.add('hidden');
-        video.classList.add('ready');
-        processFrame();
-      };
-
-      _sweepMpCamera = {
-        stop: () => {
-          active = false;
-          stream.getTracks().forEach(t => t.stop());
-          video.srcObject = null;
-          video.classList.remove('ready');
-        }
-      };
-    }).catch(err => {
-      if (overlay)    overlay.classList.remove('hidden');
-      if (overlayMsg) overlayMsg.textContent = 'CAMERA ACCESS DENIED';
-      console.error(err);
-    });
-  }
-}
-
-// ── sweepFlipCamera ────────────────────────────────────────────────────────
-function sweepFlipCamera() {
-  _sweepFacingMode = _sweepFacingMode === 'environment' ? 'user' : 'environment';
-  if (_sweepMpCamera) { _sweepMpCamera.stop(); _sweepMpCamera = null; }
-  Object.keys(_sweepFilterStates).forEach(k => delete _sweepFilterStates[k]);
-  sweepStartCamera();
-}
-
-// ── startSweepCalibration ──────────────────────────────────────────────────
-async function startSweepCalibration(patientEmail) {
-  _sweepPatientEmail = patientEmail;
-  _sweepDebugLog     = [];
-  _sweepFacingMode   = 'environment';
-  sweepResetState();
-
-  showScreen('sweepCalibrationScreen');
-  sweepBuildGrid();
-  sweepUpdateGrid(null);
-  sweepUpdateDistance('none');
-
-  const video      = document.getElementById('sweepVideo');
-  const overlay    = document.getElementById('sweepOverlay');
-  const overlayMsg = document.getElementById('sweepOverlayMsg');
-  const statusEl   = document.getElementById('sweepStatusText');
-  const dbgBtn     = document.getElementById('sweepDebugBtn');
-
-  if (statusEl)  { statusEl.textContent = 'Loading...'; statusEl.className = ''; }
-  if (overlayMsg)  overlayMsg.textContent = 'LOADING MEDIAPIPE...';
-  if (dbgBtn)      dbgBtn.style.display = SWEEP_DEBUG ? '' : 'none';
-  const metricsPanel = document.getElementById('sweepMetricsPanel');
-  if (metricsPanel)  metricsPanel.style.display = SWEEP_DEBUG ? '' : 'none';
-
-  if (_sweepMpCamera) return; // already running
-
-  const hands = new window.Hands({
-    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-  });
-  hands.setOptions({
-    maxNumHands: 1,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.85,
-    minTrackingConfidence: 0.75,
-  });
-  hands.onResults(sweepOnResults);
-  _sweepMpHands = hands;
-
-  sweepStartCamera();
-}
-
-// ── sweepBack ──────────────────────────────────────────────────────────────
-function sweepBack() {
-  if (_sweepMpCamera) { _sweepMpCamera.stop(); _sweepMpCamera = null; }
-  _sweepMpHands = null;
-  const video = document.getElementById('sweepVideo');
-  if (video?.srcObject) {
-    video.srcObject.getTracks().forEach(t => t.stop());
-    video.srcObject = null;
-    video.classList.remove('ready');
-  }
-  showScreen('therapistScreen');
-}
-
-// ── sweepSave ──────────────────────────────────────────────────────────────
-async function sweepSave() {
-  const btn = document.getElementById('sweepSaveBtn');
-  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
-
-  const joints = {};
-  for (const { key } of SWEEP_JOINTS) {
-    const s = _sweepJointState[key];
-    if (s.bestAngle !== null) {
-      joints[key] = { angle: s.bestAngle, metricVal: parseFloat(s.bestMetricVal.toFixed(3)) };
-    }
-  }
-
-  try {
-    await db.collection('calibration').doc(_sweepPatientEmail).set({
-      joints,
-      recordedAt: new Date().toISOString(),
-      recordedBy: currentUser?.email || '',
-    });
-    if (btn) { btn.textContent = 'Saved'; btn.disabled = false; }
-    setTimeout(sweepBack, 800);
-  } catch (err) {
-    if (btn) { btn.textContent = 'Save failed — retry'; btn.disabled = false; }
-    console.error(err);
-  }
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
    SECTION 17: ML ANGLE TRAINER
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -4307,7 +3648,7 @@ function mlOnResults(results) {
 
   const handEl = document.getElementById('mlHandLabel');
 
-  if (results.multiHandLandmarks.length === 0 || !sweepIsRealHand(results.multiHandLandmarks[0])) {
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0 || !sweepIsRealHand(results.multiHandLandmarks[0])) {
     _mlCurrentLandmarks = null;
     _mlCurrentHand      = null;
     _currentHandLabel   = null;
@@ -5125,8 +4466,6 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode,
-  startSweepCalibration, sweepBack, sweepSave, sweepToggleDebug, sweepCopyLog, sweepFlipCamera,
-  sweepStartCapture, sweepResetJoint,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
