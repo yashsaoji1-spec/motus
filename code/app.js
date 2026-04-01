@@ -26,6 +26,7 @@ let editingPatientEmail = null;
 var activeSheetProtocol = null;
 let _protoPatientEmail = null;
 let _apmNewExCat = false;
+let _bulkAssignMode = false;
 
 // ── Video recording state ──
 let mediaRecorder        = null;   // active MediaRecorder during a session
@@ -1382,6 +1383,135 @@ function closeAddProtocol() {
   editingProtocolId = null;
   editingPatientEmail = null;
   _protoPatientEmail = null;
+  if (_bulkAssignMode) {
+    _bulkAssignMode = false;
+    const patSection = document.getElementById('bapPatientSection');
+    if (patSection) patSection.style.display = 'none';
+  }
+}
+
+async function openBulkAssign() {
+  _bulkAssignMode = true;
+  _protoPatientEmail = null;
+  editingProtocolId = null;
+  editingPatientEmail = null;
+  await _apmLoadCustomExercises();
+  _apmNewExCat = false;
+  const modal = document.getElementById('addProtocolModal');
+  if (!modal) return;
+  document.getElementById('apmTitle').textContent = 'Bulk Assign Exercise';
+  document.getElementById('apmPatientName').textContent = '';
+  document.getElementById('apmSubmitBtn').textContent = 'Assign to Selected';
+  const repsEl  = document.getElementById('protocolReps');
+  const setsEl  = document.getElementById('protocolSets');
+  const freqEl  = document.getElementById('protocolFrequency');
+  const notesEl = document.getElementById('protocolNotes');
+  const typeEl  = document.getElementById('exerciseType');
+  if (repsEl)  repsEl.value  = 10;
+  if (setsEl)  setsEl.value  = 3;
+  if (freqEl)  freqEl.value  = 'daily';
+  if (notesEl) notesEl.value = '';
+  if (typeEl)  typeEl.value  = '';
+  const searchEl = document.getElementById('apmSearch');
+  if (searchEl) searchEl.value = '';
+  document.getElementById('apmCreateFields').style.display = 'none';
+  const patSection = document.getElementById('bapPatientSection');
+  if (patSection) patSection.style.display = 'block';
+  await _bapLoadPatients();
+  const cancelBtn = document.getElementById('apmCancelBtn');
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = closeAddProtocol;
+  submitBtn.onclick = bulkAssignProtocol;
+  _bapUpdateSubmitBtn();
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  _apmRenderLibrary('');
+  updateExerciseParamsUI(null, null);
+}
+
+async function _bapLoadPatients() {
+  const listEl = document.getElementById('bapPatientsList');
+  if (!listEl) return;
+  const selectAll = document.getElementById('bapSelectAll');
+  if (selectAll) selectAll.checked = false;
+  const patients = await getConnectedPatients(currentUser.email);
+  if (!patients.length) {
+    listEl.innerHTML = '<div class="bap-no-patients">No connected patients</div>';
+    return;
+  }
+  listEl.innerHTML = patients.map(p => `
+    <label class="bap-patient-row">
+      <input type="checkbox" class="bap-patient-cb" value="${p.email}" onchange="_bapUpdateSubmitBtn()">
+      <span class="bap-patient-name">${p.name}</span>
+    </label>
+  `).join('');
+}
+
+function bapToggleAll(checked) {
+  document.querySelectorAll('.bap-patient-cb').forEach(cb => { cb.checked = checked; });
+  _bapUpdateSubmitBtn();
+}
+
+function _bapUpdateSubmitBtn() {
+  const count = document.querySelectorAll('.bap-patient-cb:checked').length;
+  const btn = document.getElementById('apmSubmitBtn');
+  if (!btn) return;
+  btn.textContent = count > 0 ? `Assign to ${count} patient${count !== 1 ? 's' : ''}` : 'Assign to Selected';
+}
+
+async function bulkAssignProtocol() {
+  const selected = Array.from(document.querySelectorAll('.bap-patient-cb:checked')).map(cb => cb.value);
+  if (!selected.length) { alert('Select at least one patient.'); return; }
+  const exerciseType = document.getElementById('exerciseType').value;
+  if (!exerciseType) { alert('Please select an exercise.'); return; }
+  const defaults = EXERCISE_DEFAULTS[exerciseType];
+  let exerciseParams = null;
+  if (defaults && defaults.metric === 'angle') {
+    const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
+    if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
+    const conditions = Array.from(conditionRows).map(row => ({
+      finger:   row.querySelector('.ep-finger-select').value,
+      joint:    row.querySelector('.ep-joint-select').value,
+      flexAt:   parseFloat(row.querySelector('.ep-flex-at').value),
+      extendAt: parseFloat(row.querySelector('.ep-extend-at').value),
+    }));
+    const requireAllEl = document.getElementById('epRequireAll');
+    exerciseParams = { metric: 'angle', conditions, requireAll: requireAllEl ? requireAllEl.checked : conditions.length > 1 };
+  } else if (defaults && (defaults.metric === 'distance' || defaults.metric === 'abduction')) {
+    exerciseParams = { ...defaults };
+  }
+  const reps = parseInt(document.getElementById('protocolReps').value);
+  const sets = parseInt(document.getElementById('protocolSets').value);
+  if (isNaN(reps) || reps < 1) { alert('Please enter a valid rep count.'); return; }
+  if (isNaN(sets) || sets < 1) { alert('Please enter a valid set count.'); return; }
+  const freq  = document.getElementById('protocolFrequency').value;
+  const notes = document.getElementById('protocolNotes').value.trim();
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  if (submitBtn) submitBtn.disabled = true;
+  let successCount = 0;
+  const now = Date.now();
+  for (const patientEmail of selected) {
+    try {
+      const existing = await getProtocols(patientEmail);
+      const newItem = {
+        id:           (now + successCount).toString(),
+        exerciseType,
+        reps,
+        sets,
+        frequency:    freq,
+        notes,
+        assignedBy:   currentUser.name,
+        assignedAt:   new Date().toISOString()
+      };
+      if (exerciseParams) newItem.exerciseParams = exerciseParams;
+      await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+      successCount++;
+    } catch (e) { /* skip failed patient */ }
+  }
+  if (submitBtn) submitBtn.disabled = false;
+  closeAddProtocol();
+  alert(`Exercise assigned to ${successCount} patient${successCount !== 1 ? 's' : ''}.`);
 }
 
 function _apmRenderLibrary(query) {
@@ -4473,6 +4603,7 @@ Object.assign(window, {
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
+  openBulkAssign, bulkAssignProtocol, bapToggleAll, _bapUpdateSubmitBtn,
   apmEnterCreateMode, apmExitCreateMode, apmSaveCustomExercise,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
 

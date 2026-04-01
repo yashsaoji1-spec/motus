@@ -299,6 +299,45 @@ body {
   margin-bottom: 8px;
 }
 .sidebar-ml-btn:hover { background: #0960A0; box-shadow: 0 2px 8px var(--accent-glow); }
+.sidebar-bulk-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+  margin-bottom: 8px;
+}
+.sidebar-bulk-btn:hover { background: var(--accent-dim); }
+
+/* ── Bulk assign patient selector ──────────────────────────────────────────── */
+.bap-patients-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+.bap-select-all-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.75rem; color: var(--muted); cursor: pointer;
+}
+.bap-patients-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 140px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: var(--space-2);
+}
+.bap-patient-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  cursor: pointer; padding: 5px var(--space-2); border-radius: 4px;
+}
+.bap-patient-row:hover { background: var(--accent-dim); }
+.bap-patient-name { font-size: var(--text-sm); color: var(--text); }
+.bap-no-patients { color: var(--muted); font-size: var(--text-sm); text-align: center; padding: var(--space-3); }
 
 /* ── Patient home ─────────────────────────────────────────────────────────── */
 #patientScreen {

@@ -353,6 +353,7 @@
       <input type="text" id="patientSearch" class="sidebar-search" placeholder="Search patients…"
              oninput="filterPatients(this.value)" />
     </div>
+    <button class="sidebar-bulk-btn" onclick="openBulkAssign()">Bulk Assign Protocol</button>
     <div class="sidebar-footer">
       <span class="sidebar-switch-user" onclick="requestLogout()">Switch user</span>
     </div>
@@ -642,6 +643,15 @@
         <div class="apm-lib-list" id="apmLibList"></div>
       </div>
       <div class="apm-config-col">
+        <div id="bapPatientSection" style="display:none">
+          <div class="bap-patients-hdr">
+            <span class="apm-label">Assign to Patients</span>
+            <label class="bap-select-all-label">
+              <input type="checkbox" id="bapSelectAll" onchange="bapToggleAll(this.checked)"> Select all
+            </label>
+          </div>
+          <div class="bap-patients-list" id="bapPatientsList"></div>
+        </div>
         <div id="apmCreateFields" style="display:none;flex-direction:column;gap:var(--space-4)">
           <div class="apm-field">
             <label class="apm-label">Exercise Name</label>
