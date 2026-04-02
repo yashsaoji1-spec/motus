@@ -342,7 +342,6 @@
 <div id="therapistScreen" class="screen">
   <div class="sidebar">
     <h2>phalanX</h2>
-    <button class="sidebar-ml-btn" onclick="startMLTrainer()">ML Trainer</button>
     <div class="clinic-badge" onclick="copyClinicCode()" title="Click to copy">
       <span>Code:</span>
       <span class="clinic-badge-code" id="therapistCode">------</span>
@@ -635,58 +634,94 @@
       <button class="apm-close-btn" onclick="closeAddProtocol()">x</button>
     </div>
     <div class="apm-body">
-      <div class="apm-lib-col">
-        <div class="apm-lib-search-wrap">
-          <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off">
-          <button class="apm-new-ex-btn" onclick="apmEnterCreateMode()" title="Create new exercise">+</button>
+      <div class="apm-form-col">
+        <div class="apm-lib-col">
+          <div class="apm-lib-search-wrap">
+            <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off">
+            <button class="apm-new-ex-btn" onclick="apmEnterCreateMode()" title="Create new exercise">+</button>
+          </div>
+          <div class="apm-lib-list" id="apmLibList"></div>
         </div>
-        <div class="apm-lib-list" id="apmLibList"></div>
+        <div class="apm-config-col">
+          <div id="bapPatientSection" style="display:none">
+            <div class="bap-patients-hdr">
+              <span class="apm-label">Assign to Patients</span>
+              <label class="bap-select-all-label">
+                <input type="checkbox" id="bapSelectAll" onchange="bapToggleAll(this.checked)"> Select all
+              </label>
+            </div>
+            <div class="bap-patients-list" id="bapPatientsList"></div>
+          </div>
+          <div id="apmCreateFields" style="display:none;flex-direction:column;gap:var(--space-4)">
+            <div class="apm-field">
+              <label class="apm-label">Exercise Name</label>
+              <input type="text" id="apmNewExName" class="apm-input" placeholder="e.g. Wrist Circles" autocomplete="off">
+            </div>
+            <div class="apm-field">
+              <label class="apm-label">Category</label>
+              <select id="apmNewExCatSelect" class="apm-select"></select>
+            </div>
+          </div>
+          <div id="apmSelectedExInfo" class="apm-selected-ex-info" style="display:none;">
+            <div id="apmSelectedExName" class="apm-selected-ex-name"></div>
+            <div id="apmSelectedExDesc" class="apm-selected-ex-desc"></div>
+          </div>
+          <div id="exerciseParamsSection" class="ep-container"></div>
+          <div class="apm-dosage-row">
+            <div class="apm-field">
+              <label class="apm-label">Reps</label>
+              <input type="number" id="protocolReps" class="apm-input" value="10" min="1" max="50">
+            </div>
+            <div class="apm-field">
+              <label class="apm-label">Sets</label>
+              <input type="number" id="protocolSets" class="apm-input" value="3" min="1" max="10">
+            </div>
+            <div class="apm-field">
+              <label class="apm-label">Frequency</label>
+              <select id="protocolFrequency" class="apm-select">
+                <option value="daily">Daily</option>
+                <option value="twice_daily">Twice Daily</option>
+                <option value="every_other">Every Other Day</option>
+                <option value="three_week">3x Per Week</option>
+              </select>
+            </div>
+          </div>
+          <div class="apm-notes-field">
+            <label class="apm-label">Notes for Patient</label>
+            <textarea id="protocolNotes" class="apm-textarea" placeholder="e.g. Move slowly, stop if pain exceeds 6/10..." rows="2"></textarea>
+          </div>
+          <input type="hidden" id="exerciseType" value="full_fist">
+        </div>
       </div>
-      <div class="apm-config-col">
-        <div id="bapPatientSection" style="display:none">
-          <div class="bap-patients-hdr">
-            <span class="apm-label">Assign to Patients</span>
-            <label class="bap-select-all-label">
-              <input type="checkbox" id="bapSelectAll" onchange="bapToggleAll(this.checked)"> Select all
-            </label>
+      <div class="apm-demo-col" id="apmDemoCol">
+        <div class="apm-demo-label">Demo Video <span class="apm-demo-optional">(optional)</span></div>
+        <div class="apm-demo-screen">
+          <video id="demoCameraPreview" class="apm-demo-video" playsinline muted autoplay style="display:none;"></video>
+          <video id="demoPlayback" class="apm-demo-video" controls playsinline style="display:none;"></video>
+          <canvas id="demoRecordCanvas" style="display:none;"></canvas>
+          <div id="demoEmptyState" class="apm-demo-empty">No demo recorded</div>
+          <div id="demoRecordingBadge" class="apm-demo-rec-badge" style="display:none;">
+            <span class="apm-demo-rec-dot"></span><span id="demoTimerText">0:00</span>
           </div>
-          <div class="bap-patients-list" id="bapPatientsList"></div>
+          <div id="demoConfirmedBadge" class="apm-demo-confirmed-badge" style="display:none;">Demo recorded</div>
         </div>
-        <div id="apmCreateFields" style="display:none;flex-direction:column;gap:var(--space-4)">
-          <div class="apm-field">
-            <label class="apm-label">Exercise Name</label>
-            <input type="text" id="apmNewExName" class="apm-input" placeholder="e.g. Wrist Circles" autocomplete="off">
-          </div>
-          <div class="apm-field">
-            <label class="apm-label">Category</label>
-            <select id="apmNewExCatSelect" class="apm-select"></select>
-          </div>
+        <div class="apm-demo-btns" id="apmDemoBtnsInitial">
+          <button class="apm-demo-btn" onclick="demoStartDemo()">Start Demo</button>
+          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoUploadFile()">Upload</button>
         </div>
-        <div id="exerciseParamsSection" class="ep-container"></div>
-        <div class="apm-dosage-row">
-          <div class="apm-field">
-            <label class="apm-label">Reps</label>
-            <input type="number" id="protocolReps" class="apm-input" value="10" min="1" max="50">
-          </div>
-          <div class="apm-field">
-            <label class="apm-label">Sets</label>
-            <input type="number" id="protocolSets" class="apm-input" value="3" min="1" max="10">
-          </div>
-          <div class="apm-field">
-            <label class="apm-label">Frequency</label>
-            <select id="protocolFrequency" class="apm-select">
-              <option value="daily">Daily</option>
-              <option value="twice_daily">Twice Daily</option>
-              <option value="every_other">Every Other Day</option>
-              <option value="three_week">3x Per Week</option>
-            </select>
-          </div>
+        <div class="apm-demo-btns" id="apmDemoBtnsRecording" style="display:none;">
+          <button class="apm-demo-btn apm-demo-btn--danger" onclick="demoEndDemo()">End Demo</button>
+          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoFlipCamera()">Flip</button>
         </div>
-        <div class="apm-notes-field">
-          <label class="apm-label">Notes for Patient</label>
-          <textarea id="protocolNotes" class="apm-textarea" placeholder="e.g. Move slowly, stop if pain exceeds 6/10..." rows="2"></textarea>
+        <div class="apm-demo-btns" id="apmDemoBtnsPreview" style="display:none;">
+          <button class="apm-demo-btn" onclick="demoUseThis()">Use This</button>
+          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoReRecord()">Re-record</button>
         </div>
-        <input type="hidden" id="exerciseType" value="full_fist">
+        <div class="apm-demo-btns" id="apmDemoBtnsConfirmed" style="display:none;">
+          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoReRecord()">Replace</button>
+          <button class="apm-demo-btn apm-demo-btn--danger" onclick="demoClearVideo()">Remove</button>
+        </div>
+        <input type="file" id="demoFileInput" accept="video/*" style="display:none;" onchange="demoHandleFileSelect(this)">
       </div>
     </div>
     <div class="apm-footer">
@@ -708,6 +743,50 @@
 <!-- phalanX (Vite module) -->
 <script type="module" src="/app.js"></script>
 
+<!-- Manual Session Modal -->
+<div id="manualSessionModal" class="manual-session-overlay" style="display:none;">
+  <div class="manual-session-card">
+    <h3 id="manualSessionTitle" class="manual-session-heading">Log Session</h3>
+    <p id="manualSessionSubtitle" class="manual-session-sub"></p>
+    <button id="manualSessionDemoBtn" class="manual-session-demo-btn" onclick="replayDemoInSession()" style="display:none;">Watch Demo</button>
+    <div class="manual-session-field">
+      <label class="manual-session-label">Reps completed</label>
+      <input type="number" id="manualRepsInput" class="manual-session-input" min="0" value="0" />
+    </div>
+    <div class="manual-session-field">
+      <label class="manual-session-label">Pain level: <span id="manualPainValue">1</span> / 10</label>
+      <input type="range" min="1" max="10" value="1" id="manualPainSlider" class="manual-session-slider"
+             oninput="document.getElementById('manualPainValue').textContent=this.value" />
+    </div>
+    <div class="manual-session-actions">
+      <button class="manual-session-cancel" onclick="closeManualSession()">Cancel</button>
+      <button class="manual-session-submit" onclick="submitManualSession()">Log Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- Demo Video Overlay (patient auto-play) -->
+<div id="demoVideoOverlay" class="demo-video-overlay" style="display:none;">
+  <div class="demo-video-card">
+    <h3 class="demo-video-title">Watch Demo</h3>
+    <p class="demo-video-sub" id="demoVideoExName"></p>
+    <video id="demoVideoPlayer" class="demo-video-player" controls playsinline></video>
+    <div class="demo-video-actions">
+      <button class="demo-video-skip" onclick="skipDemoVideo()">Skip</button>
+      <button class="demo-video-start" onclick="closeDemoAndStart()">Start Exercise</button>
+    </div>
+  </div>
+</div>
+
+<!-- Compression Progress Overlay -->
+<div id="compressionOverlay" class="compression-overlay" style="display:none;">
+  <div class="compression-card">
+    <p class="compression-text">Compressing video...</p>
+    <div class="compression-bar-track">
+      <div id="compressionBarFill" class="compression-bar-fill"></div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

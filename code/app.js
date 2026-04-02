@@ -33,9 +33,32 @@ let mediaRecorder        = null;   // active MediaRecorder during a session
 let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
 let recordingSupported   = false;  // false on iOS/unsupported browsers — skip all recording logic
 let _pendingSessionDocId = null;   // Firestore doc ID to patch with videoUrl after upload completes
+let _recordingTimeout    = null;   // setTimeout handle for max-duration enforcement
+
+// ── Demo recording state (Add Protocol modal) ──
+let _demoStream          = null;   // getUserMedia stream for demo camera
+let _demoMediaRecorder   = null;   // MediaRecorder for demo recording
+let _demoChunks          = [];     // accumulated chunks for demo
+let _demoBlob            = null;   // final demo blob (recorded or uploaded)
+let _demoFacingMode      = 'environment'; // rear camera default
+let _demoTimerInterval   = null;   // countdown timer interval
+let _demoTimerSec        = 0;      // elapsed seconds
+let _demoAnimFrame       = null;   // requestAnimationFrame handle for canvas draw loop
+let _demoExistingVideoUrl = null;  // preserves existing URL in edit mode
+let _pendingDemoProtocol  = null;  // protocol awaiting demo auto-play on patient side
 
 const CLOUDINARY_CLOUD  = 'dslbugsdg';
 const CLOUDINARY_PRESET = 'phalanx-videos';
+
+// ── Video tiers — bitrate (bps), max duration (sec), expiry (days, null = permanent) ──
+const VIDEO_TIERS = {
+  demo:    { bitrate: 800_000, maxDurationSec: 120, expireDays: null },
+  session: { bitrate: 500_000, maxDurationSec: 600, expireDays: 14  },
+  message: { bitrate: 300_000, maxDurationSec:  60, expireDays:  7  }
+};
+
+// ── Feature flags — set to false to disable without deleting code ──
+const ANGLE_TRACKING_ENABLED = false;
 
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
@@ -372,7 +395,7 @@ async function restoreScreen(saved) {
   // cameraScreen session state is gone on refresh — can't restore
   // messagingScreen needs currentPatient set — can't restore
   if (currentRole === 'therapist') {
-    if (saved === 'mlTrainerScreen') { await startMLTrainer(); }
+    if (saved === 'mlTrainerScreen' && ANGLE_TRACKING_ENABLED) { await startMLTrainer(); }
     // therapistScreen is already shown by loginSuccess — nothing to do
   } else if (currentRole === 'patient') {
     if (saved === 'exercisesScreen') { await showExercisesScreen(); }
@@ -576,6 +599,33 @@ async function startSessionByIndex(i) {
 
 async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
+  if (!ANGLE_TRACKING_ENABLED) {
+    // Check if there is a demo video the patient hasn't watched yet
+    if (protocol.demoVideoUrl) {
+      try {
+        const snap = await db.collection('protocols').doc(currentUser.email).get();
+        const watched = snap.exists ? (snap.data().demoWatched || []) : [];
+        if (!watched.includes(protocol.id)) {
+          // Show demo auto-play overlay
+          _pendingDemoProtocol = protocol;
+          const overlay = document.getElementById('demoVideoOverlay');
+          const player  = document.getElementById('demoVideoPlayer');
+          const nameEl  = document.getElementById('demoVideoExName');
+          if (overlay && player) {
+            if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
+            player.src = protocol.demoVideoUrl;
+            overlay.style.display = 'flex';
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('[phalanX] demoWatched check:', e);
+        // Non-critical — fall through to manual session
+      }
+    }
+    openManualSession(protocol);
+    return;
+  }
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
   showScreen('cameraScreen');
@@ -593,12 +643,64 @@ async function startScanSession() {
     return;
   }
   selectedProtocol = protocols[0];
+  if (!ANGLE_TRACKING_ENABLED) { openManualSession(protocols[0]); return; }
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
   showScreen('cameraScreen');
   await loadPatientProtocol();
   await initSetTracker();
   if (!mpCamera) startCamera();
+}
+
+// ── Manual session logging (used when ANGLE_TRACKING_ENABLED = false) ──────
+
+function openManualSession(protocol) {
+  selectedProtocol = protocol;
+  const label  = exerciseLabels[protocol.exerciseType] || protocol.exerciseType || 'Exercise';
+  const target = protocol.reps || 10;
+  const sets   = protocol.sets || 3;
+  document.getElementById('manualSessionTitle').textContent    = label;
+  document.getElementById('manualSessionSubtitle').textContent = `${sets} sets \u00d7 ${target} reps`;
+  document.getElementById('manualRepsInput').value             = target;
+  document.getElementById('manualPainSlider').value            = 1;
+  document.getElementById('manualPainValue').textContent       = '1';
+  const demoBtn = document.getElementById('manualSessionDemoBtn');
+  if (demoBtn) demoBtn.style.display = protocol.demoVideoUrl ? 'block' : 'none';
+  document.getElementById('manualSessionModal').style.display  = 'flex';
+}
+
+function closeManualSession() {
+  document.getElementById('manualSessionModal').style.display = 'none';
+}
+
+async function submitManualSession() {
+  const reps = parseInt(document.getElementById('manualRepsInput').value) || 0;
+  const pain = parseInt(document.getElementById('manualPainSlider').value) || 1;
+  const btn  = document.querySelector('.manual-session-submit');
+  btn.disabled    = true;
+  btn.textContent = 'Saving...';
+  try {
+    const therapistEmail = await getConnectedTherapist();
+    await db.collection('sessions').add({
+      patientEmail:  currentUser.email,
+      date:          new Date().toISOString(),
+      reps,
+      pain,
+      rom:           0,
+      tam:           0,
+      therapistEmail,
+      exerciseType:  selectedProtocol?.exerciseType || '',
+      protocolId:    selectedProtocol?.id || '',
+      expireAt:      new Date(Date.now() + 90 * 86400000)
+    });
+    closeManualSession();
+    showScreen('patientScreen');
+    updatePatientHomeScreen();
+  } catch (e) {
+    console.error('submitManualSession:', e);
+    btn.disabled    = false;
+    btn.textContent = 'Log Session';
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -736,6 +838,8 @@ async function getExistingProtocol(patientEmail) {
 async function deleteProtocol(patientEmail, protocolId) {
   if (!confirm(`Remove this exercise from the patient's protocol?`)) return;
   const existing = await getProtocols(patientEmail);
+  // Note: if the deleted item has a demoVideoUrl, the Cloudinary file becomes orphaned.
+  // Client-side deletion requires a signed API call — deferred to future Cloud Function cleanup.
   const updated = existing.filter(p => p.id !== protocolId);
   if (updated.length === 0) {
     await db.collection('protocols').doc(patientEmail).delete();
@@ -787,6 +891,21 @@ async function editProtocol(patientEmail, protocolId) {
   if (setsEl) setsEl.value = p.sets || 3;
   if (freqEl) freqEl.value = p.frequency || 'daily';
   if (notesEl) notesEl.value = p.notes || '';
+
+  // Populate demo col with existing demo if present
+  _demoBlob = null;
+  _demoExistingVideoUrl = p.demoVideoUrl || null;
+  if (p.demoVideoUrl) {
+    const playback = document.getElementById('demoPlayback');
+    if (playback) {
+      playback.src = p.demoVideoUrl;
+      playback.load();
+      playback.onloadeddata = () => { playback.currentTime = 0.001; };
+    }
+    _demoSetState('confirmed');
+  } else {
+    _demoSetState('initial');
+  }
 }
 
 function cancelEditProtocol() {
@@ -805,6 +924,302 @@ async function saveTrackedJoints(patientEmail, joints) {
   });
 }
 
+// ── Demo video recording (Add Protocol modal) ─────────────────────────────
+
+function _demoSetState(state) {
+  const els = {
+    preview:   document.getElementById('demoCameraPreview'),
+    playback:  document.getElementById('demoPlayback'),
+    empty:     document.getElementById('demoEmptyState'),
+    recBadge:  document.getElementById('demoRecordingBadge'),
+    confBadge: document.getElementById('demoConfirmedBadge'),
+    btnInit:   document.getElementById('apmDemoBtnsInitial'),
+    btnRec:    document.getElementById('apmDemoBtnsRecording'),
+    btnPrev:   document.getElementById('apmDemoBtnsPreview'),
+    btnConf:   document.getElementById('apmDemoBtnsConfirmed'),
+  };
+  if (!els.empty) return; // demo col not in DOM
+  Object.values(els).forEach(el => { if (el) el.style.display = 'none'; });
+  if (state === 'initial') {
+    els.empty.style.display = 'flex';
+    if (els.btnInit) els.btnInit.style.display = 'flex';
+  } else if (state === 'recording') {
+    if (els.preview) els.preview.style.display = 'block';
+    if (els.recBadge) els.recBadge.style.display = 'flex';
+    if (els.btnRec) els.btnRec.style.display = 'flex';
+  } else if (state === 'preview') {
+    if (els.playback) els.playback.style.display = 'block';
+    if (els.btnPrev) els.btnPrev.style.display = 'flex';
+  } else if (state === 'confirmed') {
+    if (els.playback) els.playback.style.display = 'block';
+    if (els.confBadge) els.confBadge.style.display = 'flex';
+    if (els.btnConf) els.btnConf.style.display = 'flex';
+  }
+}
+
+function _demoStopCamera() {
+  if (_demoAnimFrame) { cancelAnimationFrame(_demoAnimFrame); _demoAnimFrame = null; }
+  if (_demoStream) {
+    _demoStream.getTracks().forEach(t => t.stop());
+    _demoStream = null;
+  }
+  const preview = document.getElementById('demoCameraPreview');
+  if (preview) preview.srcObject = null;
+}
+
+function _demoCleanup() {
+  clearInterval(_demoTimerInterval);
+  _demoTimerInterval = null;
+  _demoStopCamera();
+  if (_demoMediaRecorder && _demoMediaRecorder.state !== 'inactive') {
+    try { _demoMediaRecorder.stop(); } catch(e) {}
+  }
+  _demoMediaRecorder = null;
+  _demoChunks = [];
+  _demoBlob = null;
+  _demoExistingVideoUrl = null;
+  const playback = document.getElementById('demoPlayback');
+  if (playback && playback.src) { URL.revokeObjectURL(playback.src); playback.removeAttribute('src'); }
+}
+
+async function _demoStartCameraAndRecord() {
+  _demoStopCamera();
+  if (_demoMediaRecorder && _demoMediaRecorder.state !== 'inactive') {
+    try { _demoMediaRecorder.stop(); } catch(e) {}
+  }
+  _demoChunks = [];
+
+  const preview = document.getElementById('demoCameraPreview');
+  const canvas  = document.getElementById('demoRecordCanvas');
+  if (!preview || !canvas) return;
+
+  try {
+    _demoStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: _demoFacingMode }, audio: false
+    });
+  } catch(e) {
+    console.error('[phalanX] demo camera:', e);
+    alert('Could not access camera. Please check permissions.');
+    return;
+  }
+
+  preview.srcObject = _demoStream;
+  preview.style.transform = 'none';
+  await preview.play().catch(() => {});
+
+  // Wait for metadata so we get real dimensions
+  await new Promise(res => {
+    if (preview.readyState >= 1) { res(); return; }
+    preview.onloadedmetadata = res;
+    setTimeout(res, 1500);
+  });
+
+  const w = Math.min(preview.videoWidth || 1280, 1280);
+  const h = Math.round(w * (preview.videoHeight || 720) / (preview.videoWidth || 1280));
+  canvas.width  = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  function drawFrame() {
+    if (_demoStream && _demoStream.active) {
+      ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+      _demoAnimFrame = requestAnimationFrame(drawFrame);
+    }
+  }
+  drawFrame();
+
+  const mimeType = getRecordingMimeType();
+  if (!mimeType) {
+    _demoStopCamera();
+    alert('Video recording is not supported on this browser.');
+    _demoSetState('initial');
+    return;
+  }
+
+  let captureStream;
+  try { captureStream = canvas.captureStream(30); } catch(e) {
+    _demoStopCamera();
+    _demoSetState('initial');
+    return;
+  }
+
+  _demoMediaRecorder = new MediaRecorder(captureStream, {
+    mimeType,
+    videoBitsPerSecond: VIDEO_TIERS.demo.bitrate
+  });
+  _demoMediaRecorder.ondataavailable = e => {
+    if (e.data && e.data.size > 0) _demoChunks.push(e.data);
+  };
+  _demoMediaRecorder.start(1000);
+
+  // Timer + auto-stop at max duration
+  _demoTimerSec = 0;
+  const timerEl = document.getElementById('demoTimerText');
+  if (timerEl) timerEl.textContent = '0:00';
+  _demoTimerInterval = setInterval(() => {
+    _demoTimerSec++;
+    const m = Math.floor(_demoTimerSec / 60);
+    const s = _demoTimerSec % 60;
+    const el = document.getElementById('demoTimerText');
+    if (el) el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    if (_demoTimerSec >= VIDEO_TIERS.demo.maxDurationSec) demoEndDemo();
+  }, 1000);
+
+  _demoSetState('recording');
+}
+
+async function demoStartDemo() {
+  _demoFacingMode = 'environment';
+  await _demoStartCameraAndRecord();
+}
+
+async function demoEndDemo() {
+  clearInterval(_demoTimerInterval);
+  _demoTimerInterval = null;
+  if (_demoAnimFrame) { cancelAnimationFrame(_demoAnimFrame); _demoAnimFrame = null; }
+
+  if (_demoMediaRecorder && _demoMediaRecorder.state !== 'inactive') {
+    await new Promise(resolve => {
+      _demoMediaRecorder.onstop = resolve;
+      _demoMediaRecorder.stop();
+    });
+  }
+  _demoStopCamera();
+
+  if (!_demoChunks.length) { _demoSetState('initial'); return; }
+
+  const mimeType = _demoMediaRecorder?.mimeType || 'video/webm';
+  _demoBlob = new Blob(_demoChunks, { type: mimeType });
+  _demoChunks = [];
+
+  const playback = document.getElementById('demoPlayback');
+  if (playback) {
+    if (playback.src) URL.revokeObjectURL(playback.src);
+    playback.src = URL.createObjectURL(_demoBlob);
+    playback.load();
+    playback.onloadeddata = () => { playback.currentTime = 0.001; };
+  }
+  _demoSetState('preview');
+}
+
+async function demoFlipCamera() {
+  _demoFacingMode = _demoFacingMode === 'environment' ? 'user' : 'environment';
+  clearInterval(_demoTimerInterval);
+  _demoTimerInterval = null;
+  await _demoStartCameraAndRecord();
+}
+
+function demoUseThis() {
+  _demoExistingVideoUrl = null; // new blob supersedes any old URL
+  _demoSetState('confirmed');
+}
+
+async function demoReRecord() {
+  const playback = document.getElementById('demoPlayback');
+  if (playback && playback.src) { URL.revokeObjectURL(playback.src); playback.removeAttribute('src'); }
+  _demoBlob = null;
+  _demoExistingVideoUrl = null;
+  await _demoStartCameraAndRecord();
+}
+
+function demoClearVideo() {
+  _demoCleanup();
+  _demoSetState('initial');
+}
+
+function demoUploadFile() {
+  const input = document.getElementById('demoFileInput');
+  if (input) input.click();
+}
+
+async function demoHandleFileSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  input.value = '';
+  try {
+    _demoBlob = await compressVideo(file, 'demo');
+    const playback = document.getElementById('demoPlayback');
+    if (playback) {
+      if (playback.src) URL.revokeObjectURL(playback.src);
+      playback.src = URL.createObjectURL(_demoBlob);
+      playback.load();
+      playback.onloadeddata = () => { playback.currentTime = 0.001; };
+    }
+    _demoSetState('preview');
+  } catch(e) {
+    console.error('[phalanX] demoHandleFileSelect:', e);
+    alert('Could not process the selected video file.');
+  }
+}
+
+// ── Protocol card demo actions ──
+
+function playProtocolDemo(videoUrl, exerciseName) {
+  openVideoModal(videoUrl, 'Demo', exerciseName);
+}
+
+async function removeProtocolDemo(patientEmail, protocolId) {
+  if (!confirm('Remove the demo video from this exercise?')) return;
+  try {
+    const protocols = await getProtocols(patientEmail);
+    const updated = protocols.map(p => {
+      if (p.id !== protocolId) return p;
+      const copy = { ...p };
+      delete copy.demoVideoUrl;
+      return copy;
+    });
+    await db.collection('protocols').doc(patientEmail).set({ items: updated });
+    const refreshed = await getProtocols(patientEmail);
+    const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
+    if (protoBody) {
+      protoBody.innerHTML = buildProtocolForm(patientEmail, refreshed);
+    } else {
+      const snap = await db.collection('users').doc(patientEmail).get();
+      if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+    }
+  } catch(e) {
+    console.error('[phalanX] removeProtocolDemo:', e);
+    alert('Could not remove the demo video. Please try again.');
+  }
+}
+
+// ── Patient-side demo auto-play ──
+
+async function closeDemoAndStart() {
+  const overlay = document.getElementById('demoVideoOverlay');
+  const player  = document.getElementById('demoVideoPlayer');
+  if (overlay) overlay.style.display = 'none';
+  if (player)  { player.pause(); player.removeAttribute('src'); }
+
+  if (_pendingDemoProtocol) {
+    try {
+      await db.collection('protocols').doc(currentUser.email).update({
+        demoWatched: firebase.firestore.FieldValue.arrayUnion(_pendingDemoProtocol.id)
+      });
+    } catch(e) {
+      // Non-critical — don't block the session
+    }
+  }
+
+  const protocol = _pendingDemoProtocol;
+  _pendingDemoProtocol = null;
+  if (protocol) openManualSession(protocol);
+}
+
+async function skipDemoVideo() {
+  // Skipping also counts as watched to avoid auto-play on next visit
+  await closeDemoAndStart();
+}
+
+function replayDemoInSession() {
+  if (selectedProtocol?.demoVideoUrl) {
+    const label = exerciseLabels[selectedProtocol.exerciseType] || selectedProtocol.exerciseType;
+    openVideoModal(selectedProtocol.demoVideoUrl, 'Demo', label);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function assignProtocol() {
   const patientEmail = _protoPatientEmail;
   if (!patientEmail) return;
@@ -814,26 +1229,52 @@ async function assignProtocol() {
 
   // Collect exerciseParams from the UI
   let exerciseParams = null;
-  if (defaults && defaults.metric === 'angle') {
-    const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
-    if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
-    const conditions = Array.from(conditionRows).map(row => ({
-      finger:   row.querySelector('.ep-finger-select').value,
-      joint:    row.querySelector('.ep-joint-select').value,
-      flexAt:   parseFloat(row.querySelector('.ep-flex-at').value),
-      extendAt: parseFloat(row.querySelector('.ep-extend-at').value),
-    }));
-    const requireAllEl = document.getElementById('epRequireAll');
-    const requireAll   = requireAllEl ? requireAllEl.checked : (conditions.length > 1);
-    exerciseParams = { metric: 'angle', conditions, requireAll };
-  } else if (defaults && (defaults.metric === 'distance' || defaults.metric === 'abduction')) {
-    exerciseParams = { ...defaults };
+  if (ANGLE_TRACKING_ENABLED) {
+    if (defaults && defaults.metric === 'angle') {
+      const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
+      if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
+      const conditions = Array.from(conditionRows).map(row => ({
+        finger:   row.querySelector('.ep-finger-select').value,
+        joint:    row.querySelector('.ep-joint-select').value,
+        flexAt:   parseFloat(row.querySelector('.ep-flex-at').value),
+        extendAt: parseFloat(row.querySelector('.ep-extend-at').value),
+      }));
+      const requireAllEl = document.getElementById('epRequireAll');
+      const requireAll   = requireAllEl ? requireAllEl.checked : (conditions.length > 1);
+      exerciseParams = { metric: 'angle', conditions, requireAll };
+    } else if (defaults && (defaults.metric === 'distance' || defaults.metric === 'abduction')) {
+      exerciseParams = { ...defaults };
+    }
   }
 
   const reps = parseInt(document.getElementById('protocolReps').value);
   const sets = parseInt(document.getElementById('protocolSets').value);
   if (isNaN(reps) || reps < 1) { alert('Please enter a valid rep count.'); return; }
   if (isNaN(sets) || sets < 1) { alert('Please enter a valid set count.'); return; }
+
+  // Upload demo video if a new blob was recorded/selected
+  const submitBtn = document.getElementById('apmSubmitBtn');
+  let demoVideoUrl = _demoExistingVideoUrl || null;
+  if (_demoBlob) {
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading demo...'; }
+    try {
+      const form = new FormData();
+      form.append('file', _demoBlob);
+      form.append('upload_preset', CLOUDINARY_PRESET);
+      form.append('resource_type', 'video');
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.secure_url) {
+        demoVideoUrl = data.secure_url;
+      } else {
+        console.warn('[phalanX] Demo upload failed:', data.error?.message);
+      }
+    } catch (e) {
+      console.error('[phalanX] Demo upload error:', e);
+    }
+    if (submitBtn) submitBtn.disabled = false;
+  }
+
   const existing = await getProtocols(patientEmail);
 
   if (editingProtocolId) {
@@ -850,6 +1291,7 @@ async function assignProtocol() {
         assignedBy: currentUser.name,
         editedAt:   new Date().toISOString()
       };
+      if (demoVideoUrl !== undefined) edited.demoVideoUrl = demoVideoUrl;
       if (exerciseParams) edited.exerciseParams = exerciseParams;
       else delete edited.exerciseParams;
       return edited;
@@ -869,6 +1311,7 @@ async function assignProtocol() {
       assignedBy:   currentUser.name,
       assignedAt:   new Date().toISOString()
     };
+    if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
@@ -1133,7 +1576,6 @@ async function showRealPatient(patient) {
       <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
-      ${makeCollapsible('joints', 'Joint Monitoring', buildJointSelector(patient.email), false)}
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
@@ -1146,17 +1588,14 @@ async function showRealPatient(patient) {
     };
     await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     enableMobilePatientDetail(panel);
-    await ejsInit(patient.email, sessions);
     return;
   }
 
   const compliance      = calcCompliance(sessions);
-  const avgROM          = Math.round(sessions.reduce((s, x) => s + (x.rom  || 0), 0) / sessions.length);
   const avgPain         = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
   const totalReps       = sessions.reduce((s, x) => s + (x.reps || 0), 0);
   const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
   const recent          = sessions.slice(-8);
-  const romData         = recent.map(s => s.rom  || 0);
   const painData        = recent.map(s => s.pain || 0);
   const labels          = buildChartLabels(recent);
 
@@ -1167,25 +1606,18 @@ async function showRealPatient(patient) {
     </div>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
-      <div class="stat-card"><div class="stat-value">${avgROM}°</div><div class="stat-label">Avg Range of Motion</div></div>
       <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain Rating</div></div>
     </div>
     <div class="stats-row stats-row-full">
       <div class="stat-card stat-card-full"><div class="stat-value stat-value-sm">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
     </div>
     <div class="tp-charts-grid">
-    ${makeCollapsible('rom',     'Range of motion over time', '<canvas id="romChart" height="160"></canvas>', true)}
     ${makeCollapsible('pain',    'Pain rating over time',     '<canvas id="painChart" height="160"></canvas>', true)}
     </div>
-    ${makeCollapsible('joints',  'Joint Monitoring',          buildJointSelector(patient.email), false)}
     ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
     ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
-  const tRomCfg = buildChartConfig(romData, { type: 'rom', color: '#0B6CB0', fillColor: 'rgba(11,108,176,0.06)' });
-  new Chart(document.getElementById('romChart').getContext('2d'), {
-    type: 'line', data: { labels, datasets: [tRomCfg.dataset] }, options: tRomCfg.options
-  });
   const tPainCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
   new Chart(document.getElementById('painChart').getContext('2d'), {
     type: 'line', data: { labels, datasets: [tPainCfg.dataset] }, options: tPainCfg.options
@@ -1200,8 +1632,7 @@ async function showRealPatient(patient) {
   };
   await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   enableMobilePatientDetail(panel);
-  await ejsInit(patient.email, sessions);
-  updateExerciseParamsUI('full_fist', null);
+  updateExerciseParamsUI(null, null);
 }
 
 function groupSetsIntoSessions(sets) {
@@ -1260,23 +1691,22 @@ function buildSessionHistory(sessions, patientName) {
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
-    const romColor = g.maxROM >= 120 ? 'var(--success)' : g.maxROM >= 80 ? '#f59e0b' : 'var(--danger)';
     const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
     const rowId = `sh-exp-${gi}`;
     const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
     const hasVideo  = g.sets.some(s => s.videoUrl);
-    const videoUrl  = hasVideo ? g.sets.find(s => s.videoUrl).videoUrl : null;
-    const isExpired = hasVideo && (Date.now() - new Date(g.date).getTime()) > 30 * 86400000;
+    const videoSet  = hasVideo ? g.sets.find(s => s.videoUrl) : null;
+    const videoUrl  = videoSet?.videoUrl || null;
+    const videoExpireAt = videoSet?.videoExpireAt ? new Date(videoSet.videoExpireAt).getTime() : null;
+    const isExpired = hasVideo && videoExpireAt !== null && videoExpireAt < Date.now();
     const setDetail = g.sets.map((s, si) => {
-      const sp = s.pain || 0, sr = s.rom || 0;
+      const sp = s.pain || 0;
       const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
-      const src = sr >= 120 ? 'var(--success)' : sr >= 80 ? '#f59e0b' : 'var(--danger)';
       const t = new Date(s.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       return `<div class="sh-set-detail-row">
         <span class="sh-set-label">Set ${si + 1}</span>
         <span class="sh-set-time">${t}</span>
         <span class="sh-set-val">${s.reps || 0} reps</span>
-        <span class="sh-set-val"><span class="sh-indicator" style="background:${src}"></span>${sr}°</span>
         <span class="sh-set-val"><span class="sh-indicator" style="background:${spc}"></span>${sp}/10</span>
       </div>`;
     }).join('');
@@ -1285,7 +1715,6 @@ function buildSessionHistory(sessions, patientName) {
         <div class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></div>
         <div class="sh-cell sh-exercise">${exLabel}</div>
         <div class="sh-cell sh-setsreps">${g.setsCompleted} × ${g.totalReps}</div>
-        <div class="sh-cell sh-rom"><span class="sh-indicator" style="background:${romColor}"></span>${g.maxROM}°</div>
         <div class="sh-cell sh-pain"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}</div>
         <div class="sh-cell sh-actions">${hasVideo && !isExpired ? `<button class="sh-video-btn" onclick="event.stopPropagation(); openVideoModal('${videoUrl}', '${g.date}', '${window._lastHistoryPatientName}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg></button>` : hasVideo && isExpired ? '<span class="sh-video-expired">Expired</span>' : ''}</div>
       </div>
@@ -1308,7 +1737,6 @@ function buildSessionHistory(sessions, patientName) {
           <div class="sh-hdr">Date</div>
           <div class="sh-hdr">Exercise</div>
           <div class="sh-hdr">Sets × Reps</div>
-          <div class="sh-hdr">ROM</div>
           <div class="sh-hdr">Pain</div>
           <div class="sh-hdr"></div>
         </div>
@@ -1324,18 +1752,26 @@ function buildProtocolList(patientEmail, protocols) {
   }
   return `
     <div class="proto-existing-section">
-      ${protocols.map(p => `
+      ${protocols.map(p => {
+        const exLabel = (exerciseLabels[p.exerciseType] || p.exerciseType).replace(/'/g, "\\'");
+        const demoUrl = p.demoVideoUrl ? p.demoVideoUrl.replace(/'/g, "\\'") : '';
+        const demoBtns = p.demoVideoUrl
+          ? `<button class="protocol-demo-btn" onclick="playProtocolDemo('${demoUrl}', '${exLabel}')">Play Demo</button>
+             <button class="protocol-remove-demo-btn" onclick="removeProtocolDemo('${patientEmail}', '${p.id}')">Remove Demo</button>`
+          : '';
+        return `
         <div class="proto-card">
           <div class="proto-card-header">
             <span class="proto-card-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
             <div class="protocol-action-btns">
+              ${demoBtns}
               <button class="protocol-edit-btn" onclick="editProtocol('${patientEmail}', '${p.id}')">Edit</button>
               <button class="protocol-delete-btn" onclick="deleteProtocol('${patientEmail}', '${p.id}')">Remove</button>
             </div>
           </div>
           ${formatProtocol(p)}
-        </div>
-      `).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
 }
 
@@ -1374,6 +1810,11 @@ async function openAddProtocol(patientEmail, patientName) {
   document.body.style.overflow = 'hidden';
   _apmRenderLibrary('');
   updateExerciseParamsUI(null, null);
+  const infoEl = document.getElementById('apmSelectedExInfo');
+  if (infoEl) infoEl.style.display = 'none';
+  _demoBlob = null;
+  _demoExistingVideoUrl = null;
+  _demoSetState('initial');
 }
 
 function closeAddProtocol() {
@@ -1388,6 +1829,8 @@ function closeAddProtocol() {
     const patSection = document.getElementById('bapPatientSection');
     if (patSection) patSection.style.display = 'none';
   }
+  _demoCleanup();
+  _demoSetState('initial');
 }
 
 async function openBulkAssign() {
@@ -1489,6 +1932,25 @@ async function bulkAssignProtocol() {
   const notes = document.getElementById('protocolNotes').value.trim();
   const submitBtn = document.getElementById('apmSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
+
+  // Upload demo once, reuse URL across all patients
+  let demoVideoUrl = null;
+  if (_demoBlob) {
+    if (submitBtn) submitBtn.textContent = 'Uploading demo...';
+    try {
+      const form = new FormData();
+      form.append('file', _demoBlob);
+      form.append('upload_preset', CLOUDINARY_PRESET);
+      form.append('resource_type', 'video');
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.secure_url) demoVideoUrl = data.secure_url;
+    } catch (e) {
+      console.error('[phalanX] Bulk demo upload error:', e);
+    }
+    if (submitBtn) submitBtn.textContent = 'Assigning...';
+  }
+
   let successCount = 0;
   const now = Date.now();
   for (const patientEmail of selected) {
@@ -1504,6 +1966,7 @@ async function bulkAssignProtocol() {
         assignedBy:   currentUser.name,
         assignedAt:   new Date().toISOString()
       };
+      if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
       if (exerciseParams) newItem.exerciseParams = exerciseParams;
       await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
       successCount++;
@@ -1559,6 +2022,12 @@ function apmSelectExercise(id) {
     if (repsEl) repsEl.value = entry.dr;
     if (setsEl) setsEl.value = entry.ds;
     if (freqEl) freqEl.value = entry.df;
+    const infoEl = document.getElementById('apmSelectedExInfo');
+    const nameEl = document.getElementById('apmSelectedExName');
+    const descEl = document.getElementById('apmSelectedExDesc');
+    if (nameEl) nameEl.textContent = exerciseLabels[id] || id;
+    if (descEl) descEl.textContent = entry.desc || '';
+    if (infoEl) infoEl.style.display = 'block';
   }
   updateExerciseParamsUI(id, null);
   _apmHighlightSelected(id);
@@ -1683,6 +2152,8 @@ function epRemoveCondition(btn) {
 function updateExerciseParamsUI(exerciseType, savedParams) {
   const container = document.getElementById('exerciseParamsSection');
   if (!container) return;
+  if (!ANGLE_TRACKING_ENABLED) { container.innerHTML = ''; container.style.display = 'none'; return; }
+  container.style.display = '';
 
   const sel = document.getElementById('exerciseType');
   if (sel && exerciseType) sel.value = exerciseType;
@@ -2121,7 +2592,7 @@ async function advanceSet() {
   if (setsComplete >= totalSets) {
     if (recordingSupported) {
       const videoBlob = await stopRecording();
-      if (videoBlob && videoBlob.size > 0) uploadSessionVideo(videoBlob, _pendingSessionDocId);
+      if (videoBlob && videoBlob.size > 0) uploadVideo(videoBlob, _pendingSessionDocId, 'sessions', 'session');
     }
     showSessionSummary();
     return;
@@ -2238,7 +2709,7 @@ async function completeSessionEarly() {
     const ref = await db.collection('sessions').add(doc);
     if (recordingSupported) {
       const videoBlob = await stopRecording();
-      if (videoBlob && videoBlob.size > 0) uploadSessionVideo(videoBlob, ref.id);
+      if (videoBlob && videoBlob.size > 0) uploadVideo(videoBlob, ref.id, 'sessions', 'session');
     }
   } else {
     // No reps — discard recording
@@ -2439,22 +2910,34 @@ function hideRecordingIndicator() {
   if (el) el.style.display = 'none';
 }
 
-function startRecording(canvas) {
+function startRecording(canvas, tier = 'session') {
   if (!recordingSupported) return;
   recordedChunks = [];
   const mimeType = getRecordingMimeType();
   if (!mimeType) { recordingSupported = false; return; }
   let stream;
   try { stream = canvas.captureStream(); } catch(e) { recordingSupported = false; return; }
+  const bitrate = VIDEO_TIERS[tier]?.bitrate ?? VIDEO_TIERS.session.bitrate;
   try {
-    mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 400_000 });
+    mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
   } catch(e) { recordingSupported = false; return; }
   mediaRecorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
   mediaRecorder.start(1000);
   showRecordingIndicator();
+  const maxDur = VIDEO_TIERS[tier]?.maxDurationSec;
+  if (maxDur) {
+    _recordingTimeout = setTimeout(() => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        hideRecordingIndicator();
+      }
+    }, maxDur * 1000);
+  }
 }
 
 function stopRecording() {
+  clearTimeout(_recordingTimeout);
+  _recordingTimeout = null;
   return new Promise(resolve => {
     if (!mediaRecorder || mediaRecorder.state === 'inactive') {
       hideRecordingIndicator();
@@ -2473,10 +2956,99 @@ function stopRecording() {
   });
 }
 
+// ── Compression pipeline ──
+
+function showCompressionProgress() {
+  const el = document.getElementById('compressionOverlay');
+  if (el) el.style.display = 'flex';
+  updateCompressionProgress(0);
+}
+
+function hideCompressionProgress() {
+  const el = document.getElementById('compressionOverlay');
+  if (el) el.style.display = 'none';
+}
+
+function updateCompressionProgress(fraction) {
+  const fill = document.getElementById('compressionBarFill');
+  if (fill) fill.style.width = `${Math.round(Math.min(fraction, 1) * 100)}%`;
+}
+
+async function compressVideo(blob, tier) {
+  const tierConfig = VIDEO_TIERS[tier] || VIDEO_TIERS.session;
+  const targetBitrate = tierConfig.bitrate;
+  const mimeType = getRecordingMimeType();
+  if (!mimeType || typeof MediaRecorder === 'undefined') return blob;
+
+  return new Promise(resolve => {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    const objectUrl = URL.createObjectURL(blob);
+    video.src = objectUrl;
+
+    video.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(blob); };
+
+    video.onloadedmetadata = () => {
+      // Skip compression if blob is already at or below target size
+      const estimatedTargetBytes = (targetBitrate / 8) * video.duration * 1.2;
+      if (blob.size <= estimatedTargetBytes) {
+        URL.revokeObjectURL(objectUrl);
+        resolve(blob);
+        return;
+      }
+
+      // Cap resolution at 1280x720
+      const MAX_W = 1280, MAX_H = 720;
+      let w = video.videoWidth, h = video.videoHeight;
+      if (w > MAX_W || h > MAX_H) {
+        const ratio = Math.min(MAX_W / w, MAX_H / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      let stream, rec;
+      try {
+        stream = canvas.captureStream(30);
+        rec    = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: targetBitrate });
+      } catch(e) { URL.revokeObjectURL(objectUrl); resolve(blob); return; }
+
+      const chunks = [];
+      rec.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      rec.onstop = () => {
+        URL.revokeObjectURL(objectUrl);
+        hideCompressionProgress();
+        resolve(chunks.length > 0 ? new Blob(chunks, { type: mimeType }) : blob);
+      };
+      rec.start(1000);
+
+      let animFrame;
+      const drawFrame = () => {
+        if (video.ended || video.paused) return;
+        ctx.drawImage(video, 0, 0, w, h);
+        updateCompressionProgress(video.duration > 0 ? video.currentTime / video.duration : 0);
+        animFrame = requestAnimationFrame(drawFrame);
+      };
+      video.onplay  = () => { animFrame = requestAnimationFrame(drawFrame); };
+      video.onended = () => { cancelAnimationFrame(animFrame); if (rec.state === 'recording') rec.stop(); };
+      video.onerror = () => { cancelAnimationFrame(animFrame); URL.revokeObjectURL(objectUrl); resolve(blob); };
+
+      showCompressionProgress();
+      video.play().catch(() => { URL.revokeObjectURL(objectUrl); resolve(blob); });
+    };
+  });
+}
+
 // ── Upload pipeline ──
 
-async function uploadSessionVideo(blob, docId) {
+async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session') {
   if (!blob || blob.size === 0 || !docId) return;
+  const tierConfig = VIDEO_TIERS[tier] || VIDEO_TIERS.session;
   try {
     const form = new FormData();
     form.append('file', blob);
@@ -2488,7 +3060,11 @@ async function uploadSessionVideo(blob, docId) {
     });
     const data = await res.json();
     if (data.secure_url) {
-      await db.collection('sessions').doc(docId).update({ videoUrl: data.secure_url });
+      const update = { videoUrl: data.secure_url };
+      if (tierConfig.expireDays !== null) {
+        update.videoExpireAt = new Date(Date.now() + tierConfig.expireDays * 86400000).toISOString();
+      }
+      await db.collection(collection).doc(docId).update(update);
     } else {
       console.warn('[phalanX] Cloudinary upload failed:', data.error?.message);
     }
@@ -2609,9 +3185,11 @@ function buildPatientSessionHistory(sessions) {
     var exercise = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
     var sets     = g.setsCompleted;
     var pain     = g.avgPain != null ? g.avgPain.toFixed(1) : '\u2014';
-    var hasVideo = g.sets.some(function(s) { return s.videoUrl; });
-    var videoUrl = hasVideo ? g.sets.find(function(s) { return s.videoUrl; }).videoUrl : null;
-    var isExpired = hasVideo && (Date.now() - d.getTime()) > 30 * 86400000;
+    var hasVideo    = g.sets.some(function(s) { return s.videoUrl; });
+    var videoSet    = hasVideo ? g.sets.find(function(s) { return s.videoUrl; }) : null;
+    var videoUrl    = videoSet ? videoSet.videoUrl : null;
+    var videoExpAt  = videoSet && videoSet.videoExpireAt ? new Date(videoSet.videoExpireAt).getTime() : null;
+    var isExpired   = hasVideo && videoExpAt !== null && videoExpAt < Date.now();
     var videoCell;
     if (hasVideo && !isExpired) {
       var safeUrl  = videoUrl.replace(/'/g, '%27');
@@ -3625,6 +4203,7 @@ function mlOneEuroFilter(id, rawValue, timestamp) {
 
 // ── startMLTrainer ─────────────────────────────────────────────────────────
 async function startMLTrainer() {
+  if (!ANGLE_TRACKING_ENABLED) return;
   _mlTrainerFacingMode = 'environment';
   Object.keys(_mlFilterStates).forEach(k => delete _mlFilterStates[k]);
   _mlCurrentLandmarks = null;
@@ -4585,6 +5164,9 @@ Object.assign(window, {
   // Bottom sheet
   showExerciseDetail, dismissExerciseDetail,
 
+  // Manual session
+  openManualSession, closeManualSession, submitManualSession,
+
   // Patient flows
   startScanSession, startSessionWithProtocol, startSessionByIndex, showExercisesScreen,
   showProgressScreen, openPatientMessaging, sendMessageFromPatient,
@@ -4606,6 +5188,13 @@ Object.assign(window, {
   openBulkAssign, bulkAssignProtocol, bapToggleAll, _bapUpdateSubmitBtn,
   apmEnterCreateMode, apmExitCreateMode, apmSaveCustomExercise,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
+
+  // Demo recording
+  demoStartDemo, demoEndDemo, demoFlipCamera,
+  demoUseThis, demoReRecord, demoClearVideo,
+  demoUploadFile, demoHandleFileSelect,
+  playProtocolDemo, removeProtocolDemo,
+  closeDemoAndStart, skipDemoVideo, replayDemoInSession,
 
   // Joint selector
   ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
