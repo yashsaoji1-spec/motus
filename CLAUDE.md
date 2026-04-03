@@ -170,6 +170,12 @@ Auth screens excluded from persistence: `loginScreen`, `signupScreen`, `forgotSc
 
 Single-page app. All screens are `<div class="screen">` in `index.html`. Navigation is done by toggling the `.active` class via `showScreen(id)` in `app.js` (Section 2). `showScreen` also stops `mpCamera` whenever leaving `cameraScreen`.
 
+**Therapist screen layout:**
+- Sidebar: patient list with search, clinic code copy button
+- Main panel (empty state): shows "+ Add Protocol" button in header
+- When patient selected: shows back button (←) in patient header to deselect
+- Clicking "+ Add Protocol" opens bulk assign modal with patient search
+
 | Screen ID                  | Purpose                                                        |
 |----------------------------|----------------------------------------------------------------|
 | `loginScreen`              | Default landing screen (has `.active`)                         |

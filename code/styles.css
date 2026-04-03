@@ -321,6 +321,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: var(--space-2);
 }
+#bapPatientSearch { margin-bottom: var(--space-2); }
 .bap-select-all-label {
   display: flex; align-items: center; gap: 6px;
   font-size: 0.75rem; color: var(--muted); cursor: pointer;
@@ -802,7 +803,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .sidebar-footer { margin-top: auto; }
 .sidebar-switch-user { font-size: 0.8rem; color: var(--muted); cursor: pointer; padding: 8px; }
 .sidebar-switch-user:hover { color: var(--text); text-decoration: underline; }
-.main-panel { flex: 1; padding: 32px; overflow-y: auto; min-height: 0; }
+.main-panel { flex: 1; padding: 32px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+.tp-header { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+.tp-header-add-btn {
+  padding: 10px 18px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.tp-header-add-btn:hover { background: var(--accent-hover); }
+.main-panel > .empty-state { flex: 1; }
 .main-panel h3 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
 .main-panel .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
 .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
@@ -2985,8 +3000,25 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* ── Patient panel header ────────────────────────────────────────────────── */
 .patient-panel-hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.patient-panel-hdr-left { display: flex; align-items: center; gap: 12px; }
 .patient-panel-hdr h3 { margin: 0; }
 .patient-panel-hdr .subtitle { margin: 2px 0 0; }
+.tp-back-btn {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  font-size: 1.1rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.tp-back-btn:hover { background: var(--border); }
+@media (min-width: 1024px) {
+  .tp-back-btn { display: flex; align-items: center; justify-content: center; }
+}
 
 /* ── Add Protocol button (patient panel header) ──────────────────────────── */
 .apm-add-btn {
@@ -3078,10 +3110,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   width: 100%; aspect-ratio: 9/16;
   background: #111; border-radius: var(--radius-md);
   overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
 }
 .apm-demo-video {
-  width: 100%; height: 100%; object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
 }
 .apm-demo-empty {
@@ -3529,3 +3565,5 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   border-radius: 3px;
   transition: width 0.2s ease;
 }
+
+

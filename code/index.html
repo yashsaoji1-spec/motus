@@ -352,12 +352,14 @@
       <input type="text" id="patientSearch" class="sidebar-search" placeholder="Search patients…"
              oninput="filterPatients(this.value)" />
     </div>
-    <button class="sidebar-bulk-btn" onclick="openBulkAssign()">Bulk Assign Protocol</button>
     <div class="sidebar-footer">
       <span class="sidebar-switch-user" onclick="requestLogout()">Switch user</span>
     </div>
   </div>
   <div class="main-panel" id="mainPanel">
+    <div class="tp-header">
+      <button class="tp-header-add-btn" onclick="openBulkAssign()">+ Add Protocol</button>
+    </div>
     <div class="empty-state">
       <p>← Select a patient to view their progress</p>
     </div>
@@ -650,6 +652,7 @@
                 <input type="checkbox" id="bapSelectAll" onchange="bapToggleAll(this.checked)"> Select all
               </label>
             </div>
+            <input type="text" id="bapPatientSearch" class="apm-input" placeholder="Search patients…" oninput="bapFilterPatients(this.value)">
             <div class="bap-patients-list" id="bapPatientsList"></div>
           </div>
           <div id="apmCreateFields" style="display:none;flex-direction:column;gap:var(--space-4)">
@@ -697,7 +700,7 @@
         <div class="apm-demo-label">Demo Video <span class="apm-demo-optional">(optional)</span></div>
         <div class="apm-demo-screen">
           <video id="demoCameraPreview" class="apm-demo-video" playsinline muted autoplay style="display:none;"></video>
-          <video id="demoPlayback" class="apm-demo-video" controls playsinline style="display:none;"></video>
+          <video id="demoPlayback" class="apm-demo-video" playsinline controls style="display:none;"></video>
           <canvas id="demoRecordCanvas" style="display:none;"></canvas>
           <div id="demoEmptyState" class="apm-demo-empty">No demo recorded</div>
           <div id="demoRecordingBadge" class="apm-demo-rec-badge" style="display:none;">
