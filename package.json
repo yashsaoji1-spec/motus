@@ -13,6 +13,9 @@
   "author": "Yash Saoji & Oliver Huelsbeck",
   "license": "ISC",
   "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/drawing_utils": "^0.3.1675466124",
+    "@mediapipe/hands": "^0.4.1675469240",
     "chart.js": "^4.0.0",
     "firebase": "^9.23.0",
     "prompt-sync": "^4.2.0"

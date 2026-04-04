@@ -47,6 +47,15 @@ let _demoTimerSec        = 0;      // elapsed seconds
 let _demoAnimFrame       = null;   // requestAnimationFrame handle for canvas draw loop
 let _demoExistingVideoUrl = null;  // preserves existing URL in edit mode
 let _pendingDemoProtocol  = null;  // protocol awaiting demo auto-play on patient side
+let _manualCamProtocol    = null;  // current protocol for manual camera session
+let _manualCamSetData    = [];    // array of {reps, pain, notes, videoUrl} for each set
+let _manualCamCurrentSet = 1;     // current set number (1-indexed)
+let _manualCamTotalSets = 3;      // total sets for this session
+let _manualCamStream    = null;  // getUserMedia stream
+let _manualCamRecorder  = null;  // MediaRecorder for manual camera
+let _manualCamChunks    = [];    // recorded chunks for current set
+let _manualCamVideoUrl  = null;   // uploaded video URL for current set
+let _manualCamCurrentBlob = null; // video blob from current set
 
 const CLOUDINARY_CLOUD  = 'dslbugsdg';
 const CLOUDINARY_PRESET = 'phalanx-videos';
@@ -471,12 +480,20 @@ async function getTodayCompletion(email) {
   const sessions = await getPatientSessions(email);
   const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
   // Only count sessions whose protocolId matches a current protocol's id.
-  // Sessions without protocolId (saved before this field existed) are excluded — we cannot
-  // tell which protocol they belong to, preventing stale sessions from showing "Done".
   const currentIds = new Set(protocols.map(p => p.id).filter(Boolean));
-  const done = todaySessions.filter(s => s.protocolId && currentIds.has(s.protocolId)).length;
+  // Count total sets across all sessions (including setData array for manual camera sessions)
+  let totalSets = 0;
+  todaySessions.forEach(s => {
+    if (s.protocolId && currentIds.has(s.protocolId)) {
+      if (s.setData && s.setData.length > 0) {
+        totalSets += s.setData.length;
+      } else {
+        totalSets += 1; // Fallback for older sessions without setData
+      }
+    }
+  });
   const required = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
-  return { done, required };
+  return { done: totalSets, required };
 }
 
 async function updatePatientHomeScreen() {
@@ -497,6 +514,7 @@ async function updatePatientHomeScreen() {
   // Today's Plan card
   const planCard = document.getElementById('todaysPlanCard');
   const planList = document.getElementById('todaysPlanList');
+  const completionStatus = document.getElementById('completionStatus');
   if (planCard && planList && protocols.length > 0) {
     planCard.style.display = 'block';
     planList.innerHTML = protocols.map(p => {
@@ -504,6 +522,32 @@ async function updatePatientHomeScreen() {
       const dose = `${p.sets || 3} × ${p.reps || 10} reps`;
       return `<div class="todays-plan-item"><span class="todays-plan-name">${name}</span><span class="todays-plan-dose">${dose}</span></div>`;
     }).join('');
+    
+    // Calculate completion
+    const today = new Date().toDateString();
+    const todaySessions = sessions.filter(s => s.protocolId && new Date(s.date).toDateString() === today);
+    const currentIds = new Set(protocols.map(p => p.id).filter(Boolean));
+    let totalSets = 0;
+    todaySessions.forEach(s => {
+      if (s.protocolId && currentIds.has(s.protocolId)) {
+        if (s.setData && s.setData.length > 0) {
+          totalSets += s.setData.length;
+        } else {
+          totalSets += 1;
+        }
+      }
+    });
+    const required = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
+    
+    if (completionStatus) {
+      if (totalSets >= required) {
+        completionStatus.textContent = 'Done';
+        completionStatus.className = 'todays-plan-status done';
+      } else {
+        completionStatus.textContent = `${totalSets}/${required}`;
+        completionStatus.className = 'todays-plan-status';
+      }
+    }
   } else if (planCard) {
     planCard.style.display = 'none';
   }
@@ -594,34 +638,36 @@ function calcStreak(sessions) {
   return { current, best };
 }
 
+let _demoSourceScreen = null; // 'patientScreen' or 'exercisesScreen'
+
 async function startSessionByIndex(i) {
+  _demoSourceScreen = 'exercisesScreen';
   await startSessionWithProtocol(_exercisesProtocols[i]);
 }
 
 async function startSessionWithProtocol(protocol) {
   selectedProtocol = protocol;
   if (!ANGLE_TRACKING_ENABLED) {
-    // Check if there is a demo video the patient hasn't watched yet
+    // Always show demo overlay if demo video exists
     if (protocol.demoVideoUrl) {
-      try {
-        const snap = await db.collection('protocols').doc(currentUser.email).get();
-        const watched = snap.exists ? (snap.data().demoWatched || []) : [];
-        if (!watched.includes(protocol.id)) {
-          // Show demo auto-play overlay
-          _pendingDemoProtocol = protocol;
-          const overlay = document.getElementById('demoVideoOverlay');
-          const player  = document.getElementById('demoVideoPlayer');
-          const nameEl  = document.getElementById('demoVideoExName');
-          if (overlay && player) {
-            if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
-            player.src = protocol.demoVideoUrl;
-            overlay.style.display = 'flex';
-            return;
-          }
-        }
-      } catch (e) {
-        console.error('[phalanX] demoWatched check:', e);
-        // Non-critical — fall through to manual session
+      _pendingDemoProtocol = protocol;
+      const overlay = document.getElementById('demoVideoOverlay');
+      const player  = document.getElementById('demoVideoPlayer');
+      const nameEl  = document.getElementById('demoVideoExName');
+      const skipBtn = document.getElementById('demoSkipBtn');
+      if (overlay && player) {
+        if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
+        player.src = protocol.demoVideoUrl;
+        player.poster = protocol.demoVideoUrl.replace('/video/upload/', '/video/upload/so_1,w_400,h_225,c_fill/').replace('.mp4', '.jpg').replace('.webm', '.jpg');
+        // Enable skip only if already watched
+        db.collection('protocols').doc(currentUser.email).get().then(snap => {
+          const watched = snap.exists ? (snap.data().demoWatched || []) : [];
+          if (skipBtn) skipBtn.disabled = !watched.includes(protocol.id);
+        }).catch(() => {
+          if (skipBtn) skipBtn.disabled = false;
+        });
+        overlay.style.display = 'flex';
+        return;
       }
     }
     openManualSession(protocol);
@@ -636,6 +682,7 @@ async function startSessionWithProtocol(protocol) {
 }
 
 async function startScanSession() {
+  _demoSourceScreen = 'patientScreen';
   const protocols = await getProtocols(currentUser.email);
   if (protocols.length !== 1) {
     // 0 protocols: exercises screen shows "no protocol" message
@@ -672,6 +719,277 @@ function openManualSession(protocol) {
 
 function closeManualSession() {
   document.getElementById('manualSessionModal').style.display = 'none';
+}
+
+// ── Manual Camera Session (patient with video recording) ──
+
+async function openManualCameraSession(protocol) {
+  _manualCamProtocol = protocol;
+  _manualCamSetData = [];
+  _manualCamCurrentSet = 1;
+  _manualCamTotalSets = protocol.sets || 3;
+  _manualCamVideoUrl = null;
+
+  const video = document.getElementById('manualCamVideo');
+  if (video) video.style.transform = 'scaleX(1)';
+
+  const nameEl = document.getElementById('manualCamExName');
+  const setInfoEl = document.getElementById('manualCamSetInfo');
+  const promptEl = document.getElementById('manualCamPrompt');
+  const btnsEl = document.getElementById('manualCamBtns');
+  const startBtn = document.getElementById('manualCamStartBtn');
+
+  if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType || 'Exercise';
+  if (setInfoEl) setInfoEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets}`;
+  if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
+  if (btnsEl) btnsEl.innerHTML = `<button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>`;
+
+  showScreen('manualCamScreen');
+  await manualCamStartCamera();
+}
+
+async function manualCamStartCamera() {
+  const video = document.getElementById('manualCamVideo');
+  if (!video) return;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' }, 
+      audio: true 
+    });
+    _manualCamStream = stream;
+    video.srcObject = stream;
+    await video.play();
+  } catch(e) {
+    console.error('[phalanX] Manual camera error:', e);
+    alert('Could not access camera. Please allow camera permissions.');
+  }
+}
+
+function manualCamStartRecording() {
+  if (!_manualCamStream) return;
+  
+  const video = document.getElementById('manualCamVideo');
+  const promptEl = document.getElementById('manualCamPrompt');
+  const btnsEl = document.getElementById('manualCamBtns');
+  const recEl = document.getElementById('manualCamRecording');
+
+  _manualCamChunks = [];
+  const mimeType = getRecordingMimeType();
+  _manualCamRecorder = new MediaRecorder(_manualCamStream, { mimeType, videoBitsPerSecond: 400000 });
+  
+  _manualCamRecorder.ondataavailable = e => { 
+    if (e.data && e.data.size > 0) _manualCamChunks.push(e.data); 
+  };
+  
+  _manualCamRecorder.start(1000);
+  
+  if (promptEl) promptEl.textContent = 'Recording... Tap End Set when done';
+  if (btnsEl) btnsEl.innerHTML = `
+    <button class="manual-cam-exit-btn" onclick="manualCamExit()">Exit</button>
+    <button class="manual-cam-end-btn" onclick="manualCamEndSet()">End Set</button>
+  `;
+  if (recEl) recEl.style.display = 'flex';
+}
+
+function manualCamEndSet() {
+  if (!_manualCamRecorder || _manualCamRecorder.state === 'inactive') return;
+  
+  const recEl = document.getElementById('manualCamRecording');
+  if (recEl) recEl.style.display = 'none';
+  
+  const mimeType = _manualCamRecorder.mimeType;
+  
+  _manualCamRecorder.onstop = async () => {
+    _manualCamRecorder = null;
+    _manualCamCurrentBlob = new Blob(_manualCamChunks, { type: mimeType });
+    _manualCamChunks = [];
+    
+    // Show input modal
+    const setInput = document.getElementById('setInputModal');
+    const repsInput = document.getElementById('setInputReps');
+    const painInput = document.getElementById('setInputPain');
+    const painVal = document.getElementById('setInputPainVal');
+    const notesInput = document.getElementById('setInputNotes');
+    
+    if (repsInput) repsInput.value = _manualCamProtocol?.reps || 10;
+    if (painInput) painInput.value = 1;
+    if (painVal) painVal.textContent = '1 / 10';
+    if (notesInput) notesInput.value = '';
+    
+    if (setInput) setInput.style.display = 'flex';
+  };
+  
+  _manualCamRecorder.stop();
+}
+
+function manualCamCancelSet() {
+  document.getElementById('setInputModal').style.display = 'none';
+  const promptEl = document.getElementById('manualCamPrompt');
+  const btnsEl = document.getElementById('manualCamBtns');
+  if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
+  if (btnsEl) btnsEl.innerHTML = `<button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>`;
+}
+
+async function manualCamSaveSet() {
+  const reps = parseInt(document.getElementById('setInputReps').value) || 0;
+  const pain = parseInt(document.getElementById('setInputPain').value) || 1;
+  const notes = document.getElementById('setInputNotes').value || '';
+  
+  document.getElementById('setInputModal').style.display = 'none';
+  
+  // Upload video and get URL from saved blob
+  let videoUrl = null;
+  const blob = _manualCamCurrentBlob;
+  _manualCamCurrentBlob = null;
+  
+  if (blob && blob.size > 0) {
+    try {
+      const form = new FormData();
+      form.append('file', blob);
+      form.append('upload_preset', CLOUDINARY_PRESET);
+      form.append('resource_type', 'video');
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
+        method: 'POST',
+        body: form
+      });
+      const data = await res.json();
+      if (data.secure_url) videoUrl = data.secure_url;
+    } catch(e) {
+      console.warn('[phalanX] Video upload error:', e);
+    }
+  }
+  
+  _manualCamSetData.push({ reps, pain, notes, videoUrl });
+  
+  if (_manualCamCurrentSet >= _manualCamTotalSets) {
+    await finishManualCamSession();
+  } else {
+    _manualCamCurrentSet++;
+    const setInfoEl = document.getElementById('manualCamSetInfo');
+    const promptEl = document.getElementById('manualCamPrompt');
+    const btnsEl = document.getElementById('manualCamBtns');
+    if (setInfoEl) setInfoEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets}`;
+    if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
+    if (btnsEl) btnsEl.innerHTML = `<button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>`;
+  }
+}
+
+async function finishManualCamSession() {
+  if (!_manualCamProtocol) return;
+  
+  // Stop camera
+  if (_manualCamStream) {
+    _manualCamStream.getTracks().forEach(t => t.stop());
+    _manualCamStream = null;
+  }
+  
+  const totalReps = _manualCamSetData.reduce((sum, s) => sum + s.reps, 0);
+  const avgPain = _manualCamSetData.length > 0 
+    ? Math.round(_manualCamSetData.reduce((sum, s) => sum + s.pain, 0) / _manualCamSetData.length) 
+    : 1;
+  
+  try {
+    const therapistEmail = await getConnectedTherapist();
+    const docRef = await db.collection('sessions').add({
+      patientEmail: currentUser.email,
+      date: new Date().toISOString(),
+      reps: totalReps,
+      pain: avgPain,
+      exerciseType: _manualCamProtocol.exerciseType,
+      protocolId: _manualCamProtocol.id,
+      therapistEmail: therapistEmail || null,
+      setData: _manualCamSetData
+    });
+  } catch(e) {
+    console.error('[phalanX] Session save error:', e);
+  }
+  
+  _manualCamProtocol = null;
+  _manualCamSetData = [];
+  await updatePatientHomeScreen();
+  showScreen('patientScreen');
+}
+
+function manualCamExit() {
+  // If recording in progress, stop and save
+  if (_manualCamRecorder && _manualCamRecorder.state !== 'inactive') {
+    _manualCamRecorder.onstop = async () => {
+      _manualCamRecorder = null;
+      if (_manualCamCurrentBlob) {
+        await saveCurrentSetAndExit();
+      }
+      finishAndExit();
+    };
+    _manualCamRecorder.stop();
+    return;
+  }
+
+  // If there's an unsaved blob (mid-set exit), save it
+  if (_manualCamCurrentBlob) {
+    saveCurrentSetAndExit().then(() => finishAndExit());
+    return;
+  }
+
+  // If we have completed sets, session is already saved - just exit
+  if (_manualCamSetData.length > 0) {
+    finishAndExit();
+    return;
+  }
+
+  // No sets at all - just exit
+  doCleanExit();
+}
+
+function finishAndExit() {
+  if (_manualCamSetData.length > 0) {
+    finishManualCamSession().then(() => {
+      doCleanExit();
+      showExercisesScreen();
+    });
+  } else {
+    doCleanExit();
+  }
+}
+
+function doCleanExit() {
+  if (_manualCamStream) {
+    _manualCamStream.getTracks().forEach(t => t.stop());
+    _manualCamStream = null;
+  }
+  _manualCamProtocol = null;
+  _manualCamSetData = [];
+  updatePatientHomeScreen();
+  showScreen('patientScreen');
+}
+
+async function saveCurrentSetAndExit() {
+  const blob = _manualCamCurrentBlob;
+  _manualCamCurrentBlob = null;
+  
+  let videoUrl = null;
+  if (blob && blob.size > 0) {
+    try {
+      const form = new FormData();
+      form.append('file', blob);
+      form.append('upload_preset', CLOUDINARY_PRESET);
+      form.append('resource_type', 'video');
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
+        method: 'POST',
+        body: form
+      });
+      const data = await res.json();
+      if (data.secure_url) videoUrl = data.secure_url;
+    } catch(e) {
+      console.warn('[phalanX] Video upload error:', e);
+    }
+  }
+  
+  // Add with default reps/pain since user didn't fill modal
+  _manualCamSetData.push({ reps: _manualCamProtocol?.reps || 10, pain: 1, notes: 'Exited early', videoUrl });
+  
+  // Now save the session
+  await finishManualCamSession();
 }
 
 async function submitManualSession() {
@@ -1241,12 +1559,42 @@ async function closeDemoAndStart() {
 
   const protocol = _pendingDemoProtocol;
   _pendingDemoProtocol = null;
-  if (protocol) openManualSession(protocol);
+  if (!protocol) return;
+  
+  if (ANGLE_TRACKING_ENABLED) {
+    selectedProtocol = protocol;
+    trackedJoints = await loadTrackedJoints(currentUser.email);
+    jointMaxAngles = {};
+    showScreen('cameraScreen');
+    await loadPatientProtocol();
+    await initSetTracker();
+    if (!mpCamera) startCamera();
+  } else {
+    openManualCameraSession(protocol);
+  }
 }
 
 async function skipDemoVideo() {
   // Skipping also counts as watched to avoid auto-play on next visit
   await closeDemoAndStart();
+}
+
+function exitDemoNoSave() {
+  const overlay = document.getElementById('demoVideoOverlay');
+  const player  = document.getElementById('demoVideoPlayer');
+  if (overlay) overlay.style.display = 'none';
+  if (player)  { player.pause(); player.removeAttribute('src'); }
+  if (_demoSourceScreen === 'exercisesScreen') {
+    _demoSourceScreen = null;
+    showExercisesScreen();
+  } else {
+    _demoSourceScreen = null;
+    showScreen('patientScreen');
+  }
+}
+
+function onDemoVideoProgress() {
+  // Progress handler for demo video
 }
 
 function replayDemoInSession() {
@@ -1428,7 +1776,13 @@ async function showExercisesScreen() {
   const doneById = {};
   allSessions
     .filter(s => s.protocolId && new Date(s.date).toDateString() === today)
-    .forEach(s => { doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1; });
+    .forEach(s => { 
+      if (s.setData && s.setData.length > 0) {
+        doneById[s.protocolId] = (doneById[s.protocolId] || 0) + s.setData.length;
+      } else {
+        doneById[s.protocolId] = (doneById[s.protocolId] || 0) + 1;
+      }
+    });
 
   _exercisesProtocols = protocols;
 
@@ -1439,7 +1793,7 @@ async function showExercisesScreen() {
     const isDone = doneSets >= totalSetsNeeded;
     const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
     const badge = isDone ? '<span class="exs-row-badge done">Done</span>'
-      : doneSets > 0 ? `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
+      : `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>`;
     return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
       <div class="exs-row-left">
         <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
@@ -1447,7 +1801,6 @@ async function showExercisesScreen() {
       </div>
       <div class="exs-row-right">
         ${badge}
-        <span class="exs-row-sets">${totalSetsNeeded} sets</span>
         <svg class="exs-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>`;
@@ -1541,30 +1894,9 @@ function enableMobilePatientDetail(panel) {
   panel.insertAdjacentHTML('afterbegin', '<div style="margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button></div>');
 }
 
-// Seeded sessions for demo patient — always present regardless of localStorage state.
-// daysAgo is relative to today so the data always looks recent.
+// No fake demo data - real sessions only
 function getDemoSessions(patientEmail) {
-  if (patientEmail !== 'james.park@gmail.com') return [];
-  const th = 'sarah.chen@mayoclinic.org';
-  // [daysAgo, reps, rom, pain] — gradual improvement arc over ~3 weeks
-  const templates = [
-    [21,  8,  42, 7],
-    [19,  9,  48, 6],
-    [17, 10,  55, 7],
-    [14, 10,  58, 5],
-    [12, 11,  64, 5],
-    [10, 12,  68, 4],
-    [ 7, 12,  72, 4],
-    [ 5, 13,  78, 3],
-    [ 3, 14,  82, 3],
-    [ 1, 15,  88, 2],
-  ];
-  return templates.map(([daysAgo, reps, rom, pain]) => {
-    const d = new Date();
-    d.setDate(d.getDate() - daysAgo);
-    d.setHours(9, 30, 0, 0);
-    return { date: d.toISOString(), reps, rom, pain, tam: Math.round(rom * 2.8), therapistEmail: th };
-  });
+  return [];
 }
 
 async function getPatientSessions(patientEmail) {
@@ -1690,7 +2022,27 @@ async function showRealPatient(patient) {
 
 function groupSetsIntoSessions(sets) {
   if (sets.length === 0) return [];
-  const sorted = [...sets].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  // Expand setData arrays into individual set entries
+  const expanded = [];
+  sets.forEach(s => {
+    if (s.setData && s.setData.length > 0) {
+      s.setData.forEach((sd, idx) => {
+        expanded.push({
+          ...sd,
+          date: s.date,
+          exerciseType: s.exerciseType,
+          protocolId: s.protocolId,
+          therapistEmail: s.therapistEmail,
+          sessionDocId: s.id || null
+        });
+      });
+    } else {
+      expanded.push(s);
+    }
+  });
+  
+  const sorted = [...expanded].sort((a, b) => new Date(a.date) - new Date(b.date));
   const groups = [];
   let cur = { sets: [sorted[0]], protocolId: sorted[0].protocolId || '' };
   for (let i = 1; i < sorted.length; i++) {
@@ -1705,7 +2057,7 @@ function groupSetsIntoSessions(sets) {
     const totalReps = s.reduce((sum, x) => sum + (x.reps || 0), 0);
     const maxROM = Math.max(...s.map(x => x.rom || 0));
     const avgPain = s.length ? s.reduce((sum, x) => sum + (x.pain || 0), 0) / s.length : 0;
-    const dur = Math.round((new Date(s[s.length - 1].date) - new Date(s[0].date)) / 60000);
+    const dur = s.length > 1 ? Math.round((new Date(s[s.length - 1].date) - new Date(s[0].date)) / 60000) : 0;
     return {
       date: s[0].date, sets: s, setsCompleted: s.length,
       totalReps, maxROM, avgPain, durationMin: dur,
@@ -3236,49 +3588,160 @@ async function showProgressScreen() {
   await renderProgressScreen();
 }
 
-function buildPatientSessionHistory(sessions) {
-  if (!sessions || !sessions.length) return '';
-  const grouped  = groupSetsIntoSessions(sessions);
-  const reversed = [...grouped].reverse().slice(0, 20);
-  const patientName = currentUser ? (currentUser.name || currentUser.email) : '';
-  var html = '<div class="prog-history-card">' +
-    '<div class="prog-grid-header">' +
-    '<span>Date</span><span>Exercise</span><span>Sets</span><span>Pain</span><span>Video</span>' +
-    '</div>';
-  reversed.forEach(function(g) {
-    var d        = new Date(g.date);
-    var dateStr  = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    var exercise = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
-    var sets     = g.setsCompleted;
-    var pain     = g.avgPain != null ? g.avgPain.toFixed(1) : '\u2014';
-    var hasVideo    = g.sets.some(function(s) { return s.videoUrl; });
-    var videoSet    = hasVideo ? g.sets.find(function(s) { return s.videoUrl; }) : null;
-    var videoUrl    = videoSet ? videoSet.videoUrl : null;
-    var videoExpAt  = videoSet && videoSet.videoExpireAt ? new Date(videoSet.videoExpireAt).getTime() : null;
-    var isExpired   = hasVideo && videoExpAt !== null && videoExpAt < Date.now();
-    var videoCell;
-    if (hasVideo && !isExpired) {
-      var safeUrl  = videoUrl.replace(/'/g, '%27');
-      var safeDate = g.date.replace(/'/g, '');
-      var safeName = patientName.replace(/'/g, '');
-      videoCell = '<button class="prog-video-btn" onclick="openVideoModal(\'' + safeUrl + '\',\'' + safeDate + '\',\'' + safeName + '\')">' +
-        '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>' +
-        '</button>';
-    } else if (hasVideo && isExpired) {
-      videoCell = '<span class="prog-video-expired">Expired</span>';
+function groupSessionsByDay(sessions) {
+  if (!sessions || !sessions.length) return {};
+  
+  const expanded = [];
+  sessions.forEach(s => {
+    if (s.setData && s.setData.length > 0) {
+      s.setData.forEach((sd, idx) => {
+        expanded.push({
+          ...sd,
+          date: s.date,
+          exerciseType: s.exerciseType,
+          protocolId: s.protocolId,
+          therapistEmail: s.therapistEmail,
+          sessionDocId: s.id || null,
+          parentDate: s.date
+        });
+      });
     } else {
-      videoCell = '<span class="prog-video-none">\u2014</span>';
+      expanded.push({
+        ...s,
+        parentDate: s.date
+      });
     }
-    html += '<div class="prog-grid-row">' +
-      '<span>' + dateStr + '</span>' +
-      '<span>' + exercise + '</span>' +
-      '<span>' + sets + '</span>' +
-      '<span>' + pain + '</span>' +
-      '<span>' + videoCell + '</span>' +
-      '</div>';
   });
+  
+  const grouped = {};
+  expanded.forEach(s => {
+    const d = new Date(s.date);
+    const dayKey = d.toISOString().split('T')[0];
+    if (!grouped[dayKey]) grouped[dayKey] = [];
+    grouped[dayKey].push(s);
+  });
+  
+  return grouped;
+}
+
+function buildProgressByDay(sessions) {
+  const byDay = groupSessionsByDay(sessions);
+  const days = Object.keys(byDay).sort((a, b) => new Date(b) - new Date(a));
+  
+  if (days.length === 0) return '';
+  
+  let html = '<div class="prog-days-list">';
+  
+  days.forEach(day => {
+    const daySessions = byDay[day];
+    const dayDate = new Date(day);
+    const dayLabel = dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = day === todayStr;
+    
+    const exercisesMap = {};
+    daySessions.forEach(s => {
+      const exType = s.exerciseType || 'General';
+      if (!exercisesMap[exType]) exercisesMap[exType] = [];
+      exercisesMap[exType].push(s);
+    });
+    
+    const exCount = Object.keys(exercisesMap).length;
+    const totalSets = daySessions.length;
+    const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
+    const avgPain = totalSets > 0 
+      ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
+      : '-';
+    
+    html += `<div class="prog-day-card">
+      <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
+        <div class="prog-day-title-row">
+          <span class="prog-day-expand-icon">▾</span>
+          <span class="prog-day-title">${isToday ? 'Today' : dayLabel}</span>
+          <span class="prog-day-badge">${exCount} exercise${exCount !== 1 ? 's' : ''}, ${totalSets} set${totalSets !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="prog-day-summary">
+          <span class="prog-day-stat">${totalReps} reps</span>
+          <span class="prog-day-stat">Avg pain: ${avgPain}</span>
+        </div>
+      </div>
+      <div class="prog-day-body">`;
+    
+    Object.keys(exercisesMap).forEach(exType => {
+      const exSessions = exercisesMap[exType];
+      const exLabel = exerciseLabels[exType] || exType;
+      
+      html += `<div class="prog-exercise-block">
+        <div class="prog-exercise-header">${exLabel}</div>
+        <div class="prog-sets-list">
+          <div class="prog-sets-header">
+            <span class="prog-hdr-label"></span>
+            <span class="prog-hdr-video">Video</span>
+            <span class="prog-hdr-reps">Reps</span>
+            <span class="prog-hdr-pain">Pain</span>
+            <span class="prog-hdr-notes"></span>
+          </div>`;
+      
+      exSessions.forEach((s, idx) => {
+        const setNum = idx + 1;
+        const hasVideo = !!s.videoUrl;
+        const exitedEarly = s.notes && s.notes.toLowerCase().includes('exited');
+        
+        let videoBtn = '<span class="prog-set-empty">—</span>';
+        if (hasVideo) {
+          const safeUrl = (s.videoUrl || '').replace(/'/g, '%27');
+          const safeDate = (s.parentDate || '').replace(/'/g, '');
+          const patientName = (currentUser?.name || currentUser?.email || '').replace(/'/g, '');
+          videoBtn = `<button class="prog-set-video-btn" onclick="openVideoModal('${safeUrl}', '${safeDate}', '${patientName}')" title="Watch Set ${setNum}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>`;
+        }
+        
+        const notesBtn = s.notes && s.notes.trim()
+          ? `<button class="prog-set-notes-btn" onclick="event.stopPropagation(); showSetNotes('${s.notes.replace(/'/g, "\\'")}')">
+              Comments
+            </button>` 
+          : '<span class="prog-set-empty">—</span>';
+        
+        const exitBadge = exitedEarly 
+          ? `<span class="prog-set-exit-badge" title="Patient exited early">Exited</span>` 
+          : '';
+        
+        html += `<div class="prog-set-row">
+          <div class="prog-set-info">
+            <span class="prog-set-label">Set ${setNum}</span>
+            ${exitBadge}
+          </div>
+          <div class="prog-set-data">
+            ${videoBtn}
+            <span class="prog-set-reps">${s.reps || 0} reps</span>
+            <span class="prog-set-pain">${s.pain || 1}/10</span>
+            ${notesBtn}
+          </div>
+        </div>`;
+      });
+      
+      html += `</div>`;
+    });
+    
+    html += `</div></div>`;
+  });
+  
   html += '</div>';
   return html;
+}
+
+function toggleProgDay(card) {
+  card.classList.toggle('expanded');
+}
+
+function showSetNotes(notes) {
+  document.getElementById('setNotesText').textContent = notes;
+  document.getElementById('setNotesModal').style.display = 'flex';
+}
+
+function closeSetNotesModal() {
+  document.getElementById('setNotesModal').style.display = 'none';
 }
 
 async function renderProgressScreen() {
@@ -3298,11 +3761,23 @@ async function renderProgressScreen() {
 
   const now = Date.now();
   const msPerDay = 86400000;
-  const last7 = sessions.filter(function(s) {
+  
+  const expandedSessions = [];
+  sessions.forEach(s => {
+    if (s.setData && s.setData.length > 0) {
+      s.setData.forEach(sd => {
+        expandedSessions.push({ ...sd, timestamp: s.timestamp, date: s.date });
+      });
+    } else {
+      expandedSessions.push(s);
+    }
+  });
+  
+  const last7 = expandedSessions.filter(function(s) {
     var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
     return ts && (now - ts.getTime()) <= 7 * msPerDay;
   });
-  const prior7 = sessions.filter(function(s) {
+  const prior7 = expandedSessions.filter(function(s) {
     var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
     if (!ts) return false;
     var age = now - ts.getTime();
@@ -3329,46 +3804,12 @@ async function renderProgressScreen() {
     }
   }
 
-  const bestROM = sessions.reduce(function(best, s) { return Math.max(best, s.rom || s.maxROM || 0); }, 0);
-
-  const recent = sessions.slice(-10);
-  const romData = recent.map(function(s) { return s.rom || s.maxROM || 0; });
-  const labels = recent.map(function(s) {
-    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
-    return ts ? ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-  });
-
   content.innerHTML =
     '<div class="prog-stats-row">' +
       '<div class="prog-stat-card"><div class="prog-stat-value">' + sessionsThisWeek + '/7</div><div class="prog-stat-label">This week</div></div>' +
       '<div class="prog-stat-card"><div class="prog-stat-value ' + painTrendClass + '">' + painTrendDisplay + '</div><div class="prog-stat-label">Pain trend</div></div>' +
-      '<div class="prog-stat-card"><div class="prog-stat-value">' + (bestROM ? bestROM + '\u00b0' : '\u2014') + '</div><div class="prog-stat-label">Best ROM</div></div>' +
     '</div>' +
-    '<div class="prog-chart-card"><canvas id="progRomChart"></canvas></div>' +
-    buildPatientSessionHistory(sessions);
-
-  new Chart(document.getElementById('progRomChart').getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: romData,
-        borderColor: '#0B6CB0',
-        backgroundColor: 'rgba(11,108,176,0.08)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        pointBackgroundColor: '#0B6CB0'
-      }]
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 11 } } },
-        y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 11 } } }
-      }
-    }
-  });
+    buildProgressByDay(sessions);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -5260,7 +5701,13 @@ Object.assign(window, {
   demoUseThis, demoReRecord, demoClearVideo,
   demoUploadFile, demoHandleFileSelect,
   playProtocolDemo, removeProtocolDemo,
-  closeDemoAndStart, skipDemoVideo, replayDemoInSession,
+  closeDemoAndStart, skipDemoVideo, replayDemoInSession, exitDemoNoSave, onDemoVideoProgress,
+
+  // Manual camera session
+  openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,
+
+  // Progress screen
+  toggleProgDay, showSetNotes, closeSetNotesModal,
 
   // Joint selector
   ejsDotClick, ejsSelectCard, ejsToggleFromInfo,

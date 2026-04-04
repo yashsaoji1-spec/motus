@@ -190,11 +190,14 @@
     <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
 
     <div id="todaysPlanCard" class="todays-plan-card" style="display:none;">
-      <div class="todays-plan-header">Your exercises</div>
+      <div class="todays-plan-header">
+        <span>Your exercises</span>
+        <span id="completionStatus" class="todays-plan-status"></span>
+      </div>
       <div id="todaysPlanList" class="todays-plan-list"></div>
     </div>
 
-    <button class="patient-hero-btn" onclick="startScanSession()">Start a Session</button>
+    <button class="patient-hero-btn" id="patientHeroBtn" onclick="startScanSession()">Start a Session</button>
 
     <div class="patient-nav-grid">
       <button class="patient-nav-card" onclick="showProgressScreen()">
@@ -336,6 +339,56 @@
   </div>
 </div>
 
+<!-- Manual Camera Screen (patient session without tracking) -->
+<div id="manualCamScreen" class="screen">
+  <div class="manual-cam-viewport">
+    <video id="manualCamVideo" autoplay playsinline muted></video>
+    <button class="cam-hud-back" onclick="manualCamExit()">← Back</button>
+    <div id="manualCamRecording" class="recording-indicator" style="display:none;">
+      <span class="rec-dot"></span>
+      <span class="rec-label">REC</span>
+    </div>
+  </div>
+  <div class="manual-cam-ctrl">
+    <div class="manual-cam-header">
+      <span class="manual-cam-exname" id="manualCamExName">Exercise</span>
+      <span class="manual-cam-setinfo" id="manualCamSetInfo">Set 1 of 3</span>
+    </div>
+    <p class="manual-cam-prompt" id="manualCamPrompt">Tap Start when ready to begin</p>
+    <div class="manual-cam-btns" id="manualCamBtns">
+      <button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>
+    </div>
+  </div>
+</div>
+
+<!-- Set Input Modal -->
+<div id="setInputModal" class="modal-overlay" style="display:none;">
+  <div class="set-input-card">
+    <h3 class="set-input-title">Set Complete</h3>
+    <p class="set-input-sub">Enter your results for this set</p>
+    <div class="set-input-field">
+      <label>Reps completed</label>
+      <input type="number" id="setInputReps" min="0" value="10" />
+    </div>
+    <div class="set-input-field">
+      <label>Pain level</label>
+      <div class="set-input-pain">
+        <input type="range" id="setInputPain" min="1" max="10" value="1" 
+               oninput="document.getElementById('setInputPainVal').textContent = this.value + ' / 10'" />
+        <span id="setInputPainVal">1 / 10</span>
+      </div>
+    </div>
+    <div class="set-input-field">
+      <label>Notes (optional)</label>
+      <textarea id="setInputNotes" placeholder="How did it feel?"></textarea>
+    </div>
+    <div class="set-input-actions">
+      <button class="set-input-cancel" onclick="manualCamCancelSet()">Cancel</button>
+      <button class="set-input-save" onclick="manualCamSaveSet()">Save Set</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════
      THERAPIST SCREEN
 ═══════════════════════════════════════════════════════ -->
@@ -376,6 +429,19 @@
       <button class="prog-back-btn" onclick="showScreen('patientScreen')">← Back</button>
     </div>
     <div id="progressContent"></div>
+  </div>
+</div>
+
+<!-- Set Notes Modal -->
+<div id="setNotesModal" class="modal-overlay" style="display:none;" onclick="closeSetNotesModal()">
+  <div class="set-notes-modal" onclick="event.stopPropagation()">
+    <div class="set-notes-header">
+      <h3>Set Notes</h3>
+      <button class="set-notes-close" onclick="closeSetNotesModal()">×</button>
+    </div>
+    <div class="set-notes-body">
+      <p id="setNotesText"></p>
+    </div>
   </div>
 </div>
 
@@ -771,12 +837,27 @@
 <!-- Demo Video Overlay (patient auto-play) -->
 <div id="demoVideoOverlay" class="demo-video-overlay" style="display:none;">
   <div class="demo-video-card">
+    <button class="demo-video-close" onclick="exitDemoNoSave()">←</button>
     <h3 class="demo-video-title">Watch Demo</h3>
     <p class="demo-video-sub" id="demoVideoExName"></p>
-    <video id="demoVideoPlayer" class="demo-video-player" controls playsinline></video>
+    <video id="demoVideoPlayer" class="demo-video-player" controls playsinline onprogress="onDemoVideoProgress()"></video>
     <div class="demo-video-actions">
-      <button class="demo-video-skip" onclick="skipDemoVideo()">Skip</button>
+      <button class="demo-video-skip" id="demoSkipBtn" onclick="skipDemoVideo()" disabled>Skip</button>
       <button class="demo-video-start" onclick="closeDemoAndStart()">Start Exercise</button>
+    </div>
+  </div>
+</div>
+
+<!-- Demo Choice Modal (shown when patient has seen demo before) -->
+<div id="demoChoiceModal" class="modal-overlay" style="display:none;">
+  <div class="demo-choice-card">
+    <button class="demo-choice-close" onclick="closeDemoChoiceModal()">←</button>
+    <h3 class="demo-choice-title">Watch Demo?</h3>
+    <div class="demo-choice-preview"></div>
+    <p class="demo-choice-exname" id="demoChoiceExName"></p>
+    <div class="demo-choice-actions">
+      <button class="demo-choice-skip" onclick="closeDemoChoiceModal()">Skip</button>
+      <button class="demo-choice-watch" onclick="playDemoFromChoice()">Watch Demo</button>
     </div>
   </div>
 </div>

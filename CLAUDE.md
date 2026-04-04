@@ -17,12 +17,14 @@ const ANGLE_TRACKING_ENABLED = false;  // set to true to re-enable
 ```
 
 **When `false` (current state):**
-- Session start routes to a manual log modal (reps + pain slider) instead of the camera
+- Session start routes to a manual camera session (`manualCamScreen`) with video recording, per-set input modal (reps, pain slider, notes)
 - ML Trainer screen is inaccessible (`startMLTrainer` returns immediately)
 - ML Trainer button is absent from the therapist sidebar
 - Therapist patient panel shows: pain chart, session history (no ROM), protocol, messages
 - ROM / Joint Monitoring sections are hidden
 - Angle condition builder is hidden in the Add Protocol form
+- Demo video skip button is disabled until patient has already watched it (checked via `demoWatched`)
+- Progress screen uses day-grouped expandable cards with per-set breakdown (no ROM chart)
 
 **When set back to `true`:**
 - Restore the ML Trainer button in `index.html` therapist sidebar: `<button class="sidebar-ml-btn" onclick="startMLTrainer()">ML Trainer</button>` (goes between `<h2>phalanX</h2>` and the clinic-badge div)
@@ -127,7 +129,7 @@ Config is set in `FIREBASE_CONFIG` at the top of `app.js` (Section 1).
 | `users`         | `{email}`            | `{ name, role }` |
 | `connections`   | `{therapistEmail}`   | `{ patients: [email, …] }` |
 | `protocols`     | `{patientEmail}`     | `{ items: [{ id, exerciseType, reps, sets, frequency, assignedBy, notes?, exerciseParams?, demoVideoUrl? }, …], demoWatched?: [id, …] }` — `demoVideoUrl` is a Cloudinary URL set at assign time; `demoWatched` tracks which protocol item IDs the patient has already auto-watched |
-| `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles?, videoUrl? }` |
+| `sessions`      | auto-id              | `{ patientEmail, date, reps, rom, pain, tam, therapistEmail, exerciseType, protocolId, jointAngles?, videoUrl?, setData? }` — `setData` is an array of `{ reps, pain, notes, videoUrl }` per set (manual camera sessions); when present, completion counting uses `setData.length` instead of counting sessions |
 | `calibration`   | `{patientEmail}`     | `{ joints: { [key]: { angle, metricVal } }, recordedAt, recordedBy }` — best angle per joint from calibration |
 | `messages`      | auto-id              | `{ from, to, participants, text, timestamp, read }` |
 | `jointTracking`   | `{patientEmail}`           | `{ joints: [key, …], updatedBy }` — therapist's selected joints for this patient |
@@ -186,8 +188,9 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 | `adminScreen`              | Admin panel — approve/reject pending therapist accounts        |
 | `connectScreen`            | Patient↔therapist link by therapist code                       |
 | `patientScreen`            | Patient home (today's protocol strip, streak, completion status) |
-| `exercisesScreen`          | All assigned protocols; white cards with blue/dark text; per-protocol done/partial/pending badge + Start/Do Again button |
-| `cameraScreen`             | Live exercise session (rep counter, pain slider, plain-English rep cue, set tracker, REC indicator while recording); `#mlStatusLine` shows `Raw tracking` when no ML models are active, or `ML <joint>` tags for each joint using a trained model |
+| `exercisesScreen`          | All assigned protocols; white cards with blue/dark text; per-protocol done/partial badge + Start/Do Again button |
+| `manualCamScreen`          | Manual camera session (no MediaPipe tracking) — live video preview with Start/End Set/Exit buttons; records per-set video at 400 kbps to Cloudinary; shows per-set input modal (reps, pain slider, notes) after each set |
+| `cameraScreen`             | Live exercise session with MediaPipe tracking (rep counter, pain slider, plain-English rep cue, set tracker, REC indicator while recording); `#mlStatusLine` shows `Raw tracking` when no ML models are active, or `ML <joint>` tags for each joint using a trained model |
 | `therapistScreen`          | Therapist dashboard (patient list + collapsible sections: charts, joint monitoring, session history, protocol form, messages) |
 | `progressScreen`           | Patient progress history                                       |
 | `messagingScreen`          | In-app patient↔therapist messaging thread                      |
@@ -195,7 +198,7 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 
 ## Role Split
 
-**Patient flow:** `loginScreen` → `patientScreen` → `exercisesScreen` (pick protocol) → `cameraScreen` → back to `patientScreen`
+**Patient flow:** `loginScreen` → `patientScreen` → `exercisesScreen` (pick protocol) → `manualCamScreen` → back to `patientScreen`
 
 **Therapist flow:** `loginScreen` → `therapistScreen` (sidebar patient list + main panel with collapsible sections)
 
@@ -206,10 +209,11 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 ### Multi-protocol flow
 
 - Therapist assigns protocols via "Add Exercise to Protocol" form — each assignment **appends** a new item with a unique `id: Date.now().toString()` to `protocols/{patientEmail}.items`.
-- Patient with **1 protocol**: "Start a Session" goes directly to `cameraScreen`.
+- Patient with **1 protocol**: "Start a Session" goes directly to `manualCamScreen`.
 - Patient with **2+ protocols**: "Start a Session" routes to `exercisesScreen` to pick a protocol.
 - `selectedProtocol` global holds the chosen protocol for the active session.
 - Completion counting uses `protocolId` (stored on each session doc) to match sessions to current protocols. Deleting a protocol and creating a new one gets a fresh ID — old sessions never count toward new protocol requirements.
+- Completion is tracked at the **set level** — `setData.length` is summed across sessions for today's progress.
 
 ### Collapsible therapist panel sections
 
@@ -246,13 +250,13 @@ The file uses `/* ══ SECTION N: ... ══ */` banners. Jump to these to fin
 | 4   | Connect — therapist code linking flow (async Firestore) |
 | 5   | Login Success / Logout — role routing; `requestLogout`, `closeLogoutModal`, `confirmLogout` |
 | 5b  | Admin Panel — `loadAdminScreen()`, `approveTherapist()`, `rejectTherapist()` |
-| 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionByIndex(i)` (onclick handler — looks up `_exercisesProtocols[i]` in module scope; **do not use `window._exercisesProtocols` in onclicks** — `Object.assign` freezes it as `[]` at init), `startSessionWithProtocol` (async — loads `trackedJoints`; if `protocol.demoVideoUrl` exists and the protocol ID is not in `demoWatched`, shows `#demoVideoOverlay` and stores `_pendingDemoProtocol` — proceeds to `openManualSession` only after patient watches or skips), `openManualSession` (shows `#manualSessionDemoBtn` when `protocol.demoVideoUrl` exists), `startScanSession`, `sendMessageFromPatient`; globals: `_pendingDemoProtocol` |
+| 6   | Patient Home — `getTodayCompletion` (filters by `protocolId`, counts sets via `setData.length`), `updatePatientHomeScreen`, `showExercisesScreen` (per-protocol completion badges + white card design), `startSessionByIndex(i)` (onclick handler — looks up `_exercisesProtocols[i]` in module scope; **do not use `window._exercisesProtocols` in onclicks** — `Object.assign` freezes it as `[]` at init), `startSessionWithProtocol` (async — loads `trackedJoints`; if `protocol.demoVideoUrl` exists, shows `#demoVideoOverlay` and stores `_pendingDemoProtocol` — skip button disabled unless already watched; proceeds to `openManualCameraSession` after patient watches or skips), `openManualSession` (shows `#manualSessionDemoBtn` when `protocol.demoVideoUrl` exists), `openManualCameraSession` (new — starts manual camera session with per-set recording), `startScanSession`, `sendMessageFromPatient`; globals: `_pendingDemoProtocol`, `_demoSourceScreen` |
 | 7   | Protocol System — `PROTOCOL_CATALOG` (built-in exercises + custom exercises merged in at modal open), `EXERCISE_DEFAULTS`, `FINGER_LANDMARK_MAP`, `CALIB_FINGERS` (derived from `FINGER_LANDMARK_MAP` as `{a,b,c}` format — used by sweep calibration and TAM calc), `getProtocols`, `getExistingProtocol`, `assignProtocol` (appends; reads patient email from `_protoPatientEmail` global — no parameter; uploads `_demoBlob` to Cloudinary before Firestore write if present; angle params collection guarded by `ANGLE_TRACKING_ENABLED`), `deleteProtocol` (removes by id; demo video URL becomes orphaned on Cloudinary — accepted limitation), `editProtocol` (opens Add Protocol modal pre-populated for edit; loads existing `demoVideoUrl` into confirmed state), `cancelEditProtocol` (calls `closeAddProtocol()`), `normalizeExerciseParams`, `loadTrackedJoints`, `saveTrackedJoints`; globals: `_protoPatientEmail`, `_apmNewExCat` (boolean — true when in create-exercise mode) |
 | 8   | Therapist Panel — `makeCollapsible`, `toggleTpSection`, `showRealPatient`, `buildSessionHistory`, `buildProtocolList` (adds Play Demo / Remove Demo buttons per protocol card when `demoVideoUrl` exists), `openAddProtocol` (async — side-by-side layout: form left, demo col right; resets `apmSelectedExInfo` and demo state on open), `closeAddProtocol` (calls `_demoCleanup()`), `_apmRenderLibrary` (renders library with + button in search bar), `_apmLoadCustomExercises` (fetches `customExercises` from Firestore, merges into `PROTOCOL_CATALOG` + `exerciseLabels`), `apmEnterCreateMode`, `apmExitCreateMode`, `apmSaveCustomExercise`, `apmSelectExercise` (populates `#apmSelectedExName` + `#apmSelectedExDesc` + shows `#apmSelectedExInfo`; sets reps/sets/freq defaults), `apmFilter`, `updateExerciseParamsUI` (hides container entirely when `ANGLE_TRACKING_ENABLED = false`), `epAddCondition`, `epRemoveCondition`; `backToPatientList`; `showTherapistOnboarding`, `dismissTherapistOnboarding`; **demo recording globals**: `_demoStream`, `_demoMediaRecorder`, `_demoChunks`, `_demoBlob`, `_demoFacingMode`, `_demoTimerInterval`, `_demoTimerSec`, `_demoAnimFrame`, `_demoExistingVideoUrl`; **demo functions**: `_demoSetState`, `_demoStopCamera`, `_demoCleanup`, `_demoStartCameraAndRecord`, `demoStartDemo`, `demoEndDemo`, `demoFlipCamera`, `demoUseThis`, `demoReRecord`, `demoClearVideo`, `demoUploadFile`, `demoHandleFileSelect`, `playProtocolDemo`, `removeProtocolDemo`, `closeDemoAndStart`, `skipDemoVideo`, `replayDemoInSession` — demo recording uses separate MediaRecorder globals from session recording to avoid conflicts; camera preview uses `transform: none` to prevent browser mirroring; playback seeks to `currentTime = 0.001` on `onloadeddata` to show first frame |
 | 9   | Rep Counter — `checkExerciseState`, `updateRepCount` (per-joint angle tracking into `jointMaxAngles`), `updateRepFeedback` (plain-English cues), `fingerLabel`, `saveSession` (saves `exerciseType`, `protocolId`, `jointAngles`; two-step: Firestore first, then Cloudinary upload in background, then `update({videoUrl})`); `toggleSound`, `skipRest`, `dismissSummary`, `dismissSummaryToProgress` (skips patientScreen — goes straight to progress screen) |
 | 10  | Set Tracking — `initSetTracker` (resets all state including `jointMaxAngles`), `renderSetDots`, `advanceSet`, `completeSessionEarly` (saves `exerciseType`, `protocolId`, `jointAngles`; same two-step video pattern as `saveSession`) |
 | 11  | Patient Session Camera — `startCamera` (desktop: uses MediaPipe `Camera` class; mobile: direct `getUserMedia` + `requestAnimationFrame` loop, canvas dimensions set from video, aspect ratio adjusted dynamically, canvas mirrored only for front camera; **iOS Safari fix**: `hands.send({ image: sessionCanvas })` — canvas not video, required for iOS); calls `startRecording(sessionCanvas)` after camera starts; `flipCamera` discards pre-flip footage and restarts recording; `isMobile`; `updateMLStatusLine` (called on hand-label change — shows which exercise joints are using trained ML models vs raw MediaPipe; blank for non-angle exercises); recording utilities: `getRecordingMimeType`, `startRecording` (**400 kbps** via `videoBitsPerSecond: 400_000`), `stopRecording`, `uploadSessionVideo` (Cloudinary fetch), `showRecordingIndicator`, `hideRecordingIndicator`, `openVideoModal(videoUrl, sessionDate, patientName)` (wires modal download button), `closeVideoModal`, `downloadSessionVideo(url, date, patientName)` (fetches blob → triggers download as `phalanx-session-{PatientName}-{YYYY-MM-DD}.{ext}`; falls back to `window.open` if fetch blocked by CORS) |
-| 12  | Progress Screen — session history display |
+| 12  | Progress Screen — session history display with day-grouped expandable cards (`buildProgressByDay`), per-set breakdown with video/reps/pain/notes buttons; ROM chart removed |
 | 13  | Joint Selector (Enhanced) — `buildJointSelector`, `ejsInit` (async — loads saved joints from Firestore, renders charts), `ejsOnSelectionChange` (updates UI + charts + debounced Firestore save), `renderJointCharts` (Chart.js line chart per tracked joint from session history), `ejsToggleJoint`, `ejsRefreshUI`, `ejsDotClick`, `ejsSelectCard`, `ejsToggleFromInfo`, `ejsRemoveChip`, `ejsQuickSelectFinger`, `ejsSelectAll`, `ejsClearAll` |
 | 15  | Messaging — `sendMessage`, `renderThread`, `buildMessagePanel`, etc. |
 | 17  | ML Angle Trainer — `loadMLModels`, `loadMLFeatureExtractor`, `extractVisualFeatures`, `submitMLSample`, `mlAutoCapture`, `mlStartRecording`, `mlStopRecording`, `mlUndoLastRecording`, `mlClearJoint`, `trainMLModel`, `getTrainedAngle`, `mlOnResults`, `mlSetHand`, `mlRefreshSampleCounts`, `mlRenderGrid`, `mlUseSuggested`, `mlToggleStats`, `mlToggleModels`, `mlSaveNotes`; globals: `_mlModels` (Map), `_mlCurrentHand` (live camera detection only), `_mlSelectedHand` (persistent — used by all data ops), `_mlFeatureExtractor`, `_currentFrameFeatures`, `_currentHandLabel`, `_mlSuggestedAngle`, `_mlRecording`, `_mlRecordingId`, `_mlLastRecordingId` |
