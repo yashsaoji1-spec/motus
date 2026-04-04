@@ -28,6 +28,13 @@ let _protoPatientEmail = null;
 let _apmNewExCat = false;
 let _bulkAssignMode = false;
 
+// ── Protocol Library state ──
+let _plLibrary = [];
+let _plSelectedId = null;
+let _plCreateMode = false;
+let _plTherapistData = null;
+let _plHiddenOpen = false;
+
 // ── Video recording state ──
 let mediaRecorder        = null;   // active MediaRecorder during a session
 let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
@@ -2506,75 +2513,361 @@ async function _apmLoadCustomExercises() {
       }
     });
   } catch (e) { /* non-fatal */ }
+
+  if (auth.currentUser?.email) {
+    try {
+      const doc = await db.collection('therapistLibrary').doc(auth.currentUser.email).get();
+      if (doc.exists) {
+        const data = doc.data();
+        const hidden = new Set(data.hiddenIds || []);
+        const edited = {};
+        (data.editedBuiltIns || []).forEach(e => { edited[e.id] = e; });
+        (data.customExercises || []).forEach(e => {
+          if (!PROTOCOL_CATALOG.find(ex => ex.id === e.id) && !hidden.has(e.id)) {
+            PROTOCOL_CATALOG.push({ id: e.id, cat: e.cat, dr: e.dr, ds: e.ds, df: e.df, desc: e.desc || '' });
+            exerciseLabels[e.id] = e.name;
+          }
+        });
+        Object.keys(edited).forEach(id => {
+          const orig = PROTOCOL_CATALOG.find(e => e.id === id);
+          if (orig && !hidden.has(id)) {
+            orig.dr = edited[id].dr ?? orig.dr;
+            orig.ds = edited[id].ds ?? orig.ds;
+            orig.df = edited[id].df ?? orig.df;
+            orig.desc = edited[id].desc ?? orig.desc;
+            if (edited[id].name) exerciseLabels[id] = edited[id].name;
+          }
+        });
+        for (let i = PROTOCOL_CATALOG.length - 1; i >= 0; i--) {
+          if (hidden.has(PROTOCOL_CATALOG[i].id)) PROTOCOL_CATALOG.splice(i, 1);
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+  }
 }
 
-function apmEnterCreateMode() {
-  _apmNewExCat = true;
-  const fields = document.getElementById('apmCreateFields');
-  fields.style.display = 'flex';
-  document.getElementById('apmNewExName').value = '';
-  document.getElementById('apmNewExName').placeholder = 'e.g. Wrist Circles';
-  document.querySelectorAll('.apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
-  const container = document.getElementById('exerciseParamsSection');
-  if (container) container.innerHTML = `
-    <div class="ep-section">
-      <span class="ep-section-label">Joint Conditions</span>
-      <div class="ep-condition-header">
-        <span>Finger</span><span>Joint</span><span>Flex\u00b0</span><span>Extend\u00b0</span><span></span>
+function apmEnterCreateMode() {}
+function apmExitCreateMode() {}
+async function apmSaveCustomExercise() {}
+
+/* ══════════════════════════════════════════════════════════════════════════
+    PROTOCOL LIBRARY MODAL
+    ══════════════════════════════════════════════════════════════════════════ */
+
+async function loadTherapistLibrary() {
+  try {
+    const doc = await db.collection('therapistLibrary').doc(auth.currentUser.email).get();
+    if (doc.exists) {
+      _plTherapistData = doc.data();
+    } else {
+      _plTherapistData = { customExercises: [], hiddenIds: [], editedBuiltIns: [] };
+      await db.collection('therapistLibrary').doc(auth.currentUser.email).set(_plTherapistData);
+    }
+  } catch (e) {
+    _plTherapistData = { customExercises: [], hiddenIds: [], editedBuiltIns: [] };
+  }
+}
+
+function buildProtocolLibrary() {
+  const hidden = new Set(_plTherapistData.hiddenIds || []);
+  const edited = {};
+  (_plTherapistData.editedBuiltIns || []).forEach(e => { edited[e.id] = e; });
+  const custom = (_plTherapistData.customExercises || []).map(e => ({ ...e, _isCustom: true }));
+
+  const builtInMap = {};
+  PROTOCOL_CATALOG.forEach(e => { builtInMap[e.id] = { ...e }; });
+
+  Object.keys(edited).forEach(id => {
+    if (builtInMap[id]) {
+      Object.assign(builtInMap[id], edited[id], { _isEdited: true });
+    }
+  });
+
+  const allBuiltIns = Object.values(builtInMap).filter(e => !hidden.has(e.id));
+  const allCustom = custom.filter(e => !hidden.has(e.id));
+
+  _plLibrary = [...allBuiltIns, ...allCustom];
+  _plLibrary._hiddenIds = hidden;
+  _plLibrary._editedIds = new Set(Object.keys(edited));
+}
+
+function openProtocolLibrary() {
+  document.getElementById('protocolLibraryModal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  _plHiddenOpen = false;
+  _plCreateMode = false;
+  _plSelectedId = null;
+  document.getElementById('plEmptyState').style.display = '';
+  document.getElementById('plConfigFields').style.display = 'none';
+  document.getElementById('plNormalConfig').style.display = '';
+  document.getElementById('plCreateConfig').style.display = 'none';
+  document.getElementById('plSelectedExInfo').style.display = 'none';
+  document.getElementById('plResetBtn').style.display = 'none';
+  const hh = document.getElementById('plHiddenHeader');
+  if (hh) hh.classList.remove('open');
+  const hl = document.getElementById('plHiddenList');
+  if (hl) hl.style.display = 'none';
+  loadTherapistLibrary().then(() => {
+    buildProtocolLibrary();
+    plRender();
+  });
+}
+
+function closeProtocolLibrary() {
+  document.getElementById('protocolLibraryModal').style.display = 'none';
+  document.body.style.overflow = '';
+  _plSelectedId = null;
+  _plCreateMode = false;
+}
+
+function plRender() {
+  const listEl = document.getElementById('plLibList');
+  if (!listEl) return;
+  const q = (document.getElementById('plSearch')?.value || '').toLowerCase().trim();
+  const filtered = _plLibrary.filter(e =>
+    !q || (exerciseLabels[e.id] || e.id).toLowerCase().includes(q) || e.cat.toLowerCase().includes(q) || (e.desc || '').toLowerCase().includes(q)
+  );
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="apm-lib-empty">No exercises found</div>';
+  } else {
+    const cats = {};
+    for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
+    listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
+      <div class="apm-lib-cat">
+        <div class="apm-lib-cat-label">${cat}</div>
+        ${items.map(e => {
+          const label = exerciseLabels[e.id] || e.id;
+          const editedClass = e._isEdited ? ' apm-lib-item--edited' : '';
+          const activeClass = _plSelectedId === e.id ? ' apm-lib-item--active' : '';
+          return `<div class="apm-lib-item${editedClass}${activeClass}" id="pl-item-${e.id}" onclick="plSelectExercise('${e.id}')">
+            <div class="apm-lib-item-name">${label}</div>
+            <div class="apm-lib-item-desc">${e.desc || ''}</div>
+          </div>`;
+        }).join('')}
       </div>
-      <div id="epConditionsList"></div>
-      <button class="ep-add-btn" onclick="epAddCondition()">+ Add Joint</button>
-    </div>
-    <div class="ep-require-all-row" id="epRequireAllRow" style="display:none">
-      <label class="ep-checkbox-label">
-        <input type="checkbox" id="epRequireAll">
-        Require all joints simultaneously
-      </label>
-    </div>
-    <p class="ep-threshold-hint">0\u00b0 = straight finger. Higher values = more bent.</p>`;
-  const cats = [...new Set(PROTOCOL_CATALOG.map(e => e.cat))];
-  document.getElementById('apmNewExCatSelect').innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
-  const cancelBtn = document.getElementById('apmCancelBtn');
-  const submitBtn = document.getElementById('apmSubmitBtn');
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.onclick = apmExitCreateMode;
-  submitBtn.textContent = 'Save to Library';
-  submitBtn.onclick = apmSaveCustomExercise;
+    `).join('');
+  }
+
+  const hiddenList = document.getElementById('plHiddenList');
+  const hiddenIds = _plTherapistData?.hiddenIds || [];
+  if (hiddenIds.length) {
+    const allExercises = [...PROTOCOL_CATALOG, ...(_plTherapistData.customExercises || [])];
+    const hiddenExercises = hiddenIds.map(id => {
+      const found = allExercises.find(e => e.id === id);
+      return found ? { ...found, label: exerciseLabels[id] || id } : { id, label: id };
+    });
+    hiddenList.innerHTML = hiddenExercises.map(e => `
+      <div class="pl-hidden-item">
+        <span>${e.label}</span>
+        <button onclick="plUnhide('${e.id}')">Unhide</button>
+      </div>
+    `).join('');
+  } else {
+    hiddenList.innerHTML = '<div class="pl-hidden-item" style="opacity:0.4">No hidden exercises</div>';
+  }
 }
 
-function apmExitCreateMode() {
-  _apmNewExCat = false;
-  document.getElementById('apmCreateFields').style.display = 'none';
-  const cancelBtn = document.getElementById('apmCancelBtn');
-  const submitBtn = document.getElementById('apmSubmitBtn');
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.onclick = closeAddProtocol;
-  submitBtn.textContent = 'Add to Protocol';
-  submitBtn.onclick = assignProtocol;
-}
+function plFilter(query) { plRender(); }
 
-async function apmSaveCustomExercise() {
-  const rawName = document.getElementById('apmNewExName').value.trim();
-  if (!rawName) { document.getElementById('apmNewExName').focus(); return; }
-  const cat = document.getElementById('apmNewExCatSelect').value;
-  const id = rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  if (PROTOCOL_CATALOG.find(e => e.id === id)) {
-    document.getElementById('apmNewExName').value = '';
-    document.getElementById('apmNewExName').placeholder = 'Name already exists';
+function plSelectExercise(id) {
+  if (_plCreateMode) plExitCreateMode();
+  if (_plSelectedId === id) {
+    plDeselect();
     return;
   }
-  const dr = parseInt(document.getElementById('protocolReps').value) || 10;
-  const ds = parseInt(document.getElementById('protocolSets').value) || 3;
-  const df = document.getElementById('protocolFrequency').value || 'daily';
-  const entry = { id, cat, dr, ds, df, desc: '' };
-  try {
-    await db.collection('customExercises').add({ ...entry, name: rawName, createdBy: auth.currentUser?.email || '' });
-  } catch (e) { /* save locally even if Firestore fails */ }
-  PROTOCOL_CATALOG.push(entry);
+  _plSelectedId = id;
+  const entry = _plLibrary.find(e => e.id === id);
+  if (!entry) return;
+
+  document.getElementById('plEmptyState').style.display = 'none';
+  document.getElementById('plConfigFields').style.display = '';
+  document.getElementById('plNormalConfig').style.display = '';
+  document.getElementById('plCreateConfig').style.display = 'none';
+  _plCreateMode = false;
+
+  const repsEl = document.getElementById('plReps');
+  const setsEl = document.getElementById('plSets');
+  const freqEl = document.getElementById('plFrequency');
+  const descEl = document.getElementById('plDesc');
+  if (repsEl) repsEl.value = entry.dr;
+  if (setsEl) setsEl.value = entry.ds;
+  if (freqEl) freqEl.value = entry.df;
+  if (descEl) descEl.value = entry.desc || '';
+
+  const infoEl = document.getElementById('plSelectedExInfo');
+  const nameEl = document.getElementById('plSelectedExName');
+  const descInfoEl = document.getElementById('plSelectedExDesc');
+  if (nameEl) nameEl.textContent = exerciseLabels[id] || id;
+  if (descInfoEl) descInfoEl.textContent = entry.desc || '';
+  if (infoEl) infoEl.style.display = 'block';
+
+  const resetBtn = document.getElementById('plResetBtn');
+  if (resetBtn) resetBtn.style.display = entry._isEdited ? '' : 'none';
+
+  _plHighlightSelected(id);
+}
+
+function plDeselect() {
+  _plSelectedId = null;
+  document.getElementById('plEmptyState').style.display = '';
+  document.getElementById('plConfigFields').style.display = 'none';
+  document.getElementById('plSelectedExInfo').style.display = 'none';
+  document.getElementById('plResetBtn').style.display = 'none';
+  document.querySelectorAll('#plLibList .apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+}
+
+function _plHighlightSelected(id) {
+  document.querySelectorAll('#plLibList .apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+  const el = document.getElementById('pl-item-' + id);
+  if (el) { el.classList.add('apm-lib-item--active'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+}
+
+function plEnterCreateMode() {
+  _plCreateMode = true;
+  _plSelectedId = null;
+  document.getElementById('plEmptyState').style.display = 'none';
+  document.getElementById('plConfigFields').style.display = 'none';
+  document.getElementById('plNormalConfig').style.display = 'none';
+  document.getElementById('plCreateConfig').style.display = '';
+  document.getElementById('plNewExName').value = '';
+  document.getElementById('plNewExDesc').value = '';
+  document.getElementById('plNewExReps').value = 10;
+  document.getElementById('plNewExSets').value = 3;
+  document.getElementById('plNewExFrequency').value = 'daily';
+  const cats = [...new Set(PROTOCOL_CATALOG.map(e => e.cat))];
+  document.getElementById('plNewExCatSelect').innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  document.querySelectorAll('#plLibList .apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+}
+
+function plExitCreateMode() {
+  _plCreateMode = false;
+  document.getElementById('plNormalConfig').style.display = '';
+  document.getElementById('plCreateConfig').style.display = 'none';
+  if (_plSelectedId) {
+    document.getElementById('plEmptyState').style.display = 'none';
+    document.getElementById('plConfigFields').style.display = '';
+  } else {
+    document.getElementById('plEmptyState').style.display = '';
+    document.getElementById('plConfigFields').style.display = 'none';
+  }
+}
+
+async function plSaveNewExercise() {
+  const rawName = document.getElementById('plNewExName').value.trim();
+  if (!rawName) { document.getElementById('plNewExName').focus(); return; }
+  const desc = document.getElementById('plNewExDesc').value.trim();
+  const cat = document.getElementById('plNewExCatSelect').value;
+  const id = rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (PROTOCOL_CATALOG.find(e => e.id === id) || (_plTherapistData.customExercises || []).find(e => e.id === id)) {
+    document.getElementById('plNewExName').value = '';
+    document.getElementById('plNewExName').placeholder = 'Name already exists';
+    return;
+  }
+  const dr = parseInt(document.getElementById('plNewExReps').value) || 10;
+  const ds = parseInt(document.getElementById('plNewExSets').value) || 3;
+  const df = document.getElementById('plNewExFrequency').value || 'daily';
+  const entry = { id, name: rawName, cat, dr, ds, df, desc, createdAt: new Date().toISOString() };
+
+  if (!_plTherapistData.customExercises) _plTherapistData.customExercises = [];
+  _plTherapistData.customExercises.push(entry);
+  await _saveTherapistLibrary();
+
   exerciseLabels[id] = rawName;
-  apmExitCreateMode();
-  _apmRenderLibrary(document.getElementById('apmSearch')?.value || '');
-  apmSelectExercise(id);
+  plExitCreateMode();
+  buildProtocolLibrary();
+  plRender();
+  plSelectExercise(id);
+}
+
+async function plSaveExercise() {
+  if (!_plSelectedId) return;
+  const entry = _plLibrary.find(e => e.id === _plSelectedId);
+  if (!entry) return;
+
+  const dr = parseInt(document.getElementById('plReps').value) || entry.dr;
+  const ds = parseInt(document.getElementById('plSets').value) || entry.ds;
+  const df = document.getElementById('plFrequency').value || entry.df;
+  const desc = document.getElementById('plDesc').value.trim();
+
+  if (entry._isCustom) {
+    const idx = (_plTherapistData.customExercises || []).findIndex(e => e.id === _plSelectedId);
+    if (idx >= 0) {
+      _plTherapistData.customExercises[idx].dr = dr;
+      _plTherapistData.customExercises[idx].ds = ds;
+      _plTherapistData.customExercises[idx].df = df;
+      _plTherapistData.customExercises[idx].desc = desc;
+    }
+  } else {
+    if (!_plTherapistData.editedBuiltIns) _plTherapistData.editedBuiltIns = [];
+    let existing = _plTherapistData.editedBuiltIns.find(e => e.id === _plSelectedId);
+    if (!existing) {
+      existing = { id: _plSelectedId };
+      _plTherapistData.editedBuiltIns.push(existing);
+    }
+    const orig = PROTOCOL_CATALOG.find(e => e.id === _plSelectedId);
+    existing.name = orig ? (exerciseLabels[_plSelectedId] || _plSelectedId) : _plSelectedId;
+    existing.cat = orig ? orig.cat : entry.cat;
+    existing.dr = dr;
+    existing.ds = ds;
+    existing.df = df;
+    existing.desc = desc;
+  }
+
+  await _saveTherapistLibrary();
+  buildProtocolLibrary();
+  plRender();
+  plSelectExercise(_plSelectedId);
+}
+
+async function plToggleHide() {
+  if (!_plSelectedId) return;
+  if (!_plTherapistData.hiddenIds) _plTherapistData.hiddenIds = [];
+  const idx = _plTherapistData.hiddenIds.indexOf(_plSelectedId);
+  if (idx >= 0) {
+    _plTherapistData.hiddenIds.splice(idx, 1);
+  } else {
+    _plTherapistData.hiddenIds.push(_plSelectedId);
+  }
+  await _saveTherapistLibrary();
+  buildProtocolLibrary();
+  plRender();
+  _plSelectedId = null;
+  document.getElementById('plSelectedExInfo').style.display = 'none';
+  document.getElementById('plResetBtn').style.display = 'none';
+}
+
+async function plUnhide(id) {
+  if (!_plTherapistData.hiddenIds) return;
+  const idx = _plTherapistData.hiddenIds.indexOf(id);
+  if (idx >= 0) _plTherapistData.hiddenIds.splice(idx, 1);
+  await _saveTherapistLibrary();
+  buildProtocolLibrary();
+  plRender();
+}
+
+async function plResetBuiltIn() {
+  if (!_plSelectedId) return;
+  if (!_plTherapistData.editedBuiltIns) return;
+  _plTherapistData.editedBuiltIns = _plTherapistData.editedBuiltIns.filter(e => e.id !== _plSelectedId);
+  await _saveTherapistLibrary();
+  buildProtocolLibrary();
+  plRender();
+  plSelectExercise(_plSelectedId);
+}
+
+function plToggleHiddenSection() {
+  _plHiddenOpen = !_plHiddenOpen;
+  const header = document.getElementById('plHiddenHeader');
+  const list = document.getElementById('plHiddenList');
+  if (header) header.classList.toggle('open', _plHiddenOpen);
+  if (list) list.style.display = _plHiddenOpen ? '' : 'none';
+}
+
+async function _saveTherapistLibrary() {
+  try {
+    await db.collection('therapistLibrary').doc(auth.currentUser.email).set(_plTherapistData);
+  } catch (e) { /* non-fatal */ }
 }
 
 function epUpdateRequireAllVisibility() {
@@ -5749,6 +6042,11 @@ Object.assign(window, {
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
   apmEnterCreateMode, apmExitCreateMode, apmSaveCustomExercise,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
+
+  // Protocol Library
+  openProtocolLibrary, closeProtocolLibrary, plFilter, plSelectExercise,
+  plEnterCreateMode, plExitCreateMode, plSaveNewExercise, plSaveExercise,
+  plToggleHide, plUnhide, plResetBuiltIn, plToggleHiddenSection, plDeselect,
 
   // Demo recording
   demoStartDemo, demoEndDemo, demoFlipCamera,

@@ -808,6 +808,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .sidebar-switch-user:hover { color: var(--text); text-decoration: underline; }
 .main-panel { flex: 1; padding: 32px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
 .tp-header { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+.tp-header-btns { display: flex; flex-direction: column; gap: 8px; }
 .tp-header-add-btn {
   padding: 10px 18px;
   background: var(--accent);
@@ -3172,6 +3173,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   margin-top: 2px;
 }
 .apm-add-btn:hover { opacity: 0.88; }
+.apm-lib-btn {
+  background: var(--blue);
+  margin-top: 4px;
+}
 
 /* ── Add Protocol Modal ──────────────────────────────────────────────────── */
 .apm-overlay {
@@ -3815,6 +3820,177 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: var(--accent);
   border-radius: 3px;
   transition: width 0.2s ease;
+}
+
+/* ── Protocol Library ── */
+.sidebar-lib-btn {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 4px 12px 8px;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  font-family: 'DM Sans', sans-serif;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  box-shadow: var(--shadow-cta);
+  transition: opacity var(--ease-default);
+  white-space: nowrap;
+  text-align: center;
+}
+.sidebar-lib-btn:hover { opacity: 0.88; }
+
+.tp-header-lib-btn {
+  background: var(--blue);
+  color: white;
+  border: none;
+}
+.tp-header-lib-btn:hover {
+  background: #2563eb;
+}
+
+.apm-lib-item--edited {
+  position: relative;
+}
+.apm-lib-item--edited::after {
+  content: 'edited';
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.pl-hidden-section {
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+  flex-shrink: 0;
+}
+.pl-hidden-header {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+.pl-hidden-header:hover { color: var(--text); }
+.pl-hidden-chevron {
+  display: inline-block;
+  transition: transform 0.15s;
+  font-size: 10px;
+}
+.pl-hidden-header.open .pl-hidden-chevron {
+  transform: rotate(90deg);
+}
+.pl-hidden-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+.pl-hidden-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  opacity: 0.6;
+}
+.pl-hidden-item button {
+  background: none;
+  border: none;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 2px 6px;
+}
+.pl-hidden-item button:hover {
+  text-decoration: underline;
+}
+
+.pl-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.pl-save-btn {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  font-family: 'DM Sans', sans-serif;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  box-shadow: var(--shadow-cta);
+  transition: opacity var(--ease-default);
+  white-space: nowrap;
+}
+.pl-save-btn:hover { opacity: 0.88; }
+.pl-hide-btn {
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+.pl-hide-btn:hover { color: var(--text); border-color: var(--text); }
+.pl-reset-btn {
+  padding: 10px 16px;
+  background: transparent;
+  color: #dc2626;
+  border: 1px solid #dc2626;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+.pl-reset-btn:hover { background: #dc2626; color: white; }
+.pl-cancel-btn {
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+.pl-deselect-btn {
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+.pl-deselect-btn:hover { color: var(--text); }
+
+.pl-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: center;
+  line-height: 1.6;
 }
 
 

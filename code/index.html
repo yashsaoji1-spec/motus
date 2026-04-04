@@ -400,6 +400,7 @@
       <span class="clinic-badge-code" id="therapistCode">------</span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
     </div>
+    <button class="sidebar-lib-btn" onclick="openProtocolLibrary()">Protocol Library</button>
     <div class="sidebar-search-wrap">
       <svg class="sidebar-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="patientSearch" class="sidebar-search" placeholder="Search patients…"
@@ -705,8 +706,7 @@
       <div class="apm-form-col">
         <div class="apm-lib-col">
           <div class="apm-lib-search-wrap">
-            <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off">
-            <button class="apm-new-ex-btn" onclick="apmEnterCreateMode()" title="Create new exercise">+</button>
+            <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off" style="width:100%">
           </div>
           <div class="apm-lib-list" id="apmLibList"></div>
         </div>
@@ -720,16 +720,6 @@
             </div>
             <input type="text" id="bapPatientSearch" class="apm-input" placeholder="Search patients…" oninput="bapFilterPatients(this.value)">
             <div class="bap-patients-list" id="bapPatientsList"></div>
-          </div>
-          <div id="apmCreateFields" style="display:none;flex-direction:column;gap:var(--space-4)">
-            <div class="apm-field">
-              <label class="apm-label">Exercise Name</label>
-              <input type="text" id="apmNewExName" class="apm-input" placeholder="e.g. Wrist Circles" autocomplete="off">
-            </div>
-            <div class="apm-field">
-              <label class="apm-label">Category</label>
-              <select id="apmNewExCatSelect" class="apm-select"></select>
-            </div>
           </div>
           <div id="apmSelectedExInfo" class="apm-selected-ex-info" style="display:none;">
             <div id="apmSelectedExName" class="apm-selected-ex-name"></div>
@@ -796,6 +786,111 @@
     <div class="apm-footer">
       <button class="apm-cancel-btn" id="apmCancelBtn" onclick="closeAddProtocol()">Cancel</button>
       <button class="apm-submit-btn" id="apmSubmitBtn" onclick="assignProtocol()">Add to Protocol</button>
+    </div>
+  </div>
+</div>
+
+<!-- Protocol Library Modal -->
+<div id="protocolLibraryModal" class="apm-overlay" style="display:none" onclick="if(event.target===this)closeProtocolLibrary()">
+  <div class="apm-panel">
+    <div class="apm-hdr">
+      <div class="apm-hdr-left">
+        <div class="apm-hdr-title">Protocol Library</div>
+      </div>
+      <button class="apm-close-btn" onclick="closeProtocolLibrary()">x</button>
+    </div>
+    <div class="apm-body">
+      <div class="apm-form-col">
+        <div class="apm-lib-col">
+          <div class="apm-lib-search-wrap">
+            <input type="text" class="apm-lib-search" id="plSearch" placeholder="Search exercises..." oninput="plFilter(this.value)" autocomplete="off">
+            <button class="apm-new-ex-btn" onclick="plEnterCreateMode()" title="Create new exercise">+</button>
+          </div>
+          <div class="apm-lib-list" id="plLibList"></div>
+          <div class="pl-hidden-section">
+            <div class="pl-hidden-header" id="plHiddenHeader" onclick="plToggleHiddenSection()">
+              <span class="pl-hidden-chevron" id="plHiddenChevron">▸</span> Hidden
+            </div>
+            <div class="pl-hidden-list" id="plHiddenList" style="display:none;"></div>
+          </div>
+        </div>
+        <div class="apm-config-col" id="plNormalConfig">
+          <div id="plEmptyState" class="pl-empty-state">
+            <p>Select a protocol to edit, or create a new one.</p>
+          </div>
+          <div id="plConfigFields" style="display:none;">
+            <div id="plSelectedExInfo" class="apm-selected-ex-info" style="display:none;">
+              <div id="plSelectedExName" class="apm-selected-ex-name"></div>
+              <div id="plSelectedExDesc" class="apm-selected-ex-desc"></div>
+            </div>
+            <div class="apm-dosage-row">
+              <div class="apm-field">
+                <label class="apm-label">Default Reps</label>
+                <input type="number" id="plReps" class="apm-input" min="1" max="50">
+              </div>
+              <div class="apm-field">
+                <label class="apm-label">Default Sets</label>
+                <input type="number" id="plSets" class="apm-input" min="1" max="10">
+              </div>
+              <div class="apm-field">
+                <label class="apm-label">Default Frequency</label>
+                <select id="plFrequency" class="apm-select">
+                  <option value="daily">Daily</option>
+                  <option value="twice_daily">Twice Daily</option>
+                  <option value="every_other">Every Other Day</option>
+                  <option value="three_week">3x Per Week</option>
+                </select>
+              </div>
+            </div>
+            <div class="apm-notes-field">
+              <label class="apm-label">Description</label>
+              <textarea id="plDesc" class="apm-textarea" placeholder="Describe this exercise..." rows="2"></textarea>
+            </div>
+            <div class="pl-actions">
+              <button class="pl-save-btn" onclick="plSaveExercise()">Save Changes</button>
+              <button class="pl-hide-btn" id="plHideBtn" onclick="plToggleHide()">Hide Exercise</button>
+              <button class="pl-reset-btn" id="plResetBtn" onclick="plResetBuiltIn()" style="display:none;">Reset to Default</button>
+            </div>
+          </div>
+        </div>
+        <div class="apm-config-col" id="plCreateConfig" style="display:none;">
+          <div class="apm-field">
+            <label class="apm-label">Exercise Name</label>
+            <input type="text" id="plNewExName" class="apm-input" placeholder="e.g. Wrist Circles" autocomplete="off">
+          </div>
+          <div class="apm-field">
+            <label class="apm-label">Description</label>
+            <textarea id="plNewExDesc" class="apm-textarea" placeholder="Brief description of the exercise..." rows="3"></textarea>
+          </div>
+          <div class="apm-field">
+            <label class="apm-label">Category</label>
+            <select id="plNewExCatSelect" class="apm-select"></select>
+          </div>
+          <div class="apm-dosage-row">
+            <div class="apm-field">
+              <label class="apm-label">Default Reps</label>
+              <input type="number" id="plNewExReps" class="apm-input" value="10" min="1" max="50">
+            </div>
+            <div class="apm-field">
+              <label class="apm-label">Default Sets</label>
+              <input type="number" id="plNewExSets" class="apm-input" value="3" min="1" max="10">
+            </div>
+            <div class="apm-field">
+              <label class="apm-label">Default Frequency</label>
+              <select id="plNewExFrequency" class="apm-select">
+                <option value="daily">Daily</option>
+                <option value="twice_daily">Twice Daily</option>
+                <option value="every_other">Every Other Day</option>
+                <option value="three_week">3x Per Week</option>
+              </select>
+            </div>
+          </div>
+          <div class="pl-actions">
+            <button class="pl-save-btn" onclick="plSaveNewExercise()">Save New Protocol</button>
+            <button class="pl-cancel-btn" onclick="plExitCreateMode()">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
