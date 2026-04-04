@@ -173,10 +173,10 @@ Auth screens excluded from persistence: `loginScreen`, `signupScreen`, `forgotSc
 Single-page app. All screens are `<div class="screen">` in `index.html`. Navigation is done by toggling the `.active` class via `showScreen(id)` in `app.js` (Section 2). `showScreen` also stops `mpCamera` whenever leaving `cameraScreen`.
 
 **Therapist screen layout:**
-- Sidebar: patient list with search, clinic code copy button
-- Main panel (empty state): shows "+ Add Protocol" button in header
+- Sidebar: patient list with search, clinic code copy button (blue badge), phalanX logo + title
+- Main panel (empty state): shows "Bulk Assign" button in header
 - When patient selected: shows back button (←) in patient header to deselect
-- Clicking "+ Add Protocol" opens bulk assign modal with patient search
+- Clicking "Bulk Assign" opens bulk assign modal with patient search
 
 | Screen ID                  | Purpose                                                        |
 |----------------------------|----------------------------------------------------------------|
@@ -217,7 +217,7 @@ Single-page app. All screens are `<div class="screen">` in `index.html`. Navigat
 
 ### Collapsible therapist panel sections
 
-`makeCollapsible(id, title, bodyHTML, open)` wraps any section in a `.tp-colsec` card with a clickable header (title + ▾ arrow). `toggleTpSection(id)` handles show/hide and dispatches `resize` so Chart.js redraws when chart sections are revealed. Default open: ROM chart, Pain chart. Default collapsed: Joint Monitoring, Session History, Add Exercise to Protocol, Messages.
+`makeCollapsible(id, title, bodyHTML, open)` wraps any section in a `.tp-colsec` card with a clickable header (title + ▾ arrow). `toggleTpSection(id)` handles show/hide and dispatches `resize` so Chart.js redraws when chart sections are revealed. Default collapsed: all sections (Pain chart, Joint Monitoring, Session History, Add Exercise to Protocol, Messages).
 
 ### Joint Monitoring data flow
 

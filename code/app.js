@@ -1873,7 +1873,7 @@ function backToPatientList() {
   const panel = document.getElementById('mainPanel');
   panel.innerHTML = `
     <div class="tp-header">
-      <button class="tp-header-add-btn" onclick="openBulkAssign()">+ Add Protocol</button>
+      <button class="tp-header-add-btn" onclick="openBulkAssign()">Bulk Assign</button>
     </div>
     <div class="empty-state">
       <p>← Select a patient to view their progress</p>
@@ -1974,7 +1974,16 @@ async function showRealPatient(patient) {
   }
 
   const compliance      = calcCompliance(sessions);
-  const avgPain         = (sessions.reduce((s, x) => s + (x.pain || 0), 0) / sessions.length).toFixed(1);
+  const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+  let lastPain = '-';
+  if (lastSession) {
+    if (lastSession.setData && lastSession.setData.length > 0) {
+      const setPains = lastSession.setData.map(s => s.pain || 0);
+      lastPain = (setPains.reduce((a, b) => a + b, 0) / setPains.length).toFixed(1);
+    } else {
+      lastPain = (lastSession.pain || 1).toFixed(1);
+    }
+  }
   const totalReps       = sessions.reduce((s, x) => s + (x.reps || 0), 0);
   const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
   const recent          = sessions.slice(-8);
@@ -1991,15 +2000,12 @@ async function showRealPatient(patient) {
     </div>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
-      <div class="stat-card"><div class="stat-value">${avgPain}</div><div class="stat-label">Avg Pain Rating</div></div>
-    </div>
-    <div class="stats-row stats-row-full">
-      <div class="stat-card stat-card-full"><div class="stat-value stat-value-sm">${totalReps} reps</div><div class="stat-label">Total Reps All Time</div></div>
+      <div class="stat-card"><div class="stat-value">${lastPain}</div><div class="stat-label">Last Session's Avg Pain Rating</div></div>
     </div>
     <div class="tp-charts-grid">
-    ${makeCollapsible('pain',    'Pain rating over time',     '<canvas id="painChart" height="160"></canvas>', true)}
+    ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="160"></canvas>', false)}
     </div>
-    ${makeCollapsible('history', `Session History — ${sessions.length} session${sessions.length !== 1 ? 's' : ''}`, buildSessionHistory(sessions, patient.name), false)}
+    ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
     ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
     ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
 
@@ -2087,68 +2093,93 @@ function buildSessionHistory(sessions, patientName) {
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session history</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
-  const grouped = groupSetsIntoSessions(sessions);
-  const allReversed = [...grouped].reverse();
-  const visible = allReversed.slice(0, shVisibleCount);
-  const hasMore = allReversed.length > shVisibleCount;
-  const rows = visible.map((g, gi) => {
-    const d = new Date(g.date);
-    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const exLabel = g.exerciseType ? (exerciseLabels[g.exerciseType] || g.exerciseType) : 'General';
-    const painColor = g.avgPain <= 3 ? 'var(--success)' : g.avgPain <= 6 ? '#f59e0b' : 'var(--danger)';
-    const rowId = `sh-exp-${gi}`;
-    const durLabel = g.durationMin > 0 ? `${g.durationMin} min` : '< 1 min';
-    const hasVideo  = g.sets.some(s => s.videoUrl);
-    const videoSet  = hasVideo ? g.sets.find(s => s.videoUrl) : null;
-    const videoUrl  = videoSet?.videoUrl || null;
-    const videoExpireAt = videoSet?.videoExpireAt ? new Date(videoSet.videoExpireAt).getTime() : null;
-    const isExpired = hasVideo && videoExpireAt !== null && videoExpireAt < Date.now();
-    const setDetail = g.sets.map((s, si) => {
-      const sp = s.pain || 0;
-      const spc = sp <= 3 ? 'var(--success)' : sp <= 6 ? '#f59e0b' : 'var(--danger)';
-      const t = new Date(s.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      return `<div class="sh-set-detail-row">
-        <span class="sh-set-label">Set ${si + 1}</span>
-        <span class="sh-set-time">${t}</span>
-        <span class="sh-set-val">${s.reps || 0} reps</span>
-        <span class="sh-set-val"><span class="sh-indicator" style="background:${spc}"></span>${sp}/10</span>
-      </div>`;
-    }).join('');
-    return `
-      <div class="sh-row sh-row-expandable" id="${rowId}" onclick="toggleShExpand('${rowId}')">
-        <div class="sh-cell sh-date"><span class="sh-date-text">${dateStr}</span><span class="sh-time-text">${timeStr}</span></div>
-        <div class="sh-cell sh-exercise">${exLabel}</div>
-        <div class="sh-cell sh-setsreps">${g.setsCompleted} × ${g.totalReps}</div>
-        <div class="sh-cell sh-pain"><span class="sh-indicator" style="background:${painColor}"></span>${g.avgPain.toFixed(1)}</div>
-        <div class="sh-cell sh-actions">${hasVideo && !isExpired ? `<button class="sh-video-btn" onclick="event.stopPropagation(); openVideoModal('${videoUrl}', '${g.date}', '${window._lastHistoryPatientName}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg></button>` : hasVideo && isExpired ? '<span class="sh-video-expired">Expired</span>' : ''}</div>
+  const byDay = groupSessionsByDay(sessions);
+  const days = Object.keys(byDay).sort((a, b) => new Date(b) - new Date(a));
+  let html = '<div class="session-history-card"><h4>Session history</h4><div class="prog-days-list">';
+  days.forEach(day => {
+    const daySessions = byDay[day];
+    const dayDate = new Date(day);
+    const dayLabel = dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = day === todayStr;
+    const exercisesMap = {};
+    daySessions.forEach(s => {
+      const exType = s.exerciseType || 'General';
+      if (!exercisesMap[exType]) exercisesMap[exType] = [];
+      exercisesMap[exType].push(s);
+    });
+    const exCount = Object.keys(exercisesMap).length;
+    const totalSets = daySessions.length;
+    const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
+    const avgPain = totalSets > 0
+      ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
+      : '-';
+    html += `<div class="prog-day-card">
+      <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
+        <div class="prog-day-title-row">
+          <span class="prog-day-expand-icon">▾</span>
+          <span class="prog-day-title">${isToday ? 'Today' : dayLabel}</span>
+          <span class="prog-day-badge">${exCount} exercise${exCount !== 1 ? 's' : ''}, ${totalSets} set${totalSets !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="prog-day-summary">
+          <span class="prog-day-stat">${totalReps} reps</span>
+          <span class="prog-day-stat">Avg pain: ${avgPain}</span>
+        </div>
       </div>
-      <div class="sh-detail-wrap" id="${rowId}-detail">
-        <div class="sh-detail-inner">
-          <div class="sh-detail-meta">
-            <span class="sh-meta-chip">${g.setsCompleted} set${g.setsCompleted !== 1 ? 's' : ''}</span>
-            <span class="sh-meta-chip">${durLabel}</span>
+      <div class="prog-day-body">`;
+    Object.keys(exercisesMap).forEach(exType => {
+      const exSessions = exercisesMap[exType];
+      const exLabel = exerciseLabels[exType] || exType;
+      html += `<div class="prog-exercise-block">
+        <div class="prog-exercise-header">${exLabel}</div>
+        <div class="prog-sets-list">
+          <div class="prog-sets-header">
+            <span class="prog-hdr-label"></span>
+            <span class="prog-hdr-video">Video</span>
+            <span class="prog-hdr-reps">Reps</span>
+            <span class="prog-hdr-pain">Pain</span>
+            <span class="prog-hdr-notes"></span>
+          </div>`;
+      exSessions.forEach((s, idx) => {
+        const setNum = idx + 1;
+        const hasVideo = !!s.videoUrl;
+        const exitedEarly = s.notes && s.notes.toLowerCase().includes('exited');
+        let videoBtn = '<span class="prog-set-empty">—</span>';
+        if (hasVideo) {
+          const safeUrl = (s.videoUrl || '').replace(/'/g, '%27');
+          const safeDate = (s.parentDate || s.date || '').replace(/'/g, '');
+          const pName = (window._lastHistoryPatientName || '').replace(/'/g, '');
+          videoBtn = `<button class="prog-set-video-btn" onclick="event.stopPropagation(); openVideoModal('${safeUrl}', '${safeDate}', '${pName}')" title="Watch Set ${setNum}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>`;
+        }
+        const notesBtn = s.notes && s.notes.trim()
+          ? `<button class="prog-set-notes-btn" onclick="event.stopPropagation(); showSetNotes('${s.notes.replace(/'/g, "\\'")}')">
+              Comments
+            </button>`
+          : '<span class="prog-set-empty">—</span>';
+        const exitBadge = exitedEarly
+          ? `<span class="prog-set-exit-badge" title="Patient exited early">Exited</span>`
+          : '';
+        html += `<div class="prog-set-row">
+          <div class="prog-set-info">
+            <span class="prog-set-label">Set ${setNum}</span>
+            ${exitBadge}
           </div>
-          <div class="sh-set-detail-list">${setDetail}</div>
-        </div>
-      </div>`;
-  }).join('');
-  const loadMoreBtn = hasMore ? `<button class="sh-load-more" onclick="shLoadMore()">Show more (${allReversed.length - shVisibleCount} remaining)</button>` : '';
-  return `
-    <div class="session-history-card">
-      <h4>Session history</h4>
-      <div class="sh-grid-wrap">
-        <div class="sh-grid-header">
-          <div class="sh-hdr">Date</div>
-          <div class="sh-hdr">Exercise</div>
-          <div class="sh-hdr">Sets × Reps</div>
-          <div class="sh-hdr">Pain</div>
-          <div class="sh-hdr"></div>
-        </div>
-        ${rows}
-      </div>
-      ${loadMoreBtn}
-    </div>`;
+          <div class="prog-set-data">
+            ${videoBtn}
+            <span class="prog-set-reps">${s.reps || 0} reps</span>
+            <span class="prog-set-pain">${s.pain || 1}/10</span>
+            ${notesBtn}
+          </div>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += '</div></div>';
+  return html;
 }
 
 function buildProtocolForm(patientEmail, protocols) {
@@ -2327,19 +2358,21 @@ async function bulkAssignProtocol() {
   if (!exerciseType) { alert('Please select an exercise.'); return; }
   const defaults = EXERCISE_DEFAULTS[exerciseType];
   let exerciseParams = null;
-  if (defaults && defaults.metric === 'angle') {
-    const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
-    if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
-    const conditions = Array.from(conditionRows).map(row => ({
-      finger:   row.querySelector('.ep-finger-select').value,
-      joint:    row.querySelector('.ep-joint-select').value,
-      flexAt:   parseFloat(row.querySelector('.ep-flex-at').value),
-      extendAt: parseFloat(row.querySelector('.ep-extend-at').value),
-    }));
-    const requireAllEl = document.getElementById('epRequireAll');
-    exerciseParams = { metric: 'angle', conditions, requireAll: requireAllEl ? requireAllEl.checked : conditions.length > 1 };
-  } else if (defaults && (defaults.metric === 'distance' || defaults.metric === 'abduction')) {
-    exerciseParams = { ...defaults };
+  if (ANGLE_TRACKING_ENABLED) {
+    if (defaults && defaults.metric === 'angle') {
+      const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
+      if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
+      const conditions = Array.from(conditionRows).map(row => ({
+        finger:   row.querySelector('.ep-finger-select').value,
+        joint:    row.querySelector('.ep-joint-select').value,
+        flexAt:   parseFloat(row.querySelector('.ep-flex-at').value),
+        extendAt: parseFloat(row.querySelector('.ep-extend-at').value),
+      }));
+      const requireAllEl = document.getElementById('epRequireAll');
+      exerciseParams = { metric: 'angle', conditions, requireAll: requireAllEl ? requireAllEl.checked : conditions.length > 1 };
+    } else if (defaults && (defaults.metric === 'distance' || defaults.metric === 'abduction')) {
+      exerciseParams = { ...defaults };
+    }
   }
   const reps = parseInt(document.getElementById('protocolReps').value);
   const sets = parseInt(document.getElementById('protocolSets').value);
