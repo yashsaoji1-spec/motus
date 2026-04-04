@@ -34,6 +34,7 @@ let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
 let recordingSupported   = false;  // false on iOS/unsupported browsers — skip all recording logic
 let _pendingSessionDocId = null;   // Firestore doc ID to patch with videoUrl after upload completes
 let _recordingTimeout    = null;   // setTimeout handle for max-duration enforcement
+let _micStream           = null;   // audio-only stream for session recording
 
 // ── Demo recording state (Add Protocol modal) ──
 let _demoStream          = null;   // getUserMedia stream for demo camera
@@ -196,6 +197,7 @@ function showScreen(screenId) {
       hideRecordingIndicator();
     }
     if (mpCamera) { mpCamera.stop(); mpCamera = null; }
+    if (_micStream) { _micStream.getTracks().forEach(t => t.stop()); _micStream = null; }
     currentFacingMode = 'user';
   }
 
@@ -1339,7 +1341,7 @@ async function _demoStartCameraAndRecord() {
 
   try {
     _demoStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: _demoFacingMode }, audio: false
+      video: { facingMode: _demoFacingMode }, audio: true
     });
   } catch(e) {
     console.error('[phalanX] demo camera:', e);
@@ -1387,7 +1389,15 @@ async function _demoStartCameraAndRecord() {
     return;
   }
 
-  _demoMediaRecorder = new MediaRecorder(captureStream, {
+  let recordStream = captureStream;
+  if (_demoStream.getAudioTracks().length > 0) {
+    recordStream = new MediaStream([
+      ...captureStream.getVideoTracks(),
+      ..._demoStream.getAudioTracks()
+    ]);
+  }
+
+  _demoMediaRecorder = new MediaRecorder(recordStream, {
     mimeType,
     videoBitsPerSecond: VIDEO_TIERS.demo.bitrate
   });
@@ -3115,6 +3125,7 @@ function showSessionSummary(partialReps = 0) {
 
 async function dismissSummary() {
   document.getElementById('sessionSummaryOverlay').style.display = 'none';
+  if (_micStream) { _micStream.getTracks().forEach(t => t.stop()); _micStream = null; }
   await initSetTracker();
   showScreen('patientScreen');
   await updatePatientHomeScreen();
@@ -3122,6 +3133,7 @@ async function dismissSummary() {
 
 async function dismissSummaryToProgress() {
   document.getElementById('sessionSummaryOverlay').style.display = 'none';
+  if (_micStream) { _micStream.getTracks().forEach(t => t.stop()); _micStream = null; }
   await initSetTracker();
   await showProgressScreen();
 }
@@ -3172,6 +3184,7 @@ async function completeSessionEarly() {
   }
 
   showSessionSummary(repCount > 0 ? repCount : 0);
+  if (_micStream) { _micStream.getTracks().forEach(t => t.stop()); _micStream = null; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3182,13 +3195,6 @@ let currentFacingMode = 'user';
 
 function flipCamera() {
   currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-  // Discard pre-flip recording — startCamera will begin a fresh one
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-    recordedChunks = [];
-    mediaRecorder = null;
-    hideRecordingIndicator();
-  }
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   startCamera();
 }
@@ -3247,6 +3253,11 @@ function updateMLStatusLine() {
 
 function startCamera() {
   if (mpCamera) return;
+  if (!_micStream) {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(s => { _micStream = s; })
+      .catch(() => {});
+  }
   const sessionVideo  = document.getElementById('patientVideo');
   const sessionCanvas = document.getElementById('patientCanvas');
   const sessionCtx    = sessionCanvas.getContext('2d');
@@ -3302,7 +3313,9 @@ function startCamera() {
             document.querySelector('.cam-viewport').style.aspectRatio = sessionVideo.videoWidth + '/' + sessionVideo.videoHeight;
             processFrame();
             recordingSupported = typeof MediaRecorder !== 'undefined' && !!getRecordingMimeType();
-            startRecording(sessionCanvas);
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+              startRecording(sessionCanvas);
+            }
           };
           mpCamera = {
             stop: () => {
@@ -3330,7 +3343,9 @@ function startCamera() {
     });
     mpCamera.start();
     recordingSupported = typeof MediaRecorder !== 'undefined' && !!getRecordingMimeType();
-    startRecording(sessionCanvas);
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+      startRecording(sessionCanvas);
+    }
   }
 }
 
@@ -3367,6 +3382,12 @@ function startRecording(canvas, tier = 'session') {
   if (!mimeType) { recordingSupported = false; return; }
   let stream;
   try { stream = canvas.captureStream(); } catch(e) { recordingSupported = false; return; }
+  if (_micStream && _micStream.getAudioTracks().length > 0) {
+    stream = new MediaStream([
+      ...stream.getVideoTracks(),
+      ..._micStream.getAudioTracks()
+    ]);
+  }
   const bitrate = VIDEO_TIERS[tier]?.bitrate ?? VIDEO_TIERS.session.bitrate;
   try {
     mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
