@@ -679,7 +679,7 @@ async function startSessionWithProtocol(protocol) {
         return;
       }
     }
-    openManualSession(protocol);
+    openManualCameraSession(protocol);
     return;
   }
   trackedJoints  = await loadTrackedJoints(currentUser.email);
@@ -700,7 +700,7 @@ async function startScanSession() {
     return;
   }
   selectedProtocol = protocols[0];
-  if (!ANGLE_TRACKING_ENABLED) { openManualSession(protocols[0]); return; }
+  if (!ANGLE_TRACKING_ENABLED) { openManualCameraSession(protocols[0]); return; }
   trackedJoints  = await loadTrackedJoints(currentUser.email);
   jointMaxAngles = {};
   showScreen('cameraScreen');
@@ -2257,7 +2257,8 @@ async function openAddProtocol(patientEmail, patientName) {
   if (typeEl) typeEl.value = '';
   const searchEl = document.getElementById('apmSearch');
   if (searchEl) searchEl.value = '';
-  document.getElementById('apmCreateFields').style.display = 'none';
+  const createFields = document.getElementById('apmCreateFields');
+  if (createFields) createFields.style.display = 'none';
   const cancelBtn = document.getElementById('apmCancelBtn');
   const submitBtn = document.getElementById('apmSubmitBtn');
   cancelBtn.textContent = 'Cancel';
@@ -2314,7 +2315,8 @@ async function openBulkAssign() {
   if (typeEl)  typeEl.value  = '';
   const searchEl = document.getElementById('apmSearch');
   if (searchEl) searchEl.value = '';
-  document.getElementById('apmCreateFields').style.display = 'none';
+  const createFields = document.getElementById('apmCreateFields');
+  if (createFields) createFields.style.display = 'none';
   const patSection = document.getElementById('bapPatientSection');
   if (patSection) patSection.style.display = 'block';
   await _bapLoadPatients();
