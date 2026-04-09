@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   PhalanX — Merged Script
+   Motus — Merged Script
    Combines: dashboard.html inline JS + script.js (calibration tracker)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -66,7 +66,24 @@ let _manualCamVideoUrl  = null;   // uploaded video URL for current set
 let _manualCamCurrentBlob = null; // video blob from current set
 
 const CLOUDINARY_CLOUD  = 'dslbugsdg';
-const CLOUDINARY_PRESET = 'phalanx-videos';
+async function uploadVideoToCloudinary(blob) {
+  if (!blob || blob.size === 0) return null;
+  try {
+    const form = new FormData();
+    form.append('file', blob);
+    form.append('upload_preset', CLOUDINARY_PRESET);
+    form.append('resource_type', 'video');
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
+      method: 'POST',
+      body: form
+    });
+    const data = await res.json();
+    return data.secure_url || null;
+  } catch(e) {
+    console.warn('[Motus] Video upload error:', e);
+    return null;
+  }
+}
 
 // ── Video tiers — bitrate (bps), max duration (sec), expiry (days, null = permanent) ──
 const VIDEO_TIERS = {
@@ -171,17 +188,17 @@ async function getTherapistForCode(code) {
    ══════════════════════════════════════════════════════════════════════════ */
 
 const screenTitles = {
-  loginScreen:        'PhalanX — Sign In',
-  signupScreen:       'PhalanX — Create Account',
-  forgotScreen:       'PhalanX — Reset Password',
-  connectScreen:      'PhalanX — Connect to Therapist',
-  patientScreen:      'PhalanX — Home',
-  cameraScreen:       'PhalanX — Session',
-  therapistScreen:    'PhalanX — Therapist Dashboard',
-  exercisesScreen:    'PhalanX — My Exercises',
-  progressScreen:     'PhalanX — My Progress',
-  pendingScreen:      'PhalanX — Pending Approval',
-  adminScreen:        'PhalanX — Admin Panel',
+  loginScreen:        'Motus — Sign In',
+  signupScreen:       'Motus — Create Account',
+  forgotScreen:       'Motus — Reset Password',
+  connectScreen:      'Motus — Connect to Therapist',
+  patientScreen:      'Motus — Home',
+  cameraScreen:       'Motus — Session',
+  therapistScreen:    'Motus — Therapist Dashboard',
+  exercisesScreen:    'Motus — My Exercises',
+  progressScreen:     'Motus — My Progress',
+  pendingScreen:      'Motus — Pending Approval',
+  adminScreen:        'Motus — Admin Panel',
 };
 
 const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'roleScreen', 'connectScreen', 'pendingScreen', 'consentScreen']);
@@ -193,7 +210,7 @@ function showScreen(screenId) {
   next.classList.add('active');
   next.scrollTop = 0;
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
-  if (!AUTH_SCREENS.has(screenId)) sessionStorage.setItem('phalanx_screen', screenId);
+  if (!AUTH_SCREENS.has(screenId)) sessionStorage.setItem('motus_screen', screenId);
 
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
@@ -261,7 +278,9 @@ async function handleLogin() {
     _loginAttempts = 0;
     // onAuthStateChanged handles routing
   } catch (e) {
-    if (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+    const isCredError = (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential');
+
+    if (isCredError) {
       _loginAttempts++;
       if (_loginAttempts >= LOGIN_MAX_ATTEMPTS) {
         _loginLockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
@@ -271,7 +290,7 @@ async function handleLogin() {
       }
     }
     showError('loginError',
-      (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential')
+      isCredError
         ? `Incorrect email or password. ${LOGIN_MAX_ATTEMPTS - _loginAttempts} attempt(s) remaining.`
         : (e.message || 'Sign in failed. Please try again.'));
   }
@@ -354,7 +373,7 @@ async function skipConnect() {
    ══════════════════════════════════════════════════════════════════════════ */
 
 async function loginSuccess() {
-  const savedScreen = sessionStorage.getItem('phalanx_screen');
+  const savedScreen = sessionStorage.getItem('motus_screen');
 
   if (currentRole === 'admin') {
     showScreen('adminScreen');
@@ -426,7 +445,7 @@ async function restoreScreen(saved) {
 function logout() {
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   if (restTimerInterval) { clearInterval(restTimerInterval); restTimerInterval = null; }
-  sessionStorage.removeItem('phalanx_screen');
+  sessionStorage.removeItem('motus_screen');
   auth.signOut();
   // onAuthStateChanged resets currentUser/currentRole and shows loginScreen
 }
@@ -434,7 +453,7 @@ function logout() {
 function requestLogout() {
   document.getElementById('logoutWarning').textContent = repCount > 0
     ? `You have ${repCount} unsaved reps. Leaving now will lose this set's data.`
-    : 'You will be signed out of PhalanX.';
+    : 'You will be signed out of Motus.';
   document.getElementById('logoutModal').style.display = 'flex';
 }
 
@@ -770,7 +789,7 @@ async function manualCamStartCamera() {
     video.srcObject = stream;
     await video.play();
   } catch(e) {
-    console.error('[phalanX] Manual camera error:', e);
+    console.error('[Motus] Manual camera error:', e);
     alert('Could not access camera. Please allow camera permissions.');
   }
 }
@@ -865,7 +884,7 @@ async function manualCamSaveSet() {
       const data = await res.json();
       if (data.secure_url) videoUrl = data.secure_url;
     } catch(e) {
-      console.warn('[phalanX] Video upload error:', e);
+      console.warn('[Motus] Video upload error:', e);
     }
   }
   
@@ -911,7 +930,7 @@ async function finishManualCamSession() {
       setData: _manualCamSetData
     });
   } catch(e) {
-    console.error('[phalanX] Session save error:', e);
+    console.error('[Motus] Session save error:', e);
   }
   
   _manualCamProtocol = null;
@@ -934,20 +953,14 @@ function manualCamExit() {
     return;
   }
 
-  // If there's an unsaved blob (mid-set exit), save it
+  // Handle potential unsaved data and then exit
   if (_manualCamCurrentBlob) {
     saveCurrentSetAndExit().then(() => finishAndExit());
-    return;
-  }
-
-  // If we have completed sets, session is already saved - just exit
-  if (_manualCamSetData.length > 0) {
+  } else if (_manualCamSetData.length > 0) {
     finishAndExit();
-    return;
+  } else {
+    doCleanExit();
   }
-
-  // No sets at all - just exit
-  doCleanExit();
 }
 
 function finishAndExit() {
@@ -978,20 +991,7 @@ async function saveCurrentSetAndExit() {
   
   let videoUrl = null;
   if (blob && blob.size > 0) {
-    try {
-      const form = new FormData();
-      form.append('file', blob);
-      form.append('upload_preset', CLOUDINARY_PRESET);
-      form.append('resource_type', 'video');
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
-        method: 'POST',
-        body: form
-      });
-      const data = await res.json();
-      if (data.secure_url) videoUrl = data.secure_url;
-    } catch(e) {
-      console.warn('[phalanX] Video upload error:', e);
-    }
+    videoUrl = await uploadVideoToCloudinary(blob);
   }
   
   // Add with default reps/pain since user didn't fill modal
@@ -1351,7 +1351,7 @@ async function _demoStartCameraAndRecord() {
       video: { facingMode: _demoFacingMode }, audio: true
     });
   } catch(e) {
-    console.error('[phalanX] demo camera:', e);
+    console.error('[Motus] demo camera:', e);
     alert('Could not access camera. Please check permissions.');
     return;
   }
@@ -1519,7 +1519,7 @@ async function demoHandleFileSelect(input) {
     }
     _demoSetState('preview');
   } catch(e) {
-    console.error('[phalanX] demoHandleFileSelect:', e);
+    console.error('[Motus] demoHandleFileSelect:', e);
     alert('Could not process the selected video file.');
   }
 }
@@ -1551,7 +1551,7 @@ async function removeProtocolDemo(patientEmail, protocolId) {
       if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
     }
   } catch(e) {
-    console.error('[phalanX] removeProtocolDemo:', e);
+    console.error('[Motus] removeProtocolDemo:', e);
     alert('Could not remove the demo video. Please try again.');
   }
 }
@@ -1671,10 +1671,10 @@ async function assignProtocol() {
         demoVideoUrl = data.secure_url;
         _demoThumbnailUrl = _getThumbnailUrl(demoVideoUrl);
       } else {
-        console.warn('[phalanX] Demo upload failed:', data.error?.message);
+        console.warn('[Motus] Demo upload failed:', data.error?.message);
       }
     } catch (e) {
-      console.error('[phalanX] Demo upload error:', e);
+      console.error('[Motus] Demo upload error:', e);
     }
     if (submitBtn) submitBtn.disabled = false;
   }
@@ -2415,7 +2415,7 @@ async function bulkAssignProtocol() {
       const data = await res.json();
       if (data.secure_url) demoVideoUrl = data.secure_url;
     } catch (e) {
-      console.error('[phalanX] Bulk demo upload error:', e);
+      console.error('[Motus] Bulk demo upload error:', e);
     }
     if (submitBtn) submitBtn.textContent = 'Assigning...';
   }
@@ -3832,10 +3832,10 @@ async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session
       }
       await db.collection(collection).doc(docId).update(update);
     } else {
-      console.warn('[phalanX] Cloudinary upload failed:', data.error?.message);
+      console.warn('[Motus] Cloudinary upload failed:', data.error?.message);
     }
   } catch(e) {
-    console.warn('[phalanX] Video upload error:', e);
+    console.warn('[Motus] Video upload error:', e);
   }
 }
 
@@ -3862,7 +3862,7 @@ function downloadSessionVideo(url, date, patientName) {
   const safeName = (patientName || 'patient').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
   const dateStr  = date ? new Date(date).toISOString().slice(0, 10) : 'unknown';
   const ext      = url.includes('.mp4') ? 'mp4' : 'webm';
-  const filename = `phalanx-session-${safeName}-${dateStr}.${ext}`;
+  const filename = `motus-session-${safeName}-${dateStr}.${ext}`;
   fetch(url)
     .then(r => r.blob())
     .then(blob => {
@@ -4185,7 +4185,7 @@ const EJS_JOINT_DATA = {
   'index-dip':  { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:7,  maxROM:70,  jointType:'Hinge',     priority:'Medium',   finger:'index',  desc:'Monitors flexor digitorum profundus and terminal extensor tendon function. Mallet finger presents as loss of active DIP extension.' },
   'index-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:8,  maxROM:null,jointType:'Reference', priority:'Low',      finger:'index',  desc:'Index fingertip reference for grip reach, tool manipulation tracking, and opposition distance from thumb.' },
   'middle-mcp': { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:9,  maxROM:90,  jointType:'Condyloid', priority:'High',     finger:'middle', desc:'Central axis of the hand. The reference joint for fist formation and composite flexion. Primary metric for post-surgical hook fist and full fist progression protocols.' },
-  'middle-pip': { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:10, maxROM:100, jointType:'Hinge',     priority:'Critical', finger:'middle', desc:'Current primary rep-counting joint in PhalanX. Used for open-close cycle detection. Highest sensitivity for edema-related stiffness and tendon adhesion assessment.' },
+  'middle-pip': { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:10, maxROM:100, jointType:'Hinge',     priority:'Critical', finger:'middle', desc:'Current primary rep-counting joint in Motus. Used for open-close cycle detection. Highest sensitivity for edema-related stiffness and tendon adhesion assessment.' },
   'middle-dip': { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:11, maxROM:70,  jointType:'Hinge',     priority:'Medium',   finger:'middle', desc:'FDP slip assessment point. Decreased active DIP flexion with intact PIP motion indicates a partial FDP rupture or zone 1 injury pattern.' },
   'middle-tip': { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:12, maxROM:null,jointType:'Reference', priority:'Low',      finger:'middle', desc:'Longest reach point of the hand. Used for composite fist-to-palm distance (fingertip-to-distal palmar crease gap), a standard clinical ROM outcome measure.' },
   'ring-mcp':   { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:13, maxROM:90,  jointType:'Condyloid', priority:'Medium',   finger:'ring',   desc:'Commonly affected in rheumatoid arthritis with ulnar drift deformity. Monitors intrinsic muscle function and MCP joint capsule integrity after arthroplasty.' },

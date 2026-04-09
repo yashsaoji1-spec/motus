@@ -1,7 +1,5 @@
 # Maintenance
 
-When Yash says "update CLAUDE.md" or similar — update the relevant sections of `CLAUDE.md` directly (Screen System table, Section Map, etc.). Audit app.js, index.html, styles.css for changes. Never commit unless explicitly asked.
-
 ## Branch Merge Framework
 
 When the user says anything like "merge", "Oliver is done", "integrate Oliver's changes", or pastes this section — follow this framework exactly. **Check in with Yash or Oliver at every step before proceeding.**
@@ -51,37 +49,6 @@ When the user says anything like "merge", "Oliver is done", "integrate Oliver's 
 - Never move to the next phase without explicit confirmation from Yash
 - If anything looks unexpected after any step, stop and ask before continuing
 - After every push, verify critical code wasn't silently dropped before declaring done
-
-## SWEEP CALIBRATION — Rule Tuning Workflow
-
-Rules apply universally to any patient — they describe camera geometry (which angles give accurate MediaPipe readings), not patient-specific anatomy.
-
-**Setup**
-1. Open app on phone, log in as therapist, open any patient, tap "Sweep Calibration"
-2. METRICS panel and live angle grid must be visible (`SWEEP_DEBUG = true`)
-
-**For each joint:**
-3. Hold your own finger at a known angle using a goniometer or reference (e.g. flat = 0°, right angle = 90°)
-4. Keep the finger still — move the camera until the live angle reading on screen matches the true angle
-5. Screenshot the screen (must show METRICS panel + angle grid)
-6. Move camera to another position where it still reads correctly — screenshot again
-7. Repeat 3–5 times from different valid positions
-8. Send all screenshots to Claude with: which joint, what true angle
-
-**Claude derives the rule:**
-- Reads all 7 metric values from each screenshot
-- Identifies which metric is consistently high across all valid frames
-- Sets `min` = lowest observed value − 0.05 tolerance, `max` = 1.0
-- Writes rule into `SWEEP_JOINT_RULES` in `app.js`, builds + deploys to Firebase
-
-**Testing after deploy:**
-- Dot turns yellow (in-range) when orientation satisfies the rule
-- Dot turns green (captured) after 5 consecutive valid frames
-- Start with `index-pip` — most clinically important, easiest to measure
-
-**`SWEEP_JOINT_RULES` location:** `code/app.js` line ~3072
-
----
 
 ## Pre-Launch Checklist
 

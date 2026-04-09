@@ -1,6 +1,12 @@
-Build this feature in phalanX end to end: $ARGUMENTS
+Build this feature in Motus end to end: $ARGUMENTS
 
-Before writing any code:
+Before reading any files or writing any code:
+1. List every assumption you're making about this feature — what triggers it, what it does, where data goes, how it looks, edge cases
+2. List any questions where you're uncertain
+3. Ask those questions as a numbered list and wait for answers
+4. Do not proceed until you have at least 95% confidence you understand what to build
+
+Once you have answers, read the relevant code:
 1. Read the relevant sections of app.js (use the Section Map in CLAUDE.md)
 2. Read the relevant screens in index.html
 3. Check if any Firestore collections are involved — reference the schema in CLAUDE.md
@@ -13,3 +19,7 @@ Then build in this order:
 5. If Firestore is involved, note any new fields added to the schema
 
 No emojis. No hardcoded colors. Stay in the relevant sections.
+
+After completing:
+- Check if any functions were added, removed, or moved in app.js, index.html, or styles.css
+- If yes, update the line numbers in the relevant map page in the wiki (app-js-map.md, index-html-map.md, styles-css-map.md)

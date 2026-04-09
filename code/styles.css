@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   PhalanX — Merged Stylesheet
+   Motus — Merged Stylesheet
    Combines: style.css (tracker/index) + style_ui.css (dashboard/UI)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -943,7 +943,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-weight: 700; cursor: pointer; font-family: inherit;
   transition: opacity 0.15s;
 }
-.ex-back-btn:hover { background: var(--accent-hover); }
 .ex-back-btn:hover { border-color: var(--muted); color: var(--text); background: var(--surface-alt); }
 .ex-list { display: flex; flex-direction: column; gap: var(--space-3); }
 .ex-card {
