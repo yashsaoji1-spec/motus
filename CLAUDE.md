@@ -7,6 +7,13 @@
 
 Hand rehabilitation web app. Authors: Yash Saoji & Oliver Huelsbeck (2025)
 
+## Git Workflow
+- Run `git branch` before any git operations to verify you're on the correct branch.
+
+## Editing Rules
+- Do NOT delete or overwrite content in CLAUDE.md, CLAUDE.local.md, or other config/doc files unless explicitly asked to remove specific content.
+- When updating docs, APPEND or MODIFY only the relevant sections.
+
 ## How to Run
 ```
 npm install    # first time only
