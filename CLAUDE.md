@@ -3,6 +3,16 @@
 @.claude/rules/ui-rules.md
 @.claude/rules/maintenance.md
 
+## Wiki (second brain)
+- Wiki lives at `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Motus/wiki/`.
+- Session start: (1) read `index.md`, (2) check `_inbox/` for any files not yet in `log.md` — if found, announce them and offer to route before doing anything else, (3) read pages relevant to the current task.
+- Inbox routing: classify each new `_inbox/` file (motus → projects/motus/, article/research → research/, other project → projects/{name}/), tell Yash where it's going, confirm, write wiki page, delete from inbox, update index.md + log.md.
+- After completing meaningful work, update the relevant wiki pages (history.md, decisions.md, overview.md) and append to log.md.
+- When Yash says "lint wiki": run the lint protocol from that wiki's CLAUDE.md.
+- When Yash says "add to wiki", "file this", or pastes content: classify and route it using the inbox routing protocol above.
+- Code maps: Before reading app.js, index.html, or styles.css — read the corresponding map page first (app-js-map.md, index-html-map.md, styles-css-map.md). Use the line ranges from the map to read only the relevant section, not the full file.
+- After any session that adds/removes/moves functions significantly, update the line numbers in the affected map page.
+
 # Motus — Claude Code Guide
 
 Hand rehabilitation web app. Authors: Yash Saoji & Oliver Huelsbeck (2025)
