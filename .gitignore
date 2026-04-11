@@ -3,3 +3,8 @@ node_modules/
 dist/
 scripts/*.json
 CLAUDE.local.md
+.DS_Store
+.firebase/
+.env.production
+.env.staging
+.env.development

@@ -1,7 +1,7 @@
 {
-  "name": "phalanx",
+  "name": "motus",
   "version": "1.0.0",
-  "description": "Hand rehabilitation web app using MediaPipe hand tracking",
+  "description": "Physical rehabilitation web app",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
@@ -22,6 +22,6 @@
   },
   "devDependencies": {
     "firebase-admin": "^12.0.0",
-    "vite": "^8.0.3"
+    "vite": "^8.0.8"
   }
 }

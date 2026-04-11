@@ -7,6 +7,7 @@
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
+import 'firebase/compat/app-check';
 import Chart from 'chart.js/auto';
 
 // ── MediaPipe stays on CDN — accessed via window at call time (not init time)
@@ -27,6 +28,7 @@ var activeSheetProtocol = null;
 let _protoPatientEmail = null;
 let _apmNewExCat = false;
 let _bulkAssignMode = false;
+let _exercisesDoneById = {};  // sets completed today per protocolId, set in showExercisesScreen
 
 // ── Protocol Library state ──
 let _plLibrary = [];
@@ -72,6 +74,7 @@ let _manualCamVideoUrl  = null;   // uploaded video URL for current set
 let _manualCamCurrentBlob = null; // video blob from current set
 
 const CLOUDINARY_CLOUD  = 'dslbugsdg';
+const CLOUDINARY_PRESET = 'phalanx-videos';
 async function uploadVideoToCloudinary(blob) {
   if (!blob || blob.size === 0) return null;
   try {
@@ -108,15 +111,26 @@ const ANGLE_TRACKING_ENABLED = false;
 //   messages:  participants ARRAY, timestamp ASC
 //   messages:  to ASC, from ASC, read ASC
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAwlgTFuYFQ8CO_svT26kQpqzXCjr0yT_A",
-  authDomain:        "phalanx-firebase-database.firebaseapp.com",
-  projectId:         "phalanx-firebase-database",
-  storageBucket:     "phalanx-firebase-database.firebasestorage.app",
-  messagingSenderId: "1023274632764",
-  appId:             "1:1023274632764:web:6190e7a3b4622ebce26539"
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
+
+// App Check — dev uses a debug token printed to console; prod uses reCAPTCHA v3.
+// To activate: Firebase Console → App Check → register web app with site key below,
+// then enable enforcement on Firestore once staging confirms everything works.
+if (import.meta.env.DEV) {
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+if (import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+  firebase.appCheck().activate(import.meta.env.VITE_RECAPTCHA_SITE_KEY, true);
+}
+
 const db   = firebase.firestore();
 const auth = firebase.auth();
 
@@ -130,6 +144,7 @@ auth.onAuthStateChanged(async (firebaseUser) => {
   if (!firebaseUser) {
     currentUser = null;
     currentRole = null;
+    _stopInactivityTimer();
     showScreen('loginScreen');
     return;
   }
@@ -147,11 +162,59 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     }
     await loginSuccess();
     loadMLModels();
+    resetInactivityTimer();
   } catch (e) {
     console.error('onAuthStateChanged error:', e);
     showScreen('loginScreen');
   }
 });
+
+// ── Session timeout ────────────────────────────────────────────────────────
+const TIMEOUT_MS = 20 * 60 * 1000;
+const WARNING_MS =  2 * 60 * 1000;
+
+let _inactivityTimer = null;
+let _warningTimer    = null;
+
+function resetInactivityTimer() {
+  clearTimeout(_inactivityTimer);
+  clearTimeout(_warningTimer);
+  dismissTimeoutWarning();
+  _warningTimer    = setTimeout(showTimeoutWarning, TIMEOUT_MS - WARNING_MS);
+  _inactivityTimer = setTimeout(autoLogout, TIMEOUT_MS);
+}
+
+function _stopInactivityTimer() {
+  clearTimeout(_inactivityTimer);
+  clearTimeout(_warningTimer);
+  dismissTimeoutWarning();
+}
+
+function showTimeoutWarning() {
+  const el = document.getElementById('timeoutWarning');
+  if (el) el.style.display = 'flex';
+}
+
+function dismissTimeoutWarning() {
+  const el = document.getElementById('timeoutWarning');
+  if (el) el.style.display = 'none';
+}
+
+function autoLogout() {
+  const isRecording = (mediaRecorder && mediaRecorder.state !== 'inactive') ||
+                      (_manualCamRecorder && _manualCamRecorder.state !== 'inactive');
+  if (isRecording) {
+    _inactivityTimer = setTimeout(autoLogout, 30 * 1000);
+    return;
+  }
+  dismissTimeoutWarning();
+  auth.signOut();
+  sessionStorage.clear();
+}
+
+['click', 'keydown', 'touchstart', 'scroll'].forEach(ev =>
+  document.addEventListener(ev, () => { if (currentUser) resetInactivityTimer(); }, { passive: true })
+);
 
 function generateCodeForEmail(email) {
   let hash = 0;
@@ -170,15 +233,17 @@ async function getConnectedPatients(therapistEmail) {
 }
 
 async function saveConnection(therapistEmail, patientEmail) {
-  await db.collection('connections').doc(therapistEmail)
-    .set({ patients: firebase.firestore.FieldValue.arrayUnion(patientEmail) }, { merge: true });
+  await Promise.all([
+    db.collection('connections').doc(therapistEmail)
+      .set({ patients: firebase.firestore.FieldValue.arrayUnion(patientEmail) }, { merge: true }),
+    db.collection('users').doc(patientEmail)
+      .update({ therapistEmail }),
+  ]);
 }
 
 async function getConnectedTherapist() {
   if (!currentUser) return null;
-  const snap = await db.collection('connections')
-    .where('patients', 'array-contains', currentUser.email).get();
-  return snap.empty ? null : snap.docs[0].id;
+  return currentUser.therapistEmail || null;
 }
 
 async function getTherapistForCode(code) {
@@ -410,11 +475,11 @@ async function loginSuccess() {
 }
 
 async function routePatient() {
-  const therapistEmail = await getConnectedTherapist();
+  const therapistEmail = await getConnectedTherapist().catch(() => null);
   if (therapistEmail) {
     showScreen('patientScreen');
-    await updatePatientHomeScreen();
-    await initSetTracker();
+    await updatePatientHomeScreen().catch(e => console.error('updatePatientHomeScreen:', e));
+    await initSetTracker().catch(e => console.error('initSetTracker:', e));
   } else {
     showScreen('connectScreen');
   }
@@ -1013,29 +1078,6 @@ function closeShareExerciseModal() {
    SECTION 6: PATIENT HOME
    ══════════════════════════════════════════════════════════════════════════ */
 
-async function getTodayCompletion(email) {
-  const protocols = await getProtocols(email);
-  if (protocols.length === 0) return null;
-  const today    = new Date().toDateString();
-  const sessions = await getPatientSessions(email);
-  const todaySessions = sessions.filter(s => new Date(s.date).toDateString() === today);
-  // Only count sessions whose protocolId matches a current protocol's id.
-  const currentIds = new Set(protocols.map(p => p.id).filter(Boolean));
-  // Count total sets across all sessions (including setData array for manual camera sessions)
-  let totalSets = 0;
-  todaySessions.forEach(s => {
-    if (s.protocolId && currentIds.has(s.protocolId)) {
-      if (s.setData && s.setData.length > 0) {
-        totalSets += s.setData.length;
-      } else {
-        totalSets += 1; // Fallback for older sessions without setData
-      }
-    }
-  });
-  const required = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
-  return { done: totalSets, required };
-}
-
 async function updatePatientHomeScreen() {
   if (!currentUser) return;
   const hour     = new Date().getHours();
@@ -1044,9 +1086,9 @@ async function updatePatientHomeScreen() {
   document.getElementById('patientDisplayName').textContent = currentUser.name;
 
   const [protocols, sessions, therapistEmail] = await Promise.all([
-    getProtocols(currentUser.email),
-    getPatientSessions(currentUser.email),
-    getConnectedTherapist()
+    getProtocols(currentUser.email).catch(() => []),
+    getPatientSessions(currentUser.email).catch(() => []),
+    getConnectedTherapist().catch(() => null),
   ]);
 
 
@@ -1144,7 +1186,7 @@ async function updatePatientHomeScreen() {
 
   const msgBadge = document.getElementById('patientUnreadBadge');
   if (msgBadge && therapistEmail) {
-    const n = await unreadCount(currentUser.email, therapistEmail);
+    const n = await unreadCount(currentUser.email, therapistEmail).catch(() => 0);
     msgBadge.textContent = n;
     msgBadge.style.display = n > 0 ? 'inline' : 'none';
   }
@@ -1199,12 +1241,28 @@ async function startSessionWithProtocol(protocol) {
         if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
         player.src = protocol.demoVideoUrl;
         player.poster = protocol.demoVideoUrl.replace('/video/upload/', '/video/upload/so_1,w_400,h_225,c_fill/').replace('.mp4', '.jpg').replace('.webm', '.jpg');
-        // Enable skip only if already watched
-        db.collection('protocols').doc(currentUser.email).get().then(snap => {
+
+        // Button state: while playing show only Skip; on ended show Rewatch + Start
+        const startBtn  = document.getElementById('demoStartBtn');
+        if (startBtn) startBtn.style.display = 'none';
+
+        player.onended = () => {
+          if (skipBtn) skipBtn.style.display = 'none';
+          if (startBtn) startBtn.style.display = '';
+          // Swap skip for rewatch
+          const rewatchBtn = document.getElementById('demoRewatchBtn');
+          if (rewatchBtn) rewatchBtn.style.display = '';
+        };
+
+        // Enable skip only if already watched (stored in user doc)
+        db.collection('users').doc(currentUser.email).get().then(snap => {
           const watched = snap.exists ? (snap.data().demoWatched || []) : [];
-          if (skipBtn) skipBtn.disabled = !watched.includes(protocol.id);
+          if (skipBtn) {
+            skipBtn.style.display = '';
+            skipBtn.disabled = !watched.includes(protocol.id);
+          }
         }).catch(() => {
-          if (skipBtn) skipBtn.disabled = false;
+          if (skipBtn) { skipBtn.style.display = ''; skipBtn.disabled = false; }
         });
         overlay.style.display = 'flex';
         return;
@@ -1266,8 +1324,14 @@ function closeManualSession() {
 async function openManualCameraSession(protocol) {
   _manualCamProtocol = protocol;
   _manualCamSetData = [];
-  _manualCamCurrentSet = 1;
   _manualCamTotalSets = protocol.sets || 3;
+  // Count sets already completed today for this protocol (works from any entry path)
+  const _todaySessions = await getPatientSessions(currentUser.email).catch(() => []);
+  const _today = new Date().toDateString();
+  const _alreadyDone = _todaySessions
+    .filter(s => s.protocolId === protocol.id && new Date(s.date).toDateString() === _today)
+    .reduce((sum, s) => sum + (s.setData?.length > 0 ? s.setData.length : 1), 0);
+  _manualCamCurrentSet = Math.min(_alreadyDone + 1, _manualCamTotalSets);
   _manualCamVideoUrl = null;
 
   const video = document.getElementById('manualCamVideo');
@@ -1277,7 +1341,6 @@ async function openManualCameraSession(protocol) {
   const setInfoEl = document.getElementById('manualCamSetInfo');
   const promptEl = document.getElementById('manualCamPrompt');
   const btnsEl = document.getElementById('manualCamBtns');
-  const startBtn = document.getElementById('manualCamStartBtn');
 
   if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType || 'Exercise';
   if (setInfoEl) setInfoEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets}`;
@@ -1372,9 +1435,9 @@ function manualCamCancelSet() {
 }
 
 async function manualCamSaveSet() {
-  const reps = parseInt(document.getElementById('setInputReps').value) || 0;
-  const pain = parseInt(document.getElementById('setInputPain').value) || 1;
-  const notes = document.getElementById('setInputNotes').value || '';
+  const reps = Math.max(0, Math.min(100, parseInt(document.getElementById('setInputReps').value) || 0));
+  const pain = Math.max(1, Math.min(10, parseInt(document.getElementById('setInputPain').value) || 1));
+  const notes = (document.getElementById('setInputNotes').value || '').trim();
   
   document.getElementById('setInputModal').style.display = 'none';
   
@@ -1384,22 +1447,9 @@ async function manualCamSaveSet() {
   _manualCamCurrentBlob = null;
   
   if (blob && blob.size > 0) {
-    try {
-      const form = new FormData();
-      form.append('file', blob);
-      form.append('upload_preset', CLOUDINARY_PRESET);
-      form.append('resource_type', 'video');
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
-        method: 'POST',
-        body: form
-      });
-      const data = await res.json();
-      if (data.secure_url) videoUrl = data.secure_url;
-    } catch(e) {
-      console.warn('[Motus] Video upload error:', e);
-    }
+    videoUrl = await uploadVideoToCloudinary(blob);
   }
-  
+
   _manualCamSetData.push({ reps, pain, notes, videoUrl });
   
   if (_manualCamCurrentSet >= _manualCamTotalSets) {
@@ -1514,8 +1564,8 @@ async function saveCurrentSetAndExit() {
 }
 
 async function submitManualSession() {
-  const reps = parseInt(document.getElementById('manualRepsInput').value) || 0;
-  const pain = parseInt(document.getElementById('manualPainSlider').value) || 1;
+  const reps = Math.max(0, Math.min(100, parseInt(document.getElementById('manualRepsInput').value) || 0));
+  const pain = Math.max(1, Math.min(10, parseInt(document.getElementById('manualPainSlider').value) || 1));
   const btn  = document.querySelector('.manual-session-submit');
   btn.disabled    = true;
   btn.textContent = 'Saving...';
@@ -2078,7 +2128,7 @@ async function closeDemoAndStart() {
 
   if (_pendingDemoProtocol) {
     try {
-      await db.collection('protocols').doc(currentUser.email).update({
+      await db.collection('users').doc(currentUser.email).update({
         demoWatched: firebase.firestore.FieldValue.arrayUnion(_pendingDemoProtocol.id)
       });
     } catch(e) {
@@ -2172,21 +2222,11 @@ async function assignProtocol() {
   let demoVideoUrl = _demoExistingVideoUrl || null;
   if (_demoBlob) {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading demo...'; }
-    try {
-      const form = new FormData();
-      form.append('file', _demoBlob);
-      form.append('upload_preset', CLOUDINARY_PRESET);
-      form.append('resource_type', 'video');
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
-      const data = await res.json();
-      if (data.secure_url) {
-        demoVideoUrl = data.secure_url;
-        _demoThumbnailUrl = _getThumbnailUrl(demoVideoUrl);
-      } else {
-        console.warn('[Motus] Demo upload failed:', data.error?.message);
-      }
-    } catch (e) {
-      console.error('[Motus] Demo upload error:', e);
+    demoVideoUrl = await uploadVideoToCloudinary(_demoBlob);
+    if (demoVideoUrl) {
+      _demoThumbnailUrl = _getThumbnailUrl(demoVideoUrl);
+    } else {
+      console.warn('[Motus] Demo upload failed');
     }
     if (submitBtn) submitBtn.disabled = false;
   }
@@ -2265,7 +2305,7 @@ function formatProtocol(p) {
   return `
     <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
     ${paramsHTML}
-    ${p.notes ? `<p class="proto-notes">"${p.notes}"</p>` : ''}
+    ${p.notes ? `<p class="proto-notes">"${escapeHtml(p.notes)}"</p>` : ''}
     <p class="proto-meta">${p.assignedBy}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
 }
 
@@ -2314,6 +2354,7 @@ async function showExercisesScreen() {
     });
 
   _exercisesProtocols = protocols;
+  _exercisesDoneById = doneById;
 
   const EXS_COLLAPSED_MAX = 3;
   const cards = protocols.map((p, i) => {
@@ -2392,7 +2433,7 @@ async function loadConnectedPatients() {
     const statusColor = compliance >= 80 ? 'var(--success)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
     item.innerHTML = `
-      <div class="patient-name">${patient.name}</div>
+      <div class="patient-name">${escapeHtml(patient.name)}</div>
       <div class="patient-connected">
         <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
       </div>`;
@@ -2442,10 +2483,8 @@ function getDemoSessions(patientEmail) {
 async function getPatientSessions(patientEmail) {
   const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
   const snap = await db.collection('sessions')
-    .where('patientEmail', '==', patientEmail)
-    .where('date', '>=', cutoff)
-    .orderBy('date', 'asc').get();
-  const stored = snap.docs.map(d => d.data());
+    .where('patientEmail', '==', patientEmail).get();
+  const stored = snap.docs.map(d => d.data()).filter(s => s.date >= cutoff);
   return [...getDemoSessions(patientEmail), ...stored]
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
@@ -2491,7 +2530,7 @@ async function showRealPatient(patient) {
       <div class="patient-panel-hdr">
         <div class="patient-panel-hdr-left">
           <button class="tp-back-btn" onclick="backToPatientList()" title="Back to patients list">←</button>
-          <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient</p></div>
+          <div><h3>${escapeHtml(patient.name)}</h3><p class="subtitle">Connected Patient</p></div>
         </div>
         <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
       </div>
@@ -2534,7 +2573,7 @@ async function showRealPatient(patient) {
     <div class="patient-panel-hdr">
       <div class="patient-panel-hdr-left">
         <button class="tp-back-btn" onclick="backToPatientList()" title="Back to patients list">←</button>
-        <div><h3>${patient.name}</h3><p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p></div>
+        <div><h3>${escapeHtml(patient.name)}</h3><p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p></div>
       </div>
       <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
     </div>
@@ -2566,52 +2605,6 @@ async function showRealPatient(patient) {
   updateExerciseParamsUI(null, null);
 }
 
-function groupSetsIntoSessions(sets) {
-  if (sets.length === 0) return [];
-  
-  // Expand setData arrays into individual set entries
-  const expanded = [];
-  sets.forEach(s => {
-    if (s.setData && s.setData.length > 0) {
-      s.setData.forEach((sd, idx) => {
-        expanded.push({
-          ...sd,
-          date: s.date,
-          exerciseType: s.exerciseType,
-          protocolId: s.protocolId,
-          therapistEmail: s.therapistEmail,
-          sessionDocId: s.id || null
-        });
-      });
-    } else {
-      expanded.push(s);
-    }
-  });
-  
-  const sorted = [...expanded].sort((a, b) => new Date(a.date) - new Date(b.date));
-  const groups = [];
-  let cur = { sets: [sorted[0]], protocolId: sorted[0].protocolId || '' };
-  for (let i = 1; i < sorted.length; i++) {
-    const gap = (new Date(sorted[i].date) - new Date(sorted[i - 1].date)) / 60000;
-    const sameProto = (sorted[i].protocolId || '') === cur.protocolId;
-    if (gap <= 30 && sameProto) { cur.sets.push(sorted[i]); }
-    else { groups.push(cur); cur = { sets: [sorted[i]], protocolId: sorted[i].protocolId || '' }; }
-  }
-  groups.push(cur);
-  return groups.map(g => {
-    const s = g.sets;
-    const totalReps = s.reduce((sum, x) => sum + (x.reps || 0), 0);
-    const maxROM = Math.max(...s.map(x => x.rom || 0));
-    const avgPain = s.length ? s.reduce((sum, x) => sum + (x.pain || 0), 0) / s.length : 0;
-    const dur = s.length > 1 ? Math.round((new Date(s[s.length - 1].date) - new Date(s[0].date)) / 60000) : 0;
-    return {
-      date: s[0].date, sets: s, setsCompleted: s.length,
-      totalReps, maxROM, avgPain, durationMin: dur,
-      exerciseType: s[0].exerciseType || '', protocolId: g.protocolId
-    };
-  });
-}
-
 function toggleShExpand(id) {
   document.getElementById(id)?.classList.toggle('sh-expanded');
 }
@@ -2630,6 +2623,7 @@ function shLoadMore() {
 function buildSessionHistory(sessions, patientName) {
   window._lastHistorySessions   = sessions;
   window._lastHistoryPatientName = patientName || '';
+  window._setNotesData = [];
   if (sessions.length === 0) {
     return `<div class="session-history-card"><h4>Session history</h4><div style="color:var(--muted); font-size:0.85rem; text-align:center; padding:20px;">No sessions recorded yet.</div></div>`;
   }
@@ -2693,8 +2687,11 @@ function buildSessionHistory(sessions, patientName) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           </button>`;
         }
-        const notesBtn = s.notes && s.notes.trim()
-          ? `<button class="prog-set-notes-btn" onclick="event.stopPropagation(); showSetNotes('${s.notes.replace(/'/g, "\\'")}')">
+        const notesIdx = s.notes && s.notes.trim()
+          ? (window._setNotesData.push(s.notes) - 1)
+          : -1;
+        const notesBtn = notesIdx >= 0
+          ? `<button class="prog-set-notes-btn" onclick="event.stopPropagation(); showSetNotes(${notesIdx})">
               Comments
             </button>`
           : '<span class="prog-set-empty">—</span>';
@@ -2929,17 +2926,7 @@ async function bulkAssignProtocol() {
   let demoVideoUrl = null;
   if (_demoBlob) {
     if (submitBtn) submitBtn.textContent = 'Uploading demo...';
-    try {
-      const form = new FormData();
-      form.append('file', _demoBlob);
-      form.append('upload_preset', CLOUDINARY_PRESET);
-      form.append('resource_type', 'video');
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: form });
-      const data = await res.json();
-      if (data.secure_url) demoVideoUrl = data.secure_url;
-    } catch (e) {
-      console.error('[Motus] Bulk demo upload error:', e);
-    }
+    demoVideoUrl = await uploadVideoToCloudinary(_demoBlob);
     if (submitBtn) submitBtn.textContent = 'Assigning...';
   }
 
@@ -3840,20 +3827,6 @@ function renderSetDots() {
   }
 }
 
-function renderRepDots() {
-  const container = document.getElementById('repDots');
-  if (!container) return;
-  if (TARGET_REPS > 20) { container.innerHTML = ''; return; }
-  container.innerHTML = '';
-  for (let i = 1; i <= TARGET_REPS; i++) {
-    const dot = document.createElement('div');
-    dot.className = 'rep-dot';
-    if (i <= repCount)           dot.classList.add('done');
-    else if (i === repCount + 1) dot.classList.add('active-rep');
-    container.appendChild(dot);
-  }
-}
-
 async function advanceSet() {
   sessionPaused = false;
   if (repCount >= TARGET_REPS) {
@@ -4024,30 +3997,6 @@ function isMobile() {
 let mpCamera = null;
 
 var calHintTimer = null;
-var calHandDetected = false;
-
-function showCalOverlay() {
-  calHandDetected = false;
-  var overlay = document.getElementById('calOverlay');
-  var hint = document.getElementById('calHint');
-  var error = document.getElementById('calError');
-  overlay.style.display = 'flex';
-  overlay.classList.remove('fade-out');
-  hint.style.display = 'none';
-  error.style.display = 'none';
-  calHintTimer = setTimeout(function() {
-    hint.style.display = 'block';
-  }, 15000);
-}
-
-function hideCalOverlay() {
-  if (calHandDetected) return;
-  calHandDetected = true;
-  clearTimeout(calHintTimer);
-  var overlay = document.getElementById('calOverlay');
-  overlay.classList.add('fade-out');
-  setTimeout(function() { overlay.style.display = 'none'; }, 300);
-}
 
 function showCalError(msg) {
   clearTimeout(calHintTimer);
@@ -4339,23 +4288,15 @@ async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session
   if (!blob || blob.size === 0 || !docId) return;
   const tierConfig = VIDEO_TIERS[tier] || VIDEO_TIERS.session;
   try {
-    const form = new FormData();
-    form.append('file', blob);
-    form.append('upload_preset', CLOUDINARY_PRESET);
-    form.append('resource_type', 'video');
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
-      method: 'POST',
-      body: form
-    });
-    const data = await res.json();
-    if (data.secure_url) {
-      const update = { videoUrl: data.secure_url };
+    const secureUrl = await uploadVideoToCloudinary(blob);
+    if (secureUrl) {
+      const update = { videoUrl: secureUrl };
       if (tierConfig.expireDays !== null) {
         update.videoExpireAt = new Date(Date.now() + tierConfig.expireDays * 86400000).toISOString();
       }
       await db.collection(collection).doc(docId).update(update);
     } else {
-      console.warn('[Motus] Cloudinary upload failed:', data.error?.message);
+      console.warn('[Motus] Cloudinary upload failed');
     }
   } catch(e) {
     console.warn('[Motus] Video upload error:', e);
@@ -4569,14 +4510,17 @@ function buildProgressByDay(sessions) {
           </button>`;
         }
         
-        const notesBtn = s.notes && s.notes.trim()
-          ? `<button class="prog-set-notes-btn" onclick="event.stopPropagation(); showSetNotes('${s.notes.replace(/'/g, "\\'")}')">
+        const notesIdx = s.notes && s.notes.trim()
+          ? (window._setNotesData.push(s.notes) - 1)
+          : -1;
+        const notesBtn = notesIdx >= 0
+          ? `<button class="prog-set-notes-btn" onclick="event.stopPropagation(); showSetNotes(${notesIdx})">
               Comments
-            </button>` 
+            </button>`
           : '<span class="prog-set-empty">—</span>';
-        
-        const exitBadge = exitedEarly 
-          ? `<span class="prog-set-exit-badge" title="Patient exited early">Exited</span>` 
+
+        const exitBadge = exitedEarly
+          ? `<span class="prog-set-exit-badge" title="Patient exited early">Exited</span>`
           : '';
         
         html += `<div class="prog-set-row">
@@ -4607,7 +4551,8 @@ function toggleProgDay(card) {
   card.classList.toggle('expanded');
 }
 
-function showSetNotes(notes) {
+function showSetNotes(index) {
+  const notes = (window._setNotesData || [])[index] || '';
   document.getElementById('setNotesText').textContent = notes;
   document.getElementById('setNotesModal').style.display = 'flex';
 }
@@ -4617,6 +4562,7 @@ function closeSetNotesModal() {
 }
 
 async function renderProgressScreen() {
+  window._setNotesData = [];
   var sessions = [];
   if (currentUser && currentUser.email) {
     sessions = await getPatientSessions(currentUser.email);
@@ -4685,578 +4631,6 @@ async function renderProgressScreen() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SECTION 13: JOINT SELECTOR  (therapist panel) — Enhanced
-   ══════════════════════════════════════════════════════════════════════════ */
-
-const EJS_FINGER_COLORS = {
-  thumb: '#F5A623', index: '#2D7FF9', middle: '#00C9B1', ring: '#A78BFA', pinky: '#F04B4B'
-};
-const EJS_FINGER_LABELS = {
-  thumb: 'Thumb', index: 'Index', middle: 'Middle', ring: 'Ring', pinky: 'Pinky'
-};
-const EJS_FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinky'];
-const EJS_JOINTS  = ['mcp', 'pip', 'dip', 'tip'];
-const EJS_PRIORITY_COLORS = { Critical: '#CC2936', High: '#F59E0B', Medium: '#005EB8', Low: '#8A9AB0' };
-
-const EJS_JOINT_DATA = {
-  'thumb-mcp':  { label:'MP',  fullName:'Metacarpophalangeal Joint',       lm:2,  maxROM:60,  jointType:'Condyloid', priority:'High',     finger:'thumb',  desc:"The thumb's basal knuckle, enabling opposition and key pinch mechanics. Critical for grip strength assessment. Stiffness here often indicates early CMC arthritis or post-fracture contracture." },
-  'thumb-pip':  { label:'IP',  fullName:'Interphalangeal Joint',           lm:3,  maxROM:80,  jointType:'Hinge',     priority:'Medium',   finger:'thumb',  desc:"The thumb's only interphalangeal joint. Monitors flexor/extensor tendon integrity. Loss of active extension may indicate extensor pollicis longus rupture." },
-  'thumb-dip':  { label:'—',   fullName:'N/A (Thumb has no DIP)',          lm:null,maxROM:null,jointType:'—',        priority:'—',        finger:'thumb',  desc:'Thumb has only two phalanges and therefore no DIP joint.' },
-  'thumb-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:4,  maxROM:null,jointType:'Reference', priority:'Low',      finger:'thumb',  desc:'Fingertip landmark used for opposition distance calculations and precision pinch tracking.' },
-  'index-mcp':  { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:5,  maxROM:90,  jointType:'Condyloid', priority:'High',     finger:'index',  desc:'Primary power grip knuckle. Monitors flexor digitorum profundus integrity and dorsal hood mechanism. Hyperextension may indicate volar plate laxity post-dislocation.' },
-  'index-pip':  { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:6,  maxROM:100, jointType:'Hinge',     priority:'Critical', finger:'index',  desc:'The most commonly injured joint in the hand. Boutonnière and swan neck deformities originate here. Primary target for ROM tracking after ORIF, tendon repair, or arthroplasty.' },
-  'index-dip':  { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:7,  maxROM:70,  jointType:'Hinge',     priority:'Medium',   finger:'index',  desc:'Monitors flexor digitorum profundus and terminal extensor tendon function. Mallet finger presents as loss of active DIP extension.' },
-  'index-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:8,  maxROM:null,jointType:'Reference', priority:'Low',      finger:'index',  desc:'Index fingertip reference for grip reach, tool manipulation tracking, and opposition distance from thumb.' },
-  'middle-mcp': { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:9,  maxROM:90,  jointType:'Condyloid', priority:'High',     finger:'middle', desc:'Central axis of the hand. The reference joint for fist formation and composite flexion. Primary metric for post-surgical hook fist and full fist progression protocols.' },
-  'middle-pip': { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:10, maxROM:100, jointType:'Hinge',     priority:'Critical', finger:'middle', desc:'Current primary rep-counting joint in Motus. Used for open-close cycle detection. Highest sensitivity for edema-related stiffness and tendon adhesion assessment.' },
-  'middle-dip': { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:11, maxROM:70,  jointType:'Hinge',     priority:'Medium',   finger:'middle', desc:'FDP slip assessment point. Decreased active DIP flexion with intact PIP motion indicates a partial FDP rupture or zone 1 injury pattern.' },
-  'middle-tip': { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:12, maxROM:null,jointType:'Reference', priority:'Low',      finger:'middle', desc:'Longest reach point of the hand. Used for composite fist-to-palm distance (fingertip-to-distal palmar crease gap), a standard clinical ROM outcome measure.' },
-  'ring-mcp':   { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:13, maxROM:90,  jointType:'Condyloid', priority:'Medium',   finger:'ring',   desc:'Commonly affected in rheumatoid arthritis with ulnar drift deformity. Monitors intrinsic muscle function and MCP joint capsule integrity after arthroplasty.' },
-  'ring-pip':   { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:14, maxROM:100, jointType:'Hinge',     priority:'High',     finger:'ring',   desc:"Frequently stiff in crush injuries and ring avulsion. Tracks central slip integrity and oblique retinacular ligament tightness — a key indicator in Dupuytren's contracture progression." },
-  'ring-dip':   { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:15, maxROM:70,  jointType:'Hinge',     priority:'Low',      finger:'ring',   desc:'FDP terminal slip assessment. Ring finger DIP mallet deformity is less common but clinically significant in athletic hand trauma.' },
-  'ring-tip':   { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:16, maxROM:null,jointType:'Reference', priority:'Low',      finger:'ring',   desc:'Ring fingertip reference landmark. Used in abduction spread calculations and fingertip-to-palm composite reach measurements.' },
-  'pinky-mcp':  { label:'MCP', fullName:'Metacarpophalangeal Joint',       lm:17, maxROM:90,  jointType:'Condyloid', priority:'Medium',   finger:'pinky',  desc:"Site of boxer's fracture (5th metacarpal neck fracture). Monitors post-fracture angulation correction and extensor lag. Important for power grip and hypothenar muscle function." },
-  'pinky-pip':  { label:'PIP', fullName:'Proximal Interphalangeal Joint',  lm:18, maxROM:100, jointType:'Hinge',     priority:'High',     finger:'pinky',  desc:'Pinky PIP stiffness significantly impacts grip width and keyboard/instrument function. Monitors FDS slip integrity and volar plate healing.' },
-  'pinky-dip':  { label:'DIP', fullName:'Distal Interphalangeal Joint',    lm:19, maxROM:70,  jointType:'Hinge',     priority:'Low',      finger:'pinky',  desc:'Terminal phalanx position affects fine motor coordination for writing and musical instrument performance.' },
-  'pinky-tip':  { label:'TIP', fullName:'Distal Phalanx — Tip',           lm:20, maxROM:null,jointType:'Reference', priority:'Low',      finger:'pinky',  desc:'Pinky tip reference for grip span measurement and abduction spread calculations.' },
-};
-
-let selectedJoints    = new Set();
-let ejsActiveInfoKey  = null;
-let _ejsPatientEmail  = '';
-let _ejsSessions      = [];
-let _ejsChartInstances = [];
-let _ejsSaveTimer     = null;
-
-function buildJointSelector(patientEmail) {
-  // Build finger blocks for the grid column
-  const fingerBlocks = EJS_FINGERS.map(finger => {
-    const cards = EJS_JOINTS.map(joint => {
-      const key  = `${finger}-${joint}`;
-      const data = EJS_JOINT_DATA[key];
-      if (!data || data.lm === null) {
-        return `<div class="ejs-joint-card ejs-disabled" style="color:${EJS_FINGER_COLORS[finger]}">
-          <div class="ejs-joint-card-label" style="opacity:0.3">—</div>
-          <div class="ejs-joint-card-name" style="opacity:0.3">N/A</div>
-        </div>`;
-      }
-      return `<div class="ejs-joint-card" id="ejscard-${key}" style="color:${EJS_FINGER_COLORS[finger]}"
-                   onclick="ejsSelectCard('${key}')">
-        <div class="ejs-joint-check" id="ejscheck-${key}">
-          <svg viewBox="0 0 8 8" fill="none"><polyline points="1,4 3,6 7,2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <div class="ejs-joint-card-label">${data.label}</div>
-        <div class="ejs-joint-card-name">${data.fullName.split(' ').slice(0,2).join(' ')}</div>
-      </div>`;
-    }).join('');
-    return `<div class="ejs-finger-block">
-      <div class="ejs-finger-block-header">
-        <div class="ejs-finger-color-bar" style="background:${EJS_FINGER_COLORS[finger]}"></div>
-        <span class="ejs-finger-name">${EJS_FINGER_LABELS[finger]}</span>
-        <span class="ejs-finger-sel-count" id="ejsfcount-${finger}">0 / 4</span>
-      </div>
-      <div class="ejs-joint-row">${cards}</div>
-    </div>`;
-  }).join('');
-
-  // Finger pills
-  const pills = EJS_FINGERS.map(f =>
-    `<div class="ejs-finger-pill" id="ejspill-${f}" data-finger="${f}"
-          style="border-color:${EJS_FINGER_COLORS[f]};color:${EJS_FINGER_COLORS[f]}"
-          onclick="ejsQuickSelectFinger('${f}')">
-      ${EJS_FINGER_LABELS[f]}
-    </div>`
-  ).join('');
-
-  return `
-  <div class="ejs-panel">
-    <div class="ejs-panel-header">
-      <span class="ejs-panel-title">Joint Monitoring — Select joints to track for this patient</span>
-      <span class="ejs-total-count" id="ejsTotalCount">0 tracked</span>
-    </div>
-    <div class="ejs-body">
-
-      <!-- LEFT: Hand SVG -->
-      <div class="ejs-hand-col">
-        <span class="ejs-view-label">Palmar View</span>
-        <div class="ejs-svg-wrap" id="ejsSvgWrap-${patientEmail.replace(/[@.]/g,'_')}">
-          <svg viewBox="0 -16 200 298" xmlns="http://www.w3.org/2000/svg" class="ejs-hand-svg">
-            <defs>
-              <linearGradient id="handGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#e8eff8"/>
-                <stop offset="100%" stop-color="#d4dde9"/>
-              </linearGradient>
-            </defs>
-            <g class="ejs-hand-group">
-              <path class="ejs-hand-shape" fill="url(#handGrad)" d="
-                M 98,278
-                C 136,278 166,260 176,236
-                C 184,216 186,194 186,174
-                C 186,160 182,150 176,144
-                C 172,138 170,126 169,106
-                C 168,82 167,60 167,44
-                C 166,32 163,26 157,26
-                C 151,26 148,32 147,44
-                C 147,60 147,82 147,106
-                C 147,126 147,138 147,144
-                C 145,150 142,152 140,150
-                C 138,148 139,142 139,136
-                C 140,106 140,72 140,42
-                C 140,22 139,10 138,2
-                C 136,-4 133,-6 128,-6
-                C 123,-6 120,-4 118,2
-                C 117,10 116,22 116,42
-                C 116,72 116,106 116,136
-                C 115,144 112,148 109,146
-                C 106,144 106,140 106,136
-                C 107,104 107,66 107,32
-                C 107,12 106,0 105,-4
-                C 103,-10 100,-14 95,-14
-                C 90,-14 87,-10 85,-4
-                C 84,0 83,12 83,32
-                C 83,66 83,104 83,136
-                C 82,144 79,148 76,146
-                C 74,144 74,140 74,136
-                C 75,106 76,72 76,38
-                C 76,20 75,8 74,2
-                C 72,-2 69,-4 64,-4
-                C 59,-4 56,-2 54,2
-                C 53,8 52,20 52,38
-                C 52,72 52,106 52,140
-                C 50,158 46,174 42,184
-                C 38,190 36,184 36,172
-                C 37,150 39,128 40,104
-                C 41,84 42,70 42,58
-                C 42,46 38,38 31,38
-                C 24,38 20,46 19,58
-                C 18,70 18,84 18,104
-                C 17,132 16,162 15,184
-                C 10,212 12,242 30,260
-                C 48,274 74,278 98,278
-                Z"/>
-            </g>
-            <g class="ejs-jdot" id="ejsdot-thumb-mcp" onclick="ejsDotClick('thumb','mcp')"><circle class="ejs-dot" cx="34" cy="148" r="5" data-finger="thumb"/></g>
-            <g class="ejs-jdot" id="ejsdot-thumb-pip" onclick="ejsDotClick('thumb','pip')"><circle class="ejs-dot" cx="30" cy="108" r="5" data-finger="thumb"/></g>
-            <g class="ejs-jdot" id="ejsdot-thumb-tip" onclick="ejsDotClick('thumb','tip')"><circle class="ejs-dot" cx="30" cy="74" r="5" data-finger="thumb"/></g>
-            <g class="ejs-jdot" id="ejsdot-index-mcp" onclick="ejsDotClick('index','mcp')"><circle class="ejs-dot" cx="64" cy="130" r="5" data-finger="index"/></g>
-            <g class="ejs-jdot" id="ejsdot-index-pip" onclick="ejsDotClick('index','pip')"><circle class="ejs-dot" cx="64" cy="88" r="5" data-finger="index"/></g>
-            <g class="ejs-jdot" id="ejsdot-index-dip" onclick="ejsDotClick('index','dip')"><circle class="ejs-dot" cx="64" cy="52" r="5" data-finger="index"/></g>
-            <g class="ejs-jdot" id="ejsdot-index-tip" onclick="ejsDotClick('index','tip')"><circle class="ejs-dot" cx="64" cy="22" r="5" data-finger="index"/></g>
-            <g class="ejs-jdot" id="ejsdot-middle-mcp" onclick="ejsDotClick('middle','mcp')"><circle class="ejs-dot" cx="95" cy="128" r="5" data-finger="middle"/></g>
-            <g class="ejs-jdot" id="ejsdot-middle-pip" onclick="ejsDotClick('middle','pip')"><circle class="ejs-dot" cx="95" cy="82" r="5" data-finger="middle"/></g>
-            <g class="ejs-jdot" id="ejsdot-middle-dip" onclick="ejsDotClick('middle','dip')"><circle class="ejs-dot" cx="95" cy="40" r="5" data-finger="middle"/></g>
-            <g class="ejs-jdot" id="ejsdot-middle-tip" onclick="ejsDotClick('middle','tip')"><circle class="ejs-dot" cx="95" cy="8" r="5" data-finger="middle"/></g>
-            <g class="ejs-jdot" id="ejsdot-ring-mcp" onclick="ejsDotClick('ring','mcp')"><circle class="ejs-dot" cx="128" cy="126" r="5" data-finger="ring"/></g>
-            <g class="ejs-jdot" id="ejsdot-ring-pip" onclick="ejsDotClick('ring','pip')"><circle class="ejs-dot" cx="128" cy="84" r="5" data-finger="ring"/></g>
-            <g class="ejs-jdot" id="ejsdot-ring-dip" onclick="ejsDotClick('ring','dip')"><circle class="ejs-dot" cx="128" cy="48" r="5" data-finger="ring"/></g>
-            <g class="ejs-jdot" id="ejsdot-ring-tip" onclick="ejsDotClick('ring','tip')"><circle class="ejs-dot" cx="128" cy="18" r="5" data-finger="ring"/></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-mcp" onclick="ejsDotClick('pinky','mcp')"><circle class="ejs-dot" cx="157" cy="130" r="5" data-finger="pinky"/></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-pip" onclick="ejsDotClick('pinky','pip')"><circle class="ejs-dot" cx="157" cy="100" r="5" data-finger="pinky"/></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-dip" onclick="ejsDotClick('pinky','dip')"><circle class="ejs-dot" cx="157" cy="72" r="5" data-finger="pinky"/></g>
-            <g class="ejs-jdot" id="ejsdot-pinky-tip" onclick="ejsDotClick('pinky','tip')"><circle class="ejs-dot" cx="157" cy="48" r="5" data-finger="pinky"/></g>
-          </svg>
-        </div>
-        <div class="ejs-finger-strip">${pills}</div>
-        <div class="ejs-bulk-row">
-          <button class="ejs-bulk-btn" onclick="ejsSelectAll()">All</button>
-          <button class="ejs-bulk-btn" onclick="ejsClearAll()">Clear</button>
-        </div>
-      </div>
-
-      <!-- MIDDLE: Joint grid -->
-      <div class="ejs-grid-col">${fingerBlocks}</div>
-
-      <!-- RIGHT: Info panel -->
-      <div class="ejs-info-col">
-        <div class="ejs-info-empty" id="ejsInfoEmpty">
-          <div class="ejs-info-empty-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg></div>
-          <div class="ejs-info-empty-text">Tap any joint on the diagram or in the grid to view clinical details and toggle tracking.</div>
-        </div>
-        <div class="ejs-info-detail" id="ejsInfoDetail">
-          <div class="ejs-info-top">
-            <div class="ejs-info-finger-tag" id="ejsInfoTag">—</div>
-            <div class="ejs-info-joint-name" id="ejsInfoJointName">—</div>
-            <div class="ejs-info-joint-full" id="ejsInfoJointFull">—</div>
-          </div>
-          <div class="ejs-info-meta">
-            <div class="ejs-info-meta-row"><span class="ejs-meta-key">MediaPipe LM</span><span class="ejs-meta-val" id="ejsInfoLM">—</span></div>
-            <div class="ejs-info-meta-row"><span class="ejs-meta-key">Max ROM</span><span class="ejs-meta-val" id="ejsInfoMaxROM">—</span></div>
-            <div class="ejs-info-meta-row"><span class="ejs-meta-key">Joint Type</span><span class="ejs-meta-val" id="ejsInfoJointType">—</span></div>
-            <div class="ejs-info-meta-row"><span class="ejs-meta-key">Clinical Priority</span><span class="ejs-meta-val" id="ejsInfoPriority">—</span></div>
-          </div>
-          <div class="ejs-rom-wrap">
-            <div class="ejs-rom-label">Normal Range of Motion</div>
-            <div class="ejs-rom-row">
-              <svg viewBox="0 0 80 48" width="72" height="44">
-                <path d="M 8,44 A 36,36 0 0,1 72,44" fill="none" stroke="#E8ECF2" stroke-width="6" stroke-linecap="round"/>
-                <path id="ejsArcFill" d="M 8,44 A 36,36 0 0,1 72,44" fill="none" stroke="#005EB8" stroke-width="6" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="113" style="transition:stroke-dashoffset 0.5s ease,stroke 0.3s"/>
-              </svg>
-              <div class="ejs-rom-vals">
-                <div class="ejs-rom-val-row"><span class="ejs-rom-num" id="ejsRomMax" style="color:#005EB8">—</span><span class="ejs-rom-lbl">max</span></div>
-                <div class="ejs-rom-val-row"><span class="ejs-rom-num" style="color:var(--muted)">0°</span><span class="ejs-rom-lbl">min</span></div>
-              </div>
-            </div>
-          </div>
-          <div class="ejs-info-desc"><div id="ejsInfoDesc" class="ejs-info-desc-text">—</div></div>
-          <div class="ejs-info-actions">
-            <button class="ejs-track-btn ejs-track-add" id="ejsTrackBtn" onclick="ejsToggleFromInfo()">+ Track This Joint</button>
-          </div>
-        </div>
-        <div class="ejs-tracked-summary">
-          <div class="ejs-tracked-header">
-            <div class="ejs-tracked-title">Tracked Joints</div>
-            <div class="ejs-tracked-count" id="ejsTrackedCount"></div>
-          </div>
-          <div class="ejs-tracked-chips" id="ejsTrackedChips"><span class="ejs-tracked-empty">None selected</span></div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-  <div id="ejsChartsArea" class="ejs-charts-area"></div>`;
-}
-
-/* After buildJointSelector HTML is injected into the DOM, call this to reset/load state */
-async function ejsInit(patientEmail, sessions) {
-  _ejsPatientEmail = patientEmail || '';
-  _ejsSessions     = sessions     || [];
-  selectedJoints.clear();
-  ejsActiveInfoKey = null;
-
-  // Load saved joint selections from Firestore
-  if (patientEmail) {
-    const saved = await loadTrackedJoints(patientEmail);
-    saved.forEach(key => selectedJoints.add(key));
-  }
-
-  ejsRefreshUI();
-  renderJointCharts();
-}
-
-/* Called whenever the joint selection changes — updates UI, charts, and persists to Firestore */
-function ejsOnSelectionChange() {
-  ejsRefreshUI();
-  renderJointCharts();
-  if (_ejsSaveTimer) clearTimeout(_ejsSaveTimer);
-  _ejsSaveTimer = setTimeout(() => {
-    if (_ejsPatientEmail) saveTrackedJoints(_ejsPatientEmail, [...selectedJoints]);
-  }, 800);
-}
-
-/* Render one Chart.js line chart per tracked joint showing max angle over sessions */
-function renderJointCharts() {
-  const area = document.getElementById('ejsChartsArea');
-  if (!area) return;
-
-  // Destroy stale chart instances
-  _ejsChartInstances.forEach(c => c.destroy());
-  _ejsChartInstances = [];
-
-  if (selectedJoints.size === 0) {
-    area.innerHTML = '';
-    return;
-  }
-
-  const joints = [...selectedJoints];
-  area.innerHTML = joints.map(key => {
-    const safe = key.replace('-', '_');
-    return `<div class="ejs-chart-card">
-      <div class="ejs-chart-title" id="ejscharttitle-${safe}"></div>
-      <canvas id="ejscanvas-${safe}" height="90"></canvas>
-      <div class="ejs-chart-empty" id="ejschartempty-${safe}" style="display:none">
-        No session data with this joint tracked yet — data will appear here once the patient completes a session with joint monitoring active.
-      </div>
-    </div>`;
-  }).join('');
-
-  joints.forEach(key => {
-    const data  = EJS_JOINT_DATA[key];
-    if (!data) return;
-    const safe  = key.replace('-', '_');
-    const canvas  = document.getElementById(`ejscanvas-${safe}`);
-    const titleEl = document.getElementById(`ejscharttitle-${safe}`);
-    const emptyEl = document.getElementById(`ejschartempty-${safe}`);
-    if (!canvas) return;
-
-    const color = EJS_FINGER_COLORS[data.finger];
-    if (titleEl) {
-      titleEl.textContent = `${EJS_FINGER_LABELS[data.finger]} ${data.label} — ${data.fullName}`;
-      titleEl.style.color = color;
-    }
-
-    const sessionData = _ejsSessions
-      .filter(s => s.jointAngles && typeof s.jointAngles[key] === 'number')
-      .map(s => {
-        const d = new Date(s.date);
-        return {
-          label: `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`,
-          angle: s.jointAngles[key]
-        };
-      });
-
-    if (sessionData.length === 0) {
-      canvas.style.display = 'none';
-      if (emptyEl) emptyEl.style.display = 'block';
-      return;
-    }
-
-    const chart = new Chart(canvas.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: sessionData.map(s => s.label),
-        datasets: [{
-          label: 'Max ROM (°)',
-          data: sessionData.map(s => s.angle),
-          borderColor: color,
-          backgroundColor: color + '22',
-          borderWidth: 2,
-          pointBackgroundColor: color,
-          pointRadius: 4,
-          tension: 0.4,
-          fill: true
-        }]
-      },
-      options: {
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#E8ECF2' } },
-          y: {
-            min: 0,
-            max: data.maxROM ? Math.min(data.maxROM + 20, 180) : 120,
-            ticks: { color: '#64748b' },
-            grid: { color: '#E8ECF2' },
-            title: { display: true, text: 'Degrees (°)', color: '#64748b', font: { size: 11 } }
-          }
-        }
-      }
-    });
-    _ejsChartInstances.push(chart);
-  });
-}
-
-function ejsDotClick(finger, joint) {
-  const key = `${finger}-${joint}`;
-  const data = EJS_JOINT_DATA[key];
-  if (!data || data.lm === null) return;
-  ejsToggleJoint(key);
-  ejsShowInfo(key);
-}
-
-function ejsSelectCard(key) {
-  const data = EJS_JOINT_DATA[key];
-  if (!data || data.lm === null) return;
-  ejsToggleJoint(key);
-  ejsShowInfo(key);
-}
-
-function ejsToggleJoint(key) {
-  if (selectedJoints.has(key)) selectedJoints.delete(key);
-  else selectedJoints.add(key);
-  ejsOnSelectionChange();
-}
-
-function ejsToggleFromInfo() {
-  if (!ejsActiveInfoKey) return;
-  ejsToggleJoint(ejsActiveInfoKey);
-  ejsShowInfo(ejsActiveInfoKey);
-}
-
-function ejsShowInfo(key) {
-  ejsActiveInfoKey = key;
-  const data = EJS_JOINT_DATA[key];
-  if (!data) return;
-
-  document.getElementById('ejsInfoEmpty').style.display  = 'none';
-  document.getElementById('ejsInfoDetail').style.display = 'flex';
-
-  const tag = document.getElementById('ejsInfoTag');
-  tag.textContent   = EJS_FINGER_LABELS[data.finger];
-  tag.style.background = EJS_FINGER_COLORS[data.finger];
-
-  document.getElementById('ejsInfoJointName').textContent = `${data.label} — ${data.fullName.split(' ')[0]}`;
-  document.getElementById('ejsInfoJointFull').textContent = data.fullName;
-  document.getElementById('ejsInfoLM').textContent        = data.lm !== null ? `[${data.lm}]` : 'N/A';
-  document.getElementById('ejsInfoMaxROM').textContent    = data.maxROM !== null ? `${data.maxROM}°` : 'N/A';
-  document.getElementById('ejsInfoJointType').textContent = data.jointType;
-  document.getElementById('ejsInfoDesc').textContent      = data.desc;
-
-  const priEl = document.getElementById('ejsInfoPriority');
-  priEl.textContent  = data.priority;
-  priEl.style.color  = EJS_PRIORITY_COLORS[data.priority] || 'var(--muted)';
-
-  // ROM arc
-  const arcFill = document.getElementById('ejsArcFill');
-  const romMax  = document.getElementById('ejsRomMax');
-  if (data.maxROM !== null) {
-    const pct = Math.min(data.maxROM / 120, 1);
-    arcFill.style.strokeDashoffset = 113 * (1 - pct);
-    arcFill.style.stroke = EJS_FINGER_COLORS[data.finger];
-    romMax.textContent   = `${data.maxROM}°`;
-    romMax.style.color   = EJS_FINGER_COLORS[data.finger];
-  } else {
-    arcFill.style.strokeDashoffset = 113;
-    romMax.textContent = '—';
-    romMax.style.color = 'var(--muted)';
-  }
-
-  // Track button
-  const btn = document.getElementById('ejsTrackBtn');
-  if (selectedJoints.has(key)) {
-    btn.className   = 'ejs-track-btn ejs-track-remove';
-    btn.textContent = '✕ Remove from Tracking';
-    btn.style.background = '';
-  } else {
-    btn.className   = 'ejs-track-btn ejs-track-add';
-    btn.textContent = '+ Track This Joint';
-    btn.style.background = EJS_FINGER_COLORS[data.finger];
-  }
-
-  // Highlight card
-  document.querySelectorAll('.ejs-joint-card').forEach(c => c.style.outline = '');
-  const card = document.getElementById(`ejscard-${key}`);
-  if (card && data.lm !== null) card.style.outline = `2px solid ${EJS_FINGER_COLORS[data.finger]}`;
-}
-
-function ejsRefreshUI() {
-  // Cards + finger counts
-  EJS_FINGERS.forEach(finger => {
-    let count = 0;
-    EJS_JOINTS.forEach(joint => {
-      const key  = `${finger}-${joint}`;
-      const card = document.getElementById(`ejscard-${key}`);
-      const chk  = document.getElementById(`ejscheck-${key}`);
-      if (!card) return;
-      const sel = selectedJoints.has(key);
-      card.classList.toggle('ejs-selected', sel);
-      if (chk) chk.classList.toggle('ejs-check-on', sel);
-      if (sel) count++;
-    });
-    const validCount = EJS_JOINTS.filter(j => { const d = EJS_JOINT_DATA[`${finger}-${j}`]; return d && d.lm !== null; }).length;
-    const fc = document.getElementById(`ejsfcount-${finger}`);
-    if (fc) fc.textContent = `${count} / ${validCount}`;
-  });
-
-  // SVG dots
-  EJS_FINGERS.forEach(finger => {
-    EJS_JOINTS.forEach(joint => {
-      const key  = `${finger}-${joint}`;
-      const dot  = document.getElementById(`ejsdot-${finger}-${joint}`);
-      if (!dot) return;
-      const selected = selectedJoints.has(key);
-      dot.classList.toggle('ejs-dot-selected', selected);
-      const circle = dot.querySelector('.ejs-dot');
-      if (circle) circle.style.stroke = selected ? EJS_FINGER_COLORS[finger] : '';
-    });
-  });
-
-  // Finger pills
-  EJS_FINGERS.forEach(finger => {
-    const pill = document.getElementById(`ejspill-${finger}`);
-    if (!pill) return;
-    const validJoints = EJS_JOINTS.filter(j => {
-      const d = EJS_JOINT_DATA[`${finger}-${j}`];
-      return d && d.lm !== null;
-    });
-    const all = validJoints.every(j => selectedJoints.has(`${finger}-${j}`));
-    const any = validJoints.some(j => selectedJoints.has(`${finger}-${j}`));
-    pill.classList.toggle('ejs-pill-on',  all);
-    pill.classList.toggle('ejs-pill-off', !any);
-    pill.style.background = all ? EJS_FINGER_COLORS[finger] : '';
-    pill.style.color      = all ? 'white' : EJS_FINGER_COLORS[finger];
-  });
-
-  // Counter
-  const tc = document.getElementById('ejsTotalCount');
-  if (tc) tc.textContent = `${selectedJoints.size} tracked`;
-
-  // Chips
-  ejsRenderChips();
-
-  // Re-outline active card
-  if (ejsActiveInfoKey) {
-    document.querySelectorAll('.ejs-joint-card').forEach(c => c.style.outline = '');
-    const card = document.getElementById(`ejscard-${ejsActiveInfoKey}`);
-    const data = EJS_JOINT_DATA[ejsActiveInfoKey];
-    if (card && data && data.lm !== null) card.style.outline = `2px solid ${EJS_FINGER_COLORS[data.finger]}`;
-    // Refresh button state
-    const btn = document.getElementById('ejsTrackBtn');
-    if (btn && data) {
-      if (selectedJoints.has(ejsActiveInfoKey)) {
-        btn.className   = 'ejs-track-btn ejs-track-remove';
-        btn.textContent = '✕ Remove from Tracking';
-        btn.style.background = '';
-      } else {
-        btn.className   = 'ejs-track-btn ejs-track-add';
-        btn.textContent = '+ Track This Joint';
-        btn.style.background = EJS_FINGER_COLORS[data.finger];
-      }
-    }
-  }
-}
-
-function ejsRenderChips() {
-  const wrap = document.getElementById('ejsTrackedChips');
-  const countEl = document.getElementById('ejsTrackedCount');
-  if (!wrap) return;
-  const totalValid = Object.values(EJS_JOINT_DATA).filter(d => d.lm !== null).length;
-  if (countEl) countEl.textContent = selectedJoints.size > 0 ? `${selectedJoints.size} of ${totalValid}` : '';
-  if (selectedJoints.size === 0) {
-    wrap.innerHTML = '<span class="ejs-tracked-empty">None selected</span>';
-    return;
-  }
-  const grouped = {};
-  [...selectedJoints].forEach(key => {
-    const data = EJS_JOINT_DATA[key];
-    if (!data) return;
-    if (!grouped[data.finger]) grouped[data.finger] = [];
-    grouped[data.finger].push({ key, data });
-  });
-  wrap.innerHTML = EJS_FINGERS.filter(f => grouped[f]).map(finger => {
-    const color = EJS_FINGER_COLORS[finger];
-    const chips = grouped[finger].map(({ key, data }) =>
-      `<button class="ejs-chip" style="color:${color};border-color:${color}22;background:${color}0D" onclick="ejsRemoveChip('${key}')">${data.label}<span class="ejs-chip-x">×</span></button>`
-    ).join('');
-    return `<div class="ejs-tracked-finger-row">
-      <span class="ejs-tracked-finger-label" style="color:${color}">${EJS_FINGER_LABELS[finger]}</span>
-      <div class="ejs-tracked-finger-chips">${chips}</div>
-    </div>`;
-  }).join('');
-}
-
-function ejsRemoveChip(key) {
-  selectedJoints.delete(key);
-  ejsOnSelectionChange();
-  if (ejsActiveInfoKey === key) ejsShowInfo(key);
-}
-
-function ejsQuickSelectFinger(finger) {
-  const validJoints = EJS_JOINTS.filter(j => {
-    const d = EJS_JOINT_DATA[`${finger}-${j}`];
-    return d && d.lm !== null;
-  });
-  const all = validJoints.every(j => selectedJoints.has(`${finger}-${j}`));
-  validJoints.forEach(j => {
-    const key = `${finger}-${j}`;
-    if (all) selectedJoints.delete(key);
-    else selectedJoints.add(key);
-  });
-  ejsOnSelectionChange();
-}
-
-function ejsSelectAll() {
-  EJS_FINGERS.forEach(f => EJS_JOINTS.forEach(j => {
-    const d = EJS_JOINT_DATA[`${f}-${j}`];
-    if (d && d.lm !== null) selectedJoints.add(`${f}-${j}`);
-  }));
-  ejsOnSelectionChange();
-}
-
-function ejsClearAll() {
-  selectedJoints.clear();
-  ejsOnSelectionChange();
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
    SECTION 15: MESSAGING  (patient ↔ therapist in-app thread)
    Firestore collection: messages  — documents: { from, to, participants, text, timestamp, read }
    ══════════════════════════════════════════════════════════════════════════ */
@@ -5269,17 +4643,6 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function formatMsgTime(isoStr) {
-  const d     = new Date(isoStr);
-  const now   = new Date();
-  const today = now.toDateString();
-  const yesterday = new Date(now - 86400000).toDateString();
-  const time  = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (d.toDateString() === today)     return time;
-  if (d.toDateString() === yesterday) return `Yesterday ${time}`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + time;
 }
 
 function timeAgo(isoStr) {
@@ -6534,7 +5897,7 @@ Object.assign(window, {
   // Auth
   handleLogin, handleSignup, handleForgot, selectRole,
   handleConnect, skipConnect,
-  logout, requestLogout, closeLogoutModal, confirmLogout,
+  logout, requestLogout, closeLogoutModal, confirmLogout, resetInactivityTimer,
   approveTherapist, rejectTherapist, acceptConsent,
 
   // Navigation
@@ -6548,7 +5911,7 @@ Object.assign(window, {
 
   // Patient flows
   startScanSession, startSessionWithProtocol, startSessionByIndex, showExercisesScreen,
-  showProgressScreen, openPatientMessaging, sendMessageFromPatient,
+  showProgressScreen, openPatientMessaging, sendMessageFromPatient, toggleExerciseList,
 
   // Camera session
   flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary, dismissSummaryToProgress,
@@ -6597,10 +5960,6 @@ Object.assign(window, {
 
   // Progress screen
   toggleProgDay, showSetNotes, closeSetNotesModal,
-
-  // Joint selector
-  ejsDotClick, ejsSelectCard, ejsToggleFromInfo,
-  ejsRemoveChip, ejsQuickSelectFinger, ejsSelectAll, ejsClearAll,
 
   // Session history
   shLoadMore, toggleShExpand,

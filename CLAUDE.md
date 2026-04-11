@@ -15,7 +15,7 @@
 
 # Motus — Claude Code Guide
 
-Hand rehabilitation web app. Authors: Yash Saoji & Oliver Huelsbeck (2025)
+Physical rehabilitation web app. Authors: Yash Saoji & Oliver Huelsbeck (2025)
 
 ## Git Workflow
 - Run `git branch` before any git operations to verify you're on the correct branch.

@@ -46,7 +46,7 @@ jobs:
             'max_tokens': 2048,
             'messages': [{
               'role': 'user',
-              'content': 'You are a code reviewer and fact-checker for a web app called phalanX. Review the following pull request diff carefully.\n\nCheck for:\n1. Logic errors or bugs\n2. Incorrect assumptions or facts in comments/docs\n3. Inconsistencies between the two branches being merged\n4. Any code that looks incomplete or contradictory\n5. Security issues\n\nBe specific and constructive. Format your response in clear sections.\n\nHere is the diff:\n\n' + diff
+              'content': 'You are a code reviewer and fact-checker for a web app called Motus. Review the following pull request diff carefully.\n\nCheck for:\n1. Logic errors or bugs\n2. Incorrect assumptions or facts in comments/docs\n3. Inconsistencies between the two branches being merged\n4. Any code that looks incomplete or contradictory\n5. Security issues\n\nBe specific and constructive. Format your response in clear sections.\n\nHere is the diff:\n\n' + diff
             }]
           }
           print(json.dumps(payload))

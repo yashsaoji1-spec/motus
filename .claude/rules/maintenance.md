@@ -38,7 +38,7 @@ When the user says anything like "merge", "Oliver is done", "integrate Oliver's 
 - **Confirm:** "Merged and pushed. Ready to test."
 
 **Phase 4 — Test**
-- `cd phalanX-test && git pull origin main && npm run dev`
+- `cd motus-test && git pull origin main && npm run dev`
 - **Ask Yash:** "Dev server is running. Please test both your features and Oliver's. Let me know what you find."
 - Only deploy after Yash confirms everything works
 

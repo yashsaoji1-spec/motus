@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// PhalanX — Firestore Security Rules
+// Motus — Firestore Security Rules
 // Per-collection rules enforcing role-based access.
 // Roles: patient, therapist, therapist_pending, admin (stored in users/{email}.role)
 
@@ -69,8 +69,14 @@ service cloud.firestore {
     // Therapist manages their own connection list.
     // Patients can update (but not create/delete) to add themselves via connect code.
     match /connections/{therapistEmail} {
-      allow read: if isAuth() && (myEmail() == therapistEmail || isAdmin());
-      allow create, delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
+      allow read: if isAuth() && (myEmail() == therapistEmail || isAdmin() || myEmail() in resource.data.patients);
+      allow create: if isAuth() && (
+        myEmail() == therapistEmail ||
+        isAdmin() ||
+        // Patient bootstraps the doc when connecting to their first therapist
+        (isPatient() && request.resource.data.patients.hasOnly([myEmail()]))
+      );
+      allow delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       // Patients may only append their own email to the patients array — no other mutations.
       allow update: if isAuth() && (
         myEmail() == therapistEmail ||
@@ -101,15 +107,15 @@ service cloud.firestore {
     // Patient creates + updates their own sessions (two-step: create then update with videoUrl).
     // Therapist reads + updates sessions for connected patients.
     match /sessions/{sessionId} {
-      allow read: if isAuth() && (
-        myEmail() == resource.data.patientEmail ||
-        (isTherapist() && connectedToPatient(resource.data.patientEmail)) ||
-        isAdmin()
-      );
+      // Split into separate rules so Firestore's query validator can evaluate each independently.
+      // Patient self-read has no get() calls, letting the query constraint prove access.
+      allow read: if isAuth() && myEmail() == resource.data.patientEmail;
+      allow read: if isAuth() && isTherapist() && connectedToPatient(resource.data.patientEmail);
+      allow read: if isAuth() && isAdmin();
       allow create: if isAuth() && (
         myEmail() == request.resource.data.patientEmail ||
         isAdmin()
-      );
+      ) && (!('notes' in request.resource.data) || request.resource.data.notes.size() <= 1000);
       allow update: if isAuth() && (
         myEmail() == resource.data.patientEmail ||
         (isTherapist() && connectedToPatient(resource.data.patientEmail)) ||
@@ -139,9 +145,12 @@ service cloud.firestore {
     match /messages/{messageId} {
       allow read: if isAuth() && (
         myEmail() in resource.data.participants ||
+        myEmail() == resource.data.to ||
+        myEmail() == resource.data.from ||
         isAdmin()
       );
-      allow create: if isAuth() && myEmail() in request.resource.data.participants;
+      allow create: if isAuth() && myEmail() in request.resource.data.participants
+        && (!('text' in request.resource.data) || request.resource.data.text.size() <= 2000);
       allow update: if isAuth() && myEmail() in resource.data.participants;
       allow delete: if isAuth() && isAdmin();
     }
