@@ -45,9 +45,6 @@ service cloud.firestore {
       return isTherapist() && connectedToPatient(patientEmail);
     }
 
-    function myClinicId() {
-      return get(/databases/$(database)/documents/users/$(myEmail())).data.clinicId;
-    }
     function isClinicOwner(clinicId) {
       return get(/databases/$(database)/documents/clinics/$(clinicId)).data.ownerEmail == myEmail();
     }
