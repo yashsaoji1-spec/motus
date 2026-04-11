@@ -45,6 +45,16 @@ service cloud.firestore {
       return isTherapist() && connectedToPatient(patientEmail);
     }
 
+    function myClinicId() {
+      return get(/databases/$(database)/documents/users/$(myEmail())).data.clinicId;
+    }
+    function isClinicOwner(clinicId) {
+      return get(/databases/$(database)/documents/clinics/$(clinicId)).data.ownerEmail == myEmail();
+    }
+    function inClinic(clinicId) {
+      return myEmail() in get(/databases/$(database)/documents/clinics/$(clinicId)).data.therapists;
+    }
+
 
     // -- users/{email} --
     // Any authenticated user can read (needed for name lookups, role checks).
@@ -184,6 +194,58 @@ service cloud.firestore {
     match /mlModels/{jointHand} {
       allow read: if isAuth();
       allow write: if isAuth() && (isTherapist() || isAdmin());
+    }
+
+
+    // -- clinics/{clinicId} --
+    // Any therapist can read (needed for join-by-code query).
+    // Any therapist can create if they set themselves as owner.
+    // Owner can update any field; any therapist can add/remove their own email from therapists.
+    match /clinics/{clinicId} {
+      allow read: if isAuth() && (isTherapist() || isAdmin());
+      allow create: if isAuth() && isTherapist() &&
+        request.resource.data.ownerEmail == myEmail() &&
+        myEmail() in request.resource.data.therapists;
+      allow update: if isAuth() && (
+        isAdmin() ||
+        isClinicOwner(clinicId) ||
+        (isTherapist() && (
+          // joining: add own email
+          (request.resource.data.therapists.hasAll(resource.data.therapists) &&
+           request.resource.data.therapists.hasOnly(resource.data.therapists.concat([myEmail()]))) ||
+          // leaving: remove own email
+          (resource.data.therapists.hasAll(request.resource.data.therapists) &&
+           resource.data.therapists.hasOnly(request.resource.data.therapists.concat([myEmail()])))
+        ))
+      );
+      allow delete: if isAuth() && (isClinicOwner(clinicId) || isAdmin());
+    }
+
+
+    // -- clinicInvites/{inviteId} --
+    // Invitee or inviter can read. Only clinic owner can create. Invitee can update status.
+    match /clinicInvites/{inviteId} {
+      allow read: if isAuth() && (
+        resource.data.inviteeEmail == myEmail() ||
+        resource.data.invitedBy == myEmail() ||
+        isAdmin()
+      );
+      allow create: if isAuth() && isTherapist() &&
+        request.resource.data.invitedBy == myEmail() &&
+        isClinicOwner(request.resource.data.clinicId);
+      allow update: if isAuth() && (
+        (resource.data.inviteeEmail == myEmail()) ||
+        isAdmin()
+      );
+      allow delete: if isAuth() && isAdmin();
+    }
+
+
+    // -- clinicLibrary/{clinicId} --
+    // Only clinic members can read or write.
+    match /clinicLibrary/{clinicId} {
+      allow read: if isAuth() && (inClinic(clinicId) || isAdmin());
+      allow write: if isAuth() && (inClinic(clinicId) || isAdmin());
     }
 
   }

@@ -35,6 +35,12 @@ let _plCreateMode = false;
 let _plTherapistData = null;
 let _plHiddenOpen = false;
 
+// ── Clinic state ──
+let _myClinic      = null;   // clinic doc data or null
+let _myClinicId    = null;   // Firestore clinic document ID or null
+let _clinicInvites = [];     // pending invites for current user
+let _clinicLibrary = [];     // shared exercises in clinic library
+
 // ── Video recording state ──
 let mediaRecorder        = null;   // active MediaRecorder during a session
 let recordedChunks       = [];     // Blob chunks accumulated from MediaRecorder
@@ -132,7 +138,7 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     currentUser = { email: firebaseUser.email, ...snap.data() };
     currentRole = currentUser.role;
     // Require email verification for non-admin accounts (demo accounts exempt)
-    const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com']);
+    const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com', 'mike.torres@mayoclinic.org']);
     if (!firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
       await auth.signOut();
       showScreen('loginScreen');
@@ -188,22 +194,27 @@ async function getTherapistForCode(code) {
    ══════════════════════════════════════════════════════════════════════════ */
 
 const screenTitles = {
-  loginScreen:        'Motus — Sign In',
-  signupScreen:       'Motus — Create Account',
-  forgotScreen:       'Motus — Reset Password',
-  connectScreen:      'Motus — Connect to Therapist',
-  patientScreen:      'Motus — Home',
-  cameraScreen:       'Motus — Session',
-  therapistScreen:    'Motus — Therapist Dashboard',
-  exercisesScreen:    'Motus — My Exercises',
-  progressScreen:     'Motus — My Progress',
-  pendingScreen:      'Motus — Pending Approval',
-  adminScreen:        'Motus — Admin Panel',
+  loginScreen:         'Motus — Sign In',
+  signupScreen:        'Motus — Create Account',
+  forgotScreen:        'Motus — Reset Password',
+  connectScreen:       'Motus — Connect to Therapist',
+  patientScreen:       'Motus — Home',
+  cameraScreen:        'Motus — Session',
+  therapistScreen:     'Motus — Therapist Dashboard',
+  exercisesScreen:     'Motus — My Exercises',
+  progressScreen:      'Motus — My Progress',
+  pendingScreen:       'Motus — Pending Approval',
+  adminScreen:         'Motus — Admin Panel',
+  clinicScreen:        'Motus — My Clinic',
+  createClinicScreen:  'Motus — Create Clinic',
+  joinClinicScreen:    'Motus — Join Clinic',
+  clinicLibraryScreen: 'Motus — Clinic Library',
 };
 
 const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'roleScreen', 'connectScreen', 'pendingScreen', 'consentScreen']);
 
 function showScreen(screenId) {
+  closeSidebar();
   const prevActive = document.querySelector('.screen.active');
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const next = document.getElementById(screenId);
@@ -382,6 +393,8 @@ async function loginSuccess() {
     showScreen('therapistScreen');
     document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
     await loadConnectedPatients();
+    await loadMyClinic();
+    await loadMyInvites();
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
@@ -434,6 +447,9 @@ async function restoreScreen(saved) {
   // messagingScreen needs currentPatient set — can't restore
   if (currentRole === 'therapist') {
     if (saved === 'mlTrainerScreen' && ANGLE_TRACKING_ENABLED) { await startMLTrainer(); }
+    else if (saved === 'clinicScreen') { await showClinicScreen(); }
+    else if (saved === 'joinClinicScreen') { showJoinClinicScreen(); }
+    else if (saved === 'clinicLibraryScreen' && _myClinicId) { await showClinicLibraryScreen(); }
     // therapistScreen is already shown by loginSuccess — nothing to do
   } else if (currentRole === 'patient') {
     if (saved === 'exercisesScreen') { await showExercisesScreen(); }
@@ -495,6 +511,502 @@ async function rejectTherapist(email) {
   if (!confirm(`Remove ${email}'s account entirely?`)) return;
   await db.collection('users').doc(email).delete();
   await loadAdminScreen();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 5c: CLINICS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function generateClinicCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function loadMyClinic() {
+  _myClinic = null;
+  _myClinicId = null;
+  if (!currentUser) return;
+  const userDoc = await db.collection('users').doc(currentUser.email).get();
+  const clinicId = userDoc.exists ? userDoc.data().clinicId : null;
+  if (!clinicId) return;
+  const clinicDoc = await db.collection('clinics').doc(clinicId).get();
+  if (clinicDoc.exists) {
+    _myClinic = clinicDoc.data();
+    _myClinicId = clinicDoc.id;
+  } else {
+    // Stale clinicId — clear it
+    await db.collection('users').doc(currentUser.email).update({ clinicId: firebase.firestore.FieldValue.delete() });
+  }
+}
+
+async function loadMyInvites() {
+  _clinicInvites = [];
+  if (!currentUser) return;
+  const snap = await db.collection('clinicInvites')
+    .where('inviteeEmail', '==', currentUser.email)
+    .where('status', '==', 'pending')
+    .get();
+  _clinicInvites = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _updateClinicBadge();
+}
+
+function _updateClinicBadge() {
+  const badge = document.getElementById('clinicInviteBadge');
+  if (!badge) return;
+  const count = _clinicInvites.length;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+function showMyClinicOrJoin() {
+  if (_myClinicId) {
+    showClinicScreen();
+  } else {
+    showJoinClinicScreen();
+  }
+}
+
+function showCreateClinicScreen() {
+  document.getElementById('createClinicName').value = '';
+  document.getElementById('createClinicError').style.display = 'none';
+  showScreen('createClinicScreen');
+}
+
+async function createClinic() {
+  const name = document.getElementById('createClinicName').value.trim();
+  const errEl = document.getElementById('createClinicError');
+  if (!name) { errEl.textContent = 'Enter a clinic name.'; errEl.style.display = 'block'; return; }
+  if (_myClinicId) { errEl.textContent = 'You are already in a clinic. Leave it first.'; errEl.style.display = 'block'; return; }
+
+  const joinCode = generateClinicCode();
+  const clinicRef = db.collection('clinics').doc();
+  await clinicRef.set({
+    name,
+    ownerEmail: currentUser.email,
+    therapists: [currentUser.email],
+    joinCode,
+    joinCodeEnabled: true,
+    createdAt: new Date().toISOString(),
+  });
+  await db.collection('users').doc(currentUser.email).update({ clinicId: clinicRef.id });
+  await db.collection('clinicLibrary').doc(clinicRef.id).set({ sharedExercises: [] });
+
+  _myClinicId = clinicRef.id;
+  _myClinic = { name, ownerEmail: currentUser.email, therapists: [currentUser.email], joinCode, joinCodeEnabled: true };
+  showClinicScreen();
+}
+
+function showJoinClinicScreen() {
+  document.getElementById('joinClinicCodeInput').value = '';
+  document.getElementById('joinClinicError').style.display = 'none';
+  document.getElementById('joinClinicSuccess').style.display = 'none';
+  _renderInvitesList();
+  showScreen('joinClinicScreen');
+}
+
+function _renderInvitesList() {
+  const list = document.getElementById('clinicInvitesList');
+  if (!list) return;
+  if (_clinicInvites.length === 0) {
+    list.innerHTML = '<p class="clinic-empty-text">No pending invites.</p>';
+    return;
+  }
+  list.innerHTML = _clinicInvites.map(inv => `
+    <div class="clinic-invite-row">
+      <div>
+        <strong>${inv.clinicName}</strong>
+        <div class="clinic-invite-from">Invited by ${inv.invitedBy}</div>
+      </div>
+      <div class="clinic-invite-actions">
+        <button class="auth-btn" style="padding:0.35rem 0.8rem;font-size:0.8rem;margin:0" onclick="acceptInvite('${inv.id}')">Accept</button>
+        <button class="logout-btn" style="font-size:0.8rem" onclick="declineInvite('${inv.id}')">Decline</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function joinClinicByCode() {
+  const code = document.getElementById('joinClinicCodeInput').value.trim();
+  const errEl = document.getElementById('joinClinicError');
+  const succEl = document.getElementById('joinClinicSuccess');
+  errEl.style.display = 'none';
+  succEl.style.display = 'none';
+
+  if (code.length !== 6) { errEl.textContent = 'Enter a 6-digit code.'; errEl.style.display = 'block'; return; }
+  if (_myClinicId) { errEl.textContent = 'You are already in a clinic. Leave it first.'; errEl.style.display = 'block'; return; }
+
+  const snap = await db.collection('clinics')
+    .where('joinCode', '==', code)
+    .where('joinCodeEnabled', '==', true)
+    .get();
+
+  if (snap.empty) {
+    errEl.textContent = 'Invalid or disabled code. Ask the clinic owner for a valid code.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const clinicDoc = snap.docs[0];
+  if ((clinicDoc.data().therapists || []).includes(currentUser.email)) {
+    errEl.textContent = 'You are already a member of this clinic.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  await clinicDoc.ref.update({ therapists: firebase.firestore.FieldValue.arrayUnion(currentUser.email) });
+  await db.collection('users').doc(currentUser.email).update({ clinicId: clinicDoc.id });
+
+  _myClinicId = clinicDoc.id;
+  _myClinic = { ...clinicDoc.data(), therapists: [...(clinicDoc.data().therapists || []), currentUser.email] };
+  showClinicScreen();
+}
+
+async function acceptInvite(inviteId) {
+  const invite = _clinicInvites.find(i => i.id === inviteId);
+  if (!invite) return;
+  if (_myClinicId) { alert('You are already in a clinic. Leave it first.'); return; }
+
+  const clinicDoc = await db.collection('clinics').doc(invite.clinicId).get();
+  if (!clinicDoc.exists) {
+    await db.collection('clinicInvites').doc(inviteId).update({ status: 'declined' });
+    _clinicInvites = _clinicInvites.filter(i => i.id !== inviteId);
+    _renderInvitesList();
+    _updateClinicBadge();
+    return;
+  }
+
+  await clinicDoc.ref.update({ therapists: firebase.firestore.FieldValue.arrayUnion(currentUser.email) });
+  await db.collection('users').doc(currentUser.email).update({ clinicId: invite.clinicId });
+  await db.collection('clinicInvites').doc(inviteId).update({ status: 'accepted' });
+
+  _myClinicId = invite.clinicId;
+  _myClinic = { ...clinicDoc.data() };
+  if (!(_myClinic.therapists || []).includes(currentUser.email)) {
+    _myClinic = { ..._myClinic, therapists: [...(_myClinic.therapists || []), currentUser.email] };
+  }
+  _clinicInvites = _clinicInvites.filter(i => i.id !== inviteId);
+  _updateClinicBadge();
+  showClinicScreen();
+}
+
+async function declineInvite(inviteId) {
+  await db.collection('clinicInvites').doc(inviteId).update({ status: 'declined' });
+  _clinicInvites = _clinicInvites.filter(i => i.id !== inviteId);
+  _renderInvitesList();
+  _updateClinicBadge();
+}
+
+async function showClinicScreen() {
+  await loadMyClinic();
+  if (!_myClinic) { showJoinClinicScreen(); return; }
+  _renderClinicScreen();
+  showScreen('clinicScreen');
+}
+
+function _renderClinicScreen() {
+  if (!_myClinic) return;
+  const isOwner = _myClinic.ownerEmail === currentUser.email;
+  const members = _myClinic.therapists || [];
+
+  const memberRows = members.map(email => {
+    const isMe = email === currentUser.email;
+    const isMemberOwner = email === _myClinic.ownerEmail;
+    return `<div class="clinic-member-row">
+      <div class="clinic-member-info">
+        <span class="clinic-member-email">${email}</span>
+        ${isMemberOwner ? '<span class="clinic-role-tag clinic-owner-tag">Owner</span>' : ''}
+        ${isMe ? '<span class="clinic-role-tag clinic-you-tag">You</span>' : ''}
+      </div>
+      ${isOwner && !isMe ? `<button class="logout-btn" style="font-size:0.75rem;padding:0.2rem 0.6rem" onclick="removeClinicMember('${email}')">Remove</button>` : ''}
+    </div>`;
+  }).join('');
+
+  const codeSection = isOwner ? `
+    <div class="clinic-section-card">
+      <div class="clinic-section-label">Join Code</div>
+      <div class="clinic-code-row">
+        <span class="clinic-join-code">${_myClinic.joinCodeEnabled ? _myClinic.joinCode : '——————'}</span>
+        <button class="clinic-text-btn" onclick="copyClinicJoinCode()">Copy</button>
+        <button class="clinic-text-btn" onclick="regenerateClinicCode()">Regenerate</button>
+        <button class="clinic-text-btn" onclick="toggleClinicCode()">${_myClinic.joinCodeEnabled ? 'Disable' : 'Enable'}</button>
+      </div>
+      <div class="clinic-section-label" style="margin-top:1.2rem">Invite by Email</div>
+      <div class="clinic-invite-input-row">
+        <input type="email" id="clinicInviteEmail" class="clinic-invite-input" placeholder="colleague@clinic.com" />
+        <button class="auth-btn" style="padding:0.4rem 0.9rem;font-size:0.85rem;margin:0" onclick="sendClinicInvite()">Invite</button>
+      </div>
+      <div id="clinicInviteMsg" class="clinic-msg" style="display:none"></div>
+    </div>
+  ` : '';
+
+  document.getElementById('clinicScreenContent').innerHTML = `
+    <div class="clinic-name-header">${_myClinic.name}</div>
+    ${codeSection}
+    <div class="clinic-section-card">
+      <div class="clinic-section-label">Members (${members.length})</div>
+      <div class="clinic-members-list">${memberRows}</div>
+    </div>
+    <div class="clinic-bottom-actions">
+      <button class="auth-btn" onclick="showClinicLibraryScreen()">Shared Exercise Library</button>
+      <button class="logout-btn" onclick="confirmLeaveClinic()">${isOwner && members.length === 1 ? 'Disband Clinic' : 'Leave Clinic'}</button>
+    </div>
+  `;
+}
+
+function copyClinicJoinCode() {
+  if (!_myClinic || !_myClinic.joinCodeEnabled) return;
+  navigator.clipboard.writeText(_myClinic.joinCode).catch(() => {});
+}
+
+async function regenerateClinicCode() {
+  if (!_myClinicId || !_myClinic || _myClinic.ownerEmail !== currentUser.email) return;
+  if (!confirm('Regenerate join code? The old code will stop working immediately.')) return;
+  const newCode = generateClinicCode();
+  await db.collection('clinics').doc(_myClinicId).update({ joinCode: newCode });
+  _myClinic.joinCode = newCode;
+  _renderClinicScreen();
+}
+
+async function toggleClinicCode() {
+  if (!_myClinicId || !_myClinic || _myClinic.ownerEmail !== currentUser.email) return;
+  const newVal = !_myClinic.joinCodeEnabled;
+  await db.collection('clinics').doc(_myClinicId).update({ joinCodeEnabled: newVal });
+  _myClinic.joinCodeEnabled = newVal;
+  _renderClinicScreen();
+}
+
+async function sendClinicInvite() {
+  const email = (document.getElementById('clinicInviteEmail').value || '').trim().toLowerCase();
+  const msgEl = document.getElementById('clinicInviteMsg');
+  msgEl.style.display = 'none';
+  if (!email || !email.includes('@')) {
+    msgEl.textContent = 'Enter a valid email.';
+    msgEl.style.display = 'block';
+    msgEl.style.color = 'var(--danger)';
+    return;
+  }
+  if (!_myClinicId || !_myClinic || _myClinic.ownerEmail !== currentUser.email) return;
+  if ((_myClinic.therapists || []).includes(email)) {
+    msgEl.textContent = `${email} is already in the clinic.`;
+    msgEl.style.display = 'block';
+    msgEl.style.color = 'var(--danger)';
+    return;
+  }
+
+  const existing = await db.collection('clinicInvites')
+    .where('clinicId', '==', _myClinicId)
+    .where('inviteeEmail', '==', email)
+    .where('status', '==', 'pending')
+    .get();
+  if (!existing.empty) {
+    msgEl.textContent = 'Invite already pending for that email.';
+    msgEl.style.display = 'block';
+    msgEl.style.color = 'var(--muted)';
+    return;
+  }
+
+  await db.collection('clinicInvites').add({
+    clinicId: _myClinicId,
+    clinicName: _myClinic.name,
+    inviteeEmail: email,
+    invitedBy: currentUser.email,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  });
+  msgEl.textContent = `Invite sent to ${email}.`;
+  msgEl.style.display = 'block';
+  msgEl.style.color = 'var(--green)';
+  document.getElementById('clinicInviteEmail').value = '';
+}
+
+async function removeClinicMember(email) {
+  if (!_myClinicId || !_myClinic || _myClinic.ownerEmail !== currentUser.email) return;
+  if (!confirm(`Remove ${email} from the clinic?`)) return;
+  await db.collection('clinics').doc(_myClinicId).update({
+    therapists: firebase.firestore.FieldValue.arrayRemove(email),
+  });
+  await db.collection('users').doc(email).update({ clinicId: firebase.firestore.FieldValue.delete() });
+  _myClinic.therapists = (_myClinic.therapists || []).filter(e => e !== email);
+  _renderClinicScreen();
+}
+
+async function confirmLeaveClinic() {
+  if (!_myClinicId || !_myClinic) return;
+  const isOwner = _myClinic.ownerEmail === currentUser.email;
+  const members = _myClinic.therapists || [];
+
+  if (isOwner && members.length === 1) {
+    if (!confirm('Disband this clinic? The clinic and its shared exercise library will be permanently deleted.')) return;
+    await db.collection('clinicLibrary').doc(_myClinicId).delete();
+    await db.collection('clinics').doc(_myClinicId).delete();
+    await db.collection('users').doc(currentUser.email).update({ clinicId: firebase.firestore.FieldValue.delete() });
+    _myClinic = null;
+    _myClinicId = null;
+    showScreen('therapistScreen');
+    return;
+  }
+
+  if (isOwner) {
+    const newOwner = members.find(e => e !== currentUser.email);
+    if (!confirm(`Leaving will transfer ownership to ${newOwner}. Continue?`)) return;
+    await db.collection('clinics').doc(_myClinicId).update({
+      ownerEmail: newOwner,
+      therapists: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
+    });
+  } else {
+    if (!confirm('Leave this clinic?')) return;
+    await db.collection('clinics').doc(_myClinicId).update({
+      therapists: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
+    });
+  }
+
+  await db.collection('users').doc(currentUser.email).update({ clinicId: firebase.firestore.FieldValue.delete() });
+  _myClinic = null;
+  _myClinicId = null;
+  showScreen('therapistScreen');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 5d: CLINIC LIBRARY
+   ══════════════════════════════════════════════════════════════════════════ */
+
+async function loadClinicLibrary() {
+  _clinicLibrary = [];
+  if (!_myClinicId) return;
+  try {
+    const doc = await db.collection('clinicLibrary').doc(_myClinicId).get();
+    if (doc.exists) _clinicLibrary = doc.data().sharedExercises || [];
+  } catch (e) {
+    _clinicLibrary = [];
+  }
+}
+
+async function showClinicLibraryScreen() {
+  if (!_myClinicId) return;
+  await loadClinicLibrary();
+  _renderClinicLibrary();
+  showScreen('clinicLibraryScreen');
+}
+
+function _renderClinicLibrary() {
+  const list = document.getElementById('clinicLibraryList');
+  if (!list) return;
+  const nameEl = document.getElementById('clinicLibName');
+  if (nameEl && _myClinic) nameEl.textContent = _myClinic.name;
+
+  if (_clinicLibrary.length === 0) {
+    list.innerHTML = '<p class="clinic-empty-text">No exercises shared yet. Use the button above to share from your Protocol Library.</p>';
+    return;
+  }
+
+  const isOwner = _myClinic && _myClinic.ownerEmail === currentUser.email;
+  list.innerHTML = _clinicLibrary.map(ex => {
+    const canRemove = isOwner || ex.sharedBy === currentUser.email;
+    const date = ex.sharedAt ? new Date(ex.sharedAt).toLocaleDateString() : '';
+    return `<div class="clinic-lib-row">
+      <div class="clinic-lib-info">
+        <div class="clinic-lib-name">${ex.name}</div>
+        <div class="clinic-lib-meta">${ex.cat ? ex.cat + ' · ' : ''}Shared by ${ex.sharedBy}${date ? ' · ' + date : ''}</div>
+      </div>
+      <div class="clinic-lib-btns">
+        <button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>
+        ${canRemove ? `<button class="logout-btn" style="font-size:0.8rem" onclick="removeSharedExercise('${ex.shareId}')">Remove</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function shareExerciseToClinic(exerciseId) {
+  if (!_myClinicId) return;
+  if (!_plTherapistData) await loadTherapistLibrary();
+  const ex = (_plTherapistData.customExercises || []).find(e => e.id === exerciseId);
+  if (!ex) { alert('Exercise not found in your library.'); return; }
+
+  const shareId = exerciseId + '_' + currentUser.email.replace(/[^a-z0-9]/gi, '_');
+  if (_clinicLibrary.find(e => e.shareId === shareId)) {
+    alert('This exercise is already in the clinic library.'); return;
+  }
+
+  const shareEntry = {
+    ...ex,
+    shareId,
+    sharedBy: currentUser.email,
+    sharedAt: new Date().toISOString(),
+  };
+  await db.collection('clinicLibrary').doc(_myClinicId).update({
+    sharedExercises: firebase.firestore.FieldValue.arrayUnion(shareEntry),
+  });
+  _clinicLibrary.push(shareEntry);
+  _renderClinicLibrary();
+  closeShareExerciseModal();
+}
+
+async function pullExerciseFromClinic(shareId) {
+  if (!_myClinicId) return;
+  const ex = _clinicLibrary.find(e => e.shareId === shareId);
+  if (!ex) return;
+  if (!_plTherapistData) await loadTherapistLibrary();
+
+  const existing = (_plTherapistData.customExercises || []).find(e => e.id === ex.id || e.id === ex.id + '_clinic');
+  if (existing) { alert('You already have this exercise in your library.'); return; }
+
+  const copy = { ...ex };
+  delete copy.shareId;
+  delete copy.sharedBy;
+  delete copy.sharedAt;
+  copy.createdAt = new Date().toISOString();
+
+  if (!_plTherapistData.customExercises) _plTherapistData.customExercises = [];
+  _plTherapistData.customExercises.push(copy);
+  exerciseLabels[copy.id] = copy.name;
+  await _saveTherapistLibrary();
+  buildProtocolLibrary();
+  alert(`"${ex.name}" added to your Protocol Library.`);
+}
+
+async function removeSharedExercise(shareId) {
+  if (!_myClinicId) return;
+  const ex = _clinicLibrary.find(e => e.shareId === shareId);
+  if (!ex) return;
+  const isOwner = _myClinic && _myClinic.ownerEmail === currentUser.email;
+  if (!isOwner && ex.sharedBy !== currentUser.email) return;
+  if (!confirm(`Remove "${ex.name}" from the clinic library?`)) return;
+
+  await db.collection('clinicLibrary').doc(_myClinicId).update({
+    sharedExercises: firebase.firestore.FieldValue.arrayRemove(ex),
+  });
+  _clinicLibrary = _clinicLibrary.filter(e => e.shareId !== shareId);
+  _renderClinicLibrary();
+}
+
+function showShareExerciseModal() {
+  if (!_plTherapistData) {
+    loadTherapistLibrary().then(() => _renderShareModal());
+  } else {
+    _renderShareModal();
+  }
+}
+
+function _renderShareModal() {
+  const customs = (_plTherapistData && _plTherapistData.customExercises) || [];
+  const modal = document.getElementById('shareExerciseModal');
+  const list = document.getElementById('shareExerciseList');
+  if (!modal || !list) return;
+  if (customs.length === 0) {
+    list.innerHTML = '<p class="clinic-empty-text">No custom exercises yet. Create some in Protocol Library first.</p>';
+  } else {
+    list.innerHTML = customs.map(ex => `
+      <div class="clinic-share-row">
+        <span>${ex.name}</span>
+        <button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="shareExerciseToClinic('${ex.id}')">Share</button>
+      </div>
+    `).join('');
+  }
+  modal.style.display = 'flex';
+}
+
+function closeShareExerciseModal() {
+  const modal = document.getElementById('shareExerciseModal');
+  if (modal) modal.style.display = 'none';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1849,6 +2361,16 @@ function toggleExerciseList() {
    SECTION 8: THERAPIST PANEL
    ══════════════════════════════════════════════════════════════════════════ */
 
+function openSidebar() {
+  document.getElementById('therapistSidebar').classList.add('open');
+  document.getElementById('sidebarBackdrop').classList.add('open');
+}
+
+function closeSidebar() {
+  document.getElementById('therapistSidebar')?.classList.remove('open');
+  document.getElementById('sidebarBackdrop')?.classList.remove('open');
+}
+
 async function loadConnectedPatients() {
   document.querySelectorAll('.patient-item').forEach(el => el.remove());
   const existing = document.getElementById('noPatientsMsg');
@@ -1877,6 +2399,7 @@ async function loadConnectedPatients() {
     item.onclick = () => {
       document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
       item.classList.add('selected');
+      closeSidebar();
       showRealPatient(patient);
     };
     document.querySelector('.sidebar-footer').before(item);
@@ -6032,12 +6555,24 @@ Object.assign(window, {
   toggleSound,
   openVideoModal, closeVideoModal, downloadSessionVideo,
 
+  // Clinics
+  showMyClinicOrJoin, showCreateClinicScreen, createClinic,
+  showJoinClinicScreen, joinClinicByCode, showClinicScreen,
+  acceptInvite, declineInvite, sendClinicInvite,
+  regenerateClinicCode, toggleClinicCode, copyClinicJoinCode,
+  removeClinicMember, confirmLeaveClinic,
+
+  // Clinic Library
+  showClinicLibraryScreen, shareExerciseToClinic, pullExerciseFromClinic,
+  removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
+
   // Therapist panel
   copyClinicCode,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
   trainMLModel, mlStartRecording, mlStopRecording, mlUndoLastRecording, mlClearJoint, mlSetHand, mlDeleteSession,
+  openSidebar, closeSidebar,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
