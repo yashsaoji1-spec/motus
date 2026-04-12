@@ -19,7 +19,7 @@
   <div class="auth-box">
     <h1><span class="auth-logo-mark"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="var(--accent)" opacity="0.9"/></svg></span> Motus</h1>
     <p class="auth-subtitle">Sign in to continue</p>
-    <div id="loginError" class="auth-error" style="display:none"></div>
+    <div id="loginError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="auth-field">
       <label>Email</label>
       <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleLogin()" />
@@ -41,7 +41,7 @@
   <div class="auth-box">
     <h1>Motus</h1>
     <p class="auth-subtitle">Create your account</p>
-    <div id="signupError" class="auth-error" style="display:none"></div>
+    <div id="signupError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="auth-field">
       <label>Full Name</label>
       <input type="text" id="signupName" placeholder="Dr. Sarah Chen" maxlength="80" onkeydown="if(event.key==='Enter') handleSignup()" />
@@ -73,7 +73,7 @@
   <div class="auth-box">
     <h1>Motus</h1>
     <p class="auth-subtitle">Reset your password</p>
-    <div id="forgotError" class="auth-error" style="display:none"></div>
+    <div id="forgotError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="forgotSuccess" class="auth-success" style="display:none"></div>
     <div class="auth-field">
       <label>Enter your email</label>
@@ -122,7 +122,7 @@
     <button class="auth-btn" onclick="if(document.getElementById('consentCheckbox').checked){acceptConsent()}else{document.getElementById('consentError').style.display='block'}">
       Continue
     </button>
-    <div id="consentError" class="auth-error" style="display:none;margin-top:0.75rem">
+    <div id="consentError" class="auth-error" style="display:none;margin-top:0.75rem" aria-live="polite">
       Please check the box to confirm your consent before continuing.
     </div>
     <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem;text-align:center;line-height:1.5">
@@ -169,7 +169,7 @@
   <div class="auth-box">
     <h1>Motus</h1>
     <p class="auth-subtitle">Connect to your therapist</p>
-    <div id="connectError" class="auth-error" style="display:none"></div>
+    <div id="connectError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="connectSuccess" class="auth-success" style="display:none"></div>
     <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
     <div class="auth-field">
@@ -262,7 +262,7 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="cameraScreen" class="screen">
   <div class="cam-viewport">
-    <video id="patientVideo" autoplay playsinline muted></video>
+    <video id="patientVideo" autoplay playsinline muted aria-label="Camera preview"></video>
     <canvas id="patientCanvas"></canvas>
     <div id="calOverlay" class="cal-overlay" style="display:none;">
       <svg class="cal-hand-guide" viewBox="0 0 200 280" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -275,7 +275,7 @@
       <p class="cal-prompt">Position your hand in frame</p>
       <p class="cal-hint" id="calHint" style="display:none;">Try moving your hand closer to the camera</p>
     </div>
-    <div id="calError" class="cal-error" style="display:none;">
+    <div id="calError" class="cal-error" style="display:none;" aria-live="polite">
       <p id="calErrorMsg">Camera unavailable — check permissions</p>
       <button class="reset-btn" onclick="showScreen('patientScreen')">Go Back</button>
     </div>
@@ -306,7 +306,7 @@
       <p class="congrats-reps-text"><strong id="targetDisplay">10</strong> reps completed</p>
       <p id="allSetsComplete" class="congrats-all-sets">All sets complete for today!</p>
       <p class="congrats-pain-prompt">How much pain are you in right now?</p>
-      <input type="range" min="1" max="10" value="5" id="painSliderCongrats" class="congrats-pain-slider" />
+      <input type="range" min="1" max="10" value="5" id="painSliderCongrats" class="congrats-pain-slider" aria-label="Pain level 1 to 10" />
       <p id="painValueCongrats" class="congrats-pain-value">5 / 10</p>
       <button class="reset-btn" id="nextSetBtn" onclick="advanceSet()">Start Next Set</button>
     </div>
@@ -333,7 +333,7 @@
     </div>
     <div class="cam-pain-strip">
       <label class="cam-pain-label">Pain</label>
-      <input type="range" min="1" max="10" value="1" id="painSlider"
+      <input type="range" min="1" max="10" value="1" id="painSlider" aria-label="Pain level 1 to 10"
              oninput="document.getElementById('painValue').textContent = this.value + ' / 10'" />
       <span class="cam-pain-value" id="painValue">1 / 10</span>
     </div>
@@ -344,7 +344,7 @@
 <!-- Manual Camera Screen (patient session without tracking) -->
 <div id="manualCamScreen" class="screen">
   <div class="manual-cam-viewport">
-    <video id="manualCamVideo" autoplay playsinline muted></video>
+    <video id="manualCamVideo" autoplay playsinline muted aria-label="Camera preview"></video>
     <button class="cam-hud-back" onclick="manualCamExit()">← Back</button>
     <div id="manualCamRecording" class="recording-indicator" style="display:none;">
       <span class="rec-dot"></span>
@@ -375,7 +375,7 @@
     <div class="set-input-field">
       <label>Pain level</label>
       <div class="set-input-pain">
-        <input type="range" id="setInputPain" min="1" max="10" value="1" 
+        <input type="range" id="setInputPain" min="1" max="10" value="1" aria-label="Pain level 1 to 10"
                oninput="document.getElementById('setInputPainVal').textContent = this.value + ' / 10'" />
         <span id="setInputPainVal">1 / 10</span>
       </div>
@@ -401,7 +401,7 @@
 <div id="therapistSidebar" class="nav-drawer">
   <div class="nav-drawer-header">
     <span class="nav-drawer-title">Menu</span>
-    <button class="sidebar-close-btn" onclick="closeSidebar()" title="Close">
+    <button class="sidebar-close-btn" onclick="closeSidebar()" title="Close" aria-label="Close menu">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
@@ -420,7 +420,7 @@
   <!-- Always-visible patient panel -->
   <div class="sidebar">
     <div class="sidebar-top">
-      <button class="tp-hamburger" onclick="openSidebar()" title="Menu">
+      <button class="tp-hamburger" onclick="openSidebar()" title="Menu" aria-label="Open menu" aria-expanded="false" aria-controls="therapistSidebar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <h2><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="var(--accent)" opacity="0.9"/></svg> Motus</h2>
@@ -522,7 +522,7 @@
   </div>
   <div class="clinic-screen-body">
     <p class="clinic-screen-subtitle">You'll become the owner and can invite colleagues to join.</p>
-    <div id="createClinicError" class="auth-error" style="display:none"></div>
+    <div id="createClinicError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="clinic-section-card">
       <div class="clinic-section-label">Clinic Name</div>
       <input type="text" id="createClinicName" class="clinic-full-input" placeholder="e.g. Mayo Physical Therapy"
@@ -545,7 +545,7 @@
   </div>
   <div class="clinic-screen-body">
     <p class="clinic-screen-subtitle">Enter a 6-digit code from your clinic owner, accept a pending invite, or start your own clinic.</p>
-    <div id="joinClinicError" class="auth-error" style="display:none"></div>
+    <div id="joinClinicError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="joinClinicSuccess" class="auth-success" style="display:none"></div>
     <div class="clinic-join-panels">
       <div class="clinic-section-card">
@@ -612,7 +612,7 @@
     <div class="calib-camera-col">
       <div class="calib-camera-wrap sweep-camera-wrap" id="mlCameraWrap">
         <div class="calib-scan-line"></div>
-        <video id="mlVideo" playsinline autoplay muted></video>
+        <video id="mlVideo" playsinline autoplay muted aria-label="Camera preview"></video>
         <canvas id="mlCanvas"></canvas>
         <div class="calib-overlay" id="mlOverlay">
           <div class="calib-spinner"></div>
@@ -651,7 +651,7 @@
           <div class="ml-angle-big ml-angle-big--true" id="mlSliderAngle">90°</div>
         </div>
         <div class="ml-slider-wrap">
-          <input type="range" min="-30" max="180" value="90" id="mlAngleSlider" class="ml-slider" oninput="mlOnSlider(this.value)">
+          <input type="range" min="-30" max="180" value="90" id="mlAngleSlider" class="ml-slider" aria-label="Joint angle in degrees" oninput="mlOnSlider(this.value)">
           <div class="ml-slider-ticks">
             <span>-30°</span><span>0°</span><span>45°</span><span>90°</span><span>135°</span><span>180°</span>
           </div>
@@ -812,10 +812,10 @@
       <span class="video-modal-title">Session Recording</span>
       <div style="display:flex;gap:8px;align-items:center;">
         <button id="videoModalDownload" class="video-modal-dl-btn">↓ Download</button>
-        <button class="video-modal-close" onclick="closeVideoModal()">x</button>
+        <button class="video-modal-close" onclick="closeVideoModal()" aria-label="Close video">x</button>
       </div>
     </div>
-    <video id="videoModalPlayer" class="video-modal-player" controls playsinline></video>
+    <video id="videoModalPlayer" class="video-modal-player" controls playsinline aria-label="Session recording"></video>
     <p class="video-modal-hint">Recorded during live session with hand tracking overlay.</p>
   </div>
 </div>
@@ -828,7 +828,7 @@
         <div class="apm-hdr-title" id="apmTitle">Add Exercise</div>
         <div class="apm-hdr-patient" id="apmPatientName"></div>
       </div>
-      <button class="apm-close-btn" onclick="closeAddProtocol()">x</button>
+      <button class="apm-close-btn" onclick="closeAddProtocol()" aria-label="Close">x</button>
     </div>
     <div class="apm-body">
       <div class="apm-form-col">
@@ -883,8 +883,8 @@
       <div class="apm-demo-col" id="apmDemoCol">
         <div class="apm-demo-label">Demo Video <span class="apm-demo-optional">(optional)</span></div>
         <div class="apm-demo-screen">
-          <video id="demoCameraPreview" class="apm-demo-video" playsinline muted autoplay style="display:none;"></video>
-          <video id="demoPlayback" class="apm-demo-video" playsinline controls style="display:none;"></video>
+          <video id="demoCameraPreview" class="apm-demo-video" playsinline muted autoplay style="display:none;" aria-label="Demo camera preview"></video>
+          <video id="demoPlayback" class="apm-demo-video" playsinline controls style="display:none;" aria-label="Demo video playback"></video>
           <canvas id="demoRecordCanvas" style="display:none;"></canvas>
           <div id="demoEmptyState" class="apm-demo-empty">No demo recorded</div>
           <div id="demoRecordingBadge" class="apm-demo-rec-badge" style="display:none;">
@@ -925,7 +925,7 @@
       <div class="apm-hdr-left">
         <div class="apm-hdr-title">Protocol Library</div>
       </div>
-      <button class="apm-close-btn" onclick="closeProtocolLibrary()">x</button>
+      <button class="apm-close-btn" onclick="closeProtocolLibrary()" aria-label="Close">x</button>
     </div>
     <div class="apm-body">
       <div class="apm-form-col">
@@ -1047,7 +1047,7 @@
     </div>
     <div class="manual-session-field">
       <label class="manual-session-label">Pain level: <span id="manualPainValue">1</span> / 10</label>
-      <input type="range" min="1" max="10" value="1" id="manualPainSlider" class="manual-session-slider"
+      <input type="range" min="1" max="10" value="1" id="manualPainSlider" class="manual-session-slider" aria-label="Pain level 1 to 10"
              oninput="document.getElementById('manualPainValue').textContent=this.value" />
     </div>
     <div class="manual-session-actions">
@@ -1063,7 +1063,7 @@
     <button class="demo-video-close" onclick="exitDemoNoSave()">←</button>
     <h3 class="demo-video-title">Watch Demo</h3>
     <p class="demo-video-sub" id="demoVideoExName"></p>
-    <video id="demoVideoPlayer" class="demo-video-player" controls playsinline onprogress="onDemoVideoProgress()"></video>
+    <video id="demoVideoPlayer" class="demo-video-player" controls playsinline onprogress="onDemoVideoProgress()" aria-label="Exercise demonstration video"></video>
     <div class="demo-video-actions" id="demoVideoActions">
       <button class="demo-video-skip" id="demoRewatchBtn" onclick="document.getElementById('demoVideoPlayer').play()" style="display:none;">Rewatch</button>
       <button class="demo-video-skip" id="demoSkipBtn" onclick="skipDemoVideo()" disabled>Skip</button>

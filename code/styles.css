@@ -818,6 +818,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   transform: translateX(0);
   box-shadow: 4px 0 24px rgba(0,0,0,0.10);
 }
+@media (prefers-reduced-motion: reduce) {
+  .nav-drawer { transition: none; }
+}
 .nav-drawer-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);

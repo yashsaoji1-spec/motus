@@ -291,6 +291,9 @@ function showScreen(screenId) {
   next.classList.add('active');
   next.scrollTop = 0;
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
+  // Move focus to the new screen's first heading or first focusable element
+  const focusTarget = next.querySelector('h1, h2, [tabindex="0"], button, input, a[href]');
+  if (focusTarget) focusTarget.focus({ preventScroll: true });
   if (!AUTH_SCREENS.has(screenId)) sessionStorage.setItem('motus_screen', screenId);
 
   // Clean up message thread listener when leaving messaging screen
@@ -2424,11 +2427,13 @@ function toggleExerciseList() {
 function openSidebar() {
   document.getElementById('therapistSidebar').classList.add('open');
   document.getElementById('sidebarBackdrop').classList.add('open');
+  document.querySelector('.tp-hamburger')?.setAttribute('aria-expanded', 'true');
 }
 
 function closeSidebar() {
   document.getElementById('therapistSidebar')?.classList.remove('open');
   document.getElementById('sidebarBackdrop')?.classList.remove('open');
+  document.querySelector('.tp-hamburger')?.setAttribute('aria-expanded', 'false');
 }
 
 async function loadConnectedPatients() {
