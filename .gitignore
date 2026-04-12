@@ -9,3 +9,7 @@ CLAUDE.local.md
 .env.staging
 .env.development
 firestore-debug.log
+report.html
+report.json
+test-results/
+playwright-report/
