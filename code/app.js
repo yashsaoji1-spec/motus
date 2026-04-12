@@ -38,6 +38,9 @@ let _plTherapistData = null;
 let _plHiddenOpen = false;
 
 // ── Clinic state ──
+let _msgBadgeUnsub         = null;  // unsubscribe fn for patient unread badge listener
+let _msgThreadUnsub        = null;  // unsubscribe fn for active message thread listener
+let _msgPatientBadgesUnsub = null;  // unsubscribe fn for therapist sidebar unread badges
 let _myClinic      = null;   // clinic doc data or null
 let _myClinicId    = null;   // Firestore clinic document ID or null
 let _clinicInvites = [];     // pending invites for current user
@@ -153,7 +156,7 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     currentUser = { email: firebaseUser.email, ...snap.data() };
     currentRole = currentUser.role;
     // Require email verification for non-admin accounts (demo accounts exempt)
-    const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com', 'mike.torres@mayoclinic.org']);
+    const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com', 'mike.torres@mayoclinic.org', 'test.patient@motus.com']);
     if (!firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
       await auth.signOut();
       showScreen('loginScreen');
@@ -287,6 +290,11 @@ function showScreen(screenId) {
   next.scrollTop = 0;
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
   if (!AUTH_SCREENS.has(screenId)) sessionStorage.setItem('motus_screen', screenId);
+
+  // Clean up message thread listener when leaving messaging screen
+  if (prevActive && prevActive.id === 'messagingScreen' && screenId !== 'messagingScreen') {
+    if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
+  }
 
   // Stop session camera when leaving camera screen
   if (prevActive && prevActive.id === 'cameraScreen' && screenId !== 'cameraScreen') {
@@ -965,7 +973,8 @@ function _renderClinicLibrary() {
 
   const isOwner = _myClinic && _myClinic.ownerEmail === currentUser.email;
   list.innerHTML = _clinicLibrary.map(ex => {
-    const canRemove = isOwner || ex.sharedBy === currentUser.email;
+    const isSharer = ex.sharedBy === currentUser.email;
+    const canRemove = isOwner || isSharer;
     const date = ex.sharedAt ? new Date(ex.sharedAt).toLocaleDateString() : '';
     return `<div class="clinic-lib-row">
       <div class="clinic-lib-info">
@@ -973,7 +982,7 @@ function _renderClinicLibrary() {
         <div class="clinic-lib-meta">${ex.cat ? ex.cat + ' · ' : ''}Shared by ${ex.sharedBy}${date ? ' · ' + date : ''}</div>
       </div>
       <div class="clinic-lib-btns">
-        <button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>
+        ${!isSharer ? `<button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>` : ''}
         ${canRemove ? `<button class="logout-btn" style="font-size:0.8rem" onclick="removeSharedExercise('${ex.shareId}')">Remove</button>` : ''}
       </div>
     </div>`;
@@ -1184,11 +1193,19 @@ async function updatePatientHomeScreen() {
     xpContainer.style.display = 'none';
   }
 
-  const msgBadge = document.getElementById('patientUnreadBadge');
-  if (msgBadge && therapistEmail) {
-    const n = await unreadCount(currentUser.email, therapistEmail).catch(() => 0);
-    msgBadge.textContent = n;
-    msgBadge.style.display = n > 0 ? 'inline' : 'none';
+  if (therapistEmail) {
+    if (_msgBadgeUnsub) { _msgBadgeUnsub(); _msgBadgeUnsub = null; }
+    _msgBadgeUnsub = db.collection('messages')
+      .where('to', '==', currentUser.email)
+      .where('from', '==', therapistEmail)
+      .where('read', '==', false)
+      .onSnapshot(snap => {
+        const badge = document.getElementById('patientUnreadBadge');
+        if (!badge) return;
+        const n = snap.size;
+        badge.textContent = n;
+        badge.style.display = n > 0 ? 'inline' : 'none';
+      }, () => {});
   }
 }
 
@@ -2428,12 +2445,17 @@ async function loadConnectedPatients() {
   for (const patient of patients) {
     const item      = document.createElement('div');
     item.className  = 'patient-item';
-    const sessions  = await getPatientSessions(patient.email);
+    item.dataset.patientEmail = patient.email;
+    const [sessions, unread] = await Promise.all([
+      getPatientSessions(patient.email),
+      unreadCount(currentUser.email, patient.email).catch(() => 0),
+    ]);
     const compliance = calcCompliance(sessions);
     const statusColor = compliance >= 80 ? 'var(--success)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
+    const unreadBadge = unread > 0 ? `<span class="msg-unread-badge" style="margin-left:0.4rem">${unread}</span>` : '';
     item.innerHTML = `
-      <div class="patient-name">${escapeHtml(patient.name)}</div>
+      <div class="patient-name">${escapeHtml(patient.name)}${unreadBadge}</div>
       <div class="patient-connected">
         <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
       </div>`;
@@ -2445,10 +2467,44 @@ async function loadConnectedPatients() {
     };
     document.querySelector('.sidebar-footer').before(item);
   }
+  subscribeTherapistBadges(currentUser.email);
+}
+
+function subscribeTherapistBadges(therapistEmail) {
+  if (_msgPatientBadgesUnsub) { _msgPatientBadgesUnsub(); _msgPatientBadgesUnsub = null; }
+  _msgPatientBadgesUnsub = db.collection('messages')
+    .where('to', '==', therapistEmail)
+    .where('read', '==', false)
+    .onSnapshot(snap => {
+      // Count unread per sender (patient)
+      const counts = {};
+      snap.forEach(d => {
+        const from = d.data().from;
+        counts[from] = (counts[from] || 0) + 1;
+      });
+      document.querySelectorAll('.patient-item').forEach(item => {
+        const pEmail = item.dataset.patientEmail;
+        if (!pEmail) return;
+        const nameEl = item.querySelector('.patient-name');
+        if (!nameEl) return;
+        // Remove existing badge
+        const existing = nameEl.querySelector('.msg-unread-badge');
+        if (existing) existing.remove();
+        const n = counts[pEmail] || 0;
+        if (n > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'msg-unread-badge';
+          badge.style.marginLeft = '0.4rem';
+          badge.textContent = n;
+          nameEl.appendChild(badge);
+        }
+      });
+    }, () => {});
 }
 
 // ── Mobile therapist panel helpers ────────────────────────────────────────────
 function backToPatientList() {
+  if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
   document.getElementById('therapistScreen').classList.remove('tp-mobile-detail');
   document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
   const panel = document.getElementById('mainPanel');
@@ -2516,6 +2572,11 @@ function toggleTpSection(id) {
   el.classList.toggle('collapsed');
   // Let Chart.js redraw if a chart section was just revealed
   window.dispatchEvent(new Event('resize'));
+  // Scroll message thread to bottom when Messages section is expanded
+  if (id === 'tps-messages' && !el.classList.contains('collapsed')) {
+    const thread = document.getElementById('therapistMsgThread');
+    if (thread) requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
+  }
 }
 
 async function showRealPatient(patient) {
@@ -2545,9 +2606,8 @@ async function showRealPatient(patient) {
       const input = document.getElementById('therapistMsgInput');
       await sendMessage(currentUser.email, patient.email, input.value);
       input.value = '';
-      await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     };
-    await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
+    subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     enableMobilePatientDetail(panel);
     return;
   }
@@ -2598,9 +2658,8 @@ async function showRealPatient(patient) {
     const input = document.getElementById('therapistMsgInput');
     await sendMessage(currentUser.email, patient.email, input.value);
     input.value = '';
-    await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   };
-  await renderThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
+  subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   enableMobilePatientDetail(panel);
   updateExerciseParamsUI(null, null);
 }
@@ -4700,14 +4759,23 @@ function toggleMsgSend() {
   if (btn) btn.disabled = !input.value.trim();
 }
 
-async function renderThread(containerId, myEmail, otherEmail, emptyMsg) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  const thread = await getThread(myEmail, otherEmail);
-  if (!thread.length) {
-    el.innerHTML = `<div class="msg-empty">${escapeHtml(emptyMsg || 'Send a message')}</div>`;
-    return;
+function _renderThreadHtml(thread, myEmail) {
+  if (!thread.length) return null;
+
+  // Find the last sent message overall, and the last sent message that was read
+  let lastSentIdx = -1;
+  let lastReadSentIdx = -1;
+  for (let i = thread.length - 1; i >= 0; i--) {
+    if (thread[i].from === myEmail) {
+      if (lastSentIdx === -1) lastSentIdx = i;
+      if (thread[i].read && lastReadSentIdx === -1) lastReadSentIdx = i;
+    }
+    if (lastSentIdx !== -1 && lastReadSentIdx !== -1) break;
   }
+  // Show "Read [time]" separately only when the last sent is unread and an earlier sent is read
+  const showReadAtIdx = (lastReadSentIdx !== -1 && lastReadSentIdx !== lastSentIdx)
+    ? lastReadSentIdx : -1;
+
   let html = '';
   for (let i = 0; i < thread.length; i++) {
     const m = thread[i];
@@ -4716,18 +4784,43 @@ async function renderThread(containerId, myEmail, otherEmail, emptyMsg) {
     html += `<div class="msg-bubble ${cls}">${escapeHtml(m.text)}</div>`;
     const next = thread[i + 1];
     const isLastInCluster = !next || next.from !== m.from;
-    if (isLastInCluster) {
+
+    if (mine && i === lastSentIdx) {
+      // Always show status on the last sent message (replaces normal timestamp)
+      const status = m.read ? 'Read' : 'Delivered';
+      html += `<div class="msg-timestamp sent">${status} ${timeAgo(m.timestamp)}</div>`;
+    } else if (mine && i === showReadAtIdx) {
+      // Show "Read [time]" below the last read sent when there are newer unread ones
+      html += `<div class="msg-timestamp sent">Read ${timeAgo(m.timestamp)}</div>`;
+    } else if (isLastInCluster) {
       html += `<div class="msg-timestamp ${cls}">${timeAgo(m.timestamp)}</div>`;
     }
-    if (mine && m.read) {
-      const hasLaterSentRead = thread.slice(i + 1).some(n => n.from === myEmail && n.read);
-      if (!hasLaterSentRead) {
-        html += '<div class="msg-read-indicator">Read</div>';
-      }
-    }
   }
-  el.innerHTML = html;
-  el.scrollTop = el.scrollHeight;
+  return html;
+}
+
+function subscribeThread(containerId, myEmail, otherEmail, emptyMsg) {
+  if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  _msgThreadUnsub = db.collection('messages')
+    .where('participants', 'array-contains', myEmail)
+    .orderBy('timestamp', 'asc')
+    .onSnapshot(snap => {
+      const el2 = document.getElementById(containerId);
+      if (!el2) return;
+      // Mark incoming messages as read — we're actively viewing the thread
+      markRead(myEmail, otherEmail).catch(() => {});
+      const thread = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(m => (m.from === myEmail && m.to === otherEmail) || (m.from === otherEmail && m.to === myEmail));
+      const html = _renderThreadHtml(thread, myEmail);
+      if (!html) {
+        el2.innerHTML = `<div class="msg-empty">${escapeHtml(emptyMsg || 'Send a message')}</div>`;
+        return;
+      }
+      el2.innerHTML = html;
+      el2.scrollTop = el2.scrollHeight;
+    }, () => {});
 }
 
 // ── Patient-side functions ────────────────────────────────────────────────────
@@ -4738,7 +4831,7 @@ async function openPatientMessaging() {
   await markRead(currentUser.email, tEmail);
   const tSnap = await db.collection('users').doc(tEmail).get();
   document.getElementById('msgHeaderTitle').textContent = tSnap.exists ? tSnap.data().name : 'Your Therapist';
-  await renderThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
+  subscribeThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
   showScreen('messagingScreen');
 }
 
@@ -4750,7 +4843,6 @@ async function sendMessageFromPatient() {
   await sendMessage(currentUser.email, tEmail, input.value);
   input.value = '';
   toggleMsgSend();
-  await renderThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
 }
 
 // ── Therapist-side panel builder ──────────────────────────────────────────────
@@ -5911,7 +6003,7 @@ Object.assign(window, {
 
   // Patient flows
   startScanSession, startSessionWithProtocol, startSessionByIndex, showExercisesScreen,
-  showProgressScreen, openPatientMessaging, sendMessageFromPatient, toggleExerciseList,
+  showProgressScreen, openPatientMessaging, sendMessageFromPatient, toggleMsgSend, toggleExerciseList,
 
   // Camera session
   flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary, dismissSummaryToProgress,

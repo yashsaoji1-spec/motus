@@ -2862,9 +2862,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-size: 0.72rem; color: var(--placeholder); margin-top: 2px;
 }
 .msg-timestamp.sent { text-align: right; }
-.msg-read-indicator {
-  font-size: 0.7rem; color: var(--placeholder); text-align: right; margin-top: 1px;
-}
 .msg-empty {
   flex: 1; display: flex; align-items: center; justify-content: center;
   color: var(--muted); font-size: 0.9rem;
