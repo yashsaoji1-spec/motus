@@ -9,6 +9,28 @@ import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
 import Chart from 'chart.js/auto';
+import * as Sentry from '@sentry/browser';
+
+// ── Sentry error monitoring — prod/staging only, no dev noise ──
+// PHI scrubbing: strip email addresses from all captured event data before sending.
+function stripPHI(event) {
+  const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+  try {
+    const serialized = JSON.stringify(event).replace(emailRegex, '[email]');
+    return JSON.parse(serialized);
+  } catch (_) {
+    return event;
+  }
+}
+
+Sentry.init({
+  dsn: import.meta.env.VITE_SENTRY_DSN || '',
+  environment: import.meta.env.MODE,
+  enabled: import.meta.env.PROD && !!import.meta.env.VITE_SENTRY_DSN,
+  beforeSend(event) {
+    return stripPHI(event);
+  },
+});
 
 // ── MediaPipe stays on CDN — accessed via window at call time (not init time)
 //    to avoid race conditions on mobile where CDN scripts may load slowly ──
@@ -93,6 +115,7 @@ async function uploadVideoToCloudinary(blob) {
     return data.secure_url || null;
   } catch(e) {
     console.warn('[Motus] Video upload error:', e);
+    Sentry.captureException(e, { tags: { flow: 'video-upload' } });
     return null;
   }
 }
@@ -259,6 +282,39 @@ async function getTherapistForCode(code) {
   return null;
 }
 
+// ── Audit logging (HIPAA §164.312(b)) ────────────────────────────────────────
+// Log PHI-access events. Never log PHI content — only actor UIDs + resource IDs.
+// auditLog entries are append-only (Firestore rules block reads/updates/deletes).
+function getThreadId(email1, email2) {
+  return [email1, email2].sort().join(':');
+}
+
+async function isThreadArchived(email1, email2) {
+  try {
+    const doc = await db.collection('messageThreads').doc(getThreadId(email1, email2)).get();
+    return doc.exists && doc.data().archived === true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function writeAuditLog(action, resourceId = '') {
+  try {
+    const uid = firebase.auth().currentUser?.uid;
+    if (!uid) return;
+    await db.collection('auditLog').add({
+      actorId:   uid,
+      action,
+      resourceId,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      userAgent: navigator.userAgent,
+    });
+  } catch (e) {
+    // Audit log failure must never break the user-facing flow — log silently
+    console.error('[Motus] auditLog write failed:', e);
+  }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 2: NAVIGATION
    ══════════════════════════════════════════════════════════════════════════ */
@@ -378,6 +434,7 @@ async function handleLogin() {
         return;
       }
     }
+    if (!isCredError) Sentry.captureException(e, { tags: { flow: 'auth-signin' } });
     showError('loginError',
       isCredError
         ? `Incorrect email or password. ${LOGIN_MAX_ATTEMPTS - _loginAttempts} attempt(s) remaining.`
@@ -462,6 +519,7 @@ async function skipConnect() {
    ══════════════════════════════════════════════════════════════════════════ */
 
 async function loginSuccess() {
+  writeAuditLog('login');
   const savedScreen = sessionStorage.getItem('motus_screen');
 
   if (currentRole === 'admin') {
@@ -476,8 +534,8 @@ async function loginSuccess() {
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
-    // patient -- require consent before any PHI screen
-    if (!currentUser.consentGiven) {
+    // patient -- require consent + NPP acknowledgment before any PHI screen
+    if (!currentUser.consentGiven || !currentUser.nppAcknowledgedAt) {
       showScreen('consentScreen');
       return;
     }
@@ -499,14 +557,24 @@ async function routePatient() {
 }
 
 async function acceptConsent() {
+  const consentChecked = document.getElementById('consentCheckbox')?.checked;
+  const nppChecked = document.getElementById('nppCheckbox')?.checked;
+  const err = document.getElementById('consentError');
+  if (!consentChecked || !nppChecked) {
+    if (err) {
+      err.textContent = 'Please check both boxes before continuing.';
+      err.style.display = 'block';
+    }
+    return;
+  }
   const timestamp = new Date().toISOString();
   try {
     await db.collection('users').doc(currentUser.email).update({
       consentGiven: true,
       consentTimestamp: timestamp,
+      nppAcknowledgedAt: timestamp,
     });
   } catch (e) {
-    const err = document.getElementById('consentError');
     if (err) {
       err.textContent = 'Failed to save consent. Please check your connection and try again.';
       err.style.display = 'block';
@@ -515,6 +583,7 @@ async function acceptConsent() {
   }
   currentUser.consentGiven = true;
   currentUser.consentTimestamp = timestamp;
+  currentUser.nppAcknowledgedAt = timestamp;
   await routePatient();
 }
 
@@ -582,12 +651,14 @@ async function loadAdminScreen() {
 
 async function approveTherapist(email) {
   await db.collection('users').doc(email).update({ role: 'therapist' });
+  writeAuditLog('admin_action:approve_therapist', email);
   await loadAdminScreen();
 }
 
 async function rejectTherapist(email) {
   if (!confirm(`Remove ${email}'s account entirely?`)) return;
   await db.collection('users').doc(email).delete();
+  writeAuditLog('admin_action:reject_therapist', email);
   await loadAdminScreen();
 }
 
@@ -664,6 +735,7 @@ async function createClinic() {
     joinCode,
     joinCodeEnabled: true,
     createdAt: new Date().toISOString(),
+    baaStatus: 'pending',
   });
   await db.collection('users').doc(currentUser.email).update({ clinicId: clinicRef.id });
   await db.collection('clinicLibrary').doc(clinicRef.id).set({ sharedExercises: [] });
@@ -1105,7 +1177,8 @@ async function updatePatientHomeScreen() {
     getConnectedTherapist().catch(() => null),
   ]);
 
-
+  const disconnectBtn = document.getElementById('disconnectTherapistBtn');
+  if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
 
   // Today's Plan card
   const planCard = document.getElementById('todaysPlanCard');
@@ -1387,6 +1460,7 @@ async function manualCamStartCamera() {
     await video.play();
   } catch(e) {
     console.error('[Motus] Manual camera error:', e);
+    Sentry.captureException(e, { tags: { flow: 'camera-manual' } });
     alert('Could not access camera. Please allow camera permissions.');
   }
 }
@@ -1515,6 +1589,7 @@ async function finishManualCamSession() {
     });
   } catch(e) {
     console.error('[Motus] Session save error:', e);
+    Sentry.captureException(e, { tags: { flow: 'session-save' } });
   }
   
   _manualCamProtocol = null;
@@ -1936,6 +2011,7 @@ async function _demoStartCameraAndRecord() {
     });
   } catch(e) {
     console.error('[Motus] demo camera:', e);
+    Sentry.captureException(e, { tags: { flow: 'camera-demo' } });
     alert('Could not access camera. Please check permissions.');
     return;
   }
@@ -2293,6 +2369,7 @@ async function assignProtocol() {
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
+  writeAuditLog('protocol_assigned', patientEmail);
   closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
@@ -2462,10 +2539,19 @@ async function loadConnectedPatients() {
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
     const unreadBadge = unread > 0 ? `<span class="msg-unread-badge" style="margin-left:0.4rem">${unread}</span>` : '';
     item.innerHTML = `
-      <div class="patient-name">${escapeHtml(patient.name)}${unreadBadge}</div>
-      <div class="patient-connected">
-        <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="patient-name">${escapeHtml(patient.name)}${unreadBadge}</div>
+          <div class="patient-connected">
+            <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
+          </div>
+        </div>
+        <button class="logout-btn" style="font-size:0.7rem;padding:0.15rem 0.5rem;flex-shrink:0;margin-top:2px" data-patient-email="${patient.email}">Remove</button>
       </div>`;
+    item.querySelector('[data-patient-email]').onclick = (e) => {
+      e.stopPropagation();
+      disconnectPatient(e.currentTarget.dataset.patientEmail);
+    };
     item.onclick = () => {
       document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
       item.classList.add('selected');
@@ -2548,6 +2634,7 @@ async function getPatientSessions(patientEmail) {
   const snap = await db.collection('sessions')
     .where('patientEmail', '==', patientEmail).get();
   const stored = snap.docs.map(d => d.data()).filter(s => s.date >= cutoff);
+  if (currentRole === 'therapist') writeAuditLog('session_viewed', patientEmail);
   return [...getDemoSessions(patientEmail), ...stored]
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
@@ -2609,11 +2696,20 @@ async function showRealPatient(patient) {
       ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
     await markRead(currentUser.email, patient.email);
-    document.getElementById('therapistMsgSend').onclick = async () => {
-      const input = document.getElementById('therapistMsgInput');
-      await sendMessage(currentUser.email, patient.email, input.value);
-      input.value = '';
-    };
+    const archived0 = await isThreadArchived(currentUser.email, patient.email);
+    const sendBtn0 = document.getElementById('therapistMsgSend');
+    const msgInput0 = document.getElementById('therapistMsgInput');
+    if (archived0 && sendBtn0 && msgInput0) {
+      sendBtn0.disabled = true;
+      msgInput0.disabled = true;
+      msgInput0.placeholder = 'This conversation has been archived.';
+    } else if (sendBtn0) {
+      sendBtn0.onclick = async () => {
+        const input = document.getElementById('therapistMsgInput');
+        await sendMessage(currentUser.email, patient.email, input.value);
+        input.value = '';
+      };
+    }
     subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
     enableMobilePatientDetail(panel);
     return;
@@ -2661,11 +2757,20 @@ async function showRealPatient(patient) {
   });
 
   await markRead(currentUser.email, patient.email);
-  document.getElementById('therapistMsgSend').onclick = async () => {
-    const input = document.getElementById('therapistMsgInput');
-    await sendMessage(currentUser.email, patient.email, input.value);
-    input.value = '';
-  };
+  const archived1 = await isThreadArchived(currentUser.email, patient.email);
+  const sendBtn1 = document.getElementById('therapistMsgSend');
+  const msgInput1 = document.getElementById('therapistMsgInput');
+  if (archived1 && sendBtn1 && msgInput1) {
+    sendBtn1.disabled = true;
+    msgInput1.disabled = true;
+    msgInput1.placeholder = 'This conversation has been archived.';
+  } else if (sendBtn1) {
+    sendBtn1.onclick = async () => {
+      const input = document.getElementById('therapistMsgInput');
+      await sendMessage(currentUser.email, patient.email, input.value);
+      input.value = '';
+    };
+  }
   subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   enableMobilePatientDetail(panel);
   updateExerciseParamsUI(null, null);
@@ -4738,10 +4843,13 @@ async function getThread(a, b) {
 
 async function sendMessage(from, to, text) {
   if (!text.trim()) return;
+  const threadId = getThreadId(from, to);
   await db.collection('messages').add({
     from, to, participants: [from, to],
+    threadId,
     text: text.trim(), timestamp: new Date().toISOString(), read: false
   });
+  writeAuditLog('message_sent', [from, to].sort().join(':'));
 }
 
 async function markRead(toEmail, fromEmail) {
@@ -4832,12 +4940,120 @@ function subscribeThread(containerId, myEmail, otherEmail, emptyMsg) {
 
 // ── Patient-side functions ────────────────────────────────────────────────────
 
+async function deleteMyAccount() {
+  const confirmed = confirm(
+    'This will permanently delete your account, all session history, and all videos.\n\nThis cannot be undone. Are you sure?'
+  );
+  if (!confirmed) return;
+
+  const btn = document.querySelector('.delete-account-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
+  try {
+    const deleteFn = firebase.functions().httpsCallable('deleteAccount');
+    await deleteFn();
+    // Auth account is now deleted — sign out locally and send to login
+    await firebase.auth().signOut();
+    sessionStorage.clear();
+    showScreen('loginScreen');
+  } catch (e) {
+    console.error('[Motus] Account deletion failed:', e);
+    alert('Deletion failed. Please try again or contact privacy@motus.app.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
+  }
+}
+
+async function downloadMyData() {
+  const btn = document.getElementById('downloadMyDataBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing...'; }
+  try {
+    const exportFn = firebase.functions().httpsCallable('exportPatientData');
+    const result = await exportFn();
+    const json = JSON.stringify(result.data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `motus-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error('[Motus] Data export failed:', e);
+    alert('Export failed. Please try again or contact privacy@motus.app.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Download my data'; }
+  }
+}
+
+async function disconnectFromTherapist() {
+  const tEmail = currentUser?.therapistEmail;
+  if (!tEmail) return;
+  if (!confirm('Disconnect from your therapist? You will lose access to assigned protocols and messaging.')) return;
+  const threadId = getThreadId(currentUser.email, tEmail);
+  try {
+    await Promise.all([
+      db.collection('connections').doc(tEmail).update({
+        patients: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
+      }),
+      db.collection('users').doc(currentUser.email).update({
+        therapistEmail: firebase.firestore.FieldValue.delete(),
+      }),
+      db.collection('messageThreads').doc(threadId).set({
+        archived: true,
+        disconnectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        participants: [currentUser.email, tEmail].sort(),
+      }, { merge: true }),
+    ]);
+    await writeAuditLog('therapist_disconnected', tEmail);
+    currentUser.therapistEmail = null;
+    await routePatient();
+  } catch (e) {
+    console.error('[Motus] Disconnect from therapist failed:', e);
+    alert('Failed to disconnect. Please try again.');
+  }
+}
+
+async function disconnectPatient(patientEmail) {
+  if (!confirm('Disconnect this patient? They will lose access to their assigned protocols and messaging.')) return;
+  const threadId = getThreadId(currentUser.email, patientEmail);
+  try {
+    // Clear therapistEmail on patient doc FIRST — the Firestore rule requires the connection
+    // to still be active (connectedToPatient check), so this must run before removing from connections.
+    await db.collection('users').doc(patientEmail).update({
+      therapistEmail: firebase.firestore.FieldValue.delete(),
+    });
+    await Promise.all([
+      db.collection('connections').doc(currentUser.email).update({
+        patients: firebase.firestore.FieldValue.arrayRemove(patientEmail),
+      }),
+      db.collection('messageThreads').doc(threadId).set({
+        archived: true,
+        disconnectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        participants: [currentUser.email, patientEmail].sort(),
+      }, { merge: true }),
+    ]);
+    await writeAuditLog('patient_disconnected', patientEmail);
+    backToPatientList();
+    await loadPatients();
+  } catch (e) {
+    console.error('[Motus] Disconnect patient failed:', e);
+    alert('Failed to disconnect patient. Please try again.');
+  }
+}
+
 async function openPatientMessaging() {
   const tEmail = await getConnectedTherapist();
   if (!tEmail) { alert('You are not connected to a therapist yet.'); return; }
   await markRead(currentUser.email, tEmail);
   const tSnap = await db.collection('users').doc(tEmail).get();
   document.getElementById('msgHeaderTitle').textContent = tSnap.exists ? tSnap.data().name : 'Your Therapist';
+  const archived = await isThreadArchived(currentUser.email, tEmail);
+  const input = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('msgSendBtn');
+  if (archived && input && sendBtn) {
+    input.disabled = true;
+    input.placeholder = 'This conversation has been archived.';
+    sendBtn.disabled = true;
+  }
   subscribeThread('msgThread', currentUser.email, tEmail, 'Send a message to your therapist');
   showScreen('messagingScreen');
 }
@@ -6011,6 +6227,7 @@ Object.assign(window, {
   // Patient flows
   startScanSession, startSessionWithProtocol, startSessionByIndex, showExercisesScreen,
   showProgressScreen, openPatientMessaging, sendMessageFromPatient, toggleMsgSend, toggleExerciseList,
+  downloadMyData, deleteMyAccount, disconnectFromTherapist, disconnectPatient,
 
   // Camera session
   flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary, dismissSummaryToProgress,

@@ -116,17 +116,21 @@
         <li>Contact your therapist for any questions regarding your data.</li>
       </ul>
     </div>
-    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1.5rem;text-align:left">
+    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1rem;text-align:left">
       <input type="checkbox" id="consentCheckbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)" />
       <span style="font-size:0.875rem;color:var(--text);line-height:1.5">
         I understand how my health data will be collected and used, and I consent to participate in Motus rehabilitation.
       </span>
     </label>
-    <button class="auth-btn" onclick="if(document.getElementById('consentCheckbox').checked){acceptConsent()}else{document.getElementById('consentError').style.display='block'}">
-      Continue
-    </button>
+    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1.5rem;text-align:left">
+      <input type="checkbox" id="nppCheckbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)" />
+      <span style="font-size:0.875rem;color:var(--text);line-height:1.5">
+        I have received and reviewed the <a href="/hipaa-npp" target="_blank" style="color:var(--accent)">HIPAA Notice of Privacy Practices</a>.
+      </span>
+    </label>
+    <button class="auth-btn" onclick="acceptConsent()">Continue</button>
     <div id="consentError" class="auth-error" style="display:none;margin-top:0.75rem" aria-live="polite">
-      Please check the box to confirm your consent before continuing.
+      Please check both boxes before continuing.
     </div>
     <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem;text-align:center;line-height:1.5">
       By continuing you agree to our <a href="/tos" target="_blank" style="color:var(--accent)">Terms of Service</a> and <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Policy</a>. Questions? Email <a href="mailto:privacy@motus.app" style="color:var(--accent)">privacy@motus.app</a>.
@@ -242,6 +246,9 @@
 
     <div class="patient-bottom-row">
       <button class="patient-logout-link" onclick="requestLogout()">Log Out</button>
+      <button class="patient-logout-link" id="downloadMyDataBtn" onclick="downloadMyData()" style="color:var(--muted)">Download my data</button>
+      <button class="patient-logout-link" id="disconnectTherapistBtn" onclick="disconnectFromTherapist()" style="color:#e05c5c;display:none">Disconnect from therapist</button>
+      <button class="patient-logout-link delete-account-btn" onclick="deleteMyAccount()" style="color:#e05c5c">Delete my account</button>
     </div>
   </div>
 </div>
@@ -440,6 +447,7 @@
     </div>
     <div class="sidebar-footer">
       <span class="sidebar-switch-user" onclick="requestLogout()">Switch user</span>
+      <span class="sidebar-switch-user delete-account-btn" onclick="deleteMyAccount()" style="color:#e05c5c;margin-left:1rem">Delete account</span>
     </div>
   </div>
 

@@ -8,7 +8,8 @@
     ],
     "rewrites": [
       { "source": "/privacy", "destination": "/privacy.html" },
-      { "source": "/tos", "destination": "/tos.html" }
+      { "source": "/tos", "destination": "/tos.html" },
+      { "source": "/hipaa-npp", "destination": "/hipaa-npp.html" }
     ],
     "headers": [
       {

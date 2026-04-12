@@ -54,11 +54,24 @@ service cloud.firestore {
 
 
     // -- users/{email} --
-    // Any authenticated user can read (needed for name lookups, role checks).
-    // Users write their own doc; admin can write any doc (role approval).
+    // Scoped reads: own doc, admin, connected parties, or therapist-profile discovery.
+    // Patients can read any therapist doc (needed for connect-by-code and name display).
+    // Patients cannot read other patients' docs.
     match /users/{email} {
-      allow read: if isAuth();
+      allow read: if isAuth() && (
+        myEmail() == email ||
+        isAdmin() ||
+        (isTherapist() && connectedToPatient(email)) ||
+        // Patients read therapist profiles for connect-by-code discovery and name display.
+        // query .where('role','==','therapist') satisfies the rule validator.
+        (isPatient() && resource.data.role == 'therapist')
+      );
       allow write: if isAuth() && (myEmail() == email || isAdmin());
+      // Therapist can clear a connected patient's therapistEmail field on disconnect.
+      // Must still be connected when this write runs (sequenced before removing from connections).
+      allow update: if isAuth() && isTherapist() && connectedToPatient(email) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapistEmail']) &&
+        !('therapistEmail' in request.resource.data);
     }
 
 
@@ -137,8 +150,19 @@ service cloud.firestore {
     }
 
 
-    // -- messages (auto-id, fields: participants: [email, email]) --
+    // -- messageThreads/{threadId} -- Thread metadata (archived status, disconnect timestamp)
+    // threadId = sorted(email1, email2).join(':')
+    match /messageThreads/{threadId} {
+      allow read: if isAuth() && myEmail() in resource.data.participants;
+      allow create: if isAuth() && myEmail() in request.resource.data.participants;
+      allow update: if isAuth() && myEmail() in resource.data.participants;
+      allow delete: if isAuth() && isAdmin();
+    }
+
+
+    // -- messages (auto-id, fields: participants: [email, email], threadId: string) --
     // Only participants can read/write their thread.
+    // New messages blocked if the messageThreads doc is archived.
     match /messages/{messageId} {
       allow read: if isAuth() && (
         myEmail() in resource.data.participants ||
@@ -147,7 +171,12 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isAuth() && myEmail() in request.resource.data.participants
-        && (!('text' in request.resource.data) || request.resource.data.text.size() <= 2000);
+        && (!('text' in request.resource.data) || request.resource.data.text.size() <= 2000)
+        && (
+          !('threadId' in request.resource.data) ||
+          !exists(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)) ||
+          get(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)).data.archived != true
+        );
       allow update: if isAuth() && myEmail() in resource.data.participants;
       allow delete: if isAuth() && isAdmin();
     }
@@ -259,6 +288,15 @@ service cloud.firestore {
     match /clinicLibrary/{clinicId} {
       allow read: if isAuth() && (inClinic(clinicId) || isAdmin());
       allow write: if isAuth() && (inClinic(clinicId) || isAdmin());
+    }
+
+
+    // -- auditLog/{entryId} -- HIPAA §164.312(b) audit trail
+    // Append-only from authenticated clients. No client reads, updates, or deletes.
+    // Review via Firebase Console or Cloud Functions only.
+    match /auditLog/{entryId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false;
     }
 
   }

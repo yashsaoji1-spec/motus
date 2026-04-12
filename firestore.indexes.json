@@ -49,6 +49,20 @@
         { "fieldPath": "joinCode", "order": "ASCENDING" },
         { "fieldPath": "joinCodeEnabled", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "videoExpireAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "videoExpireAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
