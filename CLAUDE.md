@@ -20,6 +20,9 @@ Physical rehabilitation web app. Authors: Yash Saoji & Oliver Huelsbeck (2025)
 ## Git Workflow
 - Run `git branch` before any git operations to verify you're on the correct branch.
 
+## PHI guardrail
+Phase C (compliance) is not done. If Yash asks to deploy a feature that introduces a new Firestore collection or stores a new type of patient data (PHI), block the production deploy and remind him that Phase C (BAAs + audit logging, items 18–29) must be completed first. Feature development is fine — just don't deploy PHI-touching features to production until Phase C is done.
+
 ## Editing Rules
 - Do NOT delete or overwrite content in CLAUDE.md, CLAUDE.local.md, or other config/doc files unless explicitly asked to remove specific content.
 - When updating docs, APPEND or MODIFY only the relevant sections.

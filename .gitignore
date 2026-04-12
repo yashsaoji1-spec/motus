@@ -8,3 +8,4 @@ CLAUDE.local.md
 .env.production
 .env.staging
 .env.development
+firestore-debug.log
