@@ -50,7 +50,7 @@
     </div>
     <div class="auth-field">
       <label>Password</label>
-      <input type="password" id="signupPassword" placeholder="Min. 6 characters" onkeydown="if(event.key==='Enter') handleSignup()" />
+      <input type="password" id="signupPassword" placeholder="Min. 8 characters" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
     <div class="auth-field">
       <label>I am a</label>
@@ -79,7 +79,7 @@
     </div>
     <div class="auth-field" id="newPasswordField" style="display:none">
       <label>New Password</label>
-      <input type="password" id="forgotNewPassword" placeholder="Min. 6 characters" />
+      <input type="password" id="forgotNewPassword" placeholder="Min. 8 characters" />
     </div>
     <button class="auth-btn" id="forgotBtn" onclick="handleForgot()">Find Account</button>
     <p class="auth-switch">Remembered it? <span onclick="showScreen('loginScreen')">Back to sign in</span></p>

@@ -247,6 +247,13 @@ service cloud.firestore {
     }
 
 
+    // -- therapistLibrary/{therapistEmail} --
+    // Each therapist owns their own library document.
+    match /therapistLibrary/{therapistEmail} {
+      allow read, write: if isAuth() && myEmail() == therapistEmail;
+    }
+
+
     // -- clinicLibrary/{clinicId} --
     // Only clinic members can read or write.
     match /clinicLibrary/{clinicId} {
