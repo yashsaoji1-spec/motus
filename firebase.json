@@ -6,6 +6,10 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "rewrites": [
+      { "source": "/privacy", "destination": "/privacy.html" },
+      { "source": "/tos", "destination": "/tos.html" }
+    ],
     "headers": [
       {
         "source": "**",
