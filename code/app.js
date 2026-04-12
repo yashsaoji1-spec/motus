@@ -127,10 +127,12 @@ firebase.initializeApp(FIREBASE_CONFIG);
 // App Check — dev uses a debug token printed to console; prod uses reCAPTCHA v3.
 // To activate: Firebase Console → App Check → register web app with site key below,
 // then enable enforcement on Firestore once staging confirms everything works.
+// Skip App Check entirely in E2E test runs (VITE_E2E_TEST=true) — fresh Playwright
+// contexts generate unregistered debug tokens which cause 403 errors.
 if (import.meta.env.DEV) {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
-if (import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+if (import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.meta.env.VITE_E2E_TEST) {
   firebase.appCheck().activate(import.meta.env.VITE_RECAPTCHA_SITE_KEY, true);
 }
 
