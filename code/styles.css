@@ -92,7 +92,7 @@ button { min-height: 44px; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Nunito', sans-serif;
   min-height: 100vh;
   width: 100%;
   max-width: 100vw;

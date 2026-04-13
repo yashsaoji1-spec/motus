@@ -6,7 +6,7 @@
   <title>Motus</title>
   <meta name="description" content="Motus — physical rehabilitation app connecting patients with therapists for guided exercise sessions and progress tracking." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230B6CB0'/><path d='M50 20c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V23.5C53.5 21.5 52 20 50 20zM36 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C39.5 29.5 38 28 36 28zM64 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C67.5 29.5 66 28 64 28zM25 40c-2 0-3.5 1.5-3.5 3.5V60c0 8 6.5 20 28.5 20s28.5-12 28.5-20V43.5c0-2-1.5-3.5-3.5-3.5s-3.5 1.5-3.5 3.5V55c0 2-1.5 3.5-3.5 3.5' fill='white' opacity='0.9'/></svg>">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -15,7 +15,7 @@
 <!-- ═══════════════════════════════════════════════════════
      LOGIN
 ═══════════════════════════════════════════════════════ -->
-<div id="loginScreen" class="screen active">
+<div id="loginScreen" class="screen active patient-scope">
   <div class="auth-box">
     <h1><span class="auth-logo-mark"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="var(--accent)" opacity="0.9"/></svg></span> Motus</h1>
     <p class="auth-subtitle">Sign in to continue</p>
@@ -37,7 +37,7 @@
 <!-- ═══════════════════════════════════════════════════════
      SIGN UP
 ═══════════════════════════════════════════════════════ -->
-<div id="signupScreen" class="screen">
+<div id="signupScreen" class="screen patient-scope">
   <div class="auth-box">
     <h1>Motus</h1>
     <p class="auth-subtitle">Create your account</p>
@@ -72,7 +72,7 @@
 <!-- ═══════════════════════════════════════════════════════
      FORGOT PASSWORD
 ═══════════════════════════════════════════════════════ -->
-<div id="forgotScreen" class="screen">
+<div id="forgotScreen" class="screen patient-scope">
   <div class="auth-box">
     <h1>Motus</h1>
     <p class="auth-subtitle">Reset your password</p>
@@ -94,7 +94,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CONSENT
 ═══════════════════════════════════════════════════════ -->
-<div id="consentScreen" class="screen">
+<div id="consentScreen" class="screen patient-scope">
   <div class="auth-box" style="max-width:480px">
     <h1>Motus</h1>
     <p class="auth-subtitle">Before you begin</p>
@@ -141,7 +141,7 @@
 <!-- ═══════════════════════════════════════════════════════
      PENDING APPROVAL
 ═══════════════════════════════════════════════════════ -->
-<div id="pendingScreen" class="screen">
+<div id="pendingScreen" class="screen patient-scope">
   <div class="auth-box">
     <h1>Motus</h1>
     <p class="auth-subtitle">Account Pending</p>
@@ -156,7 +156,7 @@
 <!-- ═══════════════════════════════════════════════════════
      ADMIN PANEL
 ═══════════════════════════════════════════════════════ -->
-<div id="adminScreen" class="screen">
+<div id="adminScreen" class="screen therapist-scope">
   <div class="admin-container">
     <div class="admin-header">
       <h2>Admin Panel</h2>
@@ -172,7 +172,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CONNECT TO THERAPIST
 ═══════════════════════════════════════════════════════ -->
-<div id="connectScreen" class="screen">
+<div id="connectScreen" class="screen patient-scope">
   <div class="auth-box">
     <h1>Motus</h1>
     <p class="auth-subtitle">Connect to your therapist</p>
@@ -193,7 +193,7 @@
 <!-- ═══════════════════════════════════════════════════════
      PATIENT HOME
 ═══════════════════════════════════════════════════════ -->
-<div id="patientScreen" class="screen">
+<div id="patientScreen" class="screen patient-scope">
   <div class="patient-home-container">
     <div class="patient-greeting" id="patientGreeting">Good morning</div>
     <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
@@ -256,7 +256,7 @@
 <!-- ═══════════════════════════════════════════════════════
      MY EXERCISES SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="exercisesScreen" class="screen">
+<div id="exercisesScreen" class="screen patient-scope">
   <div class="ex-container">
     <div class="ex-header">
       <h2 class="ex-title">My Exercises</h2>
@@ -270,7 +270,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CAMERA SCREEN  (patient session)
 ═══════════════════════════════════════════════════════ -->
-<div id="cameraScreen" class="screen">
+<div id="cameraScreen" class="screen patient-scope">
   <div class="cam-viewport">
     <video id="patientVideo" autoplay playsinline muted aria-label="Camera preview"></video>
     <canvas id="patientCanvas"></canvas>
@@ -352,7 +352,7 @@
 </div>
 
 <!-- Manual Camera Screen (patient session without tracking) -->
-<div id="manualCamScreen" class="screen">
+<div id="manualCamScreen" class="screen patient-scope">
   <div class="manual-cam-viewport">
     <video id="manualCamVideo" autoplay playsinline muted aria-label="Camera preview"></video>
     <button class="cam-hud-back" onclick="manualCamExit()">← Back</button>
@@ -426,7 +426,7 @@
   </button>
 </div>
 
-<div id="therapistScreen" class="screen">
+<div id="therapistScreen" class="screen therapist-scope">
   <!-- Always-visible patient panel -->
   <div class="sidebar">
     <div class="sidebar-top">
@@ -465,7 +465,7 @@
 <!-- ═══════════════════════════════════════════════════════
      PROGRESS SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="progressScreen" class="screen">
+<div id="progressScreen" class="screen patient-scope">
   <div class="prog-container">
     <div class="prog-header">
       <h2 class="prog-title">Your Progress</h2>
@@ -491,7 +491,7 @@
 <!-- ═══════════════════════════════════════════════════════
      MESSAGING SCREEN  (patient ↔ therapist)
 ═══════════════════════════════════════════════════════ -->
-<div id="messagingScreen" class="screen">
+<div id="messagingScreen" class="screen patient-scope">
   <div class="msg-container">
     <div class="msg-header">
       <button class="msg-back-btn" onclick="showScreen('patientScreen')">←</button>
@@ -513,7 +513,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CLINIC SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="clinicScreen" class="screen clinic-screen-layout">
+<div id="clinicScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showScreen('therapistScreen')">←</button>
     <h2>My Clinic</h2>
@@ -526,7 +526,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CREATE CLINIC SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="createClinicScreen" class="screen clinic-screen-layout">
+<div id="createClinicScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showJoinClinicScreen()">←</button>
     <h2>Create a Clinic</h2>
@@ -549,7 +549,7 @@
 <!-- ═══════════════════════════════════════════════════════
      JOIN CLINIC SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="joinClinicScreen" class="screen clinic-screen-layout">
+<div id="joinClinicScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showScreen('therapistScreen')">←</button>
     <h2>Join or Create a Clinic</h2>
@@ -584,7 +584,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CLINIC LIBRARY SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="clinicLibraryScreen" class="screen clinic-screen-layout">
+<div id="clinicLibraryScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showClinicScreen()">←</button>
     <h2><span id="clinicLibName">Clinic</span> — Shared Exercises</h2>
@@ -610,7 +610,7 @@
 <!-- ═══════════════════════════════════════════════════════
      ML ANGLE TRAINER
 ═══════════════════════════════════════════════════════ -->
-<div id="mlTrainerScreen" class="screen">
+<div id="mlTrainerScreen" class="screen therapist-scope">
 
   <header class="sweep-header">
     <button class="sweep-back-btn" onclick="mlTrainerBack()">← Back</button>
