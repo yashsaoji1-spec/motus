@@ -437,35 +437,41 @@ body {
 }
 
 /* ── Admin panel ─────────────────────────────────────────────────────────── */
-.admin-container {
-  max-width: var(--max-content); margin: 0 auto;
-  padding: var(--space-8) var(--space-6); width: 100%;
+#adminScreen {
+  min-height: 100vh;
+  background: var(--th-bg);
+  align-items: center;
+  justify-content: center;
 }
-.admin-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: var(--space-7);
+
+.th-admin-wrap {
+  width: 100%;
+  max-width: 560px;
+  padding: 40px 24px;
 }
-.admin-header h2 {
-  font-size: var(--text-2xl); font-weight: var(--font-extrabold);
-  color: var(--text);
+
+.th-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
 }
-.admin-card {
-  background: var(--surface); border-radius: var(--radius-lg);
-  padding: var(--space-6); border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+
+.th-admin-list { display: flex; flex-direction: column; gap: 8px; }
+
+.pending-therapist-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--th-surface);
+  border-radius: var(--th-radius);
+  border: 1px solid var(--th-border);
 }
-.admin-card h3 {
-  font-size: var(--text-base); font-weight: var(--font-bold);
-  color: var(--muted); text-transform: none; letter-spacing: 0;
-  margin-bottom: var(--space-4);
-}
+
+.pending-therapist-row:last-child { border-bottom: 1px solid var(--th-border); }
 .connect-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.6; text-align: center; }
 .pending-message { color: var(--muted); margin-bottom: 2rem; text-align: center; line-height: 1.5; }
-.pending-therapist-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 0; border-bottom: 1px solid var(--border);
-}
-.pending-therapist-row:last-child { border-bottom: none; }
 
 /* ── Clinic badge ─────────────────────────────────────────────────────────── */
 .clinic-badge {
@@ -887,16 +893,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   position: absolute; width: 100%; height: 100%;
   transform: scaleX(-1);
 }
-.cam-hud-back {
-  position: absolute; top: var(--space-3); left: var(--space-3);
-  z-index: 15; padding: 5px 14px;
-  background: rgba(0,0,0,0.5); border: none;
-  border-radius: var(--radius-md); color: rgba(255,255,255,0.7);
-  font-size: 0.78rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; backdrop-filter: blur(4px);
-  transition: background 0.2s;
-}
-.cam-hud-back:hover { background: rgba(0,0,0,0.7); color: #fff; }
+
 .cam-flip-btn {
   position: absolute; top: var(--space-3); right: var(--space-3);
   z-index: 15; width: 40px; height: 40px;
