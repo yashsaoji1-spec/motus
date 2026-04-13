@@ -482,12 +482,12 @@
      PROGRESS SCREEN
 ═══════════════════════════════════════════════════════ -->
 <div id="progressScreen" class="screen patient-scope">
-  <div class="prog-container">
-    <div class="prog-header">
-      <h2 class="prog-title">Your Progress</h2>
-      <button class="prog-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+  <div class="pt-subscreen">
+    <div class="pt-subscreen-header">
+      <button class="pt-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+      <h2 class="pt-subscreen-title">My Progress</h2>
     </div>
-    <div id="progressContent"></div>
+    <div id="progressContent" class="pt-subscreen-content"></div>
   </div>
 </div>
 
@@ -508,19 +508,19 @@
      MESSAGING SCREEN  (patient ↔ therapist)
 ═══════════════════════════════════════════════════════ -->
 <div id="messagingScreen" class="screen patient-scope">
-  <div class="msg-container">
-    <div class="msg-header">
-      <button class="msg-back-btn" onclick="showScreen('patientScreen')">←</button>
-      <span class="msg-header-name" id="msgHeaderTitle">Therapist</span>
+  <div class="pt-msg-screen">
+    <div class="pt-msg-header">
+      <button class="pt-back-btn" onclick="showScreen('patientScreen')" style="color:#7DD3FC;">← Back</button>
+      <span class="pt-msg-title" id="msgHeaderTitle">Therapist</span>
     </div>
     <div class="msg-thread" id="msgThread"></div>
-    <div class="msg-input-row">
-      <input type="text" id="msgInput" class="msg-input" placeholder="Type a message..."
+    <div class="pt-msg-input-row">
+      <input type="text" id="msgInput" class="pt-msg-input" placeholder="Type a message..."
              maxlength="2000"
              onkeydown="if(event.key==='Enter'&&!document.getElementById('msgSendBtn').disabled)sendMessageFromPatient()"
              oninput="toggleMsgSend()" />
-      <button class="msg-send-btn" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      <button class="pt-msg-send-btn" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
       </button>
     </div>
   </div>
