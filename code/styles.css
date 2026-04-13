@@ -456,7 +456,6 @@ body {
 }
 .connect-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.6; text-align: center; }
 .pending-message { color: var(--muted); margin-bottom: 2rem; text-align: center; line-height: 1.5; }
-.clinic-code-input { text-align: center; font-size: 2.2rem; letter-spacing: 12px; font-weight: 800; }
 .pending-therapist-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 12px 0; border-bottom: 1px solid var(--border);
