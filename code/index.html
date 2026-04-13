@@ -29,11 +29,11 @@
   <div class="auth-form-area">
     <div id="loginError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="auth-field">
-      <label>Email</label>
+      <label for="loginEmail">Email</label>
       <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
     <div class="auth-field">
-      <label>Password</label>
+      <label for="loginPassword">Password</label>
       <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
     <button class="pt-btn-hero" style="margin-top:8px" onclick="handleLogin()">Sign In</button>
@@ -58,15 +58,15 @@
       <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')">Therapist</button>
     </div>
     <div class="auth-field">
-      <label>Full Name</label>
+      <label for="signupName">Full Name</label>
       <input type="text" id="signupName" placeholder="Your name" maxlength="80" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
     <div class="auth-field">
-      <label>Email</label>
+      <label for="signupEmail">Email</label>
       <input type="email" id="signupEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
     <div class="auth-field">
-      <label>Password</label>
+      <label for="signupPassword">Password</label>
       <input type="password" id="signupPassword" placeholder="Min. 8 characters" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
     <button class="pt-btn-hero" onclick="handleSignup()">Create Account</button>
@@ -88,11 +88,11 @@
     <div id="forgotError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="forgotSuccess" class="auth-success" style="display:none"></div>
     <div class="auth-field">
-      <label>Email address</label>
+      <label for="forgotEmail">Email address</label>
       <input type="email" id="forgotEmail" placeholder="you@example.com" />
     </div>
     <div class="auth-field" id="newPasswordField" style="display:none">
-      <label>New Password</label>
+      <label for="forgotNewPassword">New Password</label>
       <input type="password" id="forgotNewPassword" placeholder="Min. 8 characters" />
     </div>
     <button class="pt-btn-hero" id="forgotBtn" onclick="handleForgot()">Find Account</button>
