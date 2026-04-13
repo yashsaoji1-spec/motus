@@ -2979,9 +2979,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .calib-camera-col { flex: none; width: 100%; height: auto; }
 .calib-camera-wrap { height: auto; aspect-ratio: 4/3; }
 
-/* Messaging — mobile spacing */
-.msg-container { max-width: 100%; }
-
 /* Session summary — mobile */
 .summary-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; max-width: 320px; }
 .summary-stat-value { font-size: 1.8rem; }
@@ -3273,9 +3270,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .prog-grid-header, .prog-grid-row { font-size: 0.72rem; padding: var(--space-2); grid-template-columns: 80px 1fr 44px 44px 36px; }
 
   /* Messaging */
-  .msg-header { padding: var(--space-2) var(--space-3); }
+  .pt-msg-header { padding: var(--space-2) var(--space-3); }
   .msg-thread { padding: var(--space-3); }
-  .msg-input-row { padding: var(--space-2) var(--space-3); }
+  .pt-msg-input-row { padding: var(--space-2) var(--space-3); }
 }
 
 /* ── Bottom Sheet ──────────────────────────────────────────────────── */
