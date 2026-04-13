@@ -148,7 +148,7 @@ body {
 
 .auth-gradient-header {
   flex-shrink: 0;
-  background: linear-gradient(160deg, #0C4A6E 0%, #0EA5E9 100%);
+  background: linear-gradient(160deg, var(--pt-text) 0%, var(--pt-primary) 100%);
   padding: 48px 24px 0;
   display: flex;
   flex-direction: column;
@@ -251,7 +251,7 @@ body {
   font-size: 0.9rem;
   color: var(--pt-text);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--ease-default);
 }
 
 .auth-field input:focus { border-color: var(--pt-primary); }
@@ -270,7 +270,7 @@ body {
   border-radius: 12px;
   cursor: pointer;
   box-shadow: var(--shadow-cta);
-  transition: opacity 0.2s, transform 0.15s;
+  transition: opacity var(--ease-default), transform 0.15s ease;
   min-height: 48px;
 }
 .pt-btn-hero:hover { opacity: 0.92; }
@@ -288,7 +288,7 @@ body {
   border: 1.5px solid var(--pt-border-input);
   border-radius: 12px;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color var(--ease-default), background var(--ease-default);
   min-height: 48px;
 }
 .pt-btn-outline:hover { border-color: var(--pt-primary); background: var(--pt-border); }
@@ -305,7 +305,7 @@ body {
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity var(--ease-default);
   min-height: 48px;
 }
 .pt-btn-accent:hover { opacity: 0.9; }
@@ -373,7 +373,7 @@ body {
   color: var(--pt-muted);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
   min-height: 36px;
 }
 
@@ -2836,9 +2836,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* ── Base / Mobile (< 640px) ────────────────────────────────────────────── */
 
-/* Auth */
-.auth-box { margin: 16px; padding: 28px 20px; }
-
 /* Patient home */
 #patientScreen { padding: 20px 16px; gap: 10px; }
 .patient-greeting { font-size: 0.68rem; }
@@ -2902,9 +2899,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* ── Tablet (≥ 640px) ───────────────────────────────────────────────────── */
 @media (min-width: 640px) {
-  /* Auth */
-  .auth-box { margin: 0; padding: 40px 36px; }
-
   /* Patient home */
   #patientScreen { padding: 28px 24px; gap: 12px; }
   .patient-greeting { font-size: 0.72rem; }
