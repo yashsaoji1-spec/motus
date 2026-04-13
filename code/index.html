@@ -16,9 +16,17 @@
      LOGIN
 ═══════════════════════════════════════════════════════ -->
 <div id="loginScreen" class="screen active patient-scope">
-  <div class="auth-box">
-    <h1><span class="auth-logo-mark"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="var(--accent)" opacity="0.9"/></svg></span> Motus</h1>
-    <p class="auth-subtitle">Sign in to continue</p>
+  <div class="auth-gradient-header">
+    <div class="auth-logo-block">
+      <div class="auth-logo-icon">
+        <svg width="26" height="26" viewBox="0 0 20 20" fill="none"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
+      </div>
+      <div class="auth-logo-text">Motus</div>
+      <div class="auth-logo-tagline">Physical Rehabilitation</div>
+    </div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div id="loginError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="auth-field">
       <label>Email</label>
@@ -26,11 +34,11 @@
     </div>
     <div class="auth-field">
       <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()" />
+      <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
-    <button class="auth-btn" style="margin-top: 12px" onclick="handleLogin()">Sign In</button>
-    <p class="auth-switch">Don't have an account? <span onclick="showScreen('signupScreen')">Create one</span></p>
-    <p class="auth-switch auth-switch-tight"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
+    <button class="pt-btn-hero" style="margin-top:8px" onclick="handleLogin()">Sign In</button>
+    <button class="pt-btn-outline" onclick="showScreen('signupScreen')">Create Account</button>
+    <p class="auth-link-row"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
   </div>
 </div>
 
@@ -38,34 +46,32 @@
      SIGN UP
 ═══════════════════════════════════════════════════════ -->
 <div id="signupScreen" class="screen patient-scope">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Create your account</p>
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Create Account</div>
+    <div class="auth-header-sub">Join Motus to start your recovery</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div id="signupError" class="auth-error" style="display:none" aria-live="polite"></div>
+    <div class="role-segmented">
+      <button id="rolePatientBtn" class="role-seg-btn active" onclick="selectRole('patient')">Patient</button>
+      <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')">Therapist</button>
+    </div>
     <div class="auth-field">
       <label>Full Name</label>
-      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" maxlength="80" onkeydown="if(event.key==='Enter') handleSignup()" />
+      <input type="text" id="signupName" placeholder="Your name" maxlength="80" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
     <div class="auth-field">
       <label>Email</label>
-      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleSignup()" />
+      <input type="email" id="signupEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
     <div class="auth-field">
       <label>Password</label>
       <input type="password" id="signupPassword" placeholder="Min. 8 characters" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
-    <div class="auth-field">
-      <label>I am a</label>
-      <div class="role-segmented">
-        <button id="rolePatientBtn" class="role-seg-btn active" onclick="selectRole('patient')">Patient</button>
-        <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')">Therapist</button>
-      </div>
-    </div>
-    <button class="auth-btn" onclick="handleSignup()">Create Account</button>
-    <p class="auth-switch">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
-    <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem;text-align:center;line-height:1.5">
-      By creating an account you agree to our <a href="/tos" target="_blank" style="color:var(--accent)">Terms of Service</a> and <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Policy</a>.
-    </p>
+    <button class="pt-btn-hero" onclick="handleSignup()">Create Account</button>
+    <p class="auth-link-row">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
+    <p class="auth-legal">By creating an account you agree to our <a href="/tos" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
   </div>
 </div>
 
@@ -73,21 +79,24 @@
      FORGOT PASSWORD
 ═══════════════════════════════════════════════════════ -->
 <div id="forgotScreen" class="screen patient-scope">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Reset your password</p>
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Reset Password</div>
+    <div class="auth-header-sub">We'll send you a reset link</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div id="forgotError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="forgotSuccess" class="auth-success" style="display:none"></div>
     <div class="auth-field">
-      <label>Enter your email</label>
-      <input type="email" id="forgotEmail" placeholder="you@mayoclinic.org" />
+      <label>Email address</label>
+      <input type="email" id="forgotEmail" placeholder="you@example.com" />
     </div>
     <div class="auth-field" id="newPasswordField" style="display:none">
       <label>New Password</label>
       <input type="password" id="forgotNewPassword" placeholder="Min. 8 characters" />
     </div>
-    <button class="auth-btn" id="forgotBtn" onclick="handleForgot()">Find Account</button>
-    <p class="auth-switch">Remembered it? <span onclick="showScreen('loginScreen')">Back to sign in</span></p>
+    <button class="pt-btn-hero" id="forgotBtn" onclick="handleForgot()">Find Account</button>
+    <p class="auth-link-row"><span onclick="showScreen('loginScreen')">Back to sign in</span></p>
   </div>
 </div>
 
