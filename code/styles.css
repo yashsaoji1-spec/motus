@@ -2236,7 +2236,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .ml-progress-bar {
   height: 100%;
-  background: linear-gradient(to right, var(--accent), var(--green));
+  background: linear-gradient(to right, var(--accent), var(--success));
   border-radius: 2px;
   transition: width 0.12s linear;
   width: 0%;
@@ -2377,7 +2377,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   transition: background 0.3s;
 }
 .ml-grid-cell--done {
-  background: var(--green) !important;
+  background: var(--success) !important;
 }
 .ml-grid-cell--target {
   background: var(--gold) !important;
@@ -2510,7 +2510,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .ml-model-meta {
-  color: var(--green);
+  color: var(--success);
   font-size: 0.55rem;
   text-align: right;
 }
@@ -3036,8 +3036,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .session-video-btn:hover { background: var(--accent); color: #fff; }
 .session-video-btn--none { font-size: 0.75rem; color: var(--muted); cursor: default; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; }
 .session-video-btn--expired { font-size: 0.75rem; color: var(--muted); cursor: default; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; opacity: 0.5; }
-.session-video-btn--dl { padding: 4px 8px; font-size: 0.78rem; background: rgba(16,185,129,0.08); color: var(--green); border: 1px solid var(--green); border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
-.session-video-btn--dl:hover { background: var(--green); color: #fff; }
+.session-video-btn--dl { padding: 4px 8px; font-size: 0.78rem; background: rgba(16,185,129,0.08); color: var(--success); border: 1px solid var(--success); border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.session-video-btn--dl:hover { background: var(--success); color: #fff; }
 .video-modal-dl-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); font-size: 0.8rem; font-weight: 600; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
 .video-modal-dl-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 @media (max-width: 700px) { .video-modal-player { max-height: 45vh; } }
@@ -3186,7 +3186,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 @keyframes demoBlink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
 .apm-demo-confirmed-badge {
-  color: var(--green); font-size: var(--text-sm); font-weight: var(--font-semibold);
+  color: var(--success); font-size: var(--text-sm); font-weight: var(--font-semibold);
   display: flex; align-items: center; justify-content: center;
   padding: var(--space-2);
 }
@@ -3513,7 +3513,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
   background: var(--gradient-cta);
 }
-.exs-row.exs-status-done::before { background: var(--green); }
+.exs-row.exs-status-done::before { background: var(--success); }
 .exs-row.exs-status-partial::before { background: #f59e0b; }
 .exs-row.exs-status-done { opacity: 0.6; }
 .exs-row:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(11,108,176,0.06); }
@@ -3524,7 +3524,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .exs-row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .exs-row-sets { font-size: 0.78rem; font-weight: 600; color: var(--muted); background: var(--surface-alt); padding: 3px 10px; border-radius: 20px; min-width: 52px; text-align: center; }
 .exs-row-badge { font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; min-width: 52px; text-align: center; }
-.exs-row-badge.done { background: rgba(16,185,129,0.1); color: var(--green); }
+.exs-row-badge.done { background: rgba(16,185,129,0.1); color: var(--success); }
 .exs-row-badge.partial { background: rgba(245,158,11,0.1); color: #f59e0b; }
 .exs-row-badge-placeholder { display: inline-block; min-width: 52px; }
 .exs-row-arrow { color: var(--muted); flex-shrink: 0; }
@@ -4041,8 +4041,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   color: var(--accent);
 }
 .clinic-you-tag {
-  background: var(--green-dim);
-  color: var(--green);
+  background: rgba(16,185,129,0.08);
+  color: var(--success);
 }
 
 /* Bottom actions in clinic screen */
