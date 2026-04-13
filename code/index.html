@@ -104,46 +104,32 @@
      CONSENT
 ═══════════════════════════════════════════════════════ -->
 <div id="consentScreen" class="screen patient-scope">
-  <div class="auth-box" style="max-width:480px">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Before you begin</p>
-    <div style="background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;text-align:left">
-      <p style="font-size:0.85rem;font-weight:600;color:var(--accent);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px">What we collect</p>
-      <ul style="font-size:0.875rem;color:var(--text);line-height:1.7;padding-left:1.25rem">
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Before we begin</div>
+    <div class="auth-header-sub">Please review and accept to continue</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
+    <div class="consent-card">
+      <div class="consent-section-title">Privacy &amp; Data Use</div>
+      <ul class="consent-list">
         <li>Movement data captured via your device camera</li>
-        <li>Exercise performance (reps, range of motion, pain level)</li>
-        <li>Session history shared with your assigned therapist</li>
-        <li>Messages between you and your therapist</li>
+        <li>Exercise performance shared with your assigned therapist</li>
+        <li>Session videos stored securely, removed after 30 days</li>
+        <li>All data encrypted in transit and at rest</li>
       </ul>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;text-align:left">
-      <p style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px">How we use it</p>
-      <ul style="font-size:0.875rem;color:var(--muted);line-height:1.7;padding-left:1.25rem">
-        <li>Your data is only shared with your connected therapist.</li>
-        <li>Session videos are stored securely and automatically removed after 30 days.</li>
-        <li>All data is encrypted in transit and stored securely.</li>
-        <li>Contact your therapist for any questions regarding your data.</li>
-      </ul>
-    </div>
-    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1rem;text-align:left">
-      <input type="checkbox" id="consentCheckbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)" />
-      <span style="font-size:0.875rem;color:var(--text);line-height:1.5">
-        I understand how my health data will be collected and used, and I consent to participate in Motus rehabilitation.
-      </span>
+    <label class="consent-checkbox-row">
+      <input type="checkbox" id="consentCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
+      <span>I understand how my health data will be used and consent to participate in Motus rehabilitation.</span>
     </label>
-    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1.5rem;text-align:left">
-      <input type="checkbox" id="nppCheckbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)" />
-      <span style="font-size:0.875rem;color:var(--text);line-height:1.5">
-        I have received and reviewed the <a href="/hipaa-npp" target="_blank" style="color:var(--accent)">HIPAA Notice of Privacy Practices</a>.
-      </span>
+    <label class="consent-checkbox-row">
+      <input type="checkbox" id="nppCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
+      <span>I have received the <a href="/hipaa-npp" target="_blank">HIPAA Notice of Privacy Practices</a>.</span>
     </label>
-    <button class="auth-btn" onclick="acceptConsent()">Continue</button>
-    <div id="consentError" class="auth-error" style="display:none;margin-top:0.75rem" aria-live="polite">
-      Please check both boxes before continuing.
-    </div>
-    <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem;text-align:center;line-height:1.5">
-      By continuing you agree to our <a href="/tos" target="_blank" style="color:var(--accent)">Terms of Service</a> and <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Policy</a>. Questions? Email <a href="mailto:privacy@motus.app" style="color:var(--accent)">privacy@motus.app</a>.
-    </p>
+    <div id="consentError" class="auth-error" style="display:none" aria-live="polite">Please check both boxes before continuing.</div>
+    <button class="pt-btn-hero" onclick="acceptConsent()">I Agree -- Continue</button>
+    <p class="auth-legal">Questions? Email <a href="mailto:privacy@motus.app">privacy@motus.app</a></p>
   </div>
 </div>
 
@@ -151,14 +137,16 @@
      PENDING APPROVAL
 ═══════════════════════════════════════════════════════ -->
 <div id="pendingScreen" class="screen patient-scope">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Account Pending</p>
-    <p class="pending-message">
-      Your therapist account is awaiting approval from a clinic admin.
-      You'll be able to log in once approved.
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Account Pending</div>
+    <div class="auth-header-sub">Your therapist account is awaiting approval</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area" style="align-items:center;text-align:center;">
+    <p style="font-family:var(--pt-font);color:var(--pt-muted);line-height:1.6;font-size:0.9rem;">
+      A clinic admin will review and approve your account. Check back soon.
     </p>
-    <button class="auth-btn" onclick="logout()">Sign Out</button>
+    <button class="pt-btn-outline" onclick="logout()">Sign Out</button>
   </div>
 </div>
 
@@ -182,20 +170,21 @@
      CONNECT TO THERAPIST
 ═══════════════════════════════════════════════════════ -->
 <div id="connectScreen" class="screen patient-scope">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Connect to your therapist</p>
-    <div id="connectError" class="auth-error" style="display:none" aria-live="polite"></div>
-    <div id="connectSuccess" class="auth-success" style="display:none"></div>
-    <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Connect to a Therapist</div>
+    <div class="auth-header-sub">Enter your clinic code to get started</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div class="auth-field">
-      <label>Clinic Code</label>
-      <input type="text" id="clinicCodeInput" class="clinic-code-input" placeholder="482910" maxlength="6"
-             oninput="this.value=this.value.replace(/\D/g,''); if(this.value.length===6) handleConnect()"
+      <label for="connectCode">Clinic Code</label>
+      <input type="text" id="connectCode" class="clinic-code-input" placeholder="------" maxlength="6"
+             oninput="this.value=this.value.toUpperCase()"
              onkeydown="if(event.key==='Enter') handleConnect()" />
     </div>
-    <button class="auth-btn" onclick="handleConnect()">Connect</button>
-    <button class="auth-btn auth-btn-secondary" onclick="skipConnect()">Skip for now</button>
+    <div id="connectError" class="auth-error" style="display:none" aria-live="polite"></div>
+    <button class="pt-btn-hero" onclick="handleConnect()">Connect</button>
+    <button class="pt-btn-outline" onclick="skipConnect()">Skip for now</button>
   </div>
 </div>
 

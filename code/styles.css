@@ -382,6 +382,55 @@ body {
   color: #fff;
 }
 
+/* ── Consent screen extras ────────────────────────────────────────────────── */
+.consent-card {
+  background: var(--pt-surface);
+  border-radius: var(--pt-radius);
+  border: 1px solid var(--pt-border);
+  box-shadow: var(--pt-shadow);
+  padding: 14px 16px;
+}
+
+.consent-section-title {
+  font-family: var(--pt-font);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--pt-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.consent-list {
+  font-family: var(--pt-font);
+  font-size: 0.8rem;
+  color: var(--pt-muted);
+  line-height: 1.7;
+  padding-left: 18px;
+}
+
+.consent-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-family: var(--pt-font);
+  font-size: 0.82rem;
+  color: var(--pt-text);
+  line-height: 1.5;
+}
+
+.consent-checkbox-row a { color: var(--pt-primary); }
+
+.clinic-code-input {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  letter-spacing: 10px;
+  font-weight: 700;
+  color: var(--pt-text);
+}
+
 /* ── Admin panel ─────────────────────────────────────────────────────────── */
 .admin-container {
   max-width: var(--max-content); margin: 0 auto;

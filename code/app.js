@@ -493,8 +493,8 @@ async function handleForgot() {
 
 async function handleConnect() {
   hideError('connectError');
-  const code = document.getElementById('clinicCodeInput').value.trim();
-  if (code.length !== 6 || isNaN(code)) { showError('connectError', 'Please enter a valid 6-digit clinic code.'); return; }
+  const code = document.getElementById('connectCode').value.trim();
+  if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character clinic code.'); return; }
   const therapist = await getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   await saveConnection(therapist.email, currentUser.email);
