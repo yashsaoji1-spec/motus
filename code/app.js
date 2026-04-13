@@ -1517,8 +1517,20 @@ function manualCamEndSet() {
     if (notesInput) notesInput.value = '';
     
     if (setInput) setInput.style.display = 'flex';
+
+    // Build pain bar segments on first open
+    const track = document.getElementById('painBarSegments');
+    if (track && !track.children.length) {
+      for (let i = 1; i <= 10; i++) {
+        const s = document.createElement('div');
+        s.className = 'pain-seg';
+        track.appendChild(s);
+      }
+    }
+    document.getElementById('setInputPain').value = 1;
+    updatePainBar(1);
   };
-  
+
   _manualCamRecorder.stop();
 }
 
@@ -6204,6 +6216,19 @@ function mlTrainerBack() {
   showScreen('therapistScreen');
 }
 
+function updatePainBar(val) {
+  const v = parseInt(val);
+  document.getElementById('setInputPainVal').textContent = v + ' / 10';
+  const segs = document.querySelectorAll('.pain-seg');
+  segs.forEach((seg, i) => {
+    const n = i + 1;
+    const color = n <= 3 ? 'green' : n <= 6 ? 'amber' : 'red';
+    seg.className = 'pain-seg';
+    if (n < v) seg.classList.add('filled-' + color);
+    else if (n === v) seg.classList.add('active-' + color);
+  });
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
@@ -6273,6 +6298,7 @@ Object.assign(window, {
 
   // Manual camera session
   openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,
+  updatePainBar,
 
   // Progress screen
   toggleProgDay, showSetNotes, closeSetNotesModal,

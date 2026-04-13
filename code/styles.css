@@ -727,6 +727,54 @@ body {
   border: 2px solid var(--pt-surface);
 }
 
+/* ── Patient sub-screen shell ─────────────────────────────────────────────── */
+.pt-subscreen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--pt-bg);
+}
+
+.pt-subscreen-header {
+  flex-shrink: 0;
+  background: #0C4A6E;
+  padding: 48px 20px 16px;
+}
+
+.pt-back-btn {
+  font-family: var(--pt-font);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #7DD3FC;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 6px;
+  min-height: auto;
+  display: block;
+}
+
+.pt-subscreen-title {
+  font-family: var(--pt-font);
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.pt-subscreen-sub {
+  font-family: var(--pt-font);
+  font-size: 0.75rem;
+  color: #7DD3FC;
+  margin-top: 2px;
+}
+
+.pt-subscreen-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
 /* ── Camera screen ────────────────────────────────────────────────────────── */
 #cameraScreen {
   flex-direction: column;
@@ -3616,73 +3664,221 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .demo-video-start:hover { opacity: 0.88; }
 
 
-/* Manual Camera Screen */
-#manualCamScreen { background: #000; flex-direction: column; min-height: 100vh; }
-.manual-cam-viewport {
-  flex: 1; position: relative; display: flex; align-items: center; justify-content: center; background: #000;
+/* ── Camera screen ─────────────────────────────────────────────────────────── */
+#manualCamScreen {
+  flex-direction: column;
+  background: #0F172A;
+  min-height: 100vh;
 }
-#manualCamVideo { width: 100%; height: 100%; object-fit: cover; }
-.manual-cam-ctrl {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
-  padding: var(--space-6) var(--space-5) var(--space-5);
-  display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
-}
-.manual-cam-header { display: flex; justify-content: space-between; width: 100%; max-width: 480px; }
-.manual-cam-exname { font-size: 1.1rem; font-weight: 700; color: #fff; }
-.manual-cam-setinfo { font-size: 0.85rem; color: rgba(255,255,255,0.6); }
-.manual-cam-prompt { color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0; }
-.manual-cam-btns { display: flex; gap: var(--space-3); width: 100%; max-width: 320px; }
-.manual-cam-start-btn {
-  flex: 1; padding: 16px 32px; border-radius: 30px;
-  background: var(--gradient-cta); color: #fff; border: none;
-  font-family: inherit; font-size: 1rem; font-weight: 700; cursor: pointer;
-  transition: transform 0.15s;
-}
-.manual-cam-start-btn:hover { transform: scale(1.02); }
-.manual-cam-end-btn, .manual-cam-endset-btn, .manual-cam-exit-btn {
-  padding: 14px 24px; border-radius: 30px; border: none;
-  font-family: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer;
-}
-.manual-cam-end-btn, .manual-cam-endset-btn { background: #fff; color: #000; }
-.manual-cam-exit-btn { background: rgba(255,255,255,0.2); color: #fff; }
-.manual-cam-btns .manual-cam-end-btn:hover { background: #f0f0f0; }
-.manual-cam-btns .manual-cam-endset-btn:hover { background: #f0f0f0; }
-.manual-cam-btns .manual-cam-exit-btn:hover { background: rgba(255,255,255,0.3); }
 
-/* Set Input Modal */
-.set-input-card {
-  background: var(--surface); border-radius: var(--radius-xl);
-  width: 100%; max-width: 400px; padding: var(--space-5);
-  display: flex; flex-direction: column; gap: var(--space-4);
-  box-shadow: 0 20px 48px rgba(0,0,0,0.22);
+.manual-cam-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  background: #0F172A;
 }
-.set-input-title { font-size: var(--text-lg); font-weight: var(--font-bold); margin: 0; }
-.set-input-sub { font-size: var(--text-sm); color: var(--muted); margin: 0; }
-.set-input-field { display: flex; flex-direction: column; gap: var(--space-2); }
-.set-input-field label { font-size: var(--text-sm); font-weight: 600; color: var(--text); }
-.set-input-field input[type="number"] {
-  padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md);
-  font-family: inherit; font-size: var(--text-base);
+
+.manual-cam-viewport video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
-.set-input-pain { display: flex; align-items: center; gap: var(--space-3); }
-.set-input-pain input[type="range"] { flex: 1; }
-.set-input-pain span { font-size: var(--text-sm); font-weight: 600; color: var(--text); min-width: 44px; text-align: right; }
-.set-input-field textarea {
-  padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md);
-  font-family: inherit; font-size: var(--text-base); resize: vertical; min-height: 80px;
+
+.cam-hud-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  z-index: 10;
 }
-.set-input-actions { display: flex; gap: var(--space-3); margin-top: var(--space-2); }
-.set-input-cancel {
-  flex: 1; padding: 12px; border-radius: var(--radius-sm);
-  background: none; color: var(--muted); border: 1.5px solid var(--border);
-  font-family: inherit; font-size: var(--text-sm); font-weight: var(--font-medium); cursor: pointer;
+
+.cam-hud-back {
+  font-family: var(--pt-font);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.8);
+  background: rgba(0,0,0,0.3);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  min-height: auto;
+  backdrop-filter: blur(4px);
 }
-.set-input-save {
-  flex: 2; padding: 12px; border-radius: var(--radius-sm);
-  background: var(--gradient-cta); color: #fff; border: none;
-  font-family: inherit; font-size: var(--text-sm); font-weight: var(--font-semibold); cursor: pointer;
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(5,150,105,0.25);
+  border: 1px solid #059669;
+  border-radius: 8px;
+  padding: 5px 10px;
+  backdrop-filter: blur(4px);
 }
+
+.rec-dot {
+  width: 7px;
+  height: 7px;
+  background: #6EE7B7;
+  border-radius: 50%;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.rec-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: #6EE7B7;
+}
+
+.cam-set-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 4px;
+  padding: 0 16px 12px;
+  z-index: 10;
+}
+
+.cam-set-segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.2);
+  transition: background 0.3s;
+}
+
+.cam-set-segment.done { background: #059669; }
+
+.manual-cam-ctrl {
+  flex-shrink: 0;
+  background: #0C4A6E;
+  padding: 16px 18px 20px;
+}
+
+.manual-cam-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.manual-cam-exname {
+  font-family: var(--pt-font);
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #fff;
+  display: block;
+}
+
+.manual-cam-setinfo {
+  font-family: var(--pt-font);
+  font-size: 0.7rem;
+  color: #7DD3FC;
+  display: block;
+  margin-top: 2px;
+}
+
+.manual-cam-prompt {
+  font-family: var(--pt-font);
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 12px;
+}
+
+.manual-cam-btns { display: flex; gap: 8px; }
+
+.manual-cam-start-btn { flex: 1; }
+
+/* ── Set input bottom sheet ───────────────────────────────────────────────── */
+.pt-bottom-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(12,74,110,0.65);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+}
+
+.pt-bottom-sheet {
+  background: var(--pt-surface);
+  border-radius: 20px 20px 0 0;
+  padding: 16px 20px 32px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.pt-bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--pt-border-input);
+  border-radius: 2px;
+  margin: 0 auto 4px;
+}
+
+.pt-bottom-sheet-title {
+  font-family: var(--pt-font);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--pt-text);
+}
+
+.pt-field-label {
+  font-family: var(--pt-font);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--pt-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+}
+
+.set-input-field { display: flex; flex-direction: column; }
+
+.pain-bar-track { position: relative; height: 32px; }
+.pain-bar-track input[type=range] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  z-index: 2;
+  cursor: pointer;
+  margin: 0;
+}
+.pain-bar-segments {
+  display: flex;
+  gap: 3px;
+  height: 28px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.pain-seg {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.15s, background 0.15s;
+  height: 18px;
+  background: var(--pt-border);
+}
+.pain-seg.active-green  { background: var(--pt-accent); height: 28px; }
+.pain-seg.active-amber  { background: var(--gold); height: 28px; }
+.pain-seg.active-red    { background: var(--danger); height: 28px; }
+.pain-seg.filled-green  { background: #6EE7B7; }
+.pain-seg.filled-amber  { background: #FCD34D; }
+.pain-seg.filled-red    { background: #FCA5A5; }
 
 /* Mobile: stack columns */
 @media (max-width: 768px) {

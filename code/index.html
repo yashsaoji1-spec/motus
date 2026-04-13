@@ -263,13 +263,13 @@
      MY EXERCISES SCREEN
 ═══════════════════════════════════════════════════════ -->
 <div id="exercisesScreen" class="screen patient-scope">
-  <div class="ex-container">
-    <div class="ex-header">
-      <h2 class="ex-title">My Exercises</h2>
-      <p class="ex-subtitle" id="exSubtitle"></p>
-      <button class="ex-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+  <div class="pt-subscreen">
+    <div class="pt-subscreen-header">
+      <button class="pt-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+      <h2 class="pt-subscreen-title">My Exercises</h2>
+      <p class="pt-subscreen-sub" id="exSubtitle"></p>
     </div>
-    <div id="exercisesScreenInner" class="ex-list"></div>
+    <div id="exercisesScreenInner" class="ex-list pt-subscreen-content"></div>
   </div>
 </div>
 
@@ -361,48 +361,58 @@
 <div id="manualCamScreen" class="screen patient-scope">
   <div class="manual-cam-viewport">
     <video id="manualCamVideo" autoplay playsinline muted aria-label="Camera preview"></video>
-    <button class="cam-hud-back" onclick="manualCamExit()">← Back</button>
-    <div id="manualCamRecording" class="recording-indicator" style="display:none;">
-      <span class="rec-dot"></span>
-      <span class="rec-label">REC</span>
+    <div class="cam-hud-top">
+      <button class="cam-hud-back" onclick="manualCamExit()">← Back</button>
+      <div id="manualCamRecording" class="recording-indicator" style="display:none;">
+        <span class="rec-dot"></span>
+        <span class="rec-label" id="manualCamTimer">REC 0:00</span>
+      </div>
     </div>
+    <div class="cam-set-progress" id="camSetProgress"></div>
   </div>
   <div class="manual-cam-ctrl">
     <div class="manual-cam-header">
-      <span class="manual-cam-exname" id="manualCamExName">Exercise</span>
-      <span class="manual-cam-setinfo" id="manualCamSetInfo">Set 1 of 3</span>
+      <div>
+        <span class="manual-cam-exname" id="manualCamExName">Exercise</span>
+        <span class="manual-cam-setinfo" id="manualCamSetInfo">Set 1 of 3</span>
+      </div>
+      <span class="manual-cam-elapsed" id="manualCamElapsed" style="display:none;font-family:var(--font-mono);color:#fff;font-size:1rem;">0:00</span>
     </div>
-    <p class="manual-cam-prompt" id="manualCamPrompt">Tap Start when ready to begin</p>
+    <p class="manual-cam-prompt" id="manualCamPrompt">Tap Start when ready</p>
     <div class="manual-cam-btns" id="manualCamBtns">
-      <button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>
+      <button class="pt-btn-accent manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>
     </div>
   </div>
 </div>
 
 <!-- Set Input Modal -->
-<div id="setInputModal" class="modal-overlay" style="display:none;">
-  <div class="set-input-card">
-    <h3 class="set-input-title">Set Complete</h3>
-    <p class="set-input-sub">Enter your results for this set</p>
+<div id="setInputModal" class="pt-bottom-sheet-overlay" style="display:none;">
+  <div class="pt-bottom-sheet" onclick="event.stopPropagation()">
+    <div class="pt-bottom-sheet-handle"></div>
+    <h3 class="pt-bottom-sheet-title" id="setInputTitle">Set complete</h3>
     <div class="set-input-field">
-      <label>Reps completed</label>
-      <input type="number" id="setInputReps" min="0" max="100" value="10" />
+      <div class="pt-field-label">Reps completed</div>
+      <input type="number" id="setInputReps" min="0" max="100" value="10"
+             style="font-family:var(--font-mono);font-size:1.4rem;font-weight:500;text-align:center;width:100%;padding:10px;border:1.5px solid var(--pt-border-input);border-radius:10px;background:var(--pt-bg);color:var(--pt-text);" />
     </div>
     <div class="set-input-field">
-      <label>Pain level</label>
-      <div class="set-input-pain">
-        <input type="range" id="setInputPain" min="1" max="10" value="1" aria-label="Pain level 1 to 10"
-               oninput="document.getElementById('setInputPainVal').textContent = this.value + ' / 10'" />
-        <span id="setInputPainVal">1 / 10</span>
+      <div class="pt-field-label">Pain level (1-10)</div>
+      <div class="pain-bar-track">
+        <input type="range" id="setInputPain" min="1" max="10" value="1"
+               aria-label="Pain level 1 to 10"
+               oninput="updatePainBar(this.value)" />
+        <div class="pain-bar-segments" id="painBarSegments"></div>
       </div>
+      <div style="text-align:center;font-family:var(--font-mono);font-size:0.85rem;color:var(--pt-muted);margin-top:4px;" id="setInputPainVal">1 / 10</div>
     </div>
     <div class="set-input-field">
-      <label>Notes (optional)</label>
-      <textarea id="setInputNotes" placeholder="How did it feel?" maxlength="1000"></textarea>
+      <div class="pt-field-label">Notes (optional)</div>
+      <textarea id="setInputNotes" placeholder="How did it feel?" maxlength="1000"
+                style="width:100%;border:1.5px solid var(--pt-border-input);border-radius:10px;padding:10px;font-family:var(--pt-font);font-size:0.85rem;background:var(--pt-bg);color:var(--pt-text);resize:none;height:60px;"></textarea>
     </div>
-    <div class="set-input-actions">
-      <button class="set-input-cancel" onclick="manualCamCancelSet()">Cancel</button>
-      <button class="set-input-save" onclick="manualCamSaveSet()">Save Set</button>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="pt-btn-outline" style="flex:1;" onclick="manualCamCancelSet()">Cancel</button>
+      <button class="pt-btn-hero" style="flex:2;" onclick="manualCamSaveSet()">Save Set</button>
     </div>
   </div>
 </div>
