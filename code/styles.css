@@ -469,7 +469,6 @@ body {
   border: 1px solid var(--th-border);
 }
 
-.pending-therapist-row:last-child { border-bottom: 1px solid var(--th-border); }
 .connect-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.6; text-align: center; }
 .pending-message { color: var(--muted); margin-bottom: 2rem; text-align: center; line-height: 1.5; }
 
@@ -3140,9 +3139,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
     padding: var(--space-3);
   }
 
-/* Admin */
-.admin-container { padding: 20px 16px; }
-
 /* Therapist dashboard — mobile */
 #therapistScreen { flex-direction: column; height: 100vh; overflow: hidden; }
 .sidebar { width: 100%; border-right: none; border-bottom: none; padding: 0; flex: 1; overflow-y: auto; }
@@ -3194,9 +3190,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .cam-viewport { border-radius: var(--radius-xl); border-left: 2px solid var(--border); border-right: 2px solid var(--border); aspect-ratio: 16/9; }
   .cam-ctrl-card { border-radius: var(--radius-lg); border: 1px solid var(--border); padding: var(--space-4); }
   .cam-end-btn { padding: var(--space-3); min-height: 44px; font-size: 0.9rem; }
-
-  /* Admin */
-  .admin-container { padding: var(--space-8) var(--space-6); }
 
   /* Stats */
   .stats-row { grid-template-columns: repeat(3, 1fr); gap: 16px; }
