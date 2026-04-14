@@ -767,8 +767,8 @@ function _renderInvitesList() {
         <div class="clinic-invite-from">Invited by ${inv.invitedBy}</div>
       </div>
       <div class="clinic-invite-actions">
-        <button class="auth-btn" style="padding:0.35rem 0.8rem;font-size:0.8rem;margin:0" onclick="acceptInvite('${inv.id}')">Accept</button>
-        <button class="logout-btn" style="font-size:0.8rem" onclick="declineInvite('${inv.id}')">Decline</button>
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="acceptInvite('${inv.id}')">Accept</button>
+        <button class="tp-btn tp-btn-sm tp-btn-secondary" onclick="declineInvite('${inv.id}')">Decline</button>
       </div>
     </div>
   `).join('');
@@ -866,7 +866,7 @@ function _renderClinicScreen() {
         ${isMemberOwner ? '<span class="clinic-role-tag clinic-owner-tag">Owner</span>' : ''}
         ${isMe ? '<span class="clinic-role-tag clinic-you-tag">You</span>' : ''}
       </div>
-      ${isOwner && !isMe ? `<button class="logout-btn" style="font-size:0.75rem;padding:0.2rem 0.6rem" onclick="removeClinicMember('${email}')">Remove</button>` : ''}
+      ${isOwner && !isMe ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeClinicMember('${email}')">Remove</button>` : ''}
     </div>`;
   }).join('');
 
@@ -879,10 +879,10 @@ function _renderClinicScreen() {
         <button class="clinic-text-btn" onclick="regenerateClinicCode()">Regenerate</button>
         <button class="clinic-text-btn" onclick="toggleClinicCode()">${_myClinic.joinCodeEnabled ? 'Disable' : 'Enable'}</button>
       </div>
-      <div class="clinic-section-label" style="margin-top:1.2rem">Invite by Email</div>
+      <div class="clinic-section-label clinic-section-label-mt">Invite by Email</div>
       <div class="clinic-invite-input-row">
         <input type="email" id="clinicInviteEmail" class="clinic-invite-input" placeholder="colleague@clinic.com" />
-        <button class="auth-btn" style="padding:0.4rem 0.9rem;font-size:0.85rem;margin:0" onclick="sendClinicInvite()">Invite</button>
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="sendClinicInvite()">Invite</button>
       </div>
       <div id="clinicInviteMsg" class="clinic-msg" style="display:none"></div>
     </div>
@@ -896,8 +896,8 @@ function _renderClinicScreen() {
       <div class="clinic-members-list">${memberRows}</div>
     </div>
     <div class="clinic-bottom-actions">
-      <button class="auth-btn" onclick="showClinicLibraryScreen()">Shared Exercise Library</button>
-      <button class="logout-btn" onclick="confirmLeaveClinic()">${isOwner && members.length === 1 ? 'Disband Clinic' : 'Leave Clinic'}</button>
+      <button class="tp-btn tp-btn-primary" onclick="showClinicLibraryScreen()">Shared Exercise Library</button>
+      <button class="tp-btn tp-btn-secondary" onclick="confirmLeaveClinic()">${isOwner && members.length === 1 ? 'Disband Clinic' : 'Leave Clinic'}</button>
     </div>
   `;
 }
