@@ -582,8 +582,8 @@
              maxlength="80" onkeydown="if(event.key==='Enter') createClinic()" />
     </div>
     <div class="clinic-bottom-actions">
-      <button class="auth-btn" onclick="createClinic()">Create Clinic</button>
-      <button class="auth-btn auth-btn-secondary" onclick="showScreen('therapistScreen')">Cancel</button>
+      <button class="tp-btn tp-btn-primary" onclick="createClinic()">Create Clinic</button>
+      <button class="tp-btn tp-btn-secondary" onclick="showScreen('therapistScreen')">Cancel</button>
     </div>
   </div>
 </div>
@@ -607,16 +607,16 @@
           <input type="text" id="joinClinicCodeInput" class="clinic-full-input" placeholder="482910" maxlength="6"
                  oninput="this.value=this.value.replace(/\D/g,''); if(this.value.length===6) joinClinicByCode()"
                  onkeydown="if(event.key==='Enter') joinClinicByCode()" />
-          <button class="auth-btn" style="white-space:nowrap" onclick="joinClinicByCode()">Join</button>
+          <button class="tp-btn tp-btn-primary" onclick="joinClinicByCode()">Join</button>
         </div>
       </div>
       <div class="clinic-section-card">
         <div class="clinic-section-label">Start a New Clinic</div>
-        <p style="font-size:var(--text-sm);color:var(--text-secondary);margin:0 0 0.75rem">Create a clinic and invite your colleagues.</p>
-        <button class="auth-btn auth-btn-secondary" onclick="showCreateClinicScreen()">Create New Clinic</button>
+        <p class="clinic-screen-subtitle">Create a clinic and invite your colleagues.</p>
+        <button class="tp-btn tp-btn-secondary" onclick="showCreateClinicScreen()">Create New Clinic</button>
       </div>
     </div>
-    <div class="clinic-section-card" style="margin-top:0.5rem">
+    <div class="clinic-section-card">
       <div class="clinic-section-label">Pending Invites</div>
       <div id="clinicInvitesList"></div>
     </div>
@@ -633,7 +633,7 @@
   </div>
   <div class="clinic-screen-body">
     <div class="clinic-lib-actions-bar">
-      <button class="auth-btn" style="padding:0.45rem 1rem;font-size:0.85rem;margin:0" onclick="showShareExerciseModal()">+ Share from My Library</button>
+      <button class="tp-btn tp-btn-primary" onclick="showShareExerciseModal()">+ Share from My Library</button>
     </div>
     <div id="clinicLibraryList"></div>
   </div>
