@@ -455,7 +455,7 @@ body {
   min-height: 100vh;
   background: var(--th-bg);
   align-items: center;
-  justify-content: center;
+  padding-top: 48px;
 }
 
 .th-admin-wrap {
@@ -1644,7 +1644,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .modal-confirm:hover { background: #A51E2A; }
 
 /* ── Progress Screen ───────────────────────────────────────────────── */
-#progressScreen { flex-direction: column; align-items: center; padding: var(--space-4); }
+#progressScreen { flex-direction: column; align-items: stretch; padding: var(--space-4); }
 .prog-container { width: 100%; max-width: 480px; }
 .prog-header { margin-bottom: var(--space-4); position: relative; }
 .prog-title { font-size: 1.3rem; font-weight: 700; color: var(--text); margin: 0; }
@@ -3163,6 +3163,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   }
 
 /* Therapist dashboard — mobile */
+.th-sidebar { flex-direction: row; width: 100%; height: auto; padding: 8px 10px; gap: 4px; justify-content: flex-start; flex-shrink: 0; }
+.th-sidebar-spacer { display: none; }
 #therapistScreen { flex-direction: column; height: 100vh; overflow: hidden; }
 .sidebar { width: 100%; border-right: none; border-bottom: none; padding: 0; flex: 1; overflow-y: auto; }
 .sidebar-top { padding: 16px 20px 12px; border-bottom: 1px solid var(--th-border); margin-bottom: 0; }
@@ -3235,6 +3237,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (min-width: 1024px) {
   /* Therapist dashboard — desktop: sidebar + main panel side by side */
   #therapistScreen { flex-direction: row; }
+  .th-sidebar { flex-direction: column; width: 52px; height: 100vh; padding: 14px 0; gap: 6px; justify-content: flex-start; }
+  .th-sidebar-spacer { display: block; flex: 1; }
   .sidebar { width: 220px; border-right: 1px solid var(--th-border); border-bottom: none; padding: 20px 14px; flex: none; }
   .sidebar-top { padding: 0; border-bottom: none; margin-bottom: 4px; }
   .sidebar h2 { font-size: 1.3rem; }
@@ -4157,7 +4161,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 /* ── My Exercises screen (exs-*) ────────────────────────────────────────── */
-#exercisesScreen { background: var(--bg); flex-direction: column; min-height: 100vh; }
+#exercisesScreen { background: var(--bg); flex-direction: column; min-height: 100vh; align-items: stretch; }
 .exs-container {
   max-width: var(--max-content); margin: 0 auto;
   padding: var(--space-8) var(--space-6); width: 100%;
@@ -4575,8 +4579,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* Clinic + Clinic Library full-screen layout */
 .clinic-screen-layout {
-  display: flex;
-  flex-direction: column;
   background: var(--th-surface);
   min-height: 100dvh;
 }
