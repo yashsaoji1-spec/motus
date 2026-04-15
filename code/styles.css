@@ -368,6 +368,10 @@ body {
   border-radius: 8px;
 }
 
+/* Pending screen centering */
+#pendingScreen .auth-form-area { align-items: center; text-align: center; }
+#pendingScreen .auth-form-area p { font-family: var(--pt-font); color: var(--pt-muted); line-height: 1.6; font-size: 0.9rem; }
+
 /* Role segmented control */
 .role-segmented {
   display: flex;
@@ -468,6 +472,7 @@ body {
 }
 
 .th-admin-list { display: flex; flex-direction: column; gap: 8px; }
+.th-admin-title { font-family: var(--th-font); font-size: 1.1rem; font-weight: 600; color: var(--th-text-strong); }
 
 .pending-therapist-row {
   display: flex;
@@ -481,6 +486,7 @@ body {
 
 .connect-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.6; text-align: center; }
 .pending-message { color: var(--muted); margin-bottom: 2rem; text-align: center; line-height: 1.5; }
+.pending-therapist-row-btns { display: flex; gap: 0.5rem; }
 
 /* ── Clinic badge ─────────────────────────────────────────────────────────── */
 .clinic-badge {
@@ -1033,6 +1039,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   padding: 14px 0;
   gap: 6px;
 }
+.th-sidebar-spacer { flex: 1; }
 
 .th-sidebar-logo {
   width: 34px;
@@ -1201,6 +1208,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .sidebar-switch-user:hover { color: var(--th-text); }
+.delete-account-btn { color: var(--danger); margin-left: 1rem; }
+.delete-account-btn:hover { color: var(--danger); }
 
 .tp-patient-item {
   display: flex;
@@ -1212,6 +1221,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   border-bottom: 1px solid var(--th-border);
   gap: 8px;
 }
+.patient-item-row { display: flex; justify-content: space-between; align-items: flex-start; }
+.patient-name .msg-unread-badge { margin-left: 0.4rem; }
 
 .tp-patient-item:hover { background: var(--th-surface-hover); }
 
@@ -2050,6 +2061,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   transform: translateY(1px);
 }
 
+.sweep-header-spacer { width: 60px; }
 .sweep-back-btn {
   font-family: 'Nunito', sans-serif;
   font-size: 0.78rem;
@@ -2409,6 +2421,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* ── Charts grid (base: stacked, desktop: side-by-side) ───────────────── */
 .tp-charts-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px; }
 .tp-charts-grid .tp-colsec { margin-bottom: 0; }
+.chart-empty { text-align: center; color: var(--muted); padding: 40px; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    ML ANGLE TRAINER
@@ -3524,6 +3537,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* ── Video playback modal ────────────────────────────────────────────────── */
 .video-modal-box { background: #0f172a; border-radius: 16px; padding: 20px; width: min(680px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px; border: 1px solid rgba(255,255,255,0.1); }
 .video-modal-header { display: flex; align-items: center; justify-content: space-between; }
+.video-modal-actions { display: flex; gap: 8px; align-items: center; }
 .video-modal-title { font-size: 0.9rem; font-weight: 700; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 1px; }
 .video-modal-close { background: none; border: none; color: rgba(255,255,255,0.45); font-size: 1.1rem; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.2s; }
 .video-modal-close:hover { color: rgba(255,255,255,0.9); }
@@ -4090,6 +4104,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .set-input-field { display: flex; flex-direction: column; }
+.set-input-textarea {
+  width: 100%; border: 1.5px solid var(--pt-border-input); border-radius: 10px;
+  padding: 10px; font-family: var(--pt-font); font-size: 0.85rem;
+  background: var(--pt-bg); color: var(--pt-text); resize: none; height: 60px;
+}
+.set-input-actions { display: flex; gap: 8px; margin-top: 4px; }
+.set-input-actions .pt-btn-outline { flex: 1; }
+.set-input-actions .pt-btn-hero { flex: 2; }
 
 .pain-bar-track { position: relative; height: 32px; }
 .pain-bar-track input[type=range] {
@@ -4435,6 +4457,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   color: var(--muted);
   opacity: 0.6;
 }
+.pl-hidden-empty { opacity: 0.4; }
 .pl-hidden-item button {
   background: none;
   border: none;

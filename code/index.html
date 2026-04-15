@@ -36,7 +36,7 @@
       <label for="loginPassword">Password</label>
       <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
-    <button class="pt-btn-hero" style="margin-top:8px" onclick="handleLogin()">Sign In</button>
+    <button class="pt-btn-hero" onclick="handleLogin()">Sign In</button>
     <button class="pt-btn-outline" onclick="showScreen('signupScreen')">Create Account</button>
     <p class="auth-link-row"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
   </div>
@@ -142,10 +142,8 @@
     <div class="auth-header-sub">Your therapist account is awaiting approval</div>
     <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
   </div>
-  <div class="auth-form-area" style="align-items:center;text-align:center;">
-    <p style="font-family:var(--pt-font);color:var(--pt-muted);line-height:1.6;font-size:0.9rem;">
-      A clinic admin will review and approve your account. Check back soon.
-    </p>
+  <div class="auth-form-area">
+    <p>A clinic admin will review and approve your account. Check back soon.</p>
     <button class="pt-btn-outline" onclick="logout()">Sign Out</button>
   </div>
 </div>
@@ -158,7 +156,7 @@
     <div class="th-admin-header">
       <div>
         <div class="th-section-label">Admin</div>
-        <div style="font-family:var(--th-font);font-size:1.1rem;font-weight:600;color:var(--th-text-strong);">Pending Therapists</div>
+        <div class="th-admin-title">Pending Therapists</div>
       </div>
       <button class="th-btn" onclick="logout()">Sign Out</button>
     </div>
@@ -231,7 +229,7 @@
         <span class="pt-nav-label">My Progress</span>
       </button>
       <button class="pt-nav-card" id="therapistContactBtn" onclick="openPatientMessaging()">
-        <span class="pt-nav-icon" style="position:relative;">
+        <span class="pt-nav-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span>
         </span>
@@ -407,12 +405,11 @@
     </div>
     <div class="set-input-field">
       <div class="pt-field-label">Notes (optional)</div>
-      <textarea id="setInputNotes" placeholder="How did it feel?" maxlength="1000"
-                style="width:100%;border:1.5px solid var(--pt-border-input);border-radius:10px;padding:10px;font-family:var(--pt-font);font-size:0.85rem;background:var(--pt-bg);color:var(--pt-text);resize:none;height:60px;"></textarea>
+      <textarea id="setInputNotes" class="set-input-textarea" placeholder="How did it feel?" maxlength="1000"></textarea>
     </div>
-    <div style="display:flex;gap:8px;margin-top:4px;">
-      <button class="pt-btn-outline" style="flex:1;" onclick="manualCamCancelSet()">Cancel</button>
-      <button class="pt-btn-hero" style="flex:2;" onclick="manualCamSaveSet()">Save Set</button>
+    <div class="set-input-actions">
+      <button class="pt-btn-outline" onclick="manualCamCancelSet()">Cancel</button>
+      <button class="pt-btn-hero" onclick="manualCamSaveSet()">Save Set</button>
     </div>
   </div>
 </div>
@@ -461,7 +458,7 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       <span class="clinic-invite-badge" id="clinicInviteBadge" style="display:none">0</span>
     </button>
-    <div style="flex:1"></div>
+    <div class="th-sidebar-spacer"></div>
     <button class="th-sidebar-icon" title="Sign Out" aria-label="Sign Out" onclick="requestLogout()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </button>
@@ -488,7 +485,7 @@
       </div>
       <div class="sidebar-footer">
         <span class="sidebar-switch-user" onclick="requestLogout()">Switch user</span>
-        <span class="sidebar-switch-user delete-account-btn" onclick="deleteMyAccount()" style="color:#e05c5c;margin-left:1rem">Delete account</span>
+        <span class="sidebar-switch-user delete-account-btn" onclick="deleteMyAccount()">Delete account</span>
       </div>
     </div>
   </div>
@@ -536,7 +533,7 @@
 <div id="messagingScreen" class="screen patient-scope">
   <div class="pt-msg-screen">
     <div class="pt-msg-header">
-      <button class="pt-back-btn" onclick="showScreen('patientScreen')" style="color:#7DD3FC;">← Back</button>
+      <button class="pt-back-btn" onclick="showScreen('patientScreen')">← Back</button>
       <span class="pt-msg-title" id="msgHeaderTitle">Therapist</span>
     </div>
     <div class="msg-thread" id="msgThread"></div>
@@ -657,7 +654,7 @@
   <header class="sweep-header">
     <button class="sweep-back-btn" onclick="mlTrainerBack()">← Back</button>
     <span class="sweep-header-title">ML Angle Trainer</span>
-    <span style="width:60px"></span>
+    <span class="sweep-header-spacer"></span>
   </header>
 
   <div class="calib-main">
@@ -863,7 +860,7 @@
   <div class="video-modal-box">
     <div class="video-modal-header">
       <span class="video-modal-title">Session Recording</span>
-      <div style="display:flex;gap:8px;align-items:center;">
+      <div class="video-modal-actions">
         <button id="videoModalDownload" class="video-modal-dl-btn">↓ Download</button>
         <button class="video-modal-close" onclick="closeVideoModal()" aria-label="Close video">x</button>
       </div>
@@ -887,7 +884,7 @@
       <div class="apm-form-col">
         <div class="apm-lib-col">
           <div class="apm-lib-search-wrap">
-            <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off" style="width:100%">
+            <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off">
           </div>
           <div class="apm-lib-list" id="apmLibList"></div>
         </div>

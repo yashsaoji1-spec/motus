@@ -641,9 +641,9 @@ async function loadAdminScreen() {
         <strong>${u.name}</strong><br>
         <span style="color:var(--muted);font-size:0.85rem">${d.id}</span>
       </div>
-      <div style="display:flex;gap:0.5rem">
-        <button class="auth-btn" style="padding:0.4rem 0.9rem;font-size:0.85rem;margin:0" onclick="approveTherapist('${d.id}')">Approve</button>
-        <button class="logout-btn" onclick="rejectTherapist('${d.id}')">Reject</button>
+      <div class="pending-therapist-row-btns">
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="approveTherapist('${d.id}')">Approve</button>
+        <button class="tp-btn tp-btn-sm tp-btn-secondary" onclick="rejectTherapist('${d.id}')">Reject</button>
       </div>
     </div>`;
   }).join('');
@@ -1059,8 +1059,8 @@ function _renderClinicLibrary() {
         <div class="clinic-lib-meta">${ex.cat ? ex.cat + ' · ' : ''}Shared by ${ex.sharedBy}${date ? ' · ' + date : ''}</div>
       </div>
       <div class="clinic-lib-btns">
-        ${!isSharer ? `<button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>` : ''}
-        ${canRemove ? `<button class="logout-btn" style="font-size:0.8rem" onclick="removeSharedExercise('${ex.shareId}')">Remove</button>` : ''}
+        ${!isSharer ? `<button class="tp-btn tp-btn-sm tp-btn-primary" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>` : ''}
+        ${canRemove ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeSharedExercise('${ex.shareId}')">Remove</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1148,7 +1148,7 @@ function _renderShareModal() {
     list.innerHTML = customs.map(ex => `
       <div class="clinic-share-row">
         <span>${ex.name}</span>
-        <button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="shareExerciseToClinic('${ex.id}')">Share</button>
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="shareExerciseToClinic('${ex.id}')">Share</button>
       </div>
     `).join('');
   }
@@ -2549,16 +2549,16 @@ async function loadConnectedPatients() {
     const compliance = calcCompliance(sessions);
     const statusColor = compliance >= 80 ? 'var(--success)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
-    const unreadBadge = unread > 0 ? `<span class="msg-unread-badge" style="margin-left:0.4rem">${unread}</span>` : '';
+    const unreadBadge = unread > 0 ? `<span class="msg-unread-badge">${unread}</span>` : '';
     item.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div class="patient-item-row">
         <div>
           <div class="patient-name">${escapeHtml(patient.name)}${unreadBadge}</div>
           <div class="patient-connected">
             <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
           </div>
         </div>
-        <button class="logout-btn" style="font-size:0.7rem;padding:0.15rem 0.5rem;flex-shrink:0;margin-top:2px" data-patient-email="${patient.email}">Remove</button>
+        <button class="tp-btn tp-btn-sm tp-btn-danger" style="flex-shrink:0;margin-top:2px" data-patient-email="${patient.email}">Remove</button>
       </div>`;
     item.querySelector('[data-patient-email]').onclick = (e) => {
       e.stopPropagation();
@@ -2701,7 +2701,7 @@ async function showRealPatient(patient) {
         </div>
         <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
       </div>
-      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
+      <div class="chart-card chart-empty">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
@@ -3359,7 +3359,7 @@ function plRender() {
       </div>
     `).join('');
   } else {
-    hiddenList.innerHTML = '<div class="pl-hidden-item" style="opacity:0.4">No hidden exercises</div>';
+    hiddenList.innerHTML = '<div class=\"pl-hidden-item pl-hidden-empty\">No hidden exercises</div>';
   }
 }
 
