@@ -4710,7 +4710,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .clinic-invites-section {
   margin-top: 1.5rem;
   padding-top: 1.2rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--th-border);
 }
 .clinic-invite-row {
   display: flex;
@@ -4718,7 +4718,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.6rem 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--th-border);
 }
 .clinic-invite-row:last-child {
   border-bottom: none;
@@ -4744,7 +4744,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.9rem 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--th-border);
 }
 .clinic-lib-row:last-child {
   border-bottom: none;
@@ -4771,8 +4771,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* Share exercise modal */
 .clinic-share-modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--th-surface);
+  border: 1px solid var(--th-border);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
   width: min(440px, 92vw);
@@ -4803,7 +4803,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.55rem 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--th-border);
   font-size: var(--text-sm);
 }
 .clinic-share-row:last-child {
