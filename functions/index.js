@@ -59,6 +59,7 @@ exports.expireVideos = onSchedule(
   {
     schedule: 'every 24 hours',
     secrets: [CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME],
+    maxInstances: 1,
   },
   async () => {
     cloudinary.config({
@@ -77,7 +78,7 @@ exports.expireVideos = onSchedule(
 // Exports all collections to gs://motus-backups/YYYY-MM-DD/
 // Bucket lifecycle rule (set in Cloud Console) auto-deletes backups older than 90 days.
 exports.dailyBackup = onSchedule(
-  { schedule: 'every 24 hours', timeZone: 'America/Chicago' },
+  { schedule: 'every 24 hours', timeZone: 'America/Chicago', maxInstances: 1 },
   async () => {
     const projectId = process.env.GCLOUD_PROJECT;
     if (!projectId) throw new Error('GCLOUD_PROJECT env var not set');
@@ -123,7 +124,7 @@ exports.dailyBackup = onSchedule(
 // Deletes all PHI for the calling user across Firestore, Cloudinary, and Firebase Auth.
 // Runs server-side to cascade atomically across collections.
 exports.deleteAccount = onCall(
-  { secrets: [CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME] },
+  { secrets: [CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME], maxInstances: 10 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Must be signed in');
@@ -232,7 +233,7 @@ exports.deleteAccount = onCall(
   }
 );
 
-exports.exportPatientData = onCall(async (request) => {
+exports.exportPatientData = onCall({ maxInstances: 10 }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Must be signed in');
   }
@@ -279,7 +280,7 @@ exports.exportPatientData = onCall(async (request) => {
 });
 
 exports.cloudinarySignature = onCall(
-  { secrets: [CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME] },
+  { secrets: [CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME], maxInstances: 10 },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Must be signed in');

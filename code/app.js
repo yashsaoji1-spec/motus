@@ -8,6 +8,7 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
+import 'firebase/compat/analytics';
 import Chart from 'chart.js/auto';
 import * as Sentry from '@sentry/browser';
 
@@ -31,6 +32,15 @@ Sentry.init({
     return stripPHI(event);
   },
 });
+
+// ── Service worker (PWA) ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  // When a new SW takes control (new deploy), force reload so users get the latest build
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
 
 // ── MediaPipe stays on CDN — accessed via window at call time (not init time)
 //    to avoid race conditions on mobile where CDN scripts may load slowly ──
@@ -112,10 +122,15 @@ async function uploadVideoToCloudinary(blob) {
       body: form
     });
     const data = await res.json();
-    return data.secure_url || null;
+    if (data.secure_url) {
+      logAnalyticsEvent('video_upload_success');
+      return data.secure_url;
+    }
+    return null;
   } catch(e) {
     console.warn('[Motus] Video upload error:', e);
     Sentry.captureException(e, { tags: { flow: 'video-upload' } });
+    logAnalyticsEvent('video_upload_failure', { error_code: e.message || 'unknown' });
     return null;
   }
 }
@@ -146,6 +161,12 @@ const FIREBASE_CONFIG = {
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
+
+// ── Analytics — production only, no PHI in event parameters ──
+const analytics = import.meta.env.PROD ? firebase.analytics() : null;
+function logAnalyticsEvent(name, params = {}) {
+  if (analytics) analytics.logEvent(name, params);
+}
 
 // App Check — dev uses a debug token printed to console; prod uses reCAPTCHA v3.
 // To activate: Firebase Console → App Check → register web app with site key below,
@@ -742,6 +763,7 @@ async function createClinic() {
 
   _myClinicId = clinicRef.id;
   _myClinic = { name, ownerEmail: currentUser.email, therapists: [currentUser.email], joinCode, joinCodeEnabled: true };
+  logAnalyticsEvent('clinic_created');
   showClinicScreen();
 }
 
@@ -807,6 +829,7 @@ async function joinClinicByCode() {
 
   _myClinicId = clinicDoc.id;
   _myClinic = { ...clinicDoc.data(), therapists: [...(clinicDoc.data().therapists || []), currentUser.email] };
+  logAnalyticsEvent('clinic_joined', { method: 'code' });
   showClinicScreen();
 }
 
@@ -835,6 +858,7 @@ async function acceptInvite(inviteId) {
   }
   _clinicInvites = _clinicInvites.filter(i => i.id !== inviteId);
   _updateClinicBadge();
+  logAnalyticsEvent('clinic_joined', { method: 'invite' });
   showClinicScreen();
 }
 
@@ -1087,6 +1111,7 @@ async function shareExerciseToClinic(exerciseId) {
     sharedExercises: firebase.firestore.FieldValue.arrayUnion(shareEntry),
   });
   _clinicLibrary.push(shareEntry);
+  logAnalyticsEvent('protocol_shared_to_clinic');
   _renderClinicLibrary();
   closeShareExerciseModal();
 }
@@ -1110,6 +1135,7 @@ async function pullExerciseFromClinic(shareId) {
   _plTherapistData.customExercises.push(copy);
   exerciseLabels[copy.id] = copy.name;
   await _saveTherapistLibrary();
+  logAnalyticsEvent('protocol_pulled_from_clinic');
   buildProtocolLibrary();
   alert(`"${ex.name}" added to your Protocol Library.`);
 }
@@ -1417,6 +1443,7 @@ function closeManualSession() {
 // ── Manual Camera Session (patient with video recording) ──
 
 async function openManualCameraSession(protocol) {
+  logAnalyticsEvent('session_started', { sets_target: protocol.sets || 3 });
   _manualCamProtocol = protocol;
   _manualCamSetData = [];
   _manualCamTotalSets = protocol.sets || 3;
@@ -1587,6 +1614,7 @@ async function finishManualCamSession() {
       therapistEmail: therapistEmail || null,
       setData: _manualCamSetData
     });
+    logAnalyticsEvent('session_completed', { sets_recorded: _manualCamSetData.length });
   } catch(e) {
     console.error('[Motus] Session save error:', e);
     Sentry.captureException(e, { tags: { flow: 'session-save' } });
@@ -1638,6 +1666,7 @@ function doCleanExit() {
     _manualCamStream.getTracks().forEach(t => t.stop());
     _manualCamStream = null;
   }
+  if (_manualCamProtocol) logAnalyticsEvent('session_abandoned', { sets_recorded: _manualCamSetData.length });
   _manualCamProtocol = null;
   _manualCamSetData = [];
   updatePatientHomeScreen();
@@ -2369,6 +2398,7 @@ async function assignProtocol() {
     if (exerciseParams) newItem.exerciseParams = exerciseParams;
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
+  logAnalyticsEvent('protocol_assigned', { exercise_type: exerciseType });
   writeAuditLog('protocol_assigned', patientEmail);
   closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
