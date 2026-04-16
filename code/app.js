@@ -203,7 +203,7 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     currentRole = currentUser.role;
     // Require email verification for non-admin accounts (demo accounts exempt)
     const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com', 'mike.torres@mayoclinic.org', 'test.patient@motus.com']);
-    if (!firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
+    if (!import.meta.env.DEV && !firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
       await auth.signOut();
       showScreen('loginScreen');
       showError('loginError', 'Please verify your email before signing in. Check your inbox for the verification link.');
@@ -321,10 +321,11 @@ async function isThreadArchived(email1, email2) {
 
 async function writeAuditLog(action, resourceId = '') {
   try {
-    const uid = firebase.auth().currentUser?.uid;
-    if (!uid) return;
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    await user.getIdToken();  // ensure auth token is fresh before Firestore write
     await db.collection('auditLog').add({
-      actorId:   uid,
+      actorId:   user.uid,
       action,
       resourceId,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -463,7 +464,17 @@ async function handleLogin() {
   }
 }
 
-async function handleSignup() {
+// Multi-step signup state
+let _pendingSignup = {};
+
+function signupGoToStep(n) {
+  [0, 1, 2].forEach(i => {
+    const el = document.getElementById('signupStep' + i);
+    if (el) el.hidden = (i !== n);
+  });
+}
+
+function signupNextStep() {
   hideError('signupError');
   const name     = document.getElementById('signupName').value.trim();
   const email    = document.getElementById('signupEmail').value.trim().toLowerCase();
@@ -472,12 +483,82 @@ async function handleSignup() {
   if (name.length < 2) { showError('signupError', 'Please enter your full name.'); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('signupError', 'Please enter a valid email address.'); return; }
   if (password.length < 8) { showError('signupError', 'Password must be at least 8 characters.'); return; }
+  _pendingSignup = { name, email, password };
+  // Reset language selection
+  document.querySelectorAll('.lang-card').forEach(c => c.classList.remove('selected'));
+  delete _pendingSignup.language;
+  const btn = document.getElementById('langNextBtn');
+  if (btn) btn.disabled = true;
+  signupGoToStep(1);
+}
+
+function signupSelectLanguage(code) {
+  _pendingSignup.language = code;
+  document.querySelectorAll('.lang-card').forEach(c => c.classList.remove('selected'));
+  const picker = document.getElementById('langPicker');
+  if (picker) {
+    const cards = picker.querySelectorAll('.lang-card');
+    const langs = ['en','es','fr','zh','hi','de','nl'];
+    const idx = langs.indexOf(code);
+    if (idx >= 0 && cards[idx]) cards[idx].classList.add('selected');
+  }
+  const btn = document.getElementById('langNextBtn');
+  if (btn) btn.disabled = false;
+}
+
+function signupFinishLanguage() {
+  if (!_pendingSignup.language) return;
+  // Show/hide role-specific fields in step 2
+  const patFields = document.getElementById('signupPatientFields');
+  const thFields  = document.getElementById('signupTherapistFields');
+  if (patFields) patFields.hidden = (selectedRole === 'therapist');
+  if (thFields)  thFields.hidden  = (selectedRole !== 'therapist');
+  signupGoToStep(2);
+}
+
+function signupSkipData() {
+  finalizeSignup(true);
+}
+
+async function finalizeSignup(skipData = false) {
+  const { name, email, password } = _pendingSignup;
+  const roleToSave = selectedRole === 'therapist' ? 'therapist_pending' : 'patient';
+  const docData = { name, role: roleToSave };
+  if (_pendingSignup.language) docData.language = _pendingSignup.language;
+  if (!skipData) {
+    if (selectedRole === 'patient') {
+      const ageRange      = document.getElementById('signupAgeRange')?.value || '';
+      const injuryArea    = document.getElementById('signupInjuryArea')?.value || '';
+      const rehabDuration = document.getElementById('signupRehabDuration')?.value || '';
+      const referralSource = document.getElementById('signupReferral')?.value || '';
+      if (ageRange || injuryArea || rehabDuration || referralSource) {
+        docData.demographics = {
+          ...(ageRange      && { ageRange }),
+          ...(injuryArea    && { injuryArea }),
+          ...(rehabDuration && { rehabDuration }),
+          ...(referralSource && { referralSource }),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+      }
+    } else {
+      const practiceArea    = document.getElementById('signupPracticeArea')?.value || '';
+      const yearsExperience = document.getElementById('signupYearsExp')?.value || '';
+      if (practiceArea || yearsExperience) {
+        docData.therapistProfile = {
+          ...(practiceArea    && { practiceArea }),
+          ...(yearsExperience && { yearsExperience }),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+      }
+    }
+  }
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
-    const roleToSave = selectedRole === 'therapist' ? 'therapist_pending' : 'patient';
-    await db.collection('users').doc(cred.user.email).set({ name, role: roleToSave });
-    await cred.user.sendEmailVerification();
+    await db.collection('users').doc(cred.user.email).set(docData);
+    if (!import.meta.env.DEV) await cred.user.sendEmailVerification();
     await auth.signOut();
+    _pendingSignup = {};
+    signupGoToStep(0);
     showScreen('loginScreen');
     showError('loginError', 'Account created. Check your email to verify before signing in.');
   } catch (e) {
@@ -485,7 +566,123 @@ async function handleSignup() {
       e.code === 'auth/email-already-in-use'
         ? 'An account with that email already exists.'
         : (e.message || 'Sign up failed. Please try again.'));
+    signupGoToStep(0);
   }
+}
+
+// Settings screen
+function showSettingsScreen() {
+  const u = currentUser || {};
+  const email = firebase.auth().currentUser?.email || '';
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  setVal('settingsName',         u.name || '');
+  setVal('settingsEmail',        email);
+  setVal('settingsLanguage',     u.language || 'en');
+  setVal('settingsAgeRange',     u.demographics?.ageRange || '');
+  setVal('settingsInjuryArea',   u.demographics?.injuryArea || '');
+  setVal('settingsRehabDuration',u.demographics?.rehabDuration || '');
+  setVal('settingsReferral',     u.demographics?.referralSource || '');
+  setVal('settingsPracticeArea', u.therapistProfile?.practiceArea || '');
+  setVal('settingsYearsExp',     u.therapistProfile?.yearsExperience || '');
+  const isPatient = currentRole === 'patient';
+  const patSec = document.getElementById('settingsPatientSection');
+  const thSec  = document.getElementById('settingsTherapistSection');
+  const dlBtn  = document.getElementById('settingsDownloadBtn');
+  const discBtn = document.getElementById('settingsDisconnectBtn');
+  if (patSec)  patSec.hidden  = !isPatient;
+  if (thSec)   thSec.hidden   = isPatient;
+  if (dlBtn)   dlBtn.hidden   = !isPatient;
+  if (discBtn) discBtn.hidden = !isPatient;
+  const modal = document.getElementById('settingsSavedModal');
+  if (modal) modal.style.display = 'none';
+  showScreen('settingsScreen');
+}
+
+function showSettingsBack() {
+  showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen');
+}
+
+async function saveSettings() {
+  const email = firebase.auth().currentUser?.email;
+  if (!email) return;
+  const name     = document.getElementById('settingsName')?.value.trim() || '';
+  const language = document.getElementById('settingsLanguage')?.value || 'en';
+  if (!name || name.length < 2) {
+    const modal = document.getElementById('settingsSavedModal');
+    if (modal) {
+      modal.querySelector('.settings-saved-modal-title').textContent = 'Invalid name';
+      modal.querySelector('.settings-saved-modal-sub').textContent = 'Name must be at least 2 characters.';
+      modal.querySelector('.pt-btn-hero').style.display = 'none';
+      modal.querySelector('.pt-btn-outline').textContent = 'OK';
+      modal.style.display = 'flex';
+    }
+    return;
+  }
+  const update = { name, language };
+  const updatedFields = ['name', 'language'];
+  if (currentRole === 'patient') {
+    const demo = {
+      ageRange:       document.getElementById('settingsAgeRange')?.value || '',
+      injuryArea:     document.getElementById('settingsInjuryArea')?.value || '',
+      rehabDuration:  document.getElementById('settingsRehabDuration')?.value || '',
+      referralSource: document.getElementById('settingsReferral')?.value || '',
+      updatedAt:      firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    update.demographics = demo;
+    updatedFields.push('demographics');
+  } else {
+    const prof = {
+      practiceArea:    document.getElementById('settingsPracticeArea')?.value || '',
+      yearsExperience: document.getElementById('settingsYearsExp')?.value || '',
+      updatedAt:       firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    update.therapistProfile = prof;
+    updatedFields.push('therapistProfile');
+  }
+  try {
+    await db.collection('users').doc(email).update(update);
+    // Refresh currentUser in memory
+    if (currentUser) {
+      currentUser.name     = name;
+      currentUser.language = language;
+      if (currentRole === 'patient')   currentUser.demographics    = update.demographics;
+      else                             currentUser.therapistProfile = update.therapistProfile;
+    }
+    await writeAuditLog('settings_update', email);
+    const modal = document.getElementById('settingsSavedModal');
+    if (modal) {
+      modal.querySelector('.settings-saved-modal-title').textContent = 'Settings saved';
+      modal.querySelector('.settings-saved-modal-sub').textContent = 'Your changes have been updated.';
+      const heroBtn = modal.querySelector('.pt-btn-hero');
+      const outlineBtn = modal.querySelector('.pt-btn-outline');
+      heroBtn.style.display = '';
+      outlineBtn.textContent = 'Keep editing';
+      modal.style.display = 'flex';
+    }
+  } catch (e) {
+    const modal = document.getElementById('settingsSavedModal');
+    if (modal) {
+      modal.querySelector('.settings-saved-modal-title').textContent = 'Save failed';
+      modal.querySelector('.settings-saved-modal-sub').textContent = 'Please try again.';
+      const heroBtn = modal.querySelector('.pt-btn-hero');
+      const outlineBtn = modal.querySelector('.pt-btn-outline');
+      heroBtn.style.display = 'none';
+      outlineBtn.textContent = 'OK';
+      modal.style.display = 'flex';
+    }
+    console.error('[Motus] saveSettings failed:', e);
+  }
+}
+
+function settingsSavedGoHome() {
+  const modal = document.getElementById('settingsSavedModal');
+  if (modal) modal.style.display = 'none';
+  showScreen(currentRole === 'therapist' ? 'therapistScreen' : 'patientScreen');
+}
+
+function settingsSavedStay() {
+  const modal = document.getElementById('settingsSavedModal');
+  if (modal) modal.style.display = 'none';
 }
 
 async function handleForgot() {
@@ -1250,7 +1447,9 @@ async function updatePatientHomeScreen() {
   // My Exercises card subtitle
   const exSub = document.getElementById('myExercisesSub');
   if (exSub) {
-    if (protocols.length > 0) {
+    if (protocols.length > 1) {
+      exSub.textContent = `${protocols.length} exercises`;
+    } else if (protocols.length === 1) {
       const firstEx = exerciseLabels[protocols[0].exerciseType] || protocols[0].exerciseType;
       const firstDose = `${protocols[0].sets || 3} sets × ${protocols[0].reps || 10} reps`;
       exSub.textContent = `${firstEx} — ${firstDose}`;
@@ -5124,6 +5323,25 @@ function buildMessagePanel(patientEmail) {
   </div>`;
 }
 
+function openTherapistMessages() {
+  const msgSection = document.getElementById('tps-messages');
+  if (msgSection) {
+    // Patient is selected — expand messages section and scroll to it
+    if (msgSection.classList.contains('collapsed')) {
+      toggleTpSection('tps-messages');
+    }
+    msgSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    // No patient selected — pulse the patient list to hint at selection
+    const patientList = document.querySelector('.th-patient-list');
+    if (patientList) {
+      patientList.style.transition = 'box-shadow 0.2s';
+      patientList.style.boxShadow = '0 0 0 2px var(--th-primary)';
+      setTimeout(() => { patientList.style.boxShadow = ''; }, 1200);
+    }
+  }
+}
+
 function copyClinicCode() {
   const code = document.getElementById('therapistCode').textContent;
   navigator.clipboard.writeText(code);
@@ -6265,7 +6483,9 @@ function updatePainBar(val) {
    ══════════════════════════════════════════════════════════════════════════ */
 Object.assign(window, {
   // Auth
-  handleLogin, handleSignup, handleForgot, selectRole,
+  handleLogin, handleForgot, selectRole,
+  signupNextStep, signupGoToStep, signupSelectLanguage, signupFinishLanguage, signupSkipData, finalizeSignup,
+  showSettingsScreen, showSettingsBack, saveSettings, settingsSavedGoHome, settingsSavedStay,
   handleConnect, skipConnect,
   logout, requestLogout, closeLogoutModal, confirmLogout, resetInactivityTimer,
   approveTherapist, rejectTherapist, acceptConsent,
@@ -6301,7 +6521,7 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  copyClinicCode,
+  copyClinicCode, openTherapistMessages,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
