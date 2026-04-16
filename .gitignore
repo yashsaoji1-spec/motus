@@ -13,3 +13,4 @@ report.html
 report.json
 test-results/
 playwright-report/
+.superpowers/

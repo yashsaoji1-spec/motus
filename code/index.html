@@ -6,7 +6,7 @@
   <title>Motus</title>
   <meta name="description" content="Motus — physical rehabilitation app connecting patients with therapists for guided exercise sessions and progress tracking." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230B6CB0'/><path d='M50 20c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V23.5C53.5 21.5 52 20 50 20zM36 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C39.5 29.5 38 28 36 28zM64 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C67.5 29.5 66 28 64 28zM25 40c-2 0-3.5 1.5-3.5 3.5V60c0 8 6.5 20 28.5 20s28.5-12 28.5-20V43.5c0-2-1.5-3.5-3.5-3.5s-3.5 1.5-3.5 3.5V55c0 2-1.5 3.5-3.5 3.5' fill='white' opacity='0.9'/></svg>">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="styles.css"/>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0B6CB0">
@@ -20,240 +20,244 @@
 <!-- ═══════════════════════════════════════════════════════
      LOGIN
 ═══════════════════════════════════════════════════════ -->
-<div id="loginScreen" class="screen active">
-  <div class="auth-box">
-    <h1><span class="auth-logo-mark"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="var(--accent)" opacity="0.9"/></svg></span> Motus</h1>
-    <p class="auth-subtitle">Sign in to continue</p>
+<div id="loginScreen" class="screen active patient-scope">
+  <div class="auth-gradient-header">
+    <div class="auth-logo-block">
+      <div class="auth-logo-icon">
+        <svg width="26" height="26" viewBox="0 0 20 20" fill="none"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
+      </div>
+      <div class="auth-logo-text">Motus</div>
+      <div class="auth-logo-tagline">Physical Rehabilitation</div>
+    </div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div id="loginError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="auth-field">
-      <label>Email</label>
+      <label for="loginEmail">Email</label>
       <input type="email" id="loginEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
     <div class="auth-field">
-      <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleLogin()" />
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
-    <button class="auth-btn" style="margin-top: 12px" onclick="handleLogin()">Sign In</button>
-    <p class="auth-switch">Don't have an account? <span onclick="showScreen('signupScreen')">Create one</span></p>
-    <p class="auth-switch auth-switch-tight"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
+    <button class="pt-btn-hero" onclick="handleLogin()">Sign In</button>
+    <button class="pt-btn-outline" onclick="showScreen('signupScreen')">Create Account</button>
+    <p class="auth-link-row"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      SIGN UP
 ═══════════════════════════════════════════════════════ -->
-<div id="signupScreen" class="screen">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Create your account</p>
+<div id="signupScreen" class="screen patient-scope">
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Create Account</div>
+    <div class="auth-header-sub">Join Motus to start your recovery</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div id="signupError" class="auth-error" style="display:none" aria-live="polite"></div>
-    <div class="auth-field">
-      <label>Full Name</label>
-      <input type="text" id="signupName" placeholder="Dr. Sarah Chen" maxlength="80" onkeydown="if(event.key==='Enter') handleSignup()" />
+    <div class="role-segmented">
+      <button id="rolePatientBtn" class="role-seg-btn active" onclick="selectRole('patient')">Patient</button>
+      <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')">Therapist</button>
     </div>
     <div class="auth-field">
-      <label>Email</label>
-      <input type="email" id="signupEmail" placeholder="you@mayoclinic.org" onkeydown="if(event.key==='Enter') handleSignup()" />
+      <label for="signupName">Full Name</label>
+      <input type="text" id="signupName" placeholder="Your name" maxlength="80" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
     <div class="auth-field">
-      <label>Password</label>
+      <label for="signupEmail">Email</label>
+      <input type="email" id="signupEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter') handleSignup()" />
+    </div>
+    <div class="auth-field">
+      <label for="signupPassword">Password</label>
       <input type="password" id="signupPassword" placeholder="Min. 8 characters" onkeydown="if(event.key==='Enter') handleSignup()" />
     </div>
-    <div class="auth-field">
-      <label>I am a</label>
-      <div class="role-segmented">
-        <button id="rolePatientBtn" class="role-seg-btn active" onclick="selectRole('patient')">Patient</button>
-        <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')">Therapist</button>
-      </div>
-    </div>
-    <button class="auth-btn" onclick="handleSignup()">Create Account</button>
-    <p class="auth-switch">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
-    <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem;text-align:center;line-height:1.5">
-      By creating an account you agree to our <a href="/tos" target="_blank" style="color:var(--accent)">Terms of Service</a> and <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Policy</a>.
-    </p>
+    <button class="pt-btn-hero" onclick="handleSignup()">Create Account</button>
+    <p class="auth-link-row">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
+    <p class="auth-legal">By creating an account you agree to our <a href="/tos" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      FORGOT PASSWORD
 ═══════════════════════════════════════════════════════ -->
-<div id="forgotScreen" class="screen">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Reset your password</p>
+<div id="forgotScreen" class="screen patient-scope">
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Reset Password</div>
+    <div class="auth-header-sub">We'll send you a reset link</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div id="forgotError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="forgotSuccess" class="auth-success" style="display:none"></div>
     <div class="auth-field">
-      <label>Enter your email</label>
-      <input type="email" id="forgotEmail" placeholder="you@mayoclinic.org" />
+      <label for="forgotEmail">Email address</label>
+      <input type="email" id="forgotEmail" placeholder="you@example.com" />
     </div>
     <div class="auth-field" id="newPasswordField" style="display:none">
-      <label>New Password</label>
+      <label for="forgotNewPassword">New Password</label>
       <input type="password" id="forgotNewPassword" placeholder="Min. 8 characters" />
     </div>
-    <button class="auth-btn" id="forgotBtn" onclick="handleForgot()">Find Account</button>
-    <p class="auth-switch">Remembered it? <span onclick="showScreen('loginScreen')">Back to sign in</span></p>
+    <button class="pt-btn-hero" id="forgotBtn" onclick="handleForgot()">Find Account</button>
+    <p class="auth-link-row"><span onclick="showScreen('loginScreen')">Back to sign in</span></p>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      CONSENT
 ═══════════════════════════════════════════════════════ -->
-<div id="consentScreen" class="screen">
-  <div class="auth-box" style="max-width:480px">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Before you begin</p>
-    <div style="background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;text-align:left">
-      <p style="font-size:0.85rem;font-weight:600;color:var(--accent);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px">What we collect</p>
-      <ul style="font-size:0.875rem;color:var(--text);line-height:1.7;padding-left:1.25rem">
+<div id="consentScreen" class="screen patient-scope">
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Before we begin</div>
+    <div class="auth-header-sub">Please review and accept to continue</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
+    <div class="consent-card">
+      <div class="consent-section-title">Privacy &amp; Data Use</div>
+      <ul class="consent-list">
         <li>Movement data captured via your device camera</li>
-        <li>Exercise performance (reps, range of motion, pain level)</li>
-        <li>Session history shared with your assigned therapist</li>
-        <li>Messages between you and your therapist</li>
+        <li>Exercise performance shared with your assigned therapist</li>
+        <li>Session videos stored securely, removed after 30 days</li>
+        <li>All data encrypted in transit and at rest</li>
       </ul>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.5rem;text-align:left">
-      <p style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px">How we use it</p>
-      <ul style="font-size:0.875rem;color:var(--muted);line-height:1.7;padding-left:1.25rem">
-        <li>Your data is only shared with your connected therapist.</li>
-        <li>Session videos are stored securely and automatically removed after 30 days.</li>
-        <li>All data is encrypted in transit and stored securely.</li>
-        <li>Contact your therapist for any questions regarding your data.</li>
-      </ul>
-    </div>
-    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1rem;text-align:left">
-      <input type="checkbox" id="consentCheckbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)" />
-      <span style="font-size:0.875rem;color:var(--text);line-height:1.5">
-        I understand how my health data will be collected and used, and I consent to participate in Motus rehabilitation.
-      </span>
+    <label class="consent-checkbox-row">
+      <input type="checkbox" id="consentCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
+      <span>I understand how my health data will be used and consent to participate in Motus rehabilitation.</span>
     </label>
-    <label style="display:flex;align-items:flex-start;gap:0.75rem;cursor:pointer;margin-bottom:1.5rem;text-align:left">
-      <input type="checkbox" id="nppCheckbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)" />
-      <span style="font-size:0.875rem;color:var(--text);line-height:1.5">
-        I have received and reviewed the <a href="/hipaa-npp" target="_blank" style="color:var(--accent)">HIPAA Notice of Privacy Practices</a>.
-      </span>
+    <label class="consent-checkbox-row">
+      <input type="checkbox" id="nppCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
+      <span>I have received the <a href="/hipaa-npp" target="_blank">HIPAA Notice of Privacy Practices</a>.</span>
     </label>
-    <button class="auth-btn" onclick="acceptConsent()">Continue</button>
-    <div id="consentError" class="auth-error" style="display:none;margin-top:0.75rem" aria-live="polite">
-      Please check both boxes before continuing.
-    </div>
-    <p style="font-size:0.75rem;color:var(--muted);margin-top:1rem;text-align:center;line-height:1.5">
-      By continuing you agree to our <a href="/tos" target="_blank" style="color:var(--accent)">Terms of Service</a> and <a href="/privacy" target="_blank" style="color:var(--accent)">Privacy Policy</a>. Questions? Email <a href="mailto:privacy@motus.app" style="color:var(--accent)">privacy@motus.app</a>.
-    </p>
+    <div id="consentError" class="auth-error" style="display:none" aria-live="polite">Please check both boxes before continuing.</div>
+    <button class="pt-btn-hero" onclick="acceptConsent()">I Agree — Continue</button>
+    <p class="auth-legal">Questions? Email <a href="mailto:privacy@motus.app">privacy@motus.app</a></p>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      PENDING APPROVAL
 ═══════════════════════════════════════════════════════ -->
-<div id="pendingScreen" class="screen">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Account Pending</p>
-    <p class="pending-message">
-      Your therapist account is awaiting approval from a clinic admin.
-      You'll be able to log in once approved.
-    </p>
-    <button class="auth-btn" onclick="logout()">Sign Out</button>
+<div id="pendingScreen" class="screen patient-scope">
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Account Pending</div>
+    <div class="auth-header-sub">Your therapist account is awaiting approval</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
+    <p>A clinic admin will review and approve your account. Check back soon.</p>
+    <button class="pt-btn-outline" onclick="logout()">Sign Out</button>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      ADMIN PANEL
 ═══════════════════════════════════════════════════════ -->
-<div id="adminScreen" class="screen">
-  <div class="admin-container">
-    <div class="admin-header">
-      <h2>Admin Panel</h2>
-      <button class="logout-btn" onclick="logout()">Sign Out</button>
+<div id="adminScreen" class="screen therapist-scope">
+  <div class="th-admin-wrap">
+    <div class="th-admin-header">
+      <div>
+        <div class="th-section-label">Admin</div>
+        <div class="th-admin-title">Pending Therapists</div>
+      </div>
+      <button class="th-btn" onclick="logout()">Sign Out</button>
     </div>
-    <div class="admin-card">
-      <h3>Pending Therapist Approvals</h3>
-      <div id="pendingTherapistList">Loading...</div>
-    </div>
+    <div id="pendingTherapistList" class="th-admin-list"></div>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      CONNECT TO THERAPIST
 ═══════════════════════════════════════════════════════ -->
-<div id="connectScreen" class="screen">
-  <div class="auth-box">
-    <h1>Motus</h1>
-    <p class="auth-subtitle">Connect to your therapist</p>
-    <div id="connectError" class="auth-error" style="display:none" aria-live="polite"></div>
-    <div id="connectSuccess" class="auth-success" style="display:none"></div>
-    <p class="connect-desc">Ask your therapist for their 6-digit clinic code and enter it below. This links your sessions to their dashboard.</p>
+<div id="connectScreen" class="screen patient-scope">
+  <div class="auth-gradient-header auth-gradient-header--short">
+    <div class="auth-header-title">Connect to a Therapist</div>
+    <div class="auth-header-sub">Enter your clinic code to get started</div>
+    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+  </div>
+  <div class="auth-form-area">
     <div class="auth-field">
-      <label>Clinic Code</label>
-      <input type="text" id="clinicCodeInput" class="clinic-code-input" placeholder="482910" maxlength="6"
-             oninput="this.value=this.value.replace(/\D/g,''); if(this.value.length===6) handleConnect()"
+      <label for="connectCode">Clinic Code</label>
+      <input type="text" id="connectCode" class="clinic-code-input" placeholder="------" maxlength="6"
+             oninput="this.value=this.value.toUpperCase()"
              onkeydown="if(event.key==='Enter') handleConnect()" />
     </div>
-    <button class="auth-btn" onclick="handleConnect()">Connect</button>
-    <button class="auth-btn auth-btn-secondary" onclick="skipConnect()">Skip for now</button>
+    <div id="connectError" class="auth-error" style="display:none" aria-live="polite"></div>
+    <button class="pt-btn-hero" onclick="handleConnect()">Connect</button>
+    <button class="pt-btn-outline" onclick="skipConnect()">Skip for now</button>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      PATIENT HOME
 ═══════════════════════════════════════════════════════ -->
-<div id="patientScreen" class="screen">
-  <div class="patient-home-container">
-    <div class="patient-greeting" id="patientGreeting">Good morning</div>
-    <div class="patient-display-name" id="patientDisplayName">Welcome back</div>
-
-    <div id="todaysPlanCard" class="todays-plan-card" style="display:none;">
-      <div class="todays-plan-header">
-        <span>Your exercises</span>
-        <span id="completionStatus" class="todays-plan-status"></span>
-      </div>
-      <div id="todaysPlanList" class="todays-plan-list"></div>
-    </div>
-
-    <button class="patient-hero-btn" id="patientHeroBtn" onclick="startScanSession()">Start a Session</button>
-
-    <div class="patient-nav-grid">
-      <button class="patient-nav-card" onclick="showProgressScreen()">
-        <span class="patient-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
-        <span class="patient-nav-label">My Progress</span>
-      </button>
-      <button class="patient-nav-card" id="therapistContactBtn" onclick="openPatientMessaging()">
-        <span class="patient-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-        <span class="patient-nav-label"><span id="therapistBtnLabel">Messages</span> <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span></span>
-        <span class="patient-nav-sub" id="therapistContactName"></span>
-      </button>
-    </div>
-
-    <button class="patient-exercises-card" onclick="showExercisesScreen()">
+<div id="patientScreen" class="screen patient-scope">
+  <!-- Zone 1: Header -->
+  <div class="pt-home-header">
+    <div class="pt-home-header-inner">
       <div>
-        <div class="patient-exercises-card-label">My Exercises</div>
-        <div class="patient-exercises-card-sub" id="myExercisesSub">View all assigned protocols</div>
+        <div class="pt-greeting-label" id="patientGreeting">Good morning</div>
+        <div class="pt-greeting-name" id="patientDisplayName">Welcome back</div>
       </div>
-      <span class="patient-exercises-card-arrow">›</span>
+      <div class="pt-streak-badge" id="streakBadge" style="display:none;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="#F59E0B"><path d="M12 2c0 0-7 8-7 13a7 7 0 0 0 14 0c0-5-7-13-7-13z"/></svg>
+        <span class="pt-streak-count" id="streakCount">0</span>
+        <span class="pt-streak-label" id="streakLabel">day streak</span>
+      </div>
+    </div>
+    <svg class="pt-home-wave" viewBox="0 0 390 20" preserveAspectRatio="none">
+      <path d="M0,10 Q97,0 195,10 Q293,20 390,10 L390,20 L0,20 Z" fill="#F0F9FF"/>
+    </svg>
+  </div>
+
+  <!-- Zone 2: Hero CTA -->
+  <div class="pt-home-cta-zone">
+    <button class="pt-hero-session-btn" id="patientHeroBtn" onclick="startScanSession()">
+      <div class="pt-hero-session-text">
+        <div class="pt-hero-session-title">Start a Session</div>
+        <div class="pt-hero-session-sub" id="myExercisesSub">Tap to begin today's exercise</div>
+      </div>
+      <div class="pt-hero-session-play">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+      </div>
     </button>
+  </div>
 
-    <div class="streak-badge" id="streakBadge" style="display:none;">
-      <span class="streak-count" id="streakCount">0</span>
-      <span class="streak-text" id="streakLabel">day streak</span>
-      <span class="streak-best" id="streakBest"></span>
+  <!-- Zone 3: Nav Grid -->
+  <div class="pt-home-grid-zone">
+    <div class="pt-nav-grid">
+      <button class="pt-nav-card" onclick="showProgressScreen()">
+        <span class="pt-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span class="pt-nav-label">My Progress</span>
+      </button>
+      <button class="pt-nav-card" id="therapistContactBtn" onclick="openPatientMessaging()">
+        <span class="pt-nav-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span class="msg-unread-badge" id="patientUnreadBadge" style="display:none"></span>
+        </span>
+        <span class="pt-nav-label"><span id="therapistBtnLabel">Messages</span></span>
+        <span class="pt-nav-sub" id="therapistContactName"></span>
+      </button>
+      <button class="pt-nav-card" onclick="showExercisesScreen()">
+        <span class="pt-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/><path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/><path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/><path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/><path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/><path d="M15.5 19H14v1.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/><path d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"/><path d="M8.5 5H10V3.5C10 2.67 9.33 2 8.5 2S7 2.67 7 3.5 7.67 5 8.5 5z"/></svg></span>
+        <span class="pt-nav-label">My Exercises</span>
+      </button>
+      <button class="pt-nav-card" onclick="requestLogout()">
+        <span class="pt-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+        <span class="pt-nav-label">Sign Out</span>
+      </button>
     </div>
-
-    <div class="xp-bar-container" id="xpBarContainer" style="display:none;">
-      <div class="xp-bar-header">
-        <span class="xp-level" id="xpLevel">Level 1</span>
-        <span class="xp-progress-text" id="xpProgressText">0/10</span>
-      </div>
-      <div class="xp-bar-track">
-        <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
-      </div>
-    </div>
-
-    <div class="patient-bottom-row">
-      <button class="patient-logout-link" onclick="requestLogout()">Log Out</button>
-      <button class="patient-logout-link" id="downloadMyDataBtn" onclick="downloadMyData()" style="color:var(--muted)">Download my data</button>
-      <button class="patient-logout-link" id="disconnectTherapistBtn" onclick="disconnectFromTherapist()" style="color:#e05c5c;display:none">Disconnect from therapist</button>
-      <button class="patient-logout-link delete-account-btn" onclick="deleteMyAccount()" style="color:#e05c5c">Delete my account</button>
+    <!-- hidden elements JS still references -->
+    <div style="display:none">
+      <div id="todaysPlanCard"><div id="todaysPlanList"></div><span id="completionStatus"></span></div>
+      <div id="xpBarContainer"><span id="xpLevel"></span><span id="xpProgressText"></span><div id="xpBarFill"></div></div>
+      <div id="streakBest"></div>
+      <button id="downloadMyDataBtn" onclick="downloadMyData()"></button>
+      <button id="disconnectTherapistBtn" onclick="disconnectFromTherapist()"></button>
+      <button class="delete-account-btn" onclick="deleteMyAccount()"></button>
     </div>
   </div>
 </div>
@@ -261,21 +265,21 @@
 <!-- ═══════════════════════════════════════════════════════
      MY EXERCISES SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="exercisesScreen" class="screen">
-  <div class="ex-container">
-    <div class="ex-header">
-      <h2 class="ex-title">My Exercises</h2>
-      <p class="ex-subtitle" id="exSubtitle"></p>
-      <button class="ex-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+<div id="exercisesScreen" class="screen patient-scope">
+  <div class="pt-subscreen">
+    <div class="pt-subscreen-header">
+      <button class="pt-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+      <h2 class="pt-subscreen-title">My Exercises</h2>
+      <p class="pt-subscreen-sub" id="exSubtitle"></p>
     </div>
-    <div id="exercisesScreenInner" class="ex-list"></div>
+    <div id="exercisesScreenInner" class="ex-list pt-subscreen-content"></div>
   </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
      CAMERA SCREEN  (patient session)
 ═══════════════════════════════════════════════════════ -->
-<div id="cameraScreen" class="screen">
+<div id="cameraScreen" class="screen patient-scope">
   <div class="cam-viewport">
     <video id="patientVideo" autoplay playsinline muted aria-label="Camera preview"></video>
     <canvas id="patientCanvas"></canvas>
@@ -357,51 +361,60 @@
 </div>
 
 <!-- Manual Camera Screen (patient session without tracking) -->
-<div id="manualCamScreen" class="screen">
+<div id="manualCamScreen" class="screen patient-scope">
   <div class="manual-cam-viewport">
     <video id="manualCamVideo" autoplay playsinline muted aria-label="Camera preview"></video>
-    <button class="cam-hud-back" onclick="manualCamExit()">← Back</button>
-    <div id="manualCamRecording" class="recording-indicator" style="display:none;">
-      <span class="rec-dot"></span>
-      <span class="rec-label">REC</span>
+    <div class="cam-hud-top">
+      <button class="cam-hud-back" onclick="manualCamExit()">← Back</button>
+      <div id="manualCamRecording" class="recording-indicator" style="display:none;">
+        <span class="rec-dot"></span>
+        <span class="rec-label" id="manualCamTimer">REC 0:00</span>
+      </div>
     </div>
+    <div class="cam-set-progress" id="camSetProgress"></div>
   </div>
   <div class="manual-cam-ctrl">
     <div class="manual-cam-header">
-      <span class="manual-cam-exname" id="manualCamExName">Exercise</span>
-      <span class="manual-cam-setinfo" id="manualCamSetInfo">Set 1 of 3</span>
+      <div>
+        <span class="manual-cam-exname" id="manualCamExName">Exercise</span>
+        <span class="manual-cam-setinfo" id="manualCamSetInfo">Set 1 of 3</span>
+      </div>
+      <span class="manual-cam-elapsed" id="manualCamElapsed" style="display:none;font-family:var(--font-mono);color:#fff;font-size:1rem;">0:00</span>
     </div>
-    <p class="manual-cam-prompt" id="manualCamPrompt">Tap Start when ready to begin</p>
+    <p class="manual-cam-prompt" id="manualCamPrompt">Tap Start when ready</p>
     <div class="manual-cam-btns" id="manualCamBtns">
-      <button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>
+      <button class="pt-btn-accent manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>
     </div>
   </div>
 </div>
 
 <!-- Set Input Modal -->
-<div id="setInputModal" class="modal-overlay" style="display:none;">
-  <div class="set-input-card">
-    <h3 class="set-input-title">Set Complete</h3>
-    <p class="set-input-sub">Enter your results for this set</p>
+<div id="setInputModal" class="pt-bottom-sheet-overlay" style="display:none;">
+  <div class="pt-bottom-sheet" onclick="event.stopPropagation()">
+    <div class="pt-bottom-sheet-handle"></div>
+    <h3 class="pt-bottom-sheet-title" id="setInputTitle">Set complete</h3>
     <div class="set-input-field">
-      <label>Reps completed</label>
-      <input type="number" id="setInputReps" min="0" max="100" value="10" />
+      <div class="pt-field-label">Reps completed</div>
+      <input type="number" id="setInputReps" min="0" max="100" value="10"
+             style="font-family:var(--font-mono);font-size:1.4rem;font-weight:500;text-align:center;width:100%;padding:10px;border:1.5px solid var(--pt-border-input);border-radius:10px;background:var(--pt-bg);color:var(--pt-text);" />
     </div>
     <div class="set-input-field">
-      <label>Pain level</label>
-      <div class="set-input-pain">
-        <input type="range" id="setInputPain" min="1" max="10" value="1" aria-label="Pain level 1 to 10"
-               oninput="document.getElementById('setInputPainVal').textContent = this.value + ' / 10'" />
-        <span id="setInputPainVal">1 / 10</span>
+      <div class="pt-field-label">Pain level (1-10)</div>
+      <div class="pain-bar-track">
+        <input type="range" id="setInputPain" min="1" max="10" value="1"
+               aria-label="Pain level 1 to 10"
+               oninput="updatePainBar(this.value)" />
+        <div class="pain-bar-segments" id="painBarSegments"></div>
       </div>
+      <div style="text-align:center;font-family:var(--font-mono);font-size:0.85rem;color:var(--pt-muted);margin-top:4px;" id="setInputPainVal">1 / 10</div>
     </div>
     <div class="set-input-field">
-      <label>Notes (optional)</label>
-      <textarea id="setInputNotes" placeholder="How did it feel?" maxlength="1000"></textarea>
+      <div class="pt-field-label">Notes (optional)</div>
+      <textarea id="setInputNotes" class="set-input-textarea" placeholder="How did it feel?" maxlength="1000"></textarea>
     </div>
     <div class="set-input-actions">
-      <button class="set-input-cancel" onclick="manualCamCancelSet()">Cancel</button>
-      <button class="set-input-save" onclick="manualCamSaveSet()">Save Set</button>
+      <button class="pt-btn-outline" onclick="manualCamCancelSet()">Cancel</button>
+      <button class="pt-btn-hero" onclick="manualCamSaveSet()">Save Set</button>
     </div>
   </div>
 </div>
@@ -427,42 +440,68 @@
   <button class="nav-drawer-item" onclick="showMyClinicOrJoin()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     My Clinic
-    <span class="clinic-invite-badge" id="clinicInviteBadge" style="display:none">0</span>
+    <span class="clinic-invite-badge" style="display:none">0</span>
   </button>
 </div>
 
-<div id="therapistScreen" class="screen">
-  <!-- Always-visible patient panel -->
-  <div class="sidebar">
+<div id="therapistScreen" class="screen therapist-scope">
+  <!-- Icon sidebar -->
+  <div class="th-sidebar">
+    <div class="th-sidebar-logo">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
+    </div>
+    <button class="th-sidebar-icon th-sidebar-icon--active" title="Patients" aria-label="Patients">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </button>
+    <button class="th-sidebar-icon" title="Messages" aria-label="Messages" onclick="openSidebar()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </button>
+    <button class="th-sidebar-icon" title="Protocol Library" aria-label="Library" onclick="openProtocolLibrary()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </button>
+    <button class="th-sidebar-icon" title="Clinic" aria-label="Clinic" onclick="showMyClinicOrJoin()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="clinic-invite-badge" id="clinicInviteBadge" style="display:none">0</span>
+    </button>
+    <div class="th-sidebar-spacer"></div>
+    <button class="th-sidebar-icon" title="Sign Out" aria-label="Sign Out" onclick="requestLogout()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+
+  <!-- Patient list column -->
+  <div class="sidebar th-patient-list">
     <div class="sidebar-top">
-      <button class="tp-hamburger" onclick="openSidebar()" title="Menu" aria-label="Open menu" aria-expanded="false" aria-controls="therapistSidebar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      <h2><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="var(--accent)" opacity="0.9"/></svg> Motus</h2>
-    </div>
-    <div class="clinic-badge" onclick="copyClinicCode()" title="Click to copy">
-      <span>Code:</span>
-      <span class="clinic-badge-code" id="therapistCode">------</span>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-    </div>
-    <div class="sidebar-search-wrap">
-      <svg class="sidebar-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="patientSearch" class="sidebar-search" placeholder="Search patients…"
-             oninput="filterPatients(this.value)" />
-    </div>
-    <div class="sidebar-footer">
-      <span class="sidebar-switch-user" onclick="requestLogout()">Switch user</span>
-      <span class="sidebar-switch-user delete-account-btn" onclick="deleteMyAccount()" style="color:#e05c5c;margin-left:1rem">Delete account</span>
+      <div class="th-list-header">
+        <span class="th-section-label">Patients</span>
+        <button class="th-add-btn" onclick="openBulkAssign()" title="Bulk Assign">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="clinic-badge" onclick="copyClinicCode()" title="Click to copy">
+        <span>Code:</span>
+        <span class="clinic-badge-code" id="therapistCode">------</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </div>
+      <div class="sidebar-search-wrap">
+        <svg class="sidebar-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="patientSearch" class="sidebar-search" placeholder="Search patients..."
+               oninput="filterPatients(this.value)" />
+      </div>
+      <div class="sidebar-footer">
+        <span class="sidebar-switch-user" onclick="requestLogout()">Switch user</span>
+        <span class="sidebar-switch-user delete-account-btn" onclick="deleteMyAccount()">Delete account</span>
+      </div>
     </div>
   </div>
 
-  <!-- Main panel -->
+  <!-- Main detail panel -->
   <div class="main-panel" id="mainPanel">
     <div class="tp-header">
-      <button class="tp-header-add-btn" onclick="openBulkAssign()">Bulk Assign</button>
+      <button class="th-btn" onclick="openBulkAssign()">Bulk Assign</button>
     </div>
     <div class="empty-state">
-      <p>← Select a patient to view their progress</p>
+      <p>Select a patient to view their details</p>
     </div>
   </div>
 </div>
@@ -470,13 +509,13 @@
 <!-- ═══════════════════════════════════════════════════════
      PROGRESS SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="progressScreen" class="screen">
-  <div class="prog-container">
-    <div class="prog-header">
-      <h2 class="prog-title">Your Progress</h2>
-      <button class="prog-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+<div id="progressScreen" class="screen patient-scope">
+  <div class="pt-subscreen">
+    <div class="pt-subscreen-header">
+      <button class="pt-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+      <h2 class="pt-subscreen-title">My Progress</h2>
     </div>
-    <div id="progressContent"></div>
+    <div id="progressContent" class="pt-subscreen-content"></div>
   </div>
 </div>
 
@@ -496,20 +535,20 @@
 <!-- ═══════════════════════════════════════════════════════
      MESSAGING SCREEN  (patient ↔ therapist)
 ═══════════════════════════════════════════════════════ -->
-<div id="messagingScreen" class="screen">
-  <div class="msg-container">
-    <div class="msg-header">
-      <button class="msg-back-btn" onclick="showScreen('patientScreen')">←</button>
-      <span class="msg-header-name" id="msgHeaderTitle">Therapist</span>
+<div id="messagingScreen" class="screen patient-scope">
+  <div class="pt-msg-screen">
+    <div class="pt-msg-header">
+      <button class="pt-back-btn" onclick="showScreen('patientScreen')">← Back</button>
+      <span class="pt-msg-title" id="msgHeaderTitle">Therapist</span>
     </div>
     <div class="msg-thread" id="msgThread"></div>
-    <div class="msg-input-row">
-      <input type="text" id="msgInput" class="msg-input" placeholder="Type a message..."
+    <div class="pt-msg-input-row">
+      <input type="text" id="msgInput" class="pt-msg-input" placeholder="Type a message..."
              maxlength="2000"
              onkeydown="if(event.key==='Enter'&&!document.getElementById('msgSendBtn').disabled)sendMessageFromPatient()"
              oninput="toggleMsgSend()" />
-      <button class="msg-send-btn" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      <button class="pt-msg-send-btn" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
       </button>
     </div>
   </div>
@@ -518,7 +557,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CLINIC SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="clinicScreen" class="screen clinic-screen-layout">
+<div id="clinicScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showScreen('therapistScreen')">←</button>
     <h2>My Clinic</h2>
@@ -531,7 +570,7 @@
 <!-- ═══════════════════════════════════════════════════════
      CREATE CLINIC SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="createClinicScreen" class="screen clinic-screen-layout">
+<div id="createClinicScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showJoinClinicScreen()">←</button>
     <h2>Create a Clinic</h2>
@@ -545,8 +584,8 @@
              maxlength="80" onkeydown="if(event.key==='Enter') createClinic()" />
     </div>
     <div class="clinic-bottom-actions">
-      <button class="auth-btn" onclick="createClinic()">Create Clinic</button>
-      <button class="auth-btn auth-btn-secondary" onclick="showScreen('therapistScreen')">Cancel</button>
+      <button class="tp-btn tp-btn-primary" onclick="createClinic()">Create Clinic</button>
+      <button class="tp-btn tp-btn-secondary" onclick="showScreen('therapistScreen')">Cancel</button>
     </div>
   </div>
 </div>
@@ -554,7 +593,7 @@
 <!-- ═══════════════════════════════════════════════════════
      JOIN CLINIC SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="joinClinicScreen" class="screen clinic-screen-layout">
+<div id="joinClinicScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showScreen('therapistScreen')">←</button>
     <h2>Join or Create a Clinic</h2>
@@ -570,16 +609,16 @@
           <input type="text" id="joinClinicCodeInput" class="clinic-full-input" placeholder="482910" maxlength="6"
                  oninput="this.value=this.value.replace(/\D/g,''); if(this.value.length===6) joinClinicByCode()"
                  onkeydown="if(event.key==='Enter') joinClinicByCode()" />
-          <button class="auth-btn" style="white-space:nowrap" onclick="joinClinicByCode()">Join</button>
+          <button class="tp-btn tp-btn-primary" onclick="joinClinicByCode()">Join</button>
         </div>
       </div>
       <div class="clinic-section-card">
         <div class="clinic-section-label">Start a New Clinic</div>
-        <p style="font-size:var(--text-sm);color:var(--text-secondary);margin:0 0 0.75rem">Create a clinic and invite your colleagues.</p>
-        <button class="auth-btn auth-btn-secondary" onclick="showCreateClinicScreen()">Create New Clinic</button>
+        <p class="clinic-screen-subtitle">Create a clinic and invite your colleagues.</p>
+        <button class="tp-btn tp-btn-secondary" onclick="showCreateClinicScreen()">Create New Clinic</button>
       </div>
     </div>
-    <div class="clinic-section-card" style="margin-top:0.5rem">
+    <div class="clinic-section-card">
       <div class="clinic-section-label">Pending Invites</div>
       <div id="clinicInvitesList"></div>
     </div>
@@ -589,14 +628,14 @@
 <!-- ═══════════════════════════════════════════════════════
      CLINIC LIBRARY SCREEN
 ═══════════════════════════════════════════════════════ -->
-<div id="clinicLibraryScreen" class="screen clinic-screen-layout">
+<div id="clinicLibraryScreen" class="screen therapist-scope clinic-screen-layout">
   <div class="clinic-top-bar">
     <button class="tp-back-btn" onclick="showClinicScreen()">←</button>
     <h2><span id="clinicLibName">Clinic</span> — Shared Exercises</h2>
   </div>
   <div class="clinic-screen-body">
     <div class="clinic-lib-actions-bar">
-      <button class="auth-btn" style="padding:0.45rem 1rem;font-size:0.85rem;margin:0" onclick="showShareExerciseModal()">+ Share from My Library</button>
+      <button class="tp-btn tp-btn-primary" onclick="showShareExerciseModal()">+ Share from My Library</button>
     </div>
     <div id="clinicLibraryList"></div>
   </div>
@@ -615,12 +654,12 @@
 <!-- ═══════════════════════════════════════════════════════
      ML ANGLE TRAINER
 ═══════════════════════════════════════════════════════ -->
-<div id="mlTrainerScreen" class="screen">
+<div id="mlTrainerScreen" class="screen therapist-scope">
 
   <header class="sweep-header">
     <button class="sweep-back-btn" onclick="mlTrainerBack()">← Back</button>
     <span class="sweep-header-title">ML Angle Trainer</span>
-    <span style="width:60px"></span>
+    <span class="sweep-header-spacer"></span>
   </header>
 
   <div class="calib-main">
@@ -826,7 +865,7 @@
   <div class="video-modal-box">
     <div class="video-modal-header">
       <span class="video-modal-title">Session Recording</span>
-      <div style="display:flex;gap:8px;align-items:center;">
+      <div class="video-modal-actions">
         <button id="videoModalDownload" class="video-modal-dl-btn">↓ Download</button>
         <button class="video-modal-close" onclick="closeVideoModal()" aria-label="Close video">x</button>
       </div>
@@ -850,7 +889,7 @@
       <div class="apm-form-col">
         <div class="apm-lib-col">
           <div class="apm-lib-search-wrap">
-            <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off" style="width:100%">
+            <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off">
           </div>
           <div class="apm-lib-list" id="apmLibList"></div>
         </div>

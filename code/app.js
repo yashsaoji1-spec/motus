@@ -514,8 +514,8 @@ async function handleForgot() {
 
 async function handleConnect() {
   hideError('connectError');
-  const code = document.getElementById('clinicCodeInput').value.trim();
-  if (code.length !== 6 || isNaN(code)) { showError('connectError', 'Please enter a valid 6-digit clinic code.'); return; }
+  const code = document.getElementById('connectCode').value.trim();
+  if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character clinic code.'); return; }
   const therapist = await getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   await saveConnection(therapist.email, currentUser.email);
@@ -662,9 +662,9 @@ async function loadAdminScreen() {
         <strong>${u.name}</strong><br>
         <span style="color:var(--muted);font-size:0.85rem">${d.id}</span>
       </div>
-      <div style="display:flex;gap:0.5rem">
-        <button class="auth-btn" style="padding:0.4rem 0.9rem;font-size:0.85rem;margin:0" onclick="approveTherapist('${d.id}')">Approve</button>
-        <button class="logout-btn" onclick="rejectTherapist('${d.id}')">Reject</button>
+      <div class="pending-therapist-row-btns">
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="approveTherapist('${d.id}')">Approve</button>
+        <button class="tp-btn tp-btn-sm tp-btn-secondary" onclick="rejectTherapist('${d.id}')">Reject</button>
       </div>
     </div>`;
   }).join('');
@@ -789,8 +789,8 @@ function _renderInvitesList() {
         <div class="clinic-invite-from">Invited by ${inv.invitedBy}</div>
       </div>
       <div class="clinic-invite-actions">
-        <button class="auth-btn" style="padding:0.35rem 0.8rem;font-size:0.8rem;margin:0" onclick="acceptInvite('${inv.id}')">Accept</button>
-        <button class="logout-btn" style="font-size:0.8rem" onclick="declineInvite('${inv.id}')">Decline</button>
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="acceptInvite('${inv.id}')">Accept</button>
+        <button class="tp-btn tp-btn-sm tp-btn-secondary" onclick="declineInvite('${inv.id}')">Decline</button>
       </div>
     </div>
   `).join('');
@@ -890,7 +890,7 @@ function _renderClinicScreen() {
         ${isMemberOwner ? '<span class="clinic-role-tag clinic-owner-tag">Owner</span>' : ''}
         ${isMe ? '<span class="clinic-role-tag clinic-you-tag">You</span>' : ''}
       </div>
-      ${isOwner && !isMe ? `<button class="logout-btn" style="font-size:0.75rem;padding:0.2rem 0.6rem" onclick="removeClinicMember('${email}')">Remove</button>` : ''}
+      ${isOwner && !isMe ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeClinicMember('${email}')">Remove</button>` : ''}
     </div>`;
   }).join('');
 
@@ -903,10 +903,10 @@ function _renderClinicScreen() {
         <button class="clinic-text-btn" onclick="regenerateClinicCode()">Regenerate</button>
         <button class="clinic-text-btn" onclick="toggleClinicCode()">${_myClinic.joinCodeEnabled ? 'Disable' : 'Enable'}</button>
       </div>
-      <div class="clinic-section-label" style="margin-top:1.2rem">Invite by Email</div>
+      <div class="clinic-section-label clinic-section-label-mt">Invite by Email</div>
       <div class="clinic-invite-input-row">
         <input type="email" id="clinicInviteEmail" class="clinic-invite-input" placeholder="colleague@clinic.com" />
-        <button class="auth-btn" style="padding:0.4rem 0.9rem;font-size:0.85rem;margin:0" onclick="sendClinicInvite()">Invite</button>
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="sendClinicInvite()">Invite</button>
       </div>
       <div id="clinicInviteMsg" class="clinic-msg" style="display:none"></div>
     </div>
@@ -920,8 +920,8 @@ function _renderClinicScreen() {
       <div class="clinic-members-list">${memberRows}</div>
     </div>
     <div class="clinic-bottom-actions">
-      <button class="auth-btn" onclick="showClinicLibraryScreen()">Shared Exercise Library</button>
-      <button class="logout-btn" onclick="confirmLeaveClinic()">${isOwner && members.length === 1 ? 'Disband Clinic' : 'Leave Clinic'}</button>
+      <button class="tp-btn tp-btn-primary" onclick="showClinicLibraryScreen()">Shared Exercise Library</button>
+      <button class="tp-btn tp-btn-secondary" onclick="confirmLeaveClinic()">${isOwner && members.length === 1 ? 'Disband Clinic' : 'Leave Clinic'}</button>
     </div>
   `;
 }
@@ -1083,8 +1083,8 @@ function _renderClinicLibrary() {
         <div class="clinic-lib-meta">${ex.cat ? ex.cat + ' · ' : ''}Shared by ${ex.sharedBy}${date ? ' · ' + date : ''}</div>
       </div>
       <div class="clinic-lib-btns">
-        ${!isSharer ? `<button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>` : ''}
-        ${canRemove ? `<button class="logout-btn" style="font-size:0.8rem" onclick="removeSharedExercise('${ex.shareId}')">Remove</button>` : ''}
+        ${!isSharer ? `<button class="tp-btn tp-btn-sm tp-btn-primary" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>` : ''}
+        ${canRemove ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeSharedExercise('${ex.shareId}')">Remove</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -1174,7 +1174,7 @@ function _renderShareModal() {
     list.innerHTML = customs.map(ex => `
       <div class="clinic-share-row">
         <span>${ex.name}</span>
-        <button class="auth-btn" style="padding:0.3rem 0.7rem;font-size:0.8rem;margin:0" onclick="shareExerciseToClinic('${ex.id}')">Share</button>
+        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="shareExerciseToClinic('${ex.id}')">Share</button>
       </div>
     `).join('');
   }
@@ -1544,8 +1544,20 @@ function manualCamEndSet() {
     if (notesInput) notesInput.value = '';
     
     if (setInput) setInput.style.display = 'flex';
+
+    // Build pain bar segments on first open
+    const track = document.getElementById('painBarSegments');
+    if (track && !track.children.length) {
+      for (let i = 1; i <= 10; i++) {
+        const s = document.createElement('div');
+        s.className = 'pain-seg';
+        track.appendChild(s);
+      }
+    }
+    document.getElementById('setInputPain').value = 1;
+    updatePainBar(1);
   };
-  
+
   _manualCamRecorder.stop();
 }
 
@@ -2567,16 +2579,16 @@ async function loadConnectedPatients() {
     const compliance = calcCompliance(sessions);
     const statusColor = compliance >= 80 ? 'var(--success)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
     const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
-    const unreadBadge = unread > 0 ? `<span class="msg-unread-badge" style="margin-left:0.4rem">${unread}</span>` : '';
+    const unreadBadge = unread > 0 ? `<span class="msg-unread-badge">${unread}</span>` : '';
     item.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div class="patient-item-row">
         <div>
           <div class="patient-name">${escapeHtml(patient.name)}${unreadBadge}</div>
           <div class="patient-connected">
             <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
           </div>
         </div>
-        <button class="logout-btn" style="font-size:0.7rem;padding:0.15rem 0.5rem;flex-shrink:0;margin-top:2px" data-patient-email="${patient.email}">Remove</button>
+        <button class="tp-btn tp-btn-sm tp-btn-danger" style="flex-shrink:0;margin-top:2px" data-patient-email="${patient.email}">Remove</button>
       </div>`;
     item.querySelector('[data-patient-email]').onclick = (e) => {
       e.stopPropagation();
@@ -2719,7 +2731,7 @@ async function showRealPatient(patient) {
         </div>
         <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
       </div>
-      <div class="chart-card" style="text-align:center; color:#475569; padding:40px;">
+      <div class="chart-card chart-empty">
         No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
       </div>
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
@@ -3377,7 +3389,7 @@ function plRender() {
       </div>
     `).join('');
   } else {
-    hiddenList.innerHTML = '<div class="pl-hidden-item" style="opacity:0.4">No hidden exercises</div>';
+    hiddenList.innerHTML = '<div class=\"pl-hidden-item pl-hidden-empty\">No hidden exercises</div>';
   }
 }
 
@@ -6234,6 +6246,19 @@ function mlTrainerBack() {
   showScreen('therapistScreen');
 }
 
+function updatePainBar(val) {
+  const v = parseInt(val);
+  document.getElementById('setInputPainVal').textContent = v + ' / 10';
+  const segs = document.querySelectorAll('.pain-seg');
+  segs.forEach((seg, i) => {
+    const n = i + 1;
+    const color = n <= 3 ? 'green' : n <= 6 ? 'amber' : 'red';
+    seg.className = 'pain-seg';
+    if (n < v) seg.classList.add('filled-' + color);
+    else if (n === v) seg.classList.add('active-' + color);
+  });
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
@@ -6303,6 +6328,7 @@ Object.assign(window, {
 
   // Manual camera session
   openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,
+  updatePainBar,
 
   // Progress screen
   toggleProgDay, showSetNotes, closeSetNotesModal,

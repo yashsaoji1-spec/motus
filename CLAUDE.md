@@ -142,6 +142,11 @@ Project: `phalanx-firebase-database`. Config at top of `app.js` Section 1.
 | `trainingChunks`   | auto                | `joint, samples: [{landmarks, trueAngle, imageFeatures?, recordingId?}], chunkIndex` |
 | `trainingMeta`     | `{joint-hand}`      | `totalSamples, chunkCount, lastUpdated, histogram: {b0…b17}` |
 | `mlModels`         | `{joint-hand}`      | `type, topology, weights, sampleCount, trainedAt, trainedBy` |
+| `clinics`          | `{clinicId}`        | `ownerEmail, therapists: [email], code, name` |
+| `clinicInvites`    | auto                | `invitedBy, inviteeEmail, clinicId, status` |
+| `clinicLibrary`    | `{clinicId}`        | `exercises: [{id, name, sharedBy, ...}]` — exercises shared to clinic by members |
+| `messageThreads`   | `{email1:email2}`   | `participants: [email], archived?, disconnectedAt?` — thread metadata; threadId = sorted emails joined with `:` |
+| `auditLog`         | auto                | `action, userId, resourceId, timestamp` — append-only HIPAA audit log. Writable by all auth users; no client reads/updates/deletes. Implemented in `writeAuditLog()` (app.js ~301). |
 
 Backward compat: flat `protocols` docs (no `items`) are wrapped as `[{id:'legacy',...}]` by `getProtocols()`. Old sessions without `protocolId` are excluded from completion counts.
 
