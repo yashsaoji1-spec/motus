@@ -374,6 +374,11 @@ function showScreen(screenId) {
   if (focusTarget) focusTarget.focus({ preventScroll: true });
   if (!AUTH_SCREENS.has(screenId)) sessionStorage.setItem('motus_screen', screenId);
 
+  // Patient bottom nav: show on all patient app screens except recording screens
+  const PATIENT_NAV_SCREENS = new Set(['patientScreen', 'exercisesScreen', 'progressScreen', 'messagingScreen', 'settingsScreen']);
+  const patientNav = document.getElementById('patientBottomNav');
+  if (patientNav) patientNav.style.display = PATIENT_NAV_SCREENS.has(screenId) ? 'flex' : 'none';
+
   // Clean up message thread listener when leaving messaging screen
   if (prevActive && prevActive.id === 'messagingScreen' && screenId !== 'messagingScreen') {
     if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
@@ -1403,46 +1408,40 @@ async function updatePatientHomeScreen() {
   const disconnectBtn = document.getElementById('disconnectTherapistBtn');
   if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
 
-  // Today's Plan card
-  const planCard = document.getElementById('todaysPlanCard');
+  // Protocol card (visible list)
   const planList = document.getElementById('todaysPlanList');
-  const completionStatus = document.getElementById('completionStatus');
-  if (planCard && planList && protocols.length > 0) {
-    planCard.style.display = 'block';
-    planList.innerHTML = protocols.map(p => {
-      const name = exerciseLabels[p.exerciseType] || p.exerciseType;
-      const dose = `${p.sets || 3} × ${p.reps || 10} reps`;
-      return `<div class="todays-plan-item"><span class="todays-plan-name">${name}</span><span class="todays-plan-dose">${dose}</span></div>`;
-    }).join('');
-    
-    // Calculate completion
-    const today = new Date().toDateString();
-    const todaySessions = sessions.filter(s => s.protocolId && new Date(s.date).toDateString() === today);
-    const currentIds = new Set(protocols.map(p => p.id).filter(Boolean));
-    let totalSets = 0;
-    todaySessions.forEach(s => {
-      if (s.protocolId && currentIds.has(s.protocolId)) {
-        if (s.setData && s.setData.length > 0) {
-          totalSets += s.setData.length;
-        } else {
-          totalSets += 1;
-        }
-      }
-    });
-    const required = protocols.reduce((sum, p) => sum + (p.sets || 3), 0);
-    
-    if (completionStatus) {
-      if (totalSets >= required) {
-        completionStatus.textContent = 'Done';
-        completionStatus.className = 'todays-plan-status done';
-      } else {
-        completionStatus.textContent = `${totalSets}/${required}`;
-        completionStatus.className = 'todays-plan-status';
-      }
+  if (planList) {
+    if (protocols.length > 0) {
+      planList.innerHTML = protocols.map(p => {
+        const name = exerciseLabels[p.exerciseType] || p.exerciseName || p.exerciseType;
+        const dose = `${p.sets || 3} sets \xB7 ${p.reps || 10} reps`;
+        return `<li class="pt-protocol-item"><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span></li>`;
+      }).join('');
+    } else {
+      planList.innerHTML = '<li class="pt-protocol-empty">No exercises assigned yet</li>';
     }
-  } else if (planCard) {
-    planCard.style.display = 'none';
   }
+
+  // Stats row
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+  const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
+  const daysWithSession = new Set(recent7.map(s => new Date(s.date).toDateString())).size;
+  const adherencePct = Math.round((daysWithSession / 7) * 100);
+  const avgPain7d = recent7.length > 0
+    ? (recent7.reduce((sum, s) => {
+        if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
+        return sum + (s.pain || 0);
+      }, 0) / recent7.length).toFixed(1)
+    : null;
+  const adherenceEl = document.getElementById('ptStatAdherence');
+  const avgPainEl = document.getElementById('ptStatAvgPain');
+  if (adherenceEl) adherenceEl.innerHTML = `${adherencePct}<span class="pt-stat-unit">%</span>`;
+  if (avgPainEl) avgPainEl.innerHTML = avgPain7d !== null ? `${avgPain7d}<span class="pt-stat-unit">/10</span>` : '—';
+
+  // Hidden stub (completionStatus preserved for legacy code paths)
+  const planCard = document.getElementById('todaysPlanCard');
+  const completionStatus = document.getElementById('completionStatus');
+  if (planCard) planCard.style.display = 'none';
 
   // My Exercises card subtitle
   const exSub = document.getElementById('myExercisesSub');
@@ -1460,7 +1459,7 @@ async function updatePatientHomeScreen() {
 
   if (therapistEmail) {
     const tSnap = await db.collection('users').doc(therapistEmail).get();
-    if (tSnap.exists) document.getElementById('therapistContactName').textContent = 'Message ' + tSnap.data().name;
+    if (tSnap.exists) document.getElementById('therapistContactName').textContent = tSnap.data().name;
   }
 
   // Streak
@@ -1504,10 +1503,10 @@ async function updatePatientHomeScreen() {
       .where('read', '==', false)
       .onSnapshot(snap => {
         const badge = document.getElementById('patientUnreadBadge');
-        if (!badge) return;
+        const navDot = document.getElementById('patientNavUnreadDot');
         const n = snap.size;
-        badge.textContent = n;
-        badge.style.display = n > 0 ? 'inline' : 'none';
+        if (badge) { badge.textContent = n; badge.style.display = n > 0 ? 'inline' : 'none'; }
+        if (navDot) navDot.style.display = n > 0 ? 'block' : 'none';
       }, () => {});
   }
 }
@@ -1663,10 +1662,22 @@ async function openManualCameraSession(protocol) {
   const promptEl = document.getElementById('manualCamPrompt');
   const btnsEl = document.getElementById('manualCamBtns');
 
-  if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType || 'Exercise';
-  if (setInfoEl) setInfoEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets}`;
+  if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseName || protocol.exerciseType || 'Exercise';
+  if (setInfoEl) setInfoEl.textContent = `SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
+  const targetEl = document.getElementById('manualCamTarget');
+  if (targetEl) targetEl.textContent = `Target ${_manualCamTotalSets}\u00D7${protocol.reps || 10}`;
   if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
-  if (btnsEl) btnsEl.innerHTML = `<button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>`;
+  const demoUrl = protocol.demoVideoUrl || null;
+  const demoBtn = demoUrl
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrl.replace(/'/g,"\\'")}', '${(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'').replace(/'/g,"\\'")}')">DEMO</button>`
+    : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
+  if (btnsEl) btnsEl.innerHTML = `
+    <button class="mcam-btn-side" onclick="manualCamExit()">EXIT</button>
+    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    </button>
+    ${demoBtn}
+  `;
 
   showScreen('manualCamScreen');
   await manualCamStartCamera();
@@ -1709,10 +1720,17 @@ function manualCamStartRecording() {
   
   _manualCamRecorder.start(1000);
   
-  if (promptEl) promptEl.textContent = 'Recording... Tap End Set when done';
+  if (promptEl) promptEl.textContent = `Recording set ${_manualCamCurrentSet} of ${_manualCamTotalSets} \u00B7 tap stop when finished`;
+  const demoUrlR = _manualCamProtocol?.demoVideoUrl || null;
+  const demoBtnR = demoUrlR
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlR.replace(/'/g,"\\'")}', '')">DEMO</button>`
+    : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
-    <button class="manual-cam-exit-btn" onclick="manualCamExit()">Exit</button>
-    <button class="manual-cam-end-btn" onclick="manualCamEndSet()">End Set</button>
+    <button class="mcam-btn-side" disabled style="opacity:0.3">EXIT</button>
+    <button class="mcam-btn-stop" onclick="manualCamEndSet()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+    </button>
+    ${demoBtnR}
   `;
   if (recEl) recEl.style.display = 'flex';
 }
@@ -1765,7 +1783,17 @@ function manualCamCancelSet() {
   const promptEl = document.getElementById('manualCamPrompt');
   const btnsEl = document.getElementById('manualCamBtns');
   if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
-  if (btnsEl) btnsEl.innerHTML = `<button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>`;
+  const demoUrlC = _manualCamProtocol?.demoVideoUrl || null;
+  const demoBtnC = demoUrlC
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlC.replace(/'/g,"\\'")}', '')">DEMO</button>`
+    : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
+  if (btnsEl) btnsEl.innerHTML = `
+    <button class="mcam-btn-side" onclick="manualCamExit()">EXIT</button>
+    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    </button>
+    ${demoBtnC}
+  `;
 }
 
 async function manualCamSaveSet() {
@@ -2578,6 +2606,7 @@ async function assignProtocol() {
       const edited = {
         ...p,
         exerciseType,
+        exerciseName: exerciseLabels[exerciseType] || exerciseType,
         reps,
         sets,
         frequency:  document.getElementById('protocolFrequency').value,
@@ -2598,6 +2627,7 @@ async function assignProtocol() {
     const newItem = {
       id:           Date.now().toString(),
       exerciseType,
+      exerciseName: exerciseLabels[exerciseType] || exerciseType,
       reps,
       sets,
       frequency:    document.getElementById('protocolFrequency').value,
@@ -2660,6 +2690,11 @@ async function loadPatientProtocol() {
   const setEl  = document.getElementById('camSetLabel');
   if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
   if (setEl)  setEl.textContent  = `Set 1 of ${totalSets}`;
+}
+
+async function showPatientHome() {
+  showScreen('patientScreen');
+  await updatePatientHomeScreen();
 }
 
 async function showExercisesScreen() {
@@ -2755,7 +2790,9 @@ function closeSidebar() {
 }
 
 async function loadConnectedPatients() {
-  document.querySelectorAll('.patient-item').forEach(el => el.remove());
+  const container = document.getElementById('patientRows');
+  if (!container) return;
+  container.innerHTML = '';
   const existing = document.getElementById('noPatientsMsg');
   if (existing) existing.remove();
   const patients = await getConnectedPatients(currentUser.email);
@@ -2764,42 +2801,44 @@ async function loadConnectedPatients() {
     msg.id = 'noPatientsMsg';
     msg.className = 'no-patients';
     msg.innerHTML = `No patients connected yet.<br/>Share your clinic code above<br/>with your patients to get started.`;
-    document.querySelector('.sidebar-footer').before(msg);
+    container.appendChild(msg);
     return;
   }
   for (const patient of patients) {
-    const item      = document.createElement('div');
-    item.className  = 'patient-item';
-    item.dataset.patientEmail = patient.email;
+    const btn = document.createElement('button');
+    btn.className = 'patient-row';
+    btn.dataset.patientEmail = patient.email;
+    const initials = patient.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
     const [sessions, unread] = await Promise.all([
       getPatientSessions(patient.email),
       unreadCount(currentUser.email, patient.email).catch(() => 0),
     ]);
-    const compliance = calcCompliance(sessions);
-    const statusColor = compliance >= 80 ? 'var(--success)' : compliance >= 50 ? '#f59e0b' : 'var(--danger)';
-    const statusText  = compliance >= 80 ? 'On track' : compliance >= 50 ? 'At risk' : sessions.length === 0 ? 'No sessions yet' : 'Non-compliant';
-    const unreadBadge = unread > 0 ? `<span class="msg-unread-badge">${unread}</span>` : '';
-    item.innerHTML = `
-      <div class="patient-item-row">
-        <div>
-          <div class="patient-name">${escapeHtml(patient.name)}${unreadBadge}</div>
-          <div class="patient-connected">
-            <span class="sh-indicator" style="background:${statusColor}"></span> ${statusText}${sessions.length > 0 ? ` — ${compliance}% compliance` : ''}
-          </div>
-        </div>
-        <button class="tp-btn tp-btn-sm tp-btn-danger" style="flex-shrink:0;margin-top:2px" data-patient-email="${patient.email}">Remove</button>
-      </div>`;
-    item.querySelector('[data-patient-email]').onclick = (e) => {
-      e.stopPropagation();
-      disconnectPatient(e.currentTarget.dataset.patientEmail);
-    };
-    item.onclick = () => {
-      document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
-      item.classList.add('selected');
+    const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+    const lastPainVal = lastSess
+      ? (lastSess.setData?.length > 0
+          ? (lastSess.setData.reduce((a, s) => a + (s.pain || 0), 0) / lastSess.setData.length).toFixed(1)
+          : (lastSess.pain || 0).toFixed(1))
+      : null;
+    const daysSinceLast = lastSess
+      ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
+      : null;
+    const subText = lastSess
+      ? `Last ${daysSinceLast === 0 ? 'today' : daysSinceLast + 'd ago'} · avg pain ${lastPainVal}`
+      : 'No sessions yet';
+    btn.innerHTML = `
+      <div class="patient-row-avatar">${escapeHtml(initials)}</div>
+      <div class="patient-row-meta">
+        <div class="patient-row-name">${escapeHtml(patient.name)}</div>
+        <div class="patient-row-sub">${subText}</div>
+      </div>
+      <span class="patient-row-dot" ${unread > 0 ? '' : 'hidden'}></span>`;
+    btn.onclick = () => {
+      document.querySelectorAll('.patient-row').forEach(r => r.classList.remove('patient-row--active'));
+      btn.classList.add('patient-row--active');
       closeSidebar();
       showRealPatient(patient);
     };
-    document.querySelector('.sidebar-footer').before(item);
+    container.appendChild(btn);
   }
   subscribeTherapistBadges(currentUser.email);
 }
@@ -2810,28 +2849,15 @@ function subscribeTherapistBadges(therapistEmail) {
     .where('to', '==', therapistEmail)
     .where('read', '==', false)
     .onSnapshot(snap => {
-      // Count unread per sender (patient)
       const counts = {};
-      snap.forEach(d => {
-        const from = d.data().from;
-        counts[from] = (counts[from] || 0) + 1;
-      });
-      document.querySelectorAll('.patient-item').forEach(item => {
-        const pEmail = item.dataset.patientEmail;
+      snap.forEach(d => { const from = d.data().from; counts[from] = (counts[from] || 0) + 1; });
+      document.querySelectorAll('.patient-row').forEach(row => {
+        const pEmail = row.dataset.patientEmail;
         if (!pEmail) return;
-        const nameEl = item.querySelector('.patient-name');
-        if (!nameEl) return;
-        // Remove existing badge
-        const existing = nameEl.querySelector('.msg-unread-badge');
-        if (existing) existing.remove();
+        const dot = row.querySelector('.patient-row-dot');
+        if (!dot) return;
         const n = counts[pEmail] || 0;
-        if (n > 0) {
-          const badge = document.createElement('span');
-          badge.className = 'msg-unread-badge';
-          badge.style.marginLeft = '0.4rem';
-          badge.textContent = n;
-          nameEl.appendChild(badge);
-        }
+        if (n > 0) dot.removeAttribute('hidden'); else dot.setAttribute('hidden', '');
       });
     }, () => {});
 }
@@ -2840,22 +2866,22 @@ function subscribeTherapistBadges(therapistEmail) {
 function backToPatientList() {
   if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
   document.getElementById('therapistScreen').classList.remove('tp-mobile-detail');
-  document.querySelectorAll('.patient-item').forEach(i => i.classList.remove('selected'));
+  document.querySelectorAll('.patient-row').forEach(r => r.classList.remove('patient-row--active'));
   const panel = document.getElementById('mainPanel');
   panel.innerHTML = `
-    <div class="tp-header">
-      <button class="tp-header-add-btn" onclick="openBulkAssign()">Bulk Assign</button>
-    </div>
-    <div class="empty-state">
-      <p>← Select a patient to view their progress</p>
+    <div class="tp-main-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <h2>Select a patient</h2>
+      <p>Pick someone from the list to see their sessions, pain trend, and assigned protocols.</p>
+      <button class="tp-btn tp-btn-primary" onclick="openBulkAssign()">Bulk assign exercises</button>
     </div>`;
 }
 
 function filterPatients(query) {
   const q = query.toLowerCase().trim();
-  document.querySelectorAll('.patient-item').forEach(item => {
-    const name = item.querySelector('.patient-name')?.textContent.toLowerCase() || '';
-    item.style.display = !q || name.includes(q) ? '' : 'none';
+  document.querySelectorAll('.patient-row').forEach(row => {
+    const name = row.querySelector('.patient-row-name')?.textContent.toLowerCase() || '';
+    row.style.display = !q || name.includes(q) ? '' : 'none';
   });
 }
 
@@ -2921,92 +2947,173 @@ async function showRealPatient(patient) {
   ]);
   const panel = document.getElementById('mainPanel');
 
-  if (sessions.length === 0) {
-    panel.innerHTML = `
-      <div class="patient-panel-hdr">
-        <div class="patient-panel-hdr-left">
-          <button class="tp-back-btn" onclick="backToPatientList()" title="Back to patients list">←</button>
-          <div><h3>${escapeHtml(patient.name)}</h3><p class="subtitle">Connected Patient</p></div>
-        </div>
-        <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
-      </div>
-      <div class="chart-card chart-empty">
-        No session data yet. Data will appear here once ${patient.name.split(' ')[0]} completes their first session.
-      </div>
-      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
-      ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
-      ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}`;
-    await markRead(currentUser.email, patient.email);
-    const archived0 = await isThreadArchived(currentUser.email, patient.email);
-    const sendBtn0 = document.getElementById('therapistMsgSend');
-    const msgInput0 = document.getElementById('therapistMsgInput');
-    if (archived0 && sendBtn0 && msgInput0) {
-      sendBtn0.disabled = true;
-      msgInput0.disabled = true;
-      msgInput0.placeholder = 'This conversation has been archived.';
-    } else if (sendBtn0) {
-      sendBtn0.onclick = async () => {
-        const input = document.getElementById('therapistMsgInput');
-        await sendMessage(currentUser.email, patient.email, input.value);
-        input.value = '';
-      };
-    }
-    subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
-    enableMobilePatientDetail(panel);
-    return;
-  }
+  // Vitals
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+  const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
+  const sessions7d = recent7.length;
+  const avgPain7d = recent7.length > 0
+    ? (recent7.reduce((sum, s) => {
+        if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
+        return sum + (s.pain || 0);
+      }, 0) / recent7.length).toFixed(1)
+    : '-';
+  const adherence = calcCompliance(sessions);
+  const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+  const daysSinceLast = lastSess
+    ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
+    : null;
+  const lastSessDisplay = daysSinceLast === null ? '-' : daysSinceLast === 0 ? 'today' : daysSinceLast;
+  const lastSessUnit = daysSinceLast === null ? '' : daysSinceLast === 0 ? '' : 'd ago';
 
-  const compliance      = calcCompliance(sessions);
-  const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
-  let lastPain = '-';
-  if (lastSession) {
-    if (lastSession.setData && lastSession.setData.length > 0) {
-      const setPains = lastSession.setData.map(s => s.pain || 0);
-      lastPain = (setPains.reduce((a, b) => a + b, 0) / setPains.length).toFixed(1);
-    } else {
-      lastPain = (lastSession.pain || 1).toFixed(1);
-    }
-  }
-  const totalReps       = sessions.reduce((s, x) => s + (x.reps || 0), 0);
-  const complianceColor = compliance >= 80 ? '#22c55e' : compliance >= 50 ? '#f59e0b' : '#ef4444';
-  const recent          = sessions.slice(-8);
-  const painData        = recent.map(s => s.pain || 0);
-  const labels          = buildChartLabels(recent);
+  // Avatar initials
+  const initials = patient.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const safeEmail = patient.email.replace(/'/g, "\\'");
+  const safeName = patient.name.replace(/"/g, '&quot;');
+
+  // Protocol rows
+  const protocolRowsHtml = protocols.length === 0
+    ? '<li class="pd-protocol-row"><div class="pd-protocol-meta"><div class="pd-protocol-name" style="color:var(--th-muted)">No exercises assigned yet.</div></div></li>'
+    : protocols.map(p => {
+        const exName = exerciseLabels[p.exerciseType] || p.exerciseType;
+        const params = `${p.sets || 3} sets \xB7 ${p.reps || 10} reps \xB7 ${p.frequency || 'daily'}`;
+        return `<li class="pd-protocol-row">
+          <div class="pd-protocol-meta">
+            <div class="pd-protocol-name">${escapeHtml(exName)}</div>
+            <div class="pd-protocol-params">${params}</div>
+          </div>
+          <span class="pd-protocol-status pd-protocol-status--active">Active</span>
+        </li>`;
+      }).join('');
+
+  // Session rows (up to 5, newest first)
+  const recentSessions = sessions.slice().reverse().slice(0, 5);
+  const sessionRowsHtml = recentSessions.length === 0
+    ? '<li class="pd-session-row" style="cursor:default;pointer-events:none;"><div class="pd-session-meta"><div class="pd-session-title" style="color:var(--th-muted)">No sessions yet.</div></div></li>'
+    : recentSessions.map(s => {
+        const d = new Date(s.date);
+        const day = d.getDate();
+        const mon = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+        const exName = exerciseLabels[s.exerciseType] || s.exerciseType || 'Session';
+        const setsCount = s.setData?.length > 0 ? s.setData.length : (s.sets || '-');
+        const painVal = s.setData?.length > 0
+          ? (s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length).toFixed(1)
+          : (s.pain || '-');
+        const hasVideo = s.setData?.some(x => !!x.videoUrl);
+        const videoIcon = hasVideo
+          ? `<span class="pd-session-video" title="Video attached" aria-label="Video attached"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>`
+          : '';
+        const safeId = (s.id || '').replace(/'/g, "\\'");
+        return `<li class="pd-session-row" onclick="openSessionDetail('${safeId}')">
+          <div class="pd-session-date">
+            <span class="pd-session-day">${day}</span>
+            <span class="pd-session-mon">${mon}</span>
+          </div>
+          <div class="pd-session-meta">
+            <div class="pd-session-title">${escapeHtml(exName)}</div>
+            <div class="pd-session-stats">${setsCount} sets \xB7 ${s.reps || '-'} reps \xB7 pain ${painVal}</div>
+          </div>
+          ${videoIcon}
+        </li>`;
+      }).join('');
+
+  // Pain chart data
+  const chartSessions = sessions.slice(-8);
+  const painData = chartSessions.map(s => s.pain || 0);
+  const labels = buildChartLabels(chartSessions);
 
   panel.innerHTML = `
-    <div class="patient-panel-hdr">
-      <div class="patient-panel-hdr-left">
-        <button class="tp-back-btn" onclick="backToPatientList()" title="Back to patients list">←</button>
-        <div><h3>${escapeHtml(patient.name)}</h3><p class="subtitle">Connected Patient — ${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</p></div>
-      </div>
-      <button class="apm-add-btn" data-email="${patient.email}" data-name="${patient.name.replace(/"/g, '&quot;')}" onclick="openAddProtocol(this.dataset.email, this.dataset.name)">Add Protocol</button>
-    </div>
-    <div class="stats-row">
-      <div class="stat-card"><div class="stat-value"><span class="sh-indicator" style="background:${complianceColor}"></span>${compliance}%</div><div class="stat-label">7-Day Compliance</div></div>
-      <div class="stat-card"><div class="stat-value">${lastPain}</div><div class="stat-label">Last Session's Avg Pain Rating</div></div>
-    </div>
-    <div class="tp-charts-grid">
-    ${makeCollapsible('pain',    'Pain Rating Over Time',     '<canvas id="painChart" height="160"></canvas>', false)}
-    </div>
-    ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
-    ${makeCollapsible('protocol', 'Current Protocol', buildProtocolList(patient.email, protocols), false)}
-    ${makeCollapsible('messages','Messages',                  buildMessagePanel(patient.email), false)}`;
+    <div class="patient-detail">
+      <header class="pd-header">
+        <div class="pd-avatar" aria-hidden="true">${escapeHtml(initials)}</div>
+        <div class="pd-header-meta">
+          <h1 class="pd-name">${escapeHtml(patient.name)}</h1>
+          <div class="pd-sub">
+            <span>${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</span>
+            <span class="pd-dot" aria-hidden="true">&middot;</span>
+            <span>${adherence}% adherence (7d)</span>
+          </div>
+        </div>
+        <div class="pd-header-actions">
+          <button class="tp-btn" onclick="messagePatient('${safeEmail}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Message
+          </button>
+          <button class="tp-btn tp-btn-primary" onclick="assignExercisesTo('${safeEmail}')">Assign exercises</button>
+        </div>
+      </header>
 
-  const tPainCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
-  new Chart(document.getElementById('painChart').getContext('2d'), {
-    type: 'line', data: { labels, datasets: [tPainCfg.dataset] }, options: tPainCfg.options
-  });
+      <section class="pd-vitals">
+        <div class="pd-vital">
+          <span class="pd-vital-label">Adherence</span>
+          <span class="pd-vital-value">${adherence}<span class="pd-vital-unit">%</span></span>
+        </div>
+        <div class="pd-vital">
+          <span class="pd-vital-label">Avg pain</span>
+          <span class="pd-vital-value">${avgPain7d}${avgPain7d !== '-' ? '<span class="pd-vital-unit">/10</span>' : ''}</span>
+        </div>
+        <div class="pd-vital">
+          <span class="pd-vital-label">Mobility</span>
+          <span class="pd-vital-value">—</span>
+        </div>
+        <div class="pd-vital">
+          <span class="pd-vital-label">Sessions</span>
+          <span class="pd-vital-value">${sessions7d}<span class="pd-vital-unit"> / 7d</span></span>
+        </div>
+      </section>
+
+      <div class="pd-columns">
+        <section class="pd-card">
+          <header class="pd-card-header">
+            <h2>Assigned protocols</h2>
+            <button class="pd-card-link" onclick="openAddProtocol('${safeEmail}', '${safeName}')">Manage</button>
+          </header>
+          <ul class="pd-protocol-list">${protocolRowsHtml}</ul>
+        </section>
+
+        <section class="pd-card">
+          <header class="pd-card-header">
+            <h2>Mobility Index</h2>
+          </header>
+          <canvas id="painChart" height="160"></canvas>
+        </section>
+      </div>
+
+      <section class="pd-card" style="margin-bottom:16px">
+        <header class="pd-card-header">
+          <h2>Recent sessions</h2>
+        </header>
+        <ul class="pd-session-list">${sessionRowsHtml}</ul>
+      </section>
+
+      <section class="pd-card">
+        <header class="pd-card-header">
+          <h2>Clinical notes</h2>
+          <button class="pd-card-link" onclick="editPatientNote('${safeEmail}')">Edit</button>
+        </header>
+        <p class="pd-note" id="patientNoteText">Patient recovering well. Data will appear here as sessions are completed.</p>
+      </section>
+
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
+      ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}
+    </div>`;
+
+  if (sessions.length > 0) {
+    const tPainCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
+    new Chart(document.getElementById('painChart').getContext('2d'), {
+      type: 'line', data: { labels, datasets: [tPainCfg.dataset] }, options: tPainCfg.options
+    });
+  }
 
   await markRead(currentUser.email, patient.email);
-  const archived1 = await isThreadArchived(currentUser.email, patient.email);
-  const sendBtn1 = document.getElementById('therapistMsgSend');
-  const msgInput1 = document.getElementById('therapistMsgInput');
-  if (archived1 && sendBtn1 && msgInput1) {
-    sendBtn1.disabled = true;
-    msgInput1.disabled = true;
-    msgInput1.placeholder = 'This conversation has been archived.';
-  } else if (sendBtn1) {
-    sendBtn1.onclick = async () => {
+  const archived = await isThreadArchived(currentUser.email, patient.email);
+  const sendBtn = document.getElementById('therapistMsgSend');
+  const msgInput = document.getElementById('therapistMsgInput');
+  if (archived && sendBtn && msgInput) {
+    sendBtn.disabled = true;
+    msgInput.disabled = true;
+    msgInput.placeholder = 'This conversation has been archived.';
+  } else if (sendBtn) {
+    sendBtn.onclick = async () => {
       const input = document.getElementById('therapistMsgInput');
       await sendMessage(currentUser.email, patient.email, input.value);
       input.value = '';
@@ -3015,6 +3122,59 @@ async function showRealPatient(patient) {
   subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
   enableMobilePatientDetail(panel);
   updateExerciseParamsUI(null, null);
+}
+
+function selectPatient(email) {
+  const row = document.querySelector(`.patient-row[data-patient-email="${CSS.escape(email)}"]`);
+  if (row) row.click();
+}
+
+function messagePatient(email) {
+  // Expand the Messages collapsible in the current patient panel
+  const msgSection = document.getElementById('tps-messages');
+  if (msgSection) {
+    if (msgSection.classList.contains('collapsed')) toggleTpSection('tps-messages');
+    msgSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function assignExercisesTo(email) {
+  // Find patient name from the sidebar row and open add-protocol modal
+  const row = document.querySelector(`.patient-row[data-patient-email="${CSS.escape(email)}"]`);
+  const name = row?.querySelector('.patient-row-name')?.textContent || email;
+  openAddProtocol(email, name);
+}
+
+function openSessionDetail(sessionId) {
+  // Find the set with a video in the already-rendered session history and open it
+  if (!sessionId) return;
+  const link = document.querySelector(`[data-session-id="${sessionId}"] .sh-play-btn`);
+  if (link) link.click();
+}
+
+function editPatientNote(email) {
+  const noteEl = document.getElementById('patientNoteText');
+  if (!noteEl || noteEl.tagName === 'TEXTAREA') return;
+  const current = noteEl.textContent;
+  const ta = document.createElement('textarea');
+  ta.className = 'pd-note';
+  ta.style.cssText = 'width:100%;min-height:80px;resize:vertical;border:1px solid var(--th-border);border-radius:6px;padding:8px;font-family:var(--th-font);font-size:0.92rem;';
+  ta.value = current;
+  noteEl.replaceWith(ta);
+  ta.focus();
+  const saveBtn = ta.closest('.pd-card')?.querySelector('.pd-card-link');
+  if (saveBtn) {
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = () => {
+      const p = document.createElement('p');
+      p.className = 'pd-note';
+      p.id = 'patientNoteText';
+      p.textContent = ta.value;
+      ta.replaceWith(p);
+      saveBtn.textContent = 'Edit';
+      saveBtn.onclick = () => editPatientNote(email);
+    };
+  }
 }
 
 function toggleShExpand(id) {
@@ -6500,7 +6660,7 @@ Object.assign(window, {
   openManualSession, closeManualSession, submitManualSession,
 
   // Patient flows
-  startScanSession, startSessionWithProtocol, startSessionByIndex, showExercisesScreen,
+  startScanSession, startSessionWithProtocol, startSessionByIndex, showPatientHome, showExercisesScreen,
   showProgressScreen, openPatientMessaging, sendMessageFromPatient, toggleMsgSend, toggleExerciseList,
   downloadMyData, deleteMyAccount, disconnectFromTherapist, disconnectPatient,
 
@@ -6522,6 +6682,7 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode, openTherapistMessages,
+  selectPatient, messagePatient, assignExercisesTo, openSessionDetail, editPatientNote,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
