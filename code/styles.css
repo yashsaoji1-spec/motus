@@ -6494,62 +6494,42 @@ body:has(#manualCamScreen.active) {
   color: var(--th-primary);
 }
 
-.therapist-scope .pd-session-list { list-style: none; margin: 0; padding: 0; }
-.therapist-scope .pd-session-row {
+.cn-editor-wrap {
+  border: 1px solid var(--th-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cn-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--th-bg);
   border-bottom: 1px solid var(--th-border);
-  cursor: pointer;
+}
+.cn-tb-btn {
+  width: 30px; height: 28px;
+  display: grid; place-items: center;
+  background: none; border: none; border-radius: 4px;
+  color: var(--th-text-strong); cursor: pointer;
+  font-family: var(--th-font); font-size: 0.82rem;
   transition: background 120ms;
 }
-.therapist-scope .pd-session-row:hover { background: var(--th-bg); }
-.therapist-scope .pd-session-row:last-child { border-bottom: none; }
-.therapist-scope .pd-session-date {
-  flex-shrink: 0;
-  width: 40px; height: 40px;
-  border-radius: 10px;
-  background: var(--th-bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--th-primary);
-}
-.therapist-scope .pd-session-day {
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
-  font-weight: 700;
-  line-height: 1;
-}
-.therapist-scope .pd-session-mon {
+.cn-tb-btn:hover { background: var(--th-surface-hover, rgba(0,0,0,0.06)); }
+.cn-tb-sep { width: 1px; height: 18px; background: var(--th-border); margin: 0 4px; }
+.cn-editable {
+  min-height: 120px;
+  padding: 12px 14px;
   font-family: var(--th-font);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  margin-top: 2px;
-}
-.therapist-scope .pd-session-meta { flex: 1; min-width: 0; }
-.therapist-scope .pd-session-title {
-  font-family: var(--th-font);
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.6;
   color: var(--th-text-strong);
+  outline: none;
 }
-.therapist-scope .pd-session-stats {
-  font-family: var(--th-font);
-  font-size: 0.78rem;
+.cn-editable:empty::before {
+  content: attr(data-placeholder);
   color: var(--th-muted);
-  margin-top: 2px;
+  pointer-events: none;
 }
-.therapist-scope .pd-session-video { color: var(--th-primary); flex-shrink: 0; }
-
-.therapist-scope .pd-note {
-  font-family: var(--th-font);
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: var(--th-text-strong);
-  margin: 0;
-  white-space: pre-wrap;
-}
+.cn-editable ul, .cn-editable ol { margin: 4px 0; padding-left: 20px; }
+.cn-editable li { margin-bottom: 2px; }
