@@ -1442,6 +1442,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: rgba(255,255,255,0.15);
   color: #fff;
 }
+.th-sidebar-icon:focus-visible, .th-sidebar-icon:focus { outline: none; }
 
 .th-sidebar-icon--active {
   background: rgba(37,99,235,0.2);
@@ -1475,18 +1476,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .th-add-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--th-primary);
+  border-radius: 5px;
   border: none;
+  background: var(--th-primary);
   color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
+  font-family: var(--th-font);
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  white-space: nowrap;
   min-height: auto;
-  padding: 0;
 }
 
 .th-btn {
@@ -6082,21 +6082,22 @@ body:has(#manualCamScreen.active) {
   color: var(--th-muted);
 }
 .therapist-scope .th-add-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1.5px solid var(--th-border);
-  background: var(--th-surface);
-  color: var(--th-text);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: none;
+  background: var(--th-primary);
+  color: #fff;
   cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: background 120ms, border-color 120ms;
+  font-family: var(--th-font);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 120ms;
 }
 .therapist-scope .th-add-btn:hover {
-  background: var(--th-primary);
-  border-color: var(--th-primary);
-  color: #fff;
+  opacity: 0.85;
 }
 
 .therapist-scope .clinic-badge {

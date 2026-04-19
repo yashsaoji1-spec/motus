@@ -380,7 +380,7 @@ function showScreen(screenId) {
   // Patient bottom nav: show on all patient app screens except recording screens
   const PATIENT_NAV_SCREENS = new Set(['patientScreen', 'exercisesScreen', 'progressScreen', 'messagingScreen', 'settingsScreen']);
   const patientNav = document.getElementById('patientBottomNav');
-  if (patientNav) patientNav.style.display = PATIENT_NAV_SCREENS.has(screenId) ? 'flex' : 'none';
+  if (patientNav) patientNav.style.display = (currentRole === 'patient' && PATIENT_NAV_SCREENS.has(screenId)) ? 'flex' : 'none';
 
   // Clean up message thread listener when leaving messaging screen
   if (prevActive && prevActive.id === 'messagingScreen' && screenId !== 'messagingScreen') {
@@ -590,6 +590,7 @@ function showSettingsScreen() {
   setVal('settingsInjuryArea',   u.demographics?.injuryArea || '');
   setVal('settingsRehabDuration',u.demographics?.rehabDuration || '');
   setVal('settingsReferral',     u.demographics?.referralSource || '');
+  setVal('settingsOccupation',   u.therapistProfile?.occupation || '');
   setVal('settingsPracticeArea', u.therapistProfile?.practiceArea || '');
   setVal('settingsYearsExp',     u.therapistProfile?.yearsExperience || '');
   const isPatient = currentRole === 'patient';
@@ -597,10 +598,13 @@ function showSettingsScreen() {
   const thSec  = document.getElementById('settingsTherapistSection');
   const dlBtn  = document.getElementById('settingsDownloadBtn');
   const discBtn = document.getElementById('settingsDisconnectBtn');
+  const clinicSec = document.getElementById('settingsClinicSection');
   if (patSec)  patSec.hidden  = !isPatient;
   if (thSec)   thSec.hidden   = isPatient;
   if (dlBtn)   dlBtn.hidden   = !isPatient;
   if (discBtn) discBtn.hidden = !isPatient;
+  const isClinicOwner = !isPatient && _myClinic && _myClinic.ownerEmail === (currentUser?.email || '');
+  if (clinicSec) clinicSec.style.display = isClinicOwner ? '' : 'none';
   const modal = document.getElementById('settingsSavedModal');
   if (modal) modal.style.display = 'none';
   showScreen('settingsScreen');
@@ -640,6 +644,7 @@ async function saveSettings() {
     updatedFields.push('demographics');
   } else {
     const prof = {
+      occupation:      document.getElementById('settingsOccupation')?.value || '',
       practiceArea:    document.getElementById('settingsPracticeArea')?.value || '',
       yearsExperience: document.getElementById('settingsYearsExp')?.value || '',
       updatedAt:       firebase.firestore.FieldValue.serverTimestamp(),
@@ -2981,7 +2986,6 @@ function backToPatientList() {
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <h2>Select a patient</h2>
       <p>Pick someone from the list to see their sessions, pain trend, and assigned protocols.</p>
-      <button class="tp-btn tp-btn-primary" onclick="openBulkAssign()">Bulk assign exercises</button>
     </div>`;
 }
 

@@ -630,7 +630,7 @@
     <div class="th-sidebar-logo">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
     </div>
-    <button class="th-sidebar-icon th-sidebar-icon--active" title="Patients" aria-label="Patients">
+    <button class="th-sidebar-icon" title="Patients" aria-label="Patients" onclick="backToPatientList()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     </button>
     <button class="th-sidebar-icon" title="Messages" aria-label="Messages" onclick="openTherapistMessages()">
@@ -644,8 +644,8 @@
       <span class="clinic-invite-badge" id="clinicInviteBadge" style="display:none">0</span>
     </button>
     <div class="th-sidebar-spacer"></div>
-    <button class="th-sidebar-icon" title="Sign Out" aria-label="Sign Out" onclick="requestLogout()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    <button class="th-sidebar-icon" title="Settings" aria-label="Settings" onclick="showSettingsScreen()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
   </div>
 
@@ -654,9 +654,7 @@
     <div class="sidebar-top">
       <div class="th-list-header">
         <span class="th-section-label">Patients</span>
-        <button class="th-add-btn" onclick="openBulkAssign()" title="Bulk Assign">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
+        <button class="th-add-btn" onclick="openBulkAssign()" title="Bulk Assign">Bulk Assign</button>
       </div>
       <div class="clinic-badge" onclick="copyClinicCode()" title="Click to copy">
         <span>Code:</span>
@@ -670,10 +668,7 @@
       </div>
       <div id="patientRows" class="patient-rows"></div>
     </div>
-    <div class="sidebar-footer">
-      <span class="sidebar-switch-user" onclick="requestLogout()">Switch user</span>
-      <span class="sidebar-switch-user delete-account-btn" onclick="deleteMyAccount()">Delete account</span>
-    </div>
+    <div class="sidebar-footer"></div>
   </div>
 
   <!-- Main detail panel -->
@@ -682,7 +677,6 @@
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
       <h2>Select a patient</h2>
       <p>Pick someone from the list to see their sessions, pain trend, and assigned protocols.</p>
-      <button class="tp-btn tp-btn-primary" onclick="openBulkAssign()">Bulk assign exercises</button>
     </div>
   </div>
 </div>
@@ -1312,6 +1306,9 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="settingsScreen" class="screen patient-scope settings-screen">
   <div class="settings-header">
+    <button class="settings-back-btn" onclick="showSettingsBack()" aria-label="Back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
     <span class="settings-title">Settings</span>
   </div>
   <div class="settings-body">
@@ -1408,6 +1405,20 @@
     <div class="settings-section" id="settingsTherapistSection">
       <div class="settings-section-title">Professional</div>
       <div class="settings-field">
+        <label for="settingsOccupation">Primary occupation</label>
+        <select id="settingsOccupation" class="auth-select">
+          <option value="">Not specified</option>
+          <option value="pt">Physical Therapist</option>
+          <option value="ot">Occupational Therapist</option>
+          <option value="slp">Speech-Language Pathologist</option>
+          <option value="pta">Physical Therapist Assistant</option>
+          <option value="ota">Occupational Therapy Assistant</option>
+          <option value="athletic-trainer">Athletic Trainer</option>
+          <option value="chiropractor">Chiropractor</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="settings-field">
         <label for="settingsPracticeArea">Practice area</label>
         <select id="settingsPracticeArea" class="auth-select">
           <option value="">Not specified</option>
@@ -1430,6 +1441,12 @@
           <option value="10yr+">More than 10 years</option>
         </select>
       </div>
+    </div>
+
+    <!-- Clinic Settings — owner only -->
+    <div class="settings-section" id="settingsClinicSection" style="display:none">
+      <div class="settings-section-title">Clinic</div>
+      <button class="settings-account-btn" onclick="showMyClinicOrJoin()">Manage clinic settings</button>
     </div>
 
     <!-- Account section -->
