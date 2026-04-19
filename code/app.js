@@ -102,11 +102,14 @@ let _manualCamProtocol    = null;  // current protocol for manual camera session
 let _manualCamSetData    = [];    // array of {reps, pain, notes, videoUrl} for each set
 let _manualCamCurrentSet = 1;     // current set number (1-indexed)
 let _manualCamTotalSets = 3;      // total sets for this session
+let _manualCamExerciseIndex = 0;  // current exercise index (0-indexed)
+let _manualCamTotalExercises = 1; // total exercises in session
 let _manualCamStream    = null;  // getUserMedia stream
 let _manualCamRecorder  = null;  // MediaRecorder for manual camera
 let _manualCamChunks    = [];    // recorded chunks for current set
 let _manualCamVideoUrl  = null;   // uploaded video URL for current set
 let _manualCamCurrentBlob = null; // video blob from current set
+let _manualCamTimerInterval = null; // recording timer interval
 
 const CLOUDINARY_CLOUD  = 'dslbugsdg';
 const CLOUDINARY_PRESET = 'phalanx-videos';
@@ -1408,14 +1411,40 @@ async function updatePatientHomeScreen() {
   const disconnectBtn = document.getElementById('disconnectTherapistBtn');
   if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
 
-  // Protocol card (visible list)
+  // Protocol card header
+  const kickerEl = document.getElementById('ptProtocolKicker');
+  const freqEl = document.getElementById('ptProtocolFreq');
+  const titleEl = document.getElementById('ptProtocolTitle');
+  const subtitleEl = document.getElementById('ptProtocolSubtitle');
+  if (protocols.length > 0) {
+    const p0 = protocols[0];
+    const protocolName = p0.protocolName || p0.exerciseName || 'Your Protocol';
+    if (kickerEl) kickerEl.textContent = `YOUR PROTOCOL`;
+    if (freqEl) freqEl.textContent = p0.frequency || '';
+    if (titleEl) titleEl.textContent = protocolName;
+    if (subtitleEl) subtitleEl.textContent = `${protocols.length} exercise${protocols.length > 1 ? 's' : ''} \xB7 record each set`;
+  } else {
+    if (kickerEl) kickerEl.textContent = 'YOUR PROTOCOL';
+    if (freqEl) freqEl.textContent = '';
+    if (titleEl) titleEl.textContent = 'No Protocol';
+    if (subtitleEl) subtitleEl.textContent = 'Ask your therapist to assign exercises';
+  }
+
+  // Protocol card exercise list with checkmarks
+  const completedTypes = new Set(sessions.filter(s => {
+    const d = new Date(s.date);
+    return d.toDateString() === new Date().toDateString();
+  }).map(s => s.exerciseType));
+
   const planList = document.getElementById('todaysPlanList');
   if (planList) {
     if (protocols.length > 0) {
       planList.innerHTML = protocols.map(p => {
         const name = exerciseLabels[p.exerciseType] || p.exerciseName || p.exerciseType;
-        const dose = `${p.sets || 3} sets \xB7 ${p.reps || 10} reps`;
-        return `<li class="pt-protocol-item"><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span></li>`;
+        const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
+        const done = completedTypes.has(p.exerciseType);
+        const checkSvg = done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+        return `<li class="pt-protocol-item${done ? ' done' : ''}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span></li>`;
       }).join('');
     } else {
       planList.innerHTML = '<li class="pt-protocol-empty">No exercises assigned yet</li>';
@@ -1433,10 +1462,28 @@ async function updatePatientHomeScreen() {
         return sum + (s.pain || 0);
       }, 0) / recent7.length).toFixed(1)
     : null;
+  // Compute prior week stats for delta
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
+  const priorWeek = sessions.filter(s => { const d = new Date(s.date); return d > fourteenDaysAgo && d <= sevenDaysAgo; });
+  const priorDays = new Set(priorWeek.map(s => new Date(s.date).toDateString())).size;
+  const priorAdh = Math.round((priorDays / 7) * 100);
+  const adhDelta = adherencePct - priorAdh;
+  const priorPain = priorWeek.length > 0
+    ? (priorWeek.reduce((sum, s) => {
+        if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
+        return sum + (s.pain || 0);
+      }, 0) / priorWeek.length).toFixed(1)
+    : null;
+  const painDelta = (avgPain7d !== null && priorPain !== null) ? (parseFloat(avgPain7d) - parseFloat(priorPain)).toFixed(1) : null;
+
   const adherenceEl = document.getElementById('ptStatAdherence');
   const avgPainEl = document.getElementById('ptStatAvgPain');
+  const adhDeltaEl = document.getElementById('ptStatAdherenceDelta');
+  const painDeltaEl = document.getElementById('ptStatAvgPainDelta');
   if (adherenceEl) adherenceEl.innerHTML = `${adherencePct}<span class="pt-stat-unit">%</span>`;
-  if (avgPainEl) avgPainEl.innerHTML = avgPain7d !== null ? `${avgPain7d}<span class="pt-stat-unit">/10</span>` : '—';
+  if (avgPainEl) avgPainEl.innerHTML = avgPain7d !== null ? `${avgPain7d}<span class="pt-stat-unit">/10</span>` : '\u2014';
+  if (adhDeltaEl) adhDeltaEl.textContent = adhDelta !== 0 ? `${adhDelta > 0 ? '+' : ''}${adhDelta}% vs last week` : '';
+  if (painDeltaEl && painDelta !== null) painDeltaEl.textContent = parseFloat(painDelta) !== 0 ? `${parseFloat(painDelta) > 0 ? '+' : ''}${painDelta} vs last week` : '';
 
   // Hidden stub (completionStatus preserved for legacy code paths)
   const planCard = document.getElementById('todaysPlanCard');
@@ -1457,9 +1504,25 @@ async function updatePatientHomeScreen() {
     }
   }
 
+  // Therapist card
+  const tHeading = document.getElementById('ptTherapistHeading');
+  const tCard = document.getElementById('ptTherapistCard');
   if (therapistEmail) {
     const tSnap = await db.collection('users').doc(therapistEmail).get();
-    if (tSnap.exists) document.getElementById('therapistContactName').textContent = tSnap.data().name;
+    if (tSnap.exists) {
+      const tName = tSnap.data().name;
+      document.getElementById('therapistContactName').textContent = tName;
+      const avatarEl = document.getElementById('ptTherapistAvatar');
+      if (avatarEl) {
+        const parts = tName.split(' ');
+        avatarEl.textContent = parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : tName.slice(0, 2).toUpperCase();
+      }
+      if (tHeading) tHeading.style.display = '';
+      if (tCard) tCard.style.display = 'flex';
+    }
+  } else {
+    if (tHeading) tHeading.style.display = 'none';
+    if (tCard) tCard.style.display = 'none';
   }
 
   // Streak
@@ -1543,6 +1606,8 @@ let _demoSourceScreen = null; // 'patientScreen' or 'exercisesScreen'
 
 async function startSessionByIndex(i) {
   _demoSourceScreen = 'exercisesScreen';
+  _manualCamExerciseIndex = i;
+  _manualCamTotalExercises = _exercisesProtocols.length;
   await startSessionWithProtocol(_exercisesProtocols[i]);
 }
 
@@ -1663,16 +1728,18 @@ async function openManualCameraSession(protocol) {
   const btnsEl = document.getElementById('manualCamBtns');
 
   if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseName || protocol.exerciseType || 'Exercise';
-  if (setInfoEl) setInfoEl.textContent = `SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
+  const exIdx = (_manualCamExerciseIndex || 0) + 1;
+  const exTotal = _manualCamTotalExercises || 1;
+  if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
   const targetEl = document.getElementById('manualCamTarget');
   if (targetEl) targetEl.textContent = `Target ${_manualCamTotalSets}\u00D7${protocol.reps || 10}`;
-  if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
+  if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
   const demoUrl = protocol.demoVideoUrl || null;
   const demoBtn = demoUrl
     ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrl.replace(/'/g,"\\'")}', '${(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'').replace(/'/g,"\\'")}')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side" onclick="manualCamExit()">EXIT</button>
+    <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
     <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
     </button>
@@ -1726,13 +1793,25 @@ function manualCamStartRecording() {
     ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlR.replace(/'/g,"\\'")}', '')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side" disabled style="opacity:0.3">EXIT</button>
+    <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
     <button class="mcam-btn-stop" onclick="manualCamEndSet()">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+      <div style="width:24px;height:24px;background:#CC2936;border-radius:4px"></div>
     </button>
     ${demoBtnR}
   `;
   if (recEl) recEl.style.display = 'flex';
+
+  // Start timer
+  let _recSeconds = 0;
+  const timerEl = document.getElementById('manualCamTimer');
+  if (timerEl) timerEl.textContent = '0:00';
+  if (_manualCamTimerInterval) clearInterval(_manualCamTimerInterval);
+  _manualCamTimerInterval = setInterval(() => {
+    _recSeconds++;
+    const m = Math.floor(_recSeconds / 60);
+    const s = String(_recSeconds % 60).padStart(2, '0');
+    if (timerEl) timerEl.textContent = `${m}:${s}`;
+  }, 1000);
 }
 
 function manualCamEndSet() {
@@ -1740,7 +1819,8 @@ function manualCamEndSet() {
   
   const recEl = document.getElementById('manualCamRecording');
   if (recEl) recEl.style.display = 'none';
-  
+  if (_manualCamTimerInterval) { clearInterval(_manualCamTimerInterval); _manualCamTimerInterval = null; }
+
   const mimeType = _manualCamRecorder.mimeType;
   
   _manualCamRecorder.onstop = async () => {
@@ -1755,24 +1835,37 @@ function manualCamEndSet() {
     const painVal = document.getElementById('setInputPainVal');
     const notesInput = document.getElementById('setInputNotes');
     
-    if (repsInput) repsInput.value = _manualCamProtocol?.reps || 10;
+    const defaultReps = _manualCamProtocol?.reps || 10;
+    if (repsInput) repsInput.value = defaultReps;
     if (painInput) painInput.value = 1;
-    if (painVal) painVal.textContent = '1 / 10';
     if (notesInput) notesInput.value = '';
-    
-    if (setInput) setInput.style.display = 'flex';
 
-    // Build pain bar segments on first open
-    const track = document.getElementById('painBarSegments');
-    if (track && !track.children.length) {
-      for (let i = 1; i <= 10; i++) {
-        const s = document.createElement('div');
-        s.className = 'pain-seg';
-        track.appendChild(s);
-      }
-    }
-    document.getElementById('setInputPain').value = 1;
-    updatePainBar(1);
+    // Badge
+    const badge = document.getElementById('setInputBadgeText');
+    if (badge) badge.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets} complete`;
+
+    // Exercise name
+    const exNameEl = document.getElementById('setInputExName');
+    if (exNameEl) exNameEl.textContent = (exerciseLabels[_manualCamProtocol?.exerciseType] || _manualCamProtocol?.exerciseName || '').toUpperCase();
+
+    // Stepper display
+    const repsDisp = document.getElementById('siRepsDisplay');
+    const repsTgt = document.getElementById('siRepsTarget');
+    if (repsDisp) repsDisp.textContent = defaultReps;
+    if (repsTgt) repsTgt.textContent = `TARGET ${defaultReps}`;
+
+    // Pain squares
+    siInitPainGrid();
+    siSelectPain(1);
+
+    // Reset chips
+    document.querySelectorAll('.si-chip').forEach(c => c.classList.remove('active'));
+
+    // Update save button label
+    const saveBtn = document.querySelector('.si-save-btn');
+    if (saveBtn) saveBtn.textContent = _manualCamCurrentSet >= _manualCamTotalSets ? 'Save · finish →' : 'Save · next set →';
+
+    if (setInput) setInput.style.display = 'flex';
   };
 
   _manualCamRecorder.stop();
@@ -1788,7 +1881,7 @@ function manualCamCancelSet() {
     ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlC.replace(/'/g,"\\'")}', '')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side" onclick="manualCamExit()">EXIT</button>
+    <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
     <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
     </button>
@@ -1799,7 +1892,9 @@ function manualCamCancelSet() {
 async function manualCamSaveSet() {
   const reps = Math.max(0, Math.min(100, parseInt(document.getElementById('setInputReps').value) || 0));
   const pain = Math.max(1, Math.min(10, parseInt(document.getElementById('setInputPain').value) || 1));
-  const notes = (document.getElementById('setInputNotes').value || '').trim();
+  const chips = [...document.querySelectorAll('.si-chip.active')].map(c => c.textContent).join(', ');
+  const noteText = (document.getElementById('setInputNotes').value || '').trim();
+  const notes = [chips, noteText].filter(Boolean).join(' · ');
   
   document.getElementById('setInputModal').style.display = 'none';
   
@@ -1821,9 +1916,21 @@ async function manualCamSaveSet() {
     const setInfoEl = document.getElementById('manualCamSetInfo');
     const promptEl = document.getElementById('manualCamPrompt');
     const btnsEl = document.getElementById('manualCamBtns');
-    if (setInfoEl) setInfoEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets}`;
-    if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
-    if (btnsEl) btnsEl.innerHTML = `<button class="manual-cam-start-btn" id="manualCamStartBtn" onclick="manualCamStartRecording()">Start</button>`;
+    const exIdx = (_manualCamExerciseIndex || 0) + 1;
+    const exTotal = _manualCamTotalExercises || 1;
+    if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
+    if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
+    const demoUrlN = _manualCamProtocol?.demoVideoUrl || null;
+    const demoBtnN = demoUrlN
+      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlN.replace(/'/g,"\\'")}', '')">DEMO</button>`
+      : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
+    if (btnsEl) btnsEl.innerHTML = `
+      <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
+      <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+      ${demoBtnN}
+    `;
   }
 }
 
@@ -1866,6 +1973,7 @@ async function finishManualCamSession() {
 }
 
 function manualCamExit() {
+  if (_manualCamTimerInterval) { clearInterval(_manualCamTimerInterval); _manualCamTimerInterval = null; }
   // If recording in progress, stop and save
   if (_manualCamRecorder && _manualCamRecorder.state !== 'inactive') {
     _manualCamRecorder.onstop = async () => {
@@ -2970,18 +3078,35 @@ async function showRealPatient(patient) {
   const safeEmail = patient.email.replace(/'/g, "\\'");
   const safeName = patient.name.replace(/"/g, '&quot;');
 
+  // Prior week for deltas
+  const fourteenAgo = new Date(Date.now() - 14 * 86400000);
+  const priorW = sessions.filter(s => { const d = new Date(s.date); return d > fourteenAgo && d <= sevenDaysAgo; });
+  const priorDaysT = new Set(priorW.map(s => new Date(s.date).toDateString())).size;
+  const priorAdhT = Math.round((priorDaysT / 7) * 100);
+  const adhDeltaT = parseInt(adherence) - priorAdhT;
+  const priorPainT = priorW.length > 0
+    ? (priorW.reduce((sum, s) => { if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length; return sum + (s.pain || 0); }, 0) / priorW.length).toFixed(1)
+    : null;
+  const painDeltaT = (avgPain7d !== '-' && priorPainT !== null) ? (parseFloat(avgPain7d) - parseFloat(priorPainT)).toFixed(1) : null;
+
+  const adhDeltaHtml = adhDeltaT !== 0 ? `<span class="pd-vital-delta" style="color:${adhDeltaT > 0 ? '#059669' : '#64748B'}">${adhDeltaT > 0 ? '+' : ''}${adhDeltaT}% vs last week</span>` : '';
+  const painDeltaHtml = painDeltaT !== null && parseFloat(painDeltaT) !== 0 ? `<span class="pd-vital-delta" style="color:${parseFloat(painDeltaT) < 0 ? '#059669' : '#64748B'}">${parseFloat(painDeltaT) > 0 ? '+' : ''}${painDeltaT} vs last week</span>` : '';
+
   // Protocol rows
+  const activityIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
   const protocolRowsHtml = protocols.length === 0
     ? '<li class="pd-protocol-row"><div class="pd-protocol-meta"><div class="pd-protocol-name" style="color:var(--th-muted)">No exercises assigned yet.</div></div></li>'
     : protocols.map(p => {
         const exName = exerciseLabels[p.exerciseType] || p.exerciseType;
-        const params = `${p.sets || 3} sets \xB7 ${p.reps || 10} reps \xB7 ${p.frequency || 'daily'}`;
+        const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
+        const note = p.note || '';
         return `<li class="pd-protocol-row">
+          <div class="pd-protocol-icon">${activityIcon}</div>
           <div class="pd-protocol-meta">
             <div class="pd-protocol-name">${escapeHtml(exName)}</div>
-            <div class="pd-protocol-params">${params}</div>
+            ${note ? `<div class="pd-protocol-params">${escapeHtml(note)}</div>` : ''}
           </div>
-          <span class="pd-protocol-status pd-protocol-status--active">Active</span>
+          <span class="pd-protocol-params" style="font-family:var(--font-mono);white-space:nowrap">${dose}</span>
         </li>`;
       }).join('');
 
@@ -3024,39 +3149,38 @@ async function showRealPatient(patient) {
   panel.innerHTML = `
     <div class="patient-detail">
       <header class="pd-header">
-        <div class="pd-avatar" aria-hidden="true">${escapeHtml(initials)}</div>
+        <div class="pd-avatar" style="width:48px;height:48px;border-radius:8px;background:#EFF6FF;color:#2563EB;font-family:'DM Mono',monospace;font-size:14px;font-weight:500" aria-hidden="true">${escapeHtml(initials)}</div>
         <div class="pd-header-meta">
           <h1 class="pd-name">${escapeHtml(patient.name)}</h1>
           <div class="pd-sub">
-            <span>${sessions.length} session${sessions.length !== 1 ? 's' : ''} recorded</span>
+            <span>${protocols.length > 0 ? (protocols[0].protocolName || protocols[0].exerciseName || 'Protocol') : 'No protocol'}</span>
             <span class="pd-dot" aria-hidden="true">&middot;</span>
-            <span>${adherence}% adherence (7d)</span>
+            <span>${sessions.length} session${sessions.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
         <div class="pd-header-actions">
-          <button class="tp-btn" onclick="messagePatient('${safeEmail}')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            Message
-          </button>
-          <button class="tp-btn tp-btn-primary" onclick="assignExercisesTo('${safeEmail}')">Assign exercises</button>
+          <button class="tp-btn" onclick="messagePatient('${safeEmail}')">Message</button>
+          <button class="tp-btn tp-btn-primary" onclick="assignExercisesTo('${safeEmail}')">Edit Protocol</button>
         </div>
       </header>
 
       <section class="pd-vitals">
         <div class="pd-vital">
-          <span class="pd-vital-label">Adherence</span>
+          <span class="pd-vital-label">ADHERENCE</span>
           <span class="pd-vital-value">${adherence}<span class="pd-vital-unit">%</span></span>
+          ${adhDeltaHtml}
         </div>
         <div class="pd-vital">
-          <span class="pd-vital-label">Avg pain</span>
+          <span class="pd-vital-label">AVG PAIN</span>
           <span class="pd-vital-value">${avgPain7d}${avgPain7d !== '-' ? '<span class="pd-vital-unit">/10</span>' : ''}</span>
+          ${painDeltaHtml}
         </div>
         <div class="pd-vital">
-          <span class="pd-vital-label">Mobility</span>
-          <span class="pd-vital-value">—</span>
+          <span class="pd-vital-label">MOBILITY</span>
+          <span class="pd-vital-value">\u2014</span>
         </div>
         <div class="pd-vital">
-          <span class="pd-vital-label">Sessions</span>
+          <span class="pd-vital-label">SESSIONS</span>
           <span class="pd-vital-value">${sessions7d}<span class="pd-vital-unit"> / 7d</span></span>
         </div>
       </section>
@@ -3064,8 +3188,8 @@ async function showRealPatient(patient) {
       <div class="pd-columns">
         <section class="pd-card">
           <header class="pd-card-header">
-            <h2>Assigned protocols</h2>
-            <button class="pd-card-link" onclick="openAddProtocol('${safeEmail}', '${safeName}')">Manage</button>
+            <h2>Prescribed Protocol</h2>
+            <button class="pd-card-link" onclick="openAddProtocol('${safeEmail}', '${safeName}')">+ Share from My Library</button>
           </header>
           <ul class="pd-protocol-list">${protocolRowsHtml}</ul>
         </section>
@@ -3146,10 +3270,26 @@ function assignExercisesTo(email) {
 }
 
 function openSessionDetail(sessionId) {
-  // Find the set with a video in the already-rendered session history and open it
   if (!sessionId) return;
-  const link = document.querySelector(`[data-session-id="${sessionId}"] .sh-play-btn`);
-  if (link) link.click();
+  const sessions = window._lastHistorySessions;
+  if (!sessions) return;
+  const session = sessions.find(s => s.id === sessionId);
+  if (!session) return;
+  const dateStr = (session.date || '').split('T')[0];
+
+  // Expand the history collapsible if collapsed
+  const historySection = document.getElementById('tps-history');
+  if (historySection && historySection.classList.contains('collapsed')) {
+    toggleTpSection('tps-history');
+  }
+
+  // Find the matching day card, expand it, and scroll to it
+  requestAnimationFrame(() => {
+    const dayCard = document.querySelector(`.prog-day-card[data-date="${dateStr}"]`);
+    if (!dayCard) return;
+    if (!dayCard.classList.contains('expanded')) dayCard.classList.add('expanded');
+    dayCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 function editPatientNote(email) {
@@ -3220,7 +3360,7 @@ function buildSessionHistory(sessions, patientName) {
     const avgPain = totalSets > 0
       ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
       : '-';
-    html += `<div class="prog-day-card">
+    html += `<div class="prog-day-card" data-date="${day}">
       <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
         <div class="prog-day-title-row">
           <span class="prog-day-expand-icon">▾</span>
@@ -5038,7 +5178,7 @@ function buildProgressByDay(sessions) {
       ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
       : '-';
     
-    html += `<div class="prog-day-card">
+    html += `<div class="prog-day-card" data-date="${day}">
       <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
         <div class="prog-day-title-row">
           <span class="prog-day-expand-icon">▾</span>
@@ -6624,17 +6764,59 @@ function mlTrainerBack() {
   showScreen('therapistScreen');
 }
 
-function updatePainBar(val) {
+function updatePainBar(val) { siSelectPain(val); }
+
+function siInitPainGrid() {
+  const grid = document.getElementById('siPainGrid');
+  if (!grid) return;
+  if (grid.children.length === 10) return;
+  grid.innerHTML = '';
+  for (let i = 1; i <= 10; i++) {
+    const sq = document.createElement('button');
+    sq.className = 'si-pain-sq';
+    sq.setAttribute('aria-label', `Pain ${i}`);
+    sq.onclick = () => siSelectPain(i);
+    grid.appendChild(sq);
+  }
+}
+
+function siSelectPain(val) {
   const v = parseInt(val);
-  document.getElementById('setInputPainVal').textContent = v + ' / 10';
-  const segs = document.querySelectorAll('.pain-seg');
-  segs.forEach((seg, i) => {
+  const hidden = document.getElementById('setInputPain');
+  const display = document.getElementById('setInputPainVal');
+  const painColor = v <= 3 ? '#059669' : v <= 6 ? '#F59E0B' : '#DC2626';
+  const painLabel = v <= 2 ? 'BARELY NOTICED' : v <= 4 ? 'MILD' : v <= 6 ? 'MODERATE' : v <= 8 ? 'STRONG' : 'SEVERE';
+  if (hidden) hidden.value = v;
+  if (display) display.innerHTML = `<span style="font-size:1.35rem;font-weight:700;color:${painColor}">${v}</span> <span>/ 10</span>`;
+  const severityEl = document.getElementById('siPainSeverity');
+  if (severityEl) { severityEl.textContent = painLabel; severityEl.style.color = painColor; }
+  document.querySelectorAll('.si-pain-sq').forEach((sq, i) => {
     const n = i + 1;
-    const color = n <= 3 ? 'green' : n <= 6 ? 'amber' : 'red';
-    seg.className = 'pain-seg';
-    if (n < v) seg.classList.add('filled-' + color);
-    else if (n === v) seg.classList.add('active-' + color);
+    sq.className = 'si-pain-sq';
+    if (n <= v) {
+      sq.style.background = n <= 3 ? '#059669' : n <= 6 ? '#F59E0B' : '#DC2626';
+      sq.style.border = 'none';
+      if (n === v) sq.style.outline = '2px solid #0C4A6E';
+      else sq.style.outline = 'none';
+    } else {
+      sq.style.background = '#F1F5F9';
+      sq.style.border = 'none';
+      sq.style.outline = 'none';
+    }
   });
+}
+
+function siAdjustReps(delta) {
+  const hidden = document.getElementById('setInputReps');
+  const disp = document.getElementById('siRepsDisplay');
+  if (!hidden || !disp) return;
+  let v = Math.max(0, Math.min(100, parseInt(hidden.value || 0) + delta));
+  hidden.value = v;
+  disp.textContent = v;
+}
+
+function siToggleChip(btn) {
+  btn.classList.toggle('active');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -6709,7 +6891,7 @@ Object.assign(window, {
 
   // Manual camera session
   openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,
-  updatePainBar,
+  updatePainBar, siAdjustReps, siSelectPain, siToggleChip,
 
   // Progress screen
   toggleProgDay, showSetNotes, closeSetNotesModal,

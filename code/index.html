@@ -22,20 +22,14 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="loginScreen" class="screen active patient-scope">
   <div class="auth-gradient-header">
-    <div class="auth-logo-block">
-      <div class="auth-logo-icon">
-        <svg width="28" height="28" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
-      </div>
-      <div class="auth-logo-text">Motus</div>
-      <div class="auth-logo-tagline">Physical Rehabilitation</div>
+    <div class="auth-logo-icon">
+      <svg width="28" height="28" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
     </div>
-    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none" aria-hidden="true"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
+    <div class="auth-header-welcome">Welcome back</div>
+    <div class="auth-header-sub">Sign in to continue your recovery.</div>
+    <svg class="auth-wave" viewBox="0 0 390 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0,28 C80,56 160,8 260,32 C320,46 360,20 390,28 L390,70 L0,70 Z" fill="#F0F9FF"/></svg>
   </div>
   <div class="auth-form-area">
-    <div class="auth-welcome">
-      <div class="auth-welcome-title">Welcome back</div>
-      <div class="auth-welcome-sub">Sign in to continue your recovery</div>
-    </div>
     <div id="loginError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="auth-field">
       <label for="loginEmail">Email</label>
@@ -45,10 +39,9 @@
       <label for="loginPassword">Password</label>
       <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
+    <p class="auth-forgot-row"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
     <button class="pt-btn-hero" onclick="handleLogin()">Sign In</button>
-    <p class="auth-link-row"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
-    <div class="auth-divider"><span>or</span></div>
-    <button class="pt-btn-outline" onclick="showScreen('signupScreen')">Create an account</button>
+    <p class="auth-link-row">New to Motus? <span onclick="showScreen('signupScreen')">Create account</span></p>
   </div>
 </div>
 
@@ -327,45 +320,56 @@
     </svg>
   </div>
 
-  <!-- Hero CTA -->
-  <div class="pt-home-cta-zone">
-    <button class="pt-hero-session-btn" id="patientHeroBtn" onclick="startScanSession()">
-      <div class="pt-hero-session-kicker">Today's session</div>
-      <div class="pt-hero-session-row">
-        <div class="pt-hero-session-text">
-          <div class="pt-hero-session-title">Start a Session</div>
-          <div class="pt-hero-session-sub" id="myExercisesSub">Tap to begin today's exercise</div>
-        </div>
-        <div class="pt-hero-session-play" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
-        </div>
-      </div>
-    </button>
-  </div>
-
-  <!-- Protocol card + stats -->
+  <!-- Protocol card + stats + therapist -->
   <div class="pt-home-grid-zone">
     <section class="pt-protocol-card">
-      <header class="pt-protocol-header">
-        <h2 class="pt-protocol-title">Today's protocol</h2>
-        <span class="pt-protocol-therapist" id="therapistContactName">Your therapist</span>
-      </header>
+      <div class="pt-protocol-kicker-row">
+        <span class="pt-protocol-kicker" id="ptProtocolKicker">YOUR PROTOCOL</span>
+        <span class="pt-protocol-freq" id="ptProtocolFreq"></span>
+      </div>
+      <h2 class="pt-protocol-title" id="ptProtocolTitle">Your Protocol</h2>
+      <div class="pt-protocol-subtitle" id="ptProtocolSubtitle"></div>
+      <div class="pt-protocol-divider"></div>
       <ul class="pt-protocol-list" id="todaysPlanList">
         <li class="pt-protocol-empty">No exercises assigned yet</li>
       </ul>
-      <button class="pt-protocol-start" onclick="showExercisesScreen()">Start Session</button>
+      <button class="pt-protocol-start" onclick="showExercisesScreen()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        Start Session
+      </button>
     </section>
 
     <section class="pt-stats-row">
       <div class="pt-stat">
-        <span class="pt-stat-label">Adherence (7d)</span>
+        <span class="pt-stat-label">ADHERENCE</span>
         <span class="pt-stat-value" id="ptStatAdherence">—</span>
+        <span class="pt-stat-delta" id="ptStatAdherenceDelta"></span>
       </div>
       <div class="pt-stat">
-        <span class="pt-stat-label">Avg pain</span>
+        <span class="pt-stat-label">AVG PAIN</span>
         <span class="pt-stat-value" id="ptStatAvgPain">—</span>
+        <span class="pt-stat-delta" id="ptStatAvgPainDelta"></span>
       </div>
     </section>
+
+    <div class="pt-therapist-section">
+      <div class="pt-therapist-heading" id="ptTherapistHeading" style="display:none">Your Therapist</div>
+      <div class="pt-therapist-card" id="ptTherapistCard" style="display:none">
+        <div class="pt-therapist-avatar" id="ptTherapistAvatar"></div>
+        <div class="pt-therapist-info">
+          <div class="pt-therapist-name" id="therapistContactName">Your therapist</div>
+          <div class="pt-therapist-response">Responds typically within 4h</div>
+        </div>
+        <button class="pt-therapist-msg-btn" onclick="openPatientMessaging()" aria-label="Message therapist">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden stubs for hero CTA IDs still referenced -->
+  <div style="display:none" aria-hidden="true">
+    <span id="myExercisesSub"></span>
   </div>
 
   <!-- Hidden stubs: IDs still referenced by app.js -->
@@ -486,21 +490,19 @@
 
   <!-- Top overlay -->
   <div class="mcam-top">
+    <button class="mcam-exit-btn" onclick="manualCamExit()" aria-label="Exit camera">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+    </button>
     <div class="mcam-rec-badge" id="manualCamRecording" style="display:none;">
       <span class="mcam-rec-dot"></span>
       REC · <span id="manualCamTimer">0:00</span>
     </div>
   </div>
 
-  <!-- Floating flip button -->
-  <button class="mcam-flip-btn" onclick="flipCamera()" aria-label="Flip camera">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
-  </button>
-
   <!-- Exercise info card -->
   <div class="mcam-info-card">
     <div class="mcam-info-top">
-      <span class="mcam-set-label" id="manualCamSetInfo">Set 1 of 3</span>
+      <span class="mcam-set-label" id="manualCamSetInfo">EXERCISE 1 / 1 · SET 1 / 3</span>
       <span class="mcam-target" id="manualCamTarget"></span>
     </div>
     <div class="mcam-ex-name" id="manualCamExName">Exercise</div>
@@ -523,32 +525,72 @@
 </div>
 
 <!-- Set Input Modal -->
-<div id="setInputModal" class="pt-bottom-sheet-overlay" style="display:none;">
+<div id="setInputModal" class="pt-bottom-sheet-overlay patient-scope" style="display:none;">
+  <!-- Hidden inputs read by manualCamSaveSet -->
+  <input type="hidden" id="setInputReps" value="10" />
+  <input type="hidden" id="setInputPain" value="1" />
+
+  <!-- Floating badge -->
+  <div class="si-badge" id="setInputBadge">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="setInputBadgeText">Set 1 of 3 complete</span>
+  </div>
+
   <div class="pt-bottom-sheet" onclick="event.stopPropagation()">
     <div class="pt-bottom-sheet-handle"></div>
-    <h3 class="pt-bottom-sheet-title" id="setInputTitle">Set complete</h3>
-    <div class="set-input-field">
-      <div class="pt-field-label">Reps completed</div>
-      <input type="number" id="setInputReps" min="0" max="100" value="10"
-             style="font-family:var(--font-mono);font-size:1.4rem;font-weight:500;text-align:center;width:100%;padding:10px;border:1.5px solid var(--pt-border-input);border-radius:10px;background:var(--pt-bg);color:var(--pt-text);" />
-    </div>
-    <div class="set-input-field">
-      <div class="pt-field-label">Pain level (1-10)</div>
-      <div class="pain-bar-track">
-        <input type="range" id="setInputPain" min="1" max="10" value="1"
-               aria-label="Pain level 1 to 10"
-               oninput="updatePainBar(this.value)" />
-        <div class="pain-bar-segments" id="painBarSegments"></div>
+
+    <!-- Header -->
+    <div class="si-header">
+      <div>
+        <div class="si-title">Nice set.</div>
+        <div class="si-sub">How did it go?</div>
       </div>
-      <div style="text-align:center;font-family:var(--font-mono);font-size:0.85rem;color:var(--pt-muted);margin-top:4px;" id="setInputPainVal">1 / 10</div>
+      <div class="si-ex-name" id="setInputExName"></div>
     </div>
-    <div class="set-input-field">
-      <div class="pt-field-label">Notes (optional)</div>
-      <textarea id="setInputNotes" class="set-input-textarea" placeholder="How did it feel?" maxlength="1000"></textarea>
+
+    <!-- Reps stepper -->
+    <div class="si-section">
+      <div class="pt-field-label">Reps completed</div>
+      <div class="si-stepper">
+        <button class="si-step-btn" onclick="siAdjustReps(-1)" aria-label="Decrease reps">−</button>
+        <div class="si-step-display">
+          <div class="si-step-num" id="siRepsDisplay">10</div>
+          <div class="si-step-target" id="siRepsTarget">TARGET 10</div>
+        </div>
+        <button class="si-step-btn" onclick="siAdjustReps(1)" aria-label="Increase reps">+</button>
+      </div>
     </div>
+
+    <!-- Pain squares -->
+    <div class="si-section">
+      <div class="si-row-header">
+        <div class="pt-field-label">Pain during set</div>
+        <div class="si-pain-val" id="setInputPainVal">1 <span>/ 10</span></div>
+      </div>
+      <div class="si-pain-grid" id="siPainGrid"></div>
+      <div class="si-pain-labels">
+        <span>NONE</span><span id="siPainSeverity" style="font-weight:700">BARELY NOTICED</span><span>SEVERE</span>
+      </div>
+    </div>
+
+    <!-- Quick note chips -->
+    <div class="si-section">
+      <div class="pt-field-label">Quick note</div>
+      <div class="si-chips">
+        <button class="si-chip" onclick="siToggleChip(this)">Felt strong</button>
+        <button class="si-chip" onclick="siToggleChip(this)">A bit stiff</button>
+        <button class="si-chip" onclick="siToggleChip(this)">Better than last time</button>
+        <button class="si-chip" onclick="siToggleChip(this)">Sharp pain</button>
+      </div>
+    </div>
+
+    <!-- Notes textarea -->
+    <textarea id="setInputNotes" class="set-input-textarea" placeholder="Anything your therapist should know?" maxlength="1000"></textarea>
+
+    <!-- Actions -->
     <div class="set-input-actions">
-      <button class="pt-btn-outline" onclick="manualCamCancelSet()">Cancel</button>
-      <button class="pt-btn-hero" onclick="manualCamSaveSet()">Save Set</button>
+      <button class="si-discard-btn" onclick="manualCamCancelSet()">Discard</button>
+      <button class="pt-btn-hero si-save-btn" onclick="manualCamSaveSet()">Save · next set →</button>
     </div>
   </div>
 </div>
