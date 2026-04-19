@@ -3110,37 +3110,6 @@ async function showRealPatient(patient) {
         </li>`;
       }).join('');
 
-  // Session rows (up to 5, newest first)
-  const recentSessions = sessions.slice().reverse().slice(0, 5);
-  const sessionRowsHtml = recentSessions.length === 0
-    ? '<li class="pd-session-row" style="cursor:default;pointer-events:none;"><div class="pd-session-meta"><div class="pd-session-title" style="color:var(--th-muted)">No sessions yet.</div></div></li>'
-    : recentSessions.map(s => {
-        const d = new Date(s.date);
-        const day = d.getDate();
-        const mon = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-        const exName = exerciseLabels[s.exerciseType] || s.exerciseType || 'Session';
-        const setsCount = s.setData?.length > 0 ? s.setData.length : (s.sets || '-');
-        const painVal = s.setData?.length > 0
-          ? (s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length).toFixed(1)
-          : (s.pain || '-');
-        const hasVideo = s.setData?.some(x => !!x.videoUrl);
-        const videoIcon = hasVideo
-          ? `<span class="pd-session-video" title="Video attached" aria-label="Video attached"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>`
-          : '';
-        const safeId = (s.id || '').replace(/'/g, "\\'");
-        return `<li class="pd-session-row" onclick="openSessionDetail('${safeId}')">
-          <div class="pd-session-date">
-            <span class="pd-session-day">${day}</span>
-            <span class="pd-session-mon">${mon}</span>
-          </div>
-          <div class="pd-session-meta">
-            <div class="pd-session-title">${escapeHtml(exName)}</div>
-            <div class="pd-session-stats">${setsCount} sets \xB7 ${s.reps || '-'} reps \xB7 pain ${painVal}</div>
-          </div>
-          ${videoIcon}
-        </li>`;
-      }).join('');
-
   // Pain chart data
   const chartSessions = sessions.slice(-8);
   const painData = chartSessions.map(s => s.pain || 0);
@@ -3176,8 +3145,8 @@ async function showRealPatient(patient) {
           ${painDeltaHtml}
         </div>
         <div class="pd-vital">
-          <span class="pd-vital-label">MOBILITY</span>
-          <span class="pd-vital-value">\u2014</span>
+          <span class="pd-vital-label">LAST SESSION</span>
+          <span class="pd-vital-value">${lastSessDisplay}<span class="pd-vital-unit">${lastSessUnit}</span></span>
         </div>
         <div class="pd-vital">
           <span class="pd-vital-label">SESSIONS</span>
@@ -3202,21 +3171,7 @@ async function showRealPatient(patient) {
         </section>
       </div>
 
-      <section class="pd-card" style="margin-bottom:16px">
-        <header class="pd-card-header">
-          <h2>Recent sessions</h2>
-        </header>
-        <ul class="pd-session-list">${sessionRowsHtml}</ul>
-      </section>
-
-      <section class="pd-card">
-        <header class="pd-card-header">
-          <h2>Clinical notes</h2>
-          <button class="pd-card-link" onclick="editPatientNote('${safeEmail}')">Edit</button>
-        </header>
-        <p class="pd-note" id="patientNoteText">Patient recovering well. Data will appear here as sessions are completed.</p>
-      </section>
-
+      ${makeCollapsible('notes', 'Clinical Notes', buildClinicalNotes(), false)}
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}
     </div>`;
@@ -3269,52 +3224,29 @@ function assignExercisesTo(email) {
   openAddProtocol(email, name);
 }
 
-function openSessionDetail(sessionId) {
-  if (!sessionId) return;
-  const sessions = window._lastHistorySessions;
-  if (!sessions) return;
-  const session = sessions.find(s => s.id === sessionId);
-  if (!session) return;
-  const dateStr = (session.date || '').split('T')[0];
 
-  // Expand the history collapsible if collapsed
-  const historySection = document.getElementById('tps-history');
-  if (historySection && historySection.classList.contains('collapsed')) {
-    toggleTpSection('tps-history');
-  }
 
-  // Find the matching day card, expand it, and scroll to it
-  requestAnimationFrame(() => {
-    const dayCard = document.querySelector(`.prog-day-card[data-date="${dateStr}"]`);
-    if (!dayCard) return;
-    if (!dayCard.classList.contains('expanded')) dayCard.classList.add('expanded');
-    dayCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+function buildClinicalNotes() {
+  return `<div class="cn-editor-wrap">
+    <div class="cn-toolbar">
+      <button class="cn-tb-btn" onclick="cnFormat('bold')" title="Bold"><strong>B</strong></button>
+      <button class="cn-tb-btn" onclick="cnFormat('italic')" title="Italic"><em>I</em></button>
+      <button class="cn-tb-btn" onclick="cnFormat('underline')" title="Underline"><u>U</u></button>
+      <span class="cn-tb-sep"></span>
+      <button class="cn-tb-btn" onclick="cnFormat('insertUnorderedList')" title="Bullet list">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1" fill="currentColor"/><circle cx="3" cy="12" r="1" fill="currentColor"/><circle cx="3" cy="18" r="1" fill="currentColor"/></svg>
+      </button>
+      <button class="cn-tb-btn" onclick="cnFormat('insertOrderedList')" title="Numbered list">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><text x="1" y="8" font-size="8" fill="currentColor" stroke="none" font-family="sans-serif">1</text><text x="1" y="14" font-size="8" fill="currentColor" stroke="none" font-family="sans-serif">2</text><text x="1" y="20" font-size="8" fill="currentColor" stroke="none" font-family="sans-serif">3</text></svg>
+      </button>
+    </div>
+    <div class="cn-editable" id="clinicalNotesEditor" contenteditable="true" data-placeholder="Type clinical notes here..."></div>
+  </div>`;
 }
 
-function editPatientNote(email) {
-  const noteEl = document.getElementById('patientNoteText');
-  if (!noteEl || noteEl.tagName === 'TEXTAREA') return;
-  const current = noteEl.textContent;
-  const ta = document.createElement('textarea');
-  ta.className = 'pd-note';
-  ta.style.cssText = 'width:100%;min-height:80px;resize:vertical;border:1px solid var(--th-border);border-radius:6px;padding:8px;font-family:var(--th-font);font-size:0.92rem;';
-  ta.value = current;
-  noteEl.replaceWith(ta);
-  ta.focus();
-  const saveBtn = ta.closest('.pd-card')?.querySelector('.pd-card-link');
-  if (saveBtn) {
-    saveBtn.textContent = 'Save';
-    saveBtn.onclick = () => {
-      const p = document.createElement('p');
-      p.className = 'pd-note';
-      p.id = 'patientNoteText';
-      p.textContent = ta.value;
-      ta.replaceWith(p);
-      saveBtn.textContent = 'Edit';
-      saveBtn.onclick = () => editPatientNote(email);
-    };
-  }
+function cnFormat(command) {
+  document.execCommand(command, false, null);
+  document.getElementById('clinicalNotesEditor')?.focus();
 }
 
 function toggleShExpand(id) {
@@ -6864,7 +6796,7 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode, openTherapistMessages,
-  selectPatient, messagePatient, assignExercisesTo, openSessionDetail, editPatientNote,
+  selectPatient, messagePatient, assignExercisesTo, cnFormat,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
