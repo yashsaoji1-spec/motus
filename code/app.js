@@ -54,8 +54,10 @@ let currentUser = null;
 let selectedRole = 'patient';
 let selectedProtocol = null;
 let _exercisesProtocols = [];
-let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
+let editingProtocolId = null;
 let editingPatientEmail = null;
+let _viewingPatientEmail = null;
+let _cnSaveTimer = null;
 var activeSheetProtocol = null;
 let _protoPatientEmail = null;
 let _apmNewExCat = false;
@@ -2977,6 +2979,7 @@ function subscribeTherapistBadges(therapistEmail) {
 
 // ── Mobile therapist panel helpers ────────────────────────────────────────────
 function backToPatientList() {
+  _viewingPatientEmail = null;
   if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
   document.getElementById('therapistScreen').classList.remove('tp-mobile-detail');
   document.querySelectorAll('.patient-row').forEach(r => r.classList.remove('patient-row--active'));
@@ -3053,6 +3056,7 @@ function toggleTpSection(id) {
 }
 
 async function showRealPatient(patient) {
+  _viewingPatientEmail = patient.email;
   const [sessions, protocols] = await Promise.all([
     getPatientSessions(patient.email),
     getProtocols(patient.email)
@@ -3187,6 +3191,15 @@ async function showRealPatient(patient) {
     });
   }
 
+  loadClinicalNotes(patient.email);
+  const cnEditor = document.getElementById('clinicalNotesEditor');
+  if (cnEditor) {
+    cnEditor.addEventListener('input', () => {
+      clearTimeout(_cnSaveTimer);
+      _cnSaveTimer = setTimeout(saveClinicalNotes, 1500);
+    });
+  }
+
   await markRead(currentUser.email, patient.email);
   const archived = await isThreadArchived(currentUser.email, patient.email);
   const sendBtn = document.getElementById('therapistMsgSend');
@@ -3251,6 +3264,40 @@ function buildClinicalNotes() {
 function cnFormat(command) {
   document.execCommand(command, false, null);
   document.getElementById('clinicalNotesEditor')?.focus();
+}
+
+async function loadClinicalNotes(patientEmail) {
+  try {
+    const doc = await db.collection('clinicalNotes').doc(patientEmail).get();
+    const editor = document.getElementById('clinicalNotesEditor');
+    if (doc.exists && doc.data().html && editor) {
+      editor.innerHTML = doc.data().html;
+    }
+  } catch (e) {
+    console.error('[Motus] loadClinicalNotes failed:', e);
+  }
+}
+
+async function saveClinicalNotes() {
+  const patientEmail = _viewingPatientEmail;
+  if (!patientEmail) return;
+  const editor = document.getElementById('clinicalNotesEditor');
+  if (!editor) return;
+  const html = editor.innerHTML;
+  if (html === '<br>' || html === '') {
+    try { await db.collection('clinicalNotes').doc(patientEmail).delete(); } catch (_) {}
+    return;
+  }
+  try {
+    await db.collection('clinicalNotes').doc(patientEmail).set({
+      html,
+      updatedBy: currentUser.email,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await writeAuditLog('clinical_notes_update', patientEmail);
+  } catch (e) {
+    console.error('[Motus] saveClinicalNotes failed:', e);
+  }
 }
 
 function toggleShExpand(id) {
@@ -5568,14 +5615,22 @@ function openTherapistMessages() {
     }
     msgSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    // No patient selected — pulse the patient list to hint at selection
-    const patientList = document.querySelector('.th-patient-list');
-    if (patientList) {
-      patientList.style.transition = 'box-shadow 0.2s';
-      patientList.style.boxShadow = '0 0 0 2px var(--th-primary)';
-      setTimeout(() => { patientList.style.boxShadow = ''; }, 1200);
-    }
+    const btn = document.querySelector('.th-sidebar-icon[title="Messages"]');
+    if (btn) showSidebarTooltip(btn, 'Please select a patient first');
   }
+}
+
+function showSidebarTooltip(anchor, text) {
+  const existing = document.querySelector('.th-sidebar-tooltip');
+  if (existing) existing.remove();
+  const tip = document.createElement('div');
+  tip.className = 'th-sidebar-tooltip';
+  tip.textContent = text;
+  document.body.appendChild(tip);
+  const r = anchor.getBoundingClientRect();
+  tip.style.top = (r.top + r.height / 2 - tip.offsetHeight / 2) + 'px';
+  tip.style.left = (r.right + 8) + 'px';
+  setTimeout(() => tip.remove(), 2000);
 }
 
 function copyClinicCode() {
@@ -6800,7 +6855,7 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode, openTherapistMessages,
-  selectPatient, messagePatient, assignExercisesTo, cnFormat,
+  selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,

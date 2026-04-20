@@ -1444,6 +1444,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .th-sidebar-icon:focus-visible, .th-sidebar-icon:focus { outline: none; }
 
+.th-sidebar-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #1E293B;
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: sbt-fade 2s ease forwards;
+}
+@keyframes sbt-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .th-sidebar-icon--active {
   background: rgba(37,99,235,0.2);
   color: #60A5FA;

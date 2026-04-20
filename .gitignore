@@ -14,3 +14,7 @@ report.json
 test-results/
 playwright-report/
 .superpowers/
+logs
+logs/
+
+.octogent
