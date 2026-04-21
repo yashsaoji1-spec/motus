@@ -2102,6 +2102,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .prog-day-title {
   font-size: 1rem; font-weight: 700; color: var(--text);
+  min-width: 160px;
+}
+.prog-day-time {
+  font-size: 0.85rem; font-weight: 400; color: #94A3B8;
 }
 .prog-day-badge {
   font-size: 0.75rem; color: var(--muted); margin-left: auto;
@@ -6457,6 +6461,30 @@ body:has(#manualCamScreen.active) {
   font-weight: 700;
   color: var(--th-text-strong);
   margin: 0;
+}
+.pain-range-toggle {
+  display: flex;
+  gap: 4px;
+}
+.pain-range-btn {
+  font-family: var(--th-font);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--th-border);
+  background: transparent;
+  color: var(--th-text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pain-range-btn.active {
+  background: var(--th-primary);
+  color: #fff;
+  border-color: var(--th-primary);
+}
+.pain-range-btn:hover:not(.active) {
+  background: #f1f5f9;
 }
 .therapist-scope .pd-card-link {
   border: none;

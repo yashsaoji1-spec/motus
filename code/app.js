@@ -3172,8 +3172,13 @@ async function showRealPatient(patient) {
         </section>
 
         <section class="pd-card">
-          <header class="pd-card-header">
-            <h2>Mobility Index</h2>
+          <header class="pd-card-header" style="display:flex;align-items:center;justify-content:space-between">
+            <h2>Pain Index</h2>
+            <div class="pain-range-toggle">
+              <button class="pain-range-btn active" data-range="1">1D</button>
+              <button class="pain-range-btn" data-range="7">7D</button>
+              <button class="pain-range-btn" data-range="30">30D</button>
+            </div>
           </header>
           <canvas id="painChart" height="160"></canvas>
         </section>
@@ -3185,9 +3190,14 @@ async function showRealPatient(patient) {
     </div>`;
 
   if (sessions.length > 0) {
-    const tPainCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
-    new Chart(document.getElementById('painChart').getContext('2d'), {
-      type: 'line', data: { labels, datasets: [tPainCfg.dataset] }, options: tPainCfg.options
+    window._painChartSessions = sessions;
+    renderPainChart(sessions, 1);
+    document.querySelectorAll('.pain-range-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.pain-range-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderPainChart(window._painChartSessions, parseInt(btn.dataset.range));
+      });
     });
   }
 
@@ -3274,7 +3284,7 @@ async function loadClinicalNotes(patientEmail) {
       editor.innerHTML = doc.data().html;
     }
   } catch (e) {
-    console.error('[Motus] loadClinicalNotes failed:', e);
+    if (e.code !== 'permission-denied') console.error('[Motus] loadClinicalNotes failed:', e);
   }
 }
 
@@ -3343,11 +3353,18 @@ function buildSessionHistory(sessions, patientName) {
     const avgPain = totalSets > 0
       ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
       : '-';
+    const dtimes = daySessions.map(s => {
+      if (s.date) return new Date(s.date).getTime();
+      return NaN;
+    }).filter(t => !isNaN(t));
+    const erl = dtimes.length > 0 ? new Date(Math.min(...dtimes)) : null;
+    const tl = erl ? erl.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
     html += `<div class="prog-day-card" data-date="${day}">
       <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
         <div class="prog-day-title-row">
           <span class="prog-day-expand-icon">▾</span>
           <span class="prog-day-title">${isToday ? 'Today' : dayLabel}</span>
+          ${tl ? `<span class="prog-day-time">${tl}</span>` : ''}
           <span class="prog-day-badge">${exCount} exercise${exCount !== 1 ? 's' : ''}, ${totalSets} set${totalSets !== 1 ? 's' : ''}</span>
         </div>
         <div class="prog-day-summary">
@@ -5038,19 +5055,28 @@ function downloadSessionVideo(url, date, patientName) {
    SECTION 12: PROGRESS SCREEN
    ══════════════════════════════════════════════════════════════════════════ */
 
+let _painChartInstance = null;
+function renderPainChart(sessions, days) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  cutoff.setHours(0, 0, 0, 0);
+  const filtered = sessions.filter(s => new Date(s.date) >= cutoff);
+  const chartSessions = filtered.length > 0 ? filtered : sessions.slice(-1);
+  const painData = chartSessions.map(s => s.pain || 0);
+  const labels = buildChartLabels(chartSessions);
+  const cfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
+  if (_painChartInstance) _painChartInstance.destroy();
+  _painChartInstance = new Chart(document.getElementById('painChart').getContext('2d'), {
+    type: 'line', data: { labels, datasets: [cfg.dataset] }, options: cfg.options
+  });
+}
+
 function buildChartLabels(sessions) {
-  const dates = sessions.map(s => new Date(s.date));
-  const uniqueDays = new Set(dates.map(d => d.toDateString()));
-  if (uniqueDays.size <= 1) {
-    return dates.map(d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
-  }
-  const dayCounts = {};
-  dates.forEach(d => { const k = d.toDateString(); dayCounts[k] = (dayCounts[k] || 0) + 1; });
-  return dates.map(d => {
-    const dayStr = `${d.getMonth() + 1}/${d.getDate()}`;
-    return dayCounts[d.toDateString()] > 1
-      ? `${dayStr} ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-      : dayStr;
+  const today = new Date().toDateString();
+  return sessions.map(s => {
+    const d = new Date(s.date);
+    if (d.toDateString() === today) return 'Today';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   });
 }
 
@@ -5153,19 +5179,27 @@ function buildProgressByDay(sessions) {
       if (!exercisesMap[exType]) exercisesMap[exType] = [];
       exercisesMap[exType].push(s);
     });
-    
+
     const exCount = Object.keys(exercisesMap).length;
     const totalSets = daySessions.length;
     const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
-    const avgPain = totalSets > 0 
+    const avgPain = totalSets > 0
       ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
       : '-';
-    
+    const dateTimes = daySessions.map(s => {
+      if (s.timestamp && s.timestamp.toDate) return s.timestamp.toDate().getTime();
+      if (s.timestamp) return new Date(s.timestamp).getTime();
+      if (s.date) return new Date(s.date).getTime();
+      return NaN;
+    }).filter(t => !isNaN(t));
+    const earliest = dateTimes.length > 0 ? new Date(Math.min(...dateTimes)) : null;
+    const timeLabel = earliest ? earliest.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+
     html += `<div class="prog-day-card" data-date="${day}">
       <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
         <div class="prog-day-title-row">
           <span class="prog-day-expand-icon">▾</span>
-          <span class="prog-day-title">${isToday ? 'Today' : dayLabel}</span>
+          <span class="prog-day-title">${isToday ? 'Today' : dayLabel} <span style="font-weight:400;color:#94A3B8;font-size:0.85em;margin-left:4px">${timeLabel}</span></span>
           <span class="prog-day-badge">${exCount} exercise${exCount !== 1 ? 's' : ''}, ${totalSets} set${totalSets !== 1 ? 's' : ''}</span>
         </div>
         <div class="prog-day-summary">
@@ -5232,9 +5266,9 @@ function buildProgressByDay(sessions) {
         </div>`;
       });
       
-      html += `</div>`;
+      html += `</div></div>`;
     });
-    
+
     html += `</div></div>`;
   });
   
