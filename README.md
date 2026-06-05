@@ -99,6 +99,12 @@ Single-file-per-layer architecture: one HTML file, one JS file, one CSS file.
 
 ---
 
+## Development Log
+
+**`update.md`** is the shared changelog. Before starting work, read it to see what the other developer did since your last session. At the end of every session, append an entry with what you changed, any known issues, and your name. Commit and push it.
+
+---
+
 ## Authors
 
 - **Yash Saoji** -- [github.com/yashsaoji1-spec](https://github.com/yashsaoji1-spec)
