@@ -4,10 +4,12 @@ dist/
 .DS_Store
 
 # Environment files
-.env.production
-.env.staging
-.env.development
-.env.e2e
+.env.*
+
+# Firebase config (must stay in root for CLI, but not needed on GitHub)
+.firebaserc
+firebase.json
+firestore.indexes.json
 
 # Dev artifacts (Claude, plans, probes)
 CLAUDE.md
