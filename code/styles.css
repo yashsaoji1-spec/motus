@@ -764,9 +764,14 @@ body {
   text-transform: uppercase;
 }
 .patient-scope .pt-protocol-freq {
-  font-family: var(--font-mono);
-  font-size: 0.69rem;
-  color: var(--pt-muted);
+  font-family: var(--pt-font);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--pt-primary);
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
 }
 .patient-scope .pt-protocol-title {
   font-family: var(--pt-font);

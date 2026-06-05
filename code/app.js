@@ -178,10 +178,7 @@ function logAnalyticsEvent(name, params = {}) {
 // then enable enforcement on Firestore once staging confirms everything works.
 // Skip App Check entirely in E2E test runs (VITE_E2E_TEST=true) — fresh Playwright
 // contexts generate unregistered debug tokens which cause 403 errors.
-if (import.meta.env.DEV) {
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-}
-if (import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.meta.env.VITE_E2E_TEST) {
+if (!import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.meta.env.VITE_E2E_TEST) {
   firebase.appCheck().activate(import.meta.env.VITE_RECAPTCHA_SITE_KEY, true);
 }
 
@@ -1427,7 +1424,7 @@ async function updatePatientHomeScreen() {
     const p0 = protocols[0];
     const protocolName = p0.protocolName || p0.exerciseName || 'Your Protocol';
     if (kickerEl) kickerEl.textContent = `YOUR PROTOCOL`;
-    if (freqEl) freqEl.textContent = p0.frequency || '';
+    if (freqEl) freqEl.textContent = frequencyLabels[p0.frequency] || p0.frequency || '';
     if (titleEl) titleEl.textContent = protocolName;
     if (subtitleEl) subtitleEl.textContent = `${protocols.length} exercise${protocols.length > 1 ? 's' : ''} \xB7 record each set`;
   } else {
@@ -1640,9 +1637,14 @@ async function startSessionWithProtocol(protocol) {
         player.onended = () => {
           if (skipBtn) skipBtn.style.display = 'none';
           if (startBtn) startBtn.style.display = '';
-          // Swap skip for rewatch
           const rewatchBtn = document.getElementById('demoRewatchBtn');
           if (rewatchBtn) rewatchBtn.style.display = '';
+        };
+
+        player.onerror = () => {
+          if (skipBtn) { skipBtn.style.display = ''; skipBtn.disabled = false; }
+          if (startBtn) startBtn.style.display = '';
+          player.style.display = 'none';
         };
 
         // Enable skip only if already watched (stored in user doc)
@@ -6848,6 +6850,8 @@ function siToggleChip(btn) {
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
+if (import.meta.env.DEV) window.Sentry = Sentry;
+
 Object.assign(window, {
   // Auth
   handleLogin, handleForgot, selectRole,
