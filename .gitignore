@@ -1,24 +1,53 @@
 node_modules/
-.vscode/
 dist/
-scripts/*.json
+.vscode/
+.DS_Store
+
+# Environment files
+.env.production
+.env.staging
+.env.development
+.env.e2e
+
+# Dev artifacts (Claude, plans, probes)
 CLAUDE.md
 CLAUDE.local.md
 .claude/
 TODO.md
 ENVIRONMENT_PROBE.md
-.DS_Store
+.octogent
+.superpowers/
+docs/
+
+# Native builds (Capacitor -- not deployed)
+android/
+ios/
+capacitor.config.json
+
+# Cloud Functions (not deployed yet -- no Blaze plan)
+functions/
+
+# Tests (not running)
+tests/
+playwright.config.js
+vitest.config.js
+
+# CI/CD workflows (not configured)
+.github/
+
+# ML angle tracking (feature disabled)
+angle_tracking/
+
+# Build/debug artifacts
 .firebase/
-.env.production
-.env.staging
-.env.development
 firestore-debug.log
 report.html
 report.json
 test-results/
 playwright-report/
-.superpowers/
-logs
 logs/
 
-.octogent
+# Misc
+scripts/
+public/404.html
+.npmrc

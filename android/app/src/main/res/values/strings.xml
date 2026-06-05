@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Motus</string>
-    <string name="title_activity_main">Motus</string>
-    <string name="package_name">com.motus.app</string>
-    <string name="custom_url_scheme">com.motus.app</string>
-</resources>
