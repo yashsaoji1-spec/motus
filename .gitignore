@@ -2,7 +2,11 @@ node_modules/
 .vscode/
 dist/
 scripts/*.json
+CLAUDE.md
 CLAUDE.local.md
+.claude/
+TODO.md
+ENVIRONMENT_PROBE.md
 .DS_Store
 .firebase/
 .env.production
