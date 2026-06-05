@@ -764,9 +764,14 @@ body {
   text-transform: uppercase;
 }
 .patient-scope .pt-protocol-freq {
-  font-family: var(--font-mono);
-  font-size: 0.69rem;
-  color: var(--pt-muted);
+  font-family: var(--pt-font);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--pt-primary);
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
 }
 .patient-scope .pt-protocol-title {
   font-family: var(--pt-font);
@@ -1442,6 +1447,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: rgba(255,255,255,0.15);
   color: #fff;
 }
+.th-sidebar-icon:focus-visible, .th-sidebar-icon:focus { outline: none; }
+
+.th-sidebar-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #1E293B;
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: sbt-fade 2s ease forwards;
+}
+@keyframes sbt-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 .th-sidebar-icon--active {
   background: rgba(37,99,235,0.2);
@@ -1475,18 +1498,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .th-add-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--th-primary);
+  border-radius: 5px;
   border: none;
+  background: var(--th-primary);
   color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
+  font-family: var(--th-font);
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  white-space: nowrap;
   min-height: auto;
-  padding: 0;
 }
 
 .th-btn {
@@ -2085,6 +2107,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .prog-day-title {
   font-size: 1rem; font-weight: 700; color: var(--text);
+  min-width: 160px;
+}
+.prog-day-time {
+  font-size: 0.85rem; font-weight: 400; color: #94A3B8;
 }
 .prog-day-badge {
   font-size: 0.75rem; color: var(--muted); margin-left: auto;
@@ -6082,21 +6108,22 @@ body:has(#manualCamScreen.active) {
   color: var(--th-muted);
 }
 .therapist-scope .th-add-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1.5px solid var(--th-border);
-  background: var(--th-surface);
-  color: var(--th-text);
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: none;
+  background: var(--th-primary);
+  color: #fff;
   cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: background 120ms, border-color 120ms;
+  font-family: var(--th-font);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 120ms;
 }
 .therapist-scope .th-add-btn:hover {
-  background: var(--th-primary);
-  border-color: var(--th-primary);
-  color: #fff;
+  opacity: 0.85;
 }
 
 .therapist-scope .clinic-badge {
@@ -6439,6 +6466,30 @@ body:has(#manualCamScreen.active) {
   font-weight: 700;
   color: var(--th-text-strong);
   margin: 0;
+}
+.pain-range-toggle {
+  display: flex;
+  gap: 4px;
+}
+.pain-range-btn {
+  font-family: var(--th-font);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--th-border);
+  background: transparent;
+  color: var(--th-text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pain-range-btn.active {
+  background: var(--th-primary);
+  color: #fff;
+  border-color: var(--th-primary);
+}
+.pain-range-btn:hover:not(.active) {
+  background: #f1f5f9;
 }
 .therapist-scope .pd-card-link {
   border: none;

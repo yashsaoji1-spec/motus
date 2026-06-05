@@ -54,8 +54,10 @@ let currentUser = null;
 let selectedRole = 'patient';
 let selectedProtocol = null;
 let _exercisesProtocols = [];
-let editingProtocolId = null;  // non-null when therapist is editing an existing protocol
+let editingProtocolId = null;
 let editingPatientEmail = null;
+let _viewingPatientEmail = null;
+let _cnSaveTimer = null;
 var activeSheetProtocol = null;
 let _protoPatientEmail = null;
 let _apmNewExCat = false;
@@ -176,10 +178,7 @@ function logAnalyticsEvent(name, params = {}) {
 // then enable enforcement on Firestore once staging confirms everything works.
 // Skip App Check entirely in E2E test runs (VITE_E2E_TEST=true) — fresh Playwright
 // contexts generate unregistered debug tokens which cause 403 errors.
-if (import.meta.env.DEV) {
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-}
-if (import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.meta.env.VITE_E2E_TEST) {
+if (!import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.meta.env.VITE_E2E_TEST) {
   firebase.appCheck().activate(import.meta.env.VITE_RECAPTCHA_SITE_KEY, true);
 }
 
@@ -380,7 +379,7 @@ function showScreen(screenId) {
   // Patient bottom nav: show on all patient app screens except recording screens
   const PATIENT_NAV_SCREENS = new Set(['patientScreen', 'exercisesScreen', 'progressScreen', 'messagingScreen', 'settingsScreen']);
   const patientNav = document.getElementById('patientBottomNav');
-  if (patientNav) patientNav.style.display = PATIENT_NAV_SCREENS.has(screenId) ? 'flex' : 'none';
+  if (patientNav) patientNav.style.display = (currentRole === 'patient' && PATIENT_NAV_SCREENS.has(screenId)) ? 'flex' : 'none';
 
   // Clean up message thread listener when leaving messaging screen
   if (prevActive && prevActive.id === 'messagingScreen' && screenId !== 'messagingScreen') {
@@ -590,6 +589,7 @@ function showSettingsScreen() {
   setVal('settingsInjuryArea',   u.demographics?.injuryArea || '');
   setVal('settingsRehabDuration',u.demographics?.rehabDuration || '');
   setVal('settingsReferral',     u.demographics?.referralSource || '');
+  setVal('settingsOccupation',   u.therapistProfile?.occupation || '');
   setVal('settingsPracticeArea', u.therapistProfile?.practiceArea || '');
   setVal('settingsYearsExp',     u.therapistProfile?.yearsExperience || '');
   const isPatient = currentRole === 'patient';
@@ -597,10 +597,13 @@ function showSettingsScreen() {
   const thSec  = document.getElementById('settingsTherapistSection');
   const dlBtn  = document.getElementById('settingsDownloadBtn');
   const discBtn = document.getElementById('settingsDisconnectBtn');
+  const clinicSec = document.getElementById('settingsClinicSection');
   if (patSec)  patSec.hidden  = !isPatient;
   if (thSec)   thSec.hidden   = isPatient;
   if (dlBtn)   dlBtn.hidden   = !isPatient;
   if (discBtn) discBtn.hidden = !isPatient;
+  const isClinicOwner = !isPatient && _myClinic && _myClinic.ownerEmail === (currentUser?.email || '');
+  if (clinicSec) clinicSec.style.display = isClinicOwner ? '' : 'none';
   const modal = document.getElementById('settingsSavedModal');
   if (modal) modal.style.display = 'none';
   showScreen('settingsScreen');
@@ -640,6 +643,7 @@ async function saveSettings() {
     updatedFields.push('demographics');
   } else {
     const prof = {
+      occupation:      document.getElementById('settingsOccupation')?.value || '',
       practiceArea:    document.getElementById('settingsPracticeArea')?.value || '',
       yearsExperience: document.getElementById('settingsYearsExp')?.value || '',
       updatedAt:       firebase.firestore.FieldValue.serverTimestamp(),
@@ -1420,7 +1424,7 @@ async function updatePatientHomeScreen() {
     const p0 = protocols[0];
     const protocolName = p0.protocolName || p0.exerciseName || 'Your Protocol';
     if (kickerEl) kickerEl.textContent = `YOUR PROTOCOL`;
-    if (freqEl) freqEl.textContent = p0.frequency || '';
+    if (freqEl) freqEl.textContent = frequencyLabels[p0.frequency] || p0.frequency || '';
     if (titleEl) titleEl.textContent = protocolName;
     if (subtitleEl) subtitleEl.textContent = `${protocols.length} exercise${protocols.length > 1 ? 's' : ''} \xB7 record each set`;
   } else {
@@ -1633,9 +1637,14 @@ async function startSessionWithProtocol(protocol) {
         player.onended = () => {
           if (skipBtn) skipBtn.style.display = 'none';
           if (startBtn) startBtn.style.display = '';
-          // Swap skip for rewatch
           const rewatchBtn = document.getElementById('demoRewatchBtn');
           if (rewatchBtn) rewatchBtn.style.display = '';
+        };
+
+        player.onerror = () => {
+          if (skipBtn) { skipBtn.style.display = ''; skipBtn.disabled = false; }
+          if (startBtn) startBtn.style.display = '';
+          player.style.display = 'none';
         };
 
         // Enable skip only if already watched (stored in user doc)
@@ -2972,6 +2981,7 @@ function subscribeTherapistBadges(therapistEmail) {
 
 // ── Mobile therapist panel helpers ────────────────────────────────────────────
 function backToPatientList() {
+  _viewingPatientEmail = null;
   if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
   document.getElementById('therapistScreen').classList.remove('tp-mobile-detail');
   document.querySelectorAll('.patient-row').forEach(r => r.classList.remove('patient-row--active'));
@@ -2981,7 +2991,6 @@ function backToPatientList() {
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <h2>Select a patient</h2>
       <p>Pick someone from the list to see their sessions, pain trend, and assigned protocols.</p>
-      <button class="tp-btn tp-btn-primary" onclick="openBulkAssign()">Bulk assign exercises</button>
     </div>`;
 }
 
@@ -3049,6 +3058,7 @@ function toggleTpSection(id) {
 }
 
 async function showRealPatient(patient) {
+  _viewingPatientEmail = patient.email;
   const [sessions, protocols] = await Promise.all([
     getPatientSessions(patient.email),
     getProtocols(patient.email)
@@ -3164,8 +3174,13 @@ async function showRealPatient(patient) {
         </section>
 
         <section class="pd-card">
-          <header class="pd-card-header">
-            <h2>Mobility Index</h2>
+          <header class="pd-card-header" style="display:flex;align-items:center;justify-content:space-between">
+            <h2>Pain Index</h2>
+            <div class="pain-range-toggle">
+              <button class="pain-range-btn active" data-range="1">1D</button>
+              <button class="pain-range-btn" data-range="7">7D</button>
+              <button class="pain-range-btn" data-range="30">30D</button>
+            </div>
           </header>
           <canvas id="painChart" height="160"></canvas>
         </section>
@@ -3177,9 +3192,23 @@ async function showRealPatient(patient) {
     </div>`;
 
   if (sessions.length > 0) {
-    const tPainCfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
-    new Chart(document.getElementById('painChart').getContext('2d'), {
-      type: 'line', data: { labels, datasets: [tPainCfg.dataset] }, options: tPainCfg.options
+    window._painChartSessions = sessions;
+    renderPainChart(sessions, 1);
+    document.querySelectorAll('.pain-range-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.pain-range-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderPainChart(window._painChartSessions, parseInt(btn.dataset.range));
+      });
+    });
+  }
+
+  loadClinicalNotes(patient.email);
+  const cnEditor = document.getElementById('clinicalNotesEditor');
+  if (cnEditor) {
+    cnEditor.addEventListener('input', () => {
+      clearTimeout(_cnSaveTimer);
+      _cnSaveTimer = setTimeout(saveClinicalNotes, 1500);
     });
   }
 
@@ -3249,6 +3278,40 @@ function cnFormat(command) {
   document.getElementById('clinicalNotesEditor')?.focus();
 }
 
+async function loadClinicalNotes(patientEmail) {
+  try {
+    const doc = await db.collection('clinicalNotes').doc(patientEmail).get();
+    const editor = document.getElementById('clinicalNotesEditor');
+    if (doc.exists && doc.data().html && editor) {
+      editor.innerHTML = doc.data().html;
+    }
+  } catch (e) {
+    if (e.code !== 'permission-denied') console.error('[Motus] loadClinicalNotes failed:', e);
+  }
+}
+
+async function saveClinicalNotes() {
+  const patientEmail = _viewingPatientEmail;
+  if (!patientEmail) return;
+  const editor = document.getElementById('clinicalNotesEditor');
+  if (!editor) return;
+  const html = editor.innerHTML;
+  if (html === '<br>' || html === '') {
+    try { await db.collection('clinicalNotes').doc(patientEmail).delete(); } catch (_) {}
+    return;
+  }
+  try {
+    await db.collection('clinicalNotes').doc(patientEmail).set({
+      html,
+      updatedBy: currentUser.email,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await writeAuditLog('clinical_notes_update', patientEmail);
+  } catch (e) {
+    console.error('[Motus] saveClinicalNotes failed:', e);
+  }
+}
+
 function toggleShExpand(id) {
   document.getElementById(id)?.classList.toggle('sh-expanded');
 }
@@ -3292,11 +3355,18 @@ function buildSessionHistory(sessions, patientName) {
     const avgPain = totalSets > 0
       ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
       : '-';
+    const dtimes = daySessions.map(s => {
+      if (s.date) return new Date(s.date).getTime();
+      return NaN;
+    }).filter(t => !isNaN(t));
+    const erl = dtimes.length > 0 ? new Date(Math.min(...dtimes)) : null;
+    const tl = erl ? erl.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
     html += `<div class="prog-day-card" data-date="${day}">
       <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
         <div class="prog-day-title-row">
           <span class="prog-day-expand-icon">▾</span>
           <span class="prog-day-title">${isToday ? 'Today' : dayLabel}</span>
+          ${tl ? `<span class="prog-day-time">${tl}</span>` : ''}
           <span class="prog-day-badge">${exCount} exercise${exCount !== 1 ? 's' : ''}, ${totalSets} set${totalSets !== 1 ? 's' : ''}</span>
         </div>
         <div class="prog-day-summary">
@@ -4987,19 +5057,28 @@ function downloadSessionVideo(url, date, patientName) {
    SECTION 12: PROGRESS SCREEN
    ══════════════════════════════════════════════════════════════════════════ */
 
+let _painChartInstance = null;
+function renderPainChart(sessions, days) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  cutoff.setHours(0, 0, 0, 0);
+  const filtered = sessions.filter(s => new Date(s.date) >= cutoff);
+  const chartSessions = filtered.length > 0 ? filtered : sessions.slice(-1);
+  const painData = chartSessions.map(s => s.pain || 0);
+  const labels = buildChartLabels(chartSessions);
+  const cfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
+  if (_painChartInstance) _painChartInstance.destroy();
+  _painChartInstance = new Chart(document.getElementById('painChart').getContext('2d'), {
+    type: 'line', data: { labels, datasets: [cfg.dataset] }, options: cfg.options
+  });
+}
+
 function buildChartLabels(sessions) {
-  const dates = sessions.map(s => new Date(s.date));
-  const uniqueDays = new Set(dates.map(d => d.toDateString()));
-  if (uniqueDays.size <= 1) {
-    return dates.map(d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
-  }
-  const dayCounts = {};
-  dates.forEach(d => { const k = d.toDateString(); dayCounts[k] = (dayCounts[k] || 0) + 1; });
-  return dates.map(d => {
-    const dayStr = `${d.getMonth() + 1}/${d.getDate()}`;
-    return dayCounts[d.toDateString()] > 1
-      ? `${dayStr} ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-      : dayStr;
+  const today = new Date().toDateString();
+  return sessions.map(s => {
+    const d = new Date(s.date);
+    if (d.toDateString() === today) return 'Today';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   });
 }
 
@@ -5102,19 +5181,27 @@ function buildProgressByDay(sessions) {
       if (!exercisesMap[exType]) exercisesMap[exType] = [];
       exercisesMap[exType].push(s);
     });
-    
+
     const exCount = Object.keys(exercisesMap).length;
     const totalSets = daySessions.length;
     const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
-    const avgPain = totalSets > 0 
+    const avgPain = totalSets > 0
       ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
       : '-';
-    
+    const dateTimes = daySessions.map(s => {
+      if (s.timestamp && s.timestamp.toDate) return s.timestamp.toDate().getTime();
+      if (s.timestamp) return new Date(s.timestamp).getTime();
+      if (s.date) return new Date(s.date).getTime();
+      return NaN;
+    }).filter(t => !isNaN(t));
+    const earliest = dateTimes.length > 0 ? new Date(Math.min(...dateTimes)) : null;
+    const timeLabel = earliest ? earliest.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+
     html += `<div class="prog-day-card" data-date="${day}">
       <div class="prog-day-header" onclick="toggleProgDay(this.parentElement)">
         <div class="prog-day-title-row">
           <span class="prog-day-expand-icon">▾</span>
-          <span class="prog-day-title">${isToday ? 'Today' : dayLabel}</span>
+          <span class="prog-day-title">${isToday ? 'Today' : dayLabel} <span style="font-weight:400;color:#94A3B8;font-size:0.85em;margin-left:4px">${timeLabel}</span></span>
           <span class="prog-day-badge">${exCount} exercise${exCount !== 1 ? 's' : ''}, ${totalSets} set${totalSets !== 1 ? 's' : ''}</span>
         </div>
         <div class="prog-day-summary">
@@ -5181,9 +5268,9 @@ function buildProgressByDay(sessions) {
         </div>`;
       });
       
-      html += `</div>`;
+      html += `</div></div>`;
     });
-    
+
     html += `</div></div>`;
   });
   
@@ -5564,14 +5651,22 @@ function openTherapistMessages() {
     }
     msgSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    // No patient selected — pulse the patient list to hint at selection
-    const patientList = document.querySelector('.th-patient-list');
-    if (patientList) {
-      patientList.style.transition = 'box-shadow 0.2s';
-      patientList.style.boxShadow = '0 0 0 2px var(--th-primary)';
-      setTimeout(() => { patientList.style.boxShadow = ''; }, 1200);
-    }
+    const btn = document.querySelector('.th-sidebar-icon[title="Messages"]');
+    if (btn) showSidebarTooltip(btn, 'Please select a patient first');
   }
+}
+
+function showSidebarTooltip(anchor, text) {
+  const existing = document.querySelector('.th-sidebar-tooltip');
+  if (existing) existing.remove();
+  const tip = document.createElement('div');
+  tip.className = 'th-sidebar-tooltip';
+  tip.textContent = text;
+  document.body.appendChild(tip);
+  const r = anchor.getBoundingClientRect();
+  tip.style.top = (r.top + r.height / 2 - tip.offsetHeight / 2) + 'px';
+  tip.style.left = (r.right + 8) + 'px';
+  setTimeout(() => tip.remove(), 2000);
 }
 
 function copyClinicCode() {
@@ -6755,6 +6850,8 @@ function siToggleChip(btn) {
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
+if (import.meta.env.DEV) window.Sentry = Sentry;
+
 Object.assign(window, {
   // Auth
   handleLogin, handleForgot, selectRole,
@@ -6796,7 +6893,7 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode, openTherapistMessages,
-  selectPatient, messagePatient, assignExercisesTo, cnFormat,
+  selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,

@@ -34,7 +34,7 @@ Run in parallel: `git branch` (confirm NOT on main — stop if we are), `git sta
 Check `wiki/motus/DEPLOYMENT/index.md`. For any item whose status changed based on what was done, update `status` and `updated` in that item's individual file frontmatter, and update the row in `index.md`. Only update items you are confident about.
 
 **Step 3 — Write the Obsidian log entry**
-Log file: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Yash2/wiki/motus/log/YYYY-MM-DD.md` (today's date). If the file does not exist, create it with frontmatter `type: commit-log` and `date: YYYY-MM-DD`. Append one callout block per logical session:
+Log file: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Yash2/wiki/logs/motus_log/motus-YYYY-MM-DD.md` (today's date). If the file does not exist, create it with frontmatter `type: commit-log` and `date: YYYY-MM-DD`. Append one callout block per logical session:
 ```
 > [!note]- [Short descriptive title]
 > **Files:** [comma-separated relative paths]

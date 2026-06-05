@@ -150,6 +150,20 @@ service cloud.firestore {
     }
 
 
+    // -- clinicalNotes/{patientEmail} --
+    // Therapist-only notes about a patient. Patients cannot read.
+    match /clinicalNotes/{patientEmail} {
+      allow read: if isAuth() && (
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+      allow write: if isAuth() && (
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      );
+    }
+
+
     // -- messageThreads/{threadId} -- Thread metadata (archived status, disconnect timestamp)
     // threadId = sorted(email1, email2).join(':')
     match /messageThreads/{threadId} {
