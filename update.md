@@ -8,7 +8,7 @@ Check here to see what changed since your last session. Most recent first.
 
 **Security hardening + adherence fix**
 
-- Closed stored XSS hole in the manual-camera DEMO button: exercise names and demo URLs are now escaped with `escJsAttr()`, which blocks both JS string breakout and HTML attribute breakout (old code only escaped single quotes)
+- Closed stored XSS holes across 4 spots that built `onclick` attributes by interpolating user-controlled data (exercise names, demo/video URLs, patient names/emails, dates) with incomplete escaping -- manual-camera DEMO button, progress-screen video button, therapist session-history video button, and the patient-detail "Share from Library" button. All now use a new `escJsAttr()` helper that blocks both JS string breakout (`'`) and HTML attribute breakout (`"`, `<`, `&`)
 - Firestore rules: fixed a privilege-escalation hole where any user could write `role: 'therapist'` or `role: 'admin'` onto their own profile -- self-signup is now restricted to `patient`/`therapist_pending`, and role is immutable for non-admins after creation
 - Firestore rules: locked down message updates so only the recipient can mark a message `read` -- previously either participant could rewrite any field (text, sender, timestamp) of an existing message
 - Adherence calculation now accounts for prescribed frequency: a "Twice Daily" patient doing 1 session/day now shows 50%, not 100% (resolves the known issue Yash flagged below)
