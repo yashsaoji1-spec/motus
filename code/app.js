@@ -3107,8 +3107,8 @@ async function showRealPatient(patient) {
 
   // Avatar initials
   const initials = patient.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  const safeEmail = patient.email.replace(/'/g, "\\'");
-  const safeName = patient.name.replace(/"/g, '&quot;');
+  const safeEmail = escJsAttr(patient.email);
+  const safeName = escJsAttr(patient.name);
 
   // Prior week for deltas
   const fourteenAgo = new Date(Date.now() - 14 * 86400000);
@@ -3415,9 +3415,9 @@ function buildSessionHistory(sessions, patientName) {
         const exitedEarly = s.notes && s.notes.toLowerCase().includes('exited');
         let videoBtn = '<span class="prog-set-empty">—</span>';
         if (hasVideo) {
-          const safeUrl = (s.videoUrl || '').replace(/'/g, '%27');
-          const safeDate = (s.parentDate || s.date || '').replace(/'/g, '');
-          const pName = (window._lastHistoryPatientName || '').replace(/'/g, '');
+          const safeUrl = escJsAttr(s.videoUrl || '');
+          const safeDate = escJsAttr(s.parentDate || s.date || '');
+          const pName = escJsAttr(window._lastHistoryPatientName || '');
           videoBtn = `<button class="prog-set-video-btn" onclick="event.stopPropagation(); openVideoModal('${safeUrl}', '${safeDate}', '${pName}')" title="Watch Set ${setNum}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           </button>`;
