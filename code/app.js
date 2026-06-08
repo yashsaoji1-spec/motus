@@ -3299,12 +3299,24 @@ function cnFormat(command) {
   document.getElementById('clinicalNotesEditor')?.focus();
 }
 
+// Clinical notes are saved/loaded as raw editor.innerHTML (rich text from the
+// toolbar's bold/italic/underline/list commands). Any therapist with patient
+// access can write this doc, and it's replayed via innerHTML into every other
+// viewer's browser, so it must be sanitized to a fixed allowlist on both ends —
+// strips event handlers, scripts, and any markup beyond basic formatting.
+function sanitizeNotesHtml(html) {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'br', 'div', 'p', 'span'],
+    ALLOWED_ATTR: []
+  });
+}
+
 async function loadClinicalNotes(patientEmail) {
   try {
     const doc = await db.collection('clinicalNotes').doc(patientEmail).get();
     const editor = document.getElementById('clinicalNotesEditor');
     if (doc.exists && doc.data().html && editor) {
-      editor.innerHTML = doc.data().html;
+      editor.innerHTML = sanitizeNotesHtml(doc.data().html);
     }
   } catch (e) {
     if (e.code !== 'permission-denied') console.error('[Motus] loadClinicalNotes failed:', e);
@@ -3316,7 +3328,7 @@ async function saveClinicalNotes() {
   if (!patientEmail) return;
   const editor = document.getElementById('clinicalNotesEditor');
   if (!editor) return;
-  const html = editor.innerHTML;
+  const html = sanitizeNotesHtml(editor.innerHTML);
   if (html === '<br>' || html === '') {
     try { await db.collection('clinicalNotes').doc(patientEmail).delete(); } catch (_) {}
     return;
