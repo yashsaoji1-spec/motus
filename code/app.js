@@ -1470,8 +1470,7 @@ async function updatePatientHomeScreen() {
   // Stats row
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
   const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
-  const daysWithSession = new Set(recent7.map(s => new Date(s.date).toDateString())).size;
-  const adherencePct = Math.round((daysWithSession / 7) * 100);
+  const adherencePct = calcAdherence(recent7.length, protocols[0]?.frequency);
   const avgPain7d = recent7.length > 0
     ? (recent7.reduce((sum, s) => {
         if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
@@ -1481,8 +1480,7 @@ async function updatePatientHomeScreen() {
   // Compute prior week stats for delta
   const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
   const priorWeek = sessions.filter(s => { const d = new Date(s.date); return d > fourteenDaysAgo && d <= sevenDaysAgo; });
-  const priorDays = new Set(priorWeek.map(s => new Date(s.date).toDateString())).size;
-  const priorAdh = Math.round((priorDays / 7) * 100);
+  const priorAdh = calcAdherence(priorWeek.length, protocols[0]?.frequency);
   const adhDelta = adherencePct - priorAdh;
   const priorPain = priorWeek.length > 0
     ? (priorWeek.reduce((sum, s) => {
@@ -2122,6 +2120,21 @@ const frequencyLabels = {
   every_other: 'Every Other Day',
   three_week:  '3x Per Week'
 };
+
+// Expected sessions over a 7-day window per prescribed frequency.
+const sessionsPerWeek = {
+  daily:       7,
+  twice_daily: 14,
+  every_other: 3.5,
+  three_week:  3
+};
+
+// Adherence = sessions actually logged vs. sessions the protocol's frequency calls for,
+// capped at 100% (e.g. a "Twice Daily" patient doing one session/day is at 50%, not 100%).
+function calcAdherence(sessionCount, frequency) {
+  const expected = sessionsPerWeek[frequency] || sessionsPerWeek.daily;
+  return Math.min(100, Math.round((sessionCount / expected) * 100));
+}
 
 // Thresholds use calibration convention: 0° = straight, higher = more bent.
 // flexAt: joint must bend TO or PAST this angle to count as flexed.
@@ -3035,14 +3048,11 @@ async function getPatientSessions(patientEmail) {
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-function calcCompliance(sessions) {
+function calcCompliance(sessions, frequency) {
   if (sessions.length === 0) return 0;
-  const now          = new Date();
-  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-  const recentDays   = new Set(
-    sessions.filter(s => new Date(s.date) > sevenDaysAgo).map(s => new Date(s.date).toDateString())
-  );
-  return Math.round((recentDays.size / 7) * 100);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const recentCount  = sessions.filter(s => new Date(s.date) > sevenDaysAgo).length;
+  return calcAdherence(recentCount, frequency);
 }
 
 function makeCollapsible(id, title, bodyHTML, open) {
@@ -3087,7 +3097,7 @@ async function showRealPatient(patient) {
         return sum + (s.pain || 0);
       }, 0) / recent7.length).toFixed(1)
     : '-';
-  const adherence = calcCompliance(sessions);
+  const adherence = calcCompliance(sessions, protocols[0]?.frequency);
   const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
   const daysSinceLast = lastSess
     ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
@@ -3103,8 +3113,7 @@ async function showRealPatient(patient) {
   // Prior week for deltas
   const fourteenAgo = new Date(Date.now() - 14 * 86400000);
   const priorW = sessions.filter(s => { const d = new Date(s.date); return d > fourteenAgo && d <= sevenDaysAgo; });
-  const priorDaysT = new Set(priorW.map(s => new Date(s.date).toDateString())).size;
-  const priorAdhT = Math.round((priorDaysT / 7) * 100);
+  const priorAdhT = calcAdherence(priorW.length, protocols[0]?.frequency);
   const adhDeltaT = parseInt(adherence) - priorAdhT;
   const priorPainT = priorW.length > 0
     ? (priorW.reduce((sum, s) => { if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length; return sum + (s.pain || 0); }, 0) / priorW.length).toFixed(1)
