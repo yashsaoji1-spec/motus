@@ -5254,9 +5254,9 @@ function buildProgressByDay(sessions) {
         
         let videoBtn = '<span class="prog-set-empty">—</span>';
         if (hasVideo) {
-          const safeUrl = (s.videoUrl || '').replace(/'/g, '%27');
-          const safeDate = (s.parentDate || '').replace(/'/g, '');
-          const patientName = (currentUser?.name || currentUser?.email || '').replace(/'/g, '');
+          const safeUrl = escJsAttr(s.videoUrl || '');
+          const safeDate = escJsAttr(s.parentDate || '');
+          const patientName = escJsAttr(currentUser?.name || currentUser?.email || '');
           videoBtn = `<button class="prog-set-video-btn" onclick="openVideoModal('${safeUrl}', '${safeDate}', '${patientName}')" title="Watch Set ${setNum}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           </button>`;
