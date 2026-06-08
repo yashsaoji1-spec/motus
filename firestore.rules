@@ -66,7 +66,19 @@ service cloud.firestore {
         // query .where('role','==','therapist') satisfies the rule validator.
         (isPatient() && resource.data.role == 'therapist')
       );
-      allow write: if isAuth() && (myEmail() == email || isAdmin());
+      // Self-signup: role must be 'patient' or 'therapist_pending' — admin can create any role.
+      // Prevents a user from granting themselves 'therapist' or 'admin' at account creation.
+      allow create: if isAuth() && (
+        (myEmail() == email && request.resource.data.role in ['patient', 'therapist_pending']) ||
+        isAdmin()
+      );
+      // Self-update: role is immutable for non-admins — blocks self-promotion to therapist/admin
+      // (legitimate self-writes — name, language, demographics, consent, clinicId — never touch role).
+      allow update: if isAuth() && (
+        (myEmail() == email && request.resource.data.role == resource.data.role) ||
+        isAdmin()
+      );
+      allow delete: if isAuth() && (myEmail() == email || isAdmin());
       // Therapist can clear a connected patient's therapistEmail field on disconnect.
       // Must still be connected when this write runs (sequenced before removing from connections).
       allow update: if isAuth() && isTherapist() && connectedToPatient(email) &&
@@ -191,7 +203,11 @@ service cloud.firestore {
           !exists(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)) ||
           get(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)).data.archived != true
         );
-      allow update: if isAuth() && myEmail() in resource.data.participants;
+      // Only the recipient can update a message, and only to flip 'read' to true —
+      // blocks tampering with text/sender/timestamp/participants of existing messages.
+      allow update: if isAuth() && myEmail() == resource.data.to &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+        request.resource.data.read == true;
       allow delete: if isAuth() && isAdmin();
     }
 
