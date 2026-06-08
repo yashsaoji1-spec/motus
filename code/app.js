@@ -880,7 +880,7 @@ async function loadAdminScreen() {
     const u = d.data();
     return `<div class="pending-therapist-row">
       <div>
-        <strong>${u.name}</strong><br>
+        <strong>${escapeHtml(u.name)}</strong><br>
         <span style="color:var(--muted);font-size:0.85rem">${d.id}</span>
       </div>
       <div class="pending-therapist-row-btns">
@@ -1006,8 +1006,8 @@ function _renderInvitesList() {
   list.innerHTML = _clinicInvites.map(inv => `
     <div class="clinic-invite-row">
       <div>
-        <strong>${inv.clinicName}</strong>
-        <div class="clinic-invite-from">Invited by ${inv.invitedBy}</div>
+        <strong>${escapeHtml(inv.clinicName)}</strong>
+        <div class="clinic-invite-from">Invited by ${escapeHtml(inv.invitedBy)}</div>
       </div>
       <div class="clinic-invite-actions">
         <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="acceptInvite('${inv.id}')">Accept</button>
@@ -1107,11 +1107,11 @@ function _renderClinicScreen() {
     const isMemberOwner = email === _myClinic.ownerEmail;
     return `<div class="clinic-member-row">
       <div class="clinic-member-info">
-        <span class="clinic-member-email">${email}</span>
+        <span class="clinic-member-email">${escapeHtml(email)}</span>
         ${isMemberOwner ? '<span class="clinic-role-tag clinic-owner-tag">Owner</span>' : ''}
         ${isMe ? '<span class="clinic-role-tag clinic-you-tag">You</span>' : ''}
       </div>
-      ${isOwner && !isMe ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeClinicMember('${email}')">Remove</button>` : ''}
+      ${isOwner && !isMe ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeClinicMember('${escJsAttr(email)}')">Remove</button>` : ''}
     </div>`;
   }).join('');
 
@@ -1134,7 +1134,7 @@ function _renderClinicScreen() {
   ` : '';
 
   document.getElementById('clinicScreenContent').innerHTML = `
-    <div class="clinic-name-header">${_myClinic.name}</div>
+    <div class="clinic-name-header">${escapeHtml(_myClinic.name)}</div>
     ${codeSection}
     <div class="clinic-section-card">
       <div class="clinic-section-label">Members (${members.length})</div>
@@ -1300,8 +1300,8 @@ function _renderClinicLibrary() {
     const date = ex.sharedAt ? new Date(ex.sharedAt).toLocaleDateString() : '';
     return `<div class="clinic-lib-row">
       <div class="clinic-lib-info">
-        <div class="clinic-lib-name">${ex.name}</div>
-        <div class="clinic-lib-meta">${ex.cat ? ex.cat + ' · ' : ''}Shared by ${ex.sharedBy}${date ? ' · ' + date : ''}</div>
+        <div class="clinic-lib-name">${escapeHtml(ex.name)}</div>
+        <div class="clinic-lib-meta">${ex.cat ? escapeHtml(ex.cat) + ' · ' : ''}Shared by ${escapeHtml(ex.sharedBy)}${date ? ' · ' + date : ''}</div>
       </div>
       <div class="clinic-lib-btns">
         ${!isSharer ? `<button class="tp-btn tp-btn-sm tp-btn-primary" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>` : ''}
@@ -1394,7 +1394,7 @@ function _renderShareModal() {
   } else {
     list.innerHTML = customs.map(ex => `
       <div class="clinic-share-row">
-        <span>${ex.name}</span>
+        <span>${escapeHtml(ex.name)}</span>
         <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="shareExerciseToClinic('${ex.id}')">Share</button>
       </div>
     `).join('');
@@ -2818,7 +2818,7 @@ function formatProtocol(p) {
     <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
     ${paramsHTML}
     ${p.notes ? `<p class="proto-notes">"${escapeHtml(p.notes)}"</p>` : ''}
-    <p class="proto-meta">${p.assignedBy}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
+    <p class="proto-meta">${escapeHtml(p.assignedBy)}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
 }
 
 async function loadPatientProtocol() {
@@ -3599,8 +3599,8 @@ async function _bapLoadPatients() {
   }
   listEl.innerHTML = patients.map(p => `
     <label class="bap-patient-row">
-      <input type="checkbox" class="bap-patient-cb" value="${p.email}" onchange="_bapUpdateSubmitBtn()">
-      <span class="bap-patient-name">${p.name}</span>
+      <input type="checkbox" class="bap-patient-cb" value="${escapeHtml(p.email)}" onchange="_bapUpdateSubmitBtn()">
+      <span class="bap-patient-name">${escapeHtml(p.name)}</span>
     </label>
   `).join('');
 }
