@@ -425,6 +425,18 @@ function selectRole(role) {
 function showError(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
 function hideError(id)      { document.getElementById(id).style.display = 'none'; }
 
+// Escapes a value for safe interpolation inside a single-quoted JS string
+// literal that itself sits inside a double-quoted HTML onclick attribute —
+// blocks both JS string breakout (') and HTML attribute breakout (").
+function escJsAttr(str) {
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 3: LOGIN / SIGNUP / FORGOT
    ══════════════════════════════════════════════════════════════════════════ */
@@ -1745,7 +1757,7 @@ async function openManualCameraSession(protocol) {
   if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
   const demoUrl = protocol.demoVideoUrl || null;
   const demoBtn = demoUrl
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrl.replace(/'/g,"\\'")}', '${(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'').replace(/'/g,"\\'")}')">DEMO</button>`
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'')}')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -1799,7 +1811,7 @@ function manualCamStartRecording() {
   if (promptEl) promptEl.textContent = `Recording set ${_manualCamCurrentSet} of ${_manualCamTotalSets} \u00B7 tap stop when finished`;
   const demoUrlR = _manualCamProtocol?.demoVideoUrl || null;
   const demoBtnR = demoUrlR
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlR.replace(/'/g,"\\'")}', '')">DEMO</button>`
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlR)}', '')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -1887,7 +1899,7 @@ function manualCamCancelSet() {
   if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
   const demoUrlC = _manualCamProtocol?.demoVideoUrl || null;
   const demoBtnC = demoUrlC
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlC.replace(/'/g,"\\'")}', '')">DEMO</button>`
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlC)}', '')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -1931,7 +1943,7 @@ async function manualCamSaveSet() {
     if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
     const demoUrlN = _manualCamProtocol?.demoVideoUrl || null;
     const demoBtnN = demoUrlN
-      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlN.replace(/'/g,"\\'")}', '')">DEMO</button>`
+      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlN)}', '')">DEMO</button>`
       : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
     if (btnsEl) btnsEl.innerHTML = `
       <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -3444,8 +3456,8 @@ function buildProtocolList(patientEmail, protocols) {
   return `
     <div class="proto-existing-section">
       ${protocols.map(p => {
-        const exLabel = (exerciseLabels[p.exerciseType] || p.exerciseType).replace(/'/g, "\\'");
-        const demoUrl = p.demoVideoUrl ? p.demoVideoUrl.replace(/'/g, "\\'") : '';
+        const exLabel = escJsAttr(exerciseLabels[p.exerciseType] || p.exerciseType);
+        const demoUrl = p.demoVideoUrl ? escJsAttr(p.demoVideoUrl) : '';
         const demoBtns = p.demoVideoUrl
           ? `<button class="protocol-demo-btn" onclick="playProtocolDemo('${demoUrl}', '${exLabel}')">Play Demo</button>
              <button class="protocol-remove-demo-btn" onclick="removeProtocolDemo('${patientEmail}', '${p.id}')">Remove Demo</button>`
