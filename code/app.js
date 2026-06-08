@@ -2883,7 +2883,7 @@ async function showExercisesScreen() {
       : `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>`;
     return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
       <div class="exs-row-left">
-        <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+        <span class="exs-row-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
         <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
       </div>
       <div class="exs-row-right">
@@ -3400,7 +3400,7 @@ function buildSessionHistory(sessions, patientName) {
       const exSessions = exercisesMap[exType];
       const exLabel = exerciseLabels[exType] || exType;
       html += `<div class="prog-exercise-block">
-        <div class="prog-exercise-header">${exLabel}</div>
+        <div class="prog-exercise-header">${escapeHtml(exLabel)}</div>
         <div class="prog-sets-list">
           <div class="prog-sets-header">
             <span class="prog-hdr-label"></span>
@@ -3474,7 +3474,7 @@ function buildProtocolList(patientEmail, protocols) {
         return `
         <div class="proto-card">
           <div class="proto-card-header">
-            <span class="proto-card-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+            <span class="proto-card-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
             <div class="protocol-action-btns">
               ${demoBtns}
               <button class="protocol-edit-btn" onclick="editProtocol('${patientEmail}', '${p.id}')">Edit</button>
@@ -3706,11 +3706,11 @@ function _apmRenderLibrary(query) {
   for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
   listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
     <div class="apm-lib-cat">
-      <div class="apm-lib-cat-label">${cat}</div>
+      <div class="apm-lib-cat-label">${escapeHtml(cat)}</div>
       ${items.map(e => `
         <div class="apm-lib-item" id="apm-item-${e.id}" onclick="apmSelectExercise('${e.id}')">
-          <div class="apm-lib-item-name">${exerciseLabels[e.id] || e.id}</div>
-          <div class="apm-lib-item-desc">${e.desc}</div>
+          <div class="apm-lib-item-name">${escapeHtml(exerciseLabels[e.id] || e.id)}</div>
+          <div class="apm-lib-item-desc">${escapeHtml(e.desc)}</div>
         </div>
       `).join('')}
     </div>
@@ -3882,14 +3882,14 @@ function plRender() {
     for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
     listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
       <div class="apm-lib-cat">
-        <div class="apm-lib-cat-label">${cat}</div>
+        <div class="apm-lib-cat-label">${escapeHtml(cat)}</div>
         ${items.map(e => {
           const label = exerciseLabels[e.id] || e.id;
           const editedClass = e._isEdited ? ' apm-lib-item--edited' : '';
           const activeClass = _plSelectedId === e.id ? ' apm-lib-item--active' : '';
           return `<div class="apm-lib-item${editedClass}${activeClass}" id="pl-item-${e.id}" onclick="plSelectExercise('${e.id}')">
-            <div class="apm-lib-item-name">${label}</div>
-            <div class="apm-lib-item-desc">${e.desc || ''}</div>
+            <div class="apm-lib-item-name">${escapeHtml(label)}</div>
+            <div class="apm-lib-item-desc">${escapeHtml(e.desc || '')}</div>
           </div>`;
         }).join('')}
       </div>
@@ -5237,7 +5237,7 @@ function buildProgressByDay(sessions) {
       const exLabel = exerciseLabels[exType] || exType;
       
       html += `<div class="prog-exercise-block">
-        <div class="prog-exercise-header">${exLabel}</div>
+        <div class="prog-exercise-header">${escapeHtml(exLabel)}</div>
         <div class="prog-sets-list">
           <div class="prog-sets-header">
             <span class="prog-hdr-label"></span>
