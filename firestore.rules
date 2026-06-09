@@ -126,8 +126,9 @@ service cloud.firestore {
 
 
     // -- sessions (auto-id) --
-    // Patient creates + updates their own sessions (two-step: create then update with videoUrl).
-    // Therapist reads + updates sessions for connected patients.
+    // Patient creates their own sessions. The only post-creation update is the async
+    // video upload (videoUrl + videoExpireAt) — restrict updates to those two fields so
+    // core clinical data (reps, pain, date, exerciseType) is immutable after recording.
     match /sessions/{sessionId} {
       // Split into separate rules so Firestore's query validator can evaluate each independently.
       // Patient self-read has no get() calls, letting the query constraint prove access.
@@ -138,10 +139,15 @@ service cloud.firestore {
         myEmail() == request.resource.data.patientEmail ||
         isAdmin()
       ) && (!('notes' in request.resource.data) || request.resource.data.notes.size() <= 1000);
+      // Only videoUrl and videoExpireAt may be updated (async video upload after session is saved).
+      // Prevents retroactive modification of reps, pain, date, or other clinical fields.
       allow update: if isAuth() && (
         myEmail() == resource.data.patientEmail ||
         (isTherapist() && connectedToPatient(resource.data.patientEmail)) ||
         isAdmin()
+      ) && (
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['videoUrl', 'videoExpireAt'])
       );
       allow delete: if isAuth() && isAdmin();
     }
