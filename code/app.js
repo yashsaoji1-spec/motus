@@ -2128,7 +2128,7 @@ const frequencyLabels = {
 const sessionsPerWeek = {
   daily:       7,
   twice_daily: 14,
-  every_other: 3.5,
+  every_other: 3,
   three_week:  3
 };
 
