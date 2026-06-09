@@ -66,7 +66,19 @@ service cloud.firestore {
         // query .where('role','==','therapist') satisfies the rule validator.
         (isPatient() && resource.data.role == 'therapist')
       );
-      allow write: if isAuth() && (myEmail() == email || isAdmin());
+      // Self-signup: role must be 'patient' or 'therapist_pending' — admin can create any role.
+      // Prevents a user from granting themselves 'therapist' or 'admin' at account creation.
+      allow create: if isAuth() && (
+        (myEmail() == email && request.resource.data.role in ['patient', 'therapist_pending']) ||
+        isAdmin()
+      );
+      // Self-update: role is immutable for non-admins — blocks self-promotion to therapist/admin
+      // (legitimate self-writes — name, language, demographics, consent, clinicId — never touch role).
+      allow update: if isAuth() && (
+        (myEmail() == email && request.resource.data.role == resource.data.role) ||
+        isAdmin()
+      );
+      allow delete: if isAuth() && (myEmail() == email || isAdmin());
       // Therapist can clear a connected patient's therapistEmail field on disconnect.
       // Must still be connected when this write runs (sequenced before removing from connections).
       allow update: if isAuth() && isTherapist() && connectedToPatient(email) &&
@@ -83,8 +95,11 @@ service cloud.firestore {
       allow create: if isAuth() && (
         myEmail() == therapistEmail ||
         isAdmin() ||
-        // Patient bootstraps the doc when connecting to their first therapist
-        (isPatient() && request.resource.data.patients.hasOnly([myEmail()]))
+        // Patient bootstraps the doc when connecting to their first therapist.
+        // Restrict to only the patients field so no other keys can be injected.
+        (isPatient() &&
+          request.resource.data.keys().hasOnly(['patients']) &&
+          request.resource.data.patients.hasOnly([myEmail()]))
       );
       allow delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       // Patients may only append their own email to the patients array — no other mutations.
@@ -114,8 +129,9 @@ service cloud.firestore {
 
 
     // -- sessions (auto-id) --
-    // Patient creates + updates their own sessions (two-step: create then update with videoUrl).
-    // Therapist reads + updates sessions for connected patients.
+    // Patient creates their own sessions. The only post-creation update is the async
+    // video upload (videoUrl + videoExpireAt) — restrict updates to those two fields so
+    // core clinical data (reps, pain, date, exerciseType) is immutable after recording.
     match /sessions/{sessionId} {
       // Split into separate rules so Firestore's query validator can evaluate each independently.
       // Patient self-read has no get() calls, letting the query constraint prove access.
@@ -126,10 +142,15 @@ service cloud.firestore {
         myEmail() == request.resource.data.patientEmail ||
         isAdmin()
       ) && (!('notes' in request.resource.data) || request.resource.data.notes.size() <= 1000);
+      // Only videoUrl and videoExpireAt may be updated (async video upload after session is saved).
+      // Prevents retroactive modification of reps, pain, date, or other clinical fields.
       allow update: if isAuth() && (
         myEmail() == resource.data.patientEmail ||
         (isTherapist() && connectedToPatient(resource.data.patientEmail)) ||
         isAdmin()
+      ) && (
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['videoUrl', 'videoExpireAt'])
       );
       allow delete: if isAuth() && isAdmin();
     }
@@ -169,7 +190,12 @@ service cloud.firestore {
     match /messageThreads/{threadId} {
       allow read: if isAuth() && myEmail() in resource.data.participants;
       allow create: if isAuth() && myEmail() in request.resource.data.participants;
-      allow update: if isAuth() && myEmail() in resource.data.participants;
+      // Only the disconnect flow writes here — restrict to archived + disconnectedAt so
+      // participants can't modify each other's email addresses or hijack the thread.
+      // diff() only lists keys whose values actually changed, so the disconnect flow's
+      // set({merge:true}) writing participants with the same value passes without listing it.
+      allow update: if isAuth() && myEmail() in resource.data.participants &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'disconnectedAt']);
       allow delete: if isAuth() && isAdmin();
     }
 
@@ -191,7 +217,11 @@ service cloud.firestore {
           !exists(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)) ||
           get(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)).data.archived != true
         );
-      allow update: if isAuth() && myEmail() in resource.data.participants;
+      // Only the recipient can update a message, and only to flip 'read' to true —
+      // blocks tampering with text/sender/timestamp/participants of existing messages.
+      allow update: if isAuth() && myEmail() == resource.data.to &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+        request.resource.data.read == true;
       allow delete: if isAuth() && isAdmin();
     }
 
@@ -282,8 +312,11 @@ service cloud.firestore {
       allow create: if isAuth() && isTherapist() &&
         request.resource.data.invitedBy == myEmail() &&
         isClinicOwner(request.resource.data.clinicId);
+      // Invitee can only flip status — not change clinicId, invitedBy, or any other field.
+      // Without this, an invitee could change clinicId before accepting to join a different clinic.
       allow update: if isAuth() && (
-        (resource.data.inviteeEmail == myEmail()) ||
+        (resource.data.inviteeEmail == myEmail() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
         isAdmin()
       );
       allow delete: if isAuth() && isAdmin();

@@ -425,6 +425,18 @@ function selectRole(role) {
 function showError(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; }
 function hideError(id)      { document.getElementById(id).style.display = 'none'; }
 
+// Escapes a value for safe interpolation inside a single-quoted JS string
+// literal that itself sits inside a double-quoted HTML onclick attribute —
+// blocks both JS string breakout (') and HTML attribute breakout (").
+function escJsAttr(str) {
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 3: LOGIN / SIGNUP / FORGOT
    ══════════════════════════════════════════════════════════════════════════ */
@@ -562,6 +574,7 @@ async function finalizeSignup(skipData = false) {
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     await db.collection('users').doc(cred.user.email).set(docData);
+    await writeAuditLog('user_signup', cred.user.email);
     if (!import.meta.env.DEV) await cred.user.sendEmailVerification();
     await auth.signOut();
     _pendingSignup = {};
@@ -868,7 +881,7 @@ async function loadAdminScreen() {
     const u = d.data();
     return `<div class="pending-therapist-row">
       <div>
-        <strong>${u.name}</strong><br>
+        <strong>${escapeHtml(u.name)}</strong><br>
         <span style="color:var(--muted);font-size:0.85rem">${d.id}</span>
       </div>
       <div class="pending-therapist-row-btns">
@@ -994,8 +1007,8 @@ function _renderInvitesList() {
   list.innerHTML = _clinicInvites.map(inv => `
     <div class="clinic-invite-row">
       <div>
-        <strong>${inv.clinicName}</strong>
-        <div class="clinic-invite-from">Invited by ${inv.invitedBy}</div>
+        <strong>${escapeHtml(inv.clinicName)}</strong>
+        <div class="clinic-invite-from">Invited by ${escapeHtml(inv.invitedBy)}</div>
       </div>
       <div class="clinic-invite-actions">
         <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="acceptInvite('${inv.id}')">Accept</button>
@@ -1095,11 +1108,11 @@ function _renderClinicScreen() {
     const isMemberOwner = email === _myClinic.ownerEmail;
     return `<div class="clinic-member-row">
       <div class="clinic-member-info">
-        <span class="clinic-member-email">${email}</span>
+        <span class="clinic-member-email">${escapeHtml(email)}</span>
         ${isMemberOwner ? '<span class="clinic-role-tag clinic-owner-tag">Owner</span>' : ''}
         ${isMe ? '<span class="clinic-role-tag clinic-you-tag">You</span>' : ''}
       </div>
-      ${isOwner && !isMe ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeClinicMember('${email}')">Remove</button>` : ''}
+      ${isOwner && !isMe ? `<button class="tp-btn tp-btn-sm tp-btn-danger" onclick="removeClinicMember('${escJsAttr(email)}')">Remove</button>` : ''}
     </div>`;
   }).join('');
 
@@ -1122,7 +1135,7 @@ function _renderClinicScreen() {
   ` : '';
 
   document.getElementById('clinicScreenContent').innerHTML = `
-    <div class="clinic-name-header">${_myClinic.name}</div>
+    <div class="clinic-name-header">${escapeHtml(_myClinic.name)}</div>
     ${codeSection}
     <div class="clinic-section-card">
       <div class="clinic-section-label">Members (${members.length})</div>
@@ -1288,8 +1301,8 @@ function _renderClinicLibrary() {
     const date = ex.sharedAt ? new Date(ex.sharedAt).toLocaleDateString() : '';
     return `<div class="clinic-lib-row">
       <div class="clinic-lib-info">
-        <div class="clinic-lib-name">${ex.name}</div>
-        <div class="clinic-lib-meta">${ex.cat ? ex.cat + ' · ' : ''}Shared by ${ex.sharedBy}${date ? ' · ' + date : ''}</div>
+        <div class="clinic-lib-name">${escapeHtml(ex.name)}</div>
+        <div class="clinic-lib-meta">${ex.cat ? escapeHtml(ex.cat) + ' · ' : ''}Shared by ${escapeHtml(ex.sharedBy)}${date ? ' · ' + date : ''}</div>
       </div>
       <div class="clinic-lib-btns">
         ${!isSharer ? `<button class="tp-btn tp-btn-sm tp-btn-primary" onclick="pullExerciseFromClinic('${ex.shareId}')">Pull to Mine</button>` : ''}
@@ -1382,7 +1395,7 @@ function _renderShareModal() {
   } else {
     list.innerHTML = customs.map(ex => `
       <div class="clinic-share-row">
-        <span>${ex.name}</span>
+        <span>${escapeHtml(ex.name)}</span>
         <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="shareExerciseToClinic('${ex.id}')">Share</button>
       </div>
     `).join('');
@@ -1458,8 +1471,7 @@ async function updatePatientHomeScreen() {
   // Stats row
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
   const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
-  const daysWithSession = new Set(recent7.map(s => new Date(s.date).toDateString())).size;
-  const adherencePct = Math.round((daysWithSession / 7) * 100);
+  const adherencePct = calcAdherence(recent7.length, protocols[0]?.frequency);
   const avgPain7d = recent7.length > 0
     ? (recent7.reduce((sum, s) => {
         if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
@@ -1469,8 +1481,7 @@ async function updatePatientHomeScreen() {
   // Compute prior week stats for delta
   const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
   const priorWeek = sessions.filter(s => { const d = new Date(s.date); return d > fourteenDaysAgo && d <= sevenDaysAgo; });
-  const priorDays = new Set(priorWeek.map(s => new Date(s.date).toDateString())).size;
-  const priorAdh = Math.round((priorDays / 7) * 100);
+  const priorAdh = calcAdherence(priorWeek.length, protocols[0]?.frequency);
   const adhDelta = adherencePct - priorAdh;
   const priorPain = priorWeek.length > 0
     ? (priorWeek.reduce((sum, s) => {
@@ -1745,7 +1756,7 @@ async function openManualCameraSession(protocol) {
   if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
   const demoUrl = protocol.demoVideoUrl || null;
   const demoBtn = demoUrl
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrl.replace(/'/g,"\\'")}', '${(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'').replace(/'/g,"\\'")}')">DEMO</button>`
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'')}')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -1799,7 +1810,7 @@ function manualCamStartRecording() {
   if (promptEl) promptEl.textContent = `Recording set ${_manualCamCurrentSet} of ${_manualCamTotalSets} \u00B7 tap stop when finished`;
   const demoUrlR = _manualCamProtocol?.demoVideoUrl || null;
   const demoBtnR = demoUrlR
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlR.replace(/'/g,"\\'")}', '')">DEMO</button>`
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlR)}', '')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -1887,7 +1898,7 @@ function manualCamCancelSet() {
   if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
   const demoUrlC = _manualCamProtocol?.demoVideoUrl || null;
   const demoBtnC = demoUrlC
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlC.replace(/'/g,"\\'")}', '')">DEMO</button>`
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlC)}', '')">DEMO</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -1931,7 +1942,7 @@ async function manualCamSaveSet() {
     if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
     const demoUrlN = _manualCamProtocol?.demoVideoUrl || null;
     const demoBtnN = demoUrlN
-      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${demoUrlN.replace(/'/g,"\\'")}', '')">DEMO</button>`
+      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlN)}', '')">DEMO</button>`
       : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
     if (btnsEl) btnsEl.innerHTML = `
       <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
@@ -1970,6 +1981,7 @@ async function finishManualCamSession() {
       setData: _manualCamSetData
     });
     logAnalyticsEvent('session_completed', { sets_recorded: _manualCamSetData.length });
+    writeAuditLog('session_recorded', currentUser.email);
   } catch(e) {
     console.error('[Motus] Session save error:', e);
     Sentry.captureException(e, { tags: { flow: 'session-save' } });
@@ -2065,6 +2077,7 @@ async function submitManualSession() {
       protocolId:    selectedProtocol?.id || '',
       expireAt:      new Date(Date.now() + 90 * 86400000)
     });
+    writeAuditLog('session_recorded', currentUser.email);
     closeManualSession();
     showScreen('patientScreen');
     updatePatientHomeScreen();
@@ -2110,6 +2123,21 @@ const frequencyLabels = {
   every_other: 'Every Other Day',
   three_week:  '3x Per Week'
 };
+
+// Expected sessions over a 7-day window per prescribed frequency.
+const sessionsPerWeek = {
+  daily:       7,
+  twice_daily: 14,
+  every_other: 3,
+  three_week:  3
+};
+
+// Adherence = sessions actually logged vs. sessions the protocol's frequency calls for,
+// capped at 100% (e.g. a "Twice Daily" patient doing one session/day is at 50%, not 100%).
+function calcAdherence(sessionCount, frequency) {
+  const expected = sessionsPerWeek[frequency] || sessionsPerWeek.daily;
+  return Math.min(100, Math.round((sessionCount / expected) * 100));
+}
 
 // Thresholds use calibration convention: 0° = straight, higher = more bent.
 // flexAt: joint must bend TO or PAST this angle to count as flexed.
@@ -2218,6 +2246,7 @@ async function deleteProtocol(patientEmail, protocolId) {
   } else {
     await db.collection('protocols').doc(patientEmail).set({ items: updated });
   }
+  writeAuditLog('protocol_deleted', patientEmail);
   const refreshed = await getProtocols(patientEmail);
   const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
   if (protoBody) {
@@ -2715,6 +2744,7 @@ async function assignProtocol() {
   }
 
   const existing = await getProtocols(patientEmail);
+  const isEdit = !!editingProtocolId;
 
   if (editingProtocolId) {
     // Edit mode — update the existing protocol item in place
@@ -2757,7 +2787,7 @@ async function assignProtocol() {
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
   logAnalyticsEvent('protocol_assigned', { exercise_type: exerciseType });
-  writeAuditLog('protocol_assigned', patientEmail);
+  writeAuditLog(isEdit ? 'protocol_updated' : 'protocol_created', patientEmail);
   closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
@@ -2793,7 +2823,7 @@ function formatProtocol(p) {
     <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
     ${paramsHTML}
     ${p.notes ? `<p class="proto-notes">"${escapeHtml(p.notes)}"</p>` : ''}
-    <p class="proto-meta">${p.assignedBy}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
+    <p class="proto-meta">${escapeHtml(p.assignedBy)}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
 }
 
 async function loadPatientProtocol() {
@@ -2858,7 +2888,7 @@ async function showExercisesScreen() {
       : `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>`;
     return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
       <div class="exs-row-left">
-        <span class="exs-row-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+        <span class="exs-row-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
         <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
       </div>
       <div class="exs-row-right">
@@ -3023,14 +3053,11 @@ async function getPatientSessions(patientEmail) {
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-function calcCompliance(sessions) {
+function calcCompliance(sessions, frequency) {
   if (sessions.length === 0) return 0;
-  const now          = new Date();
-  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-  const recentDays   = new Set(
-    sessions.filter(s => new Date(s.date) > sevenDaysAgo).map(s => new Date(s.date).toDateString())
-  );
-  return Math.round((recentDays.size / 7) * 100);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const recentCount  = sessions.filter(s => new Date(s.date) > sevenDaysAgo).length;
+  return calcAdherence(recentCount, frequency);
 }
 
 function makeCollapsible(id, title, bodyHTML, open) {
@@ -3075,7 +3102,7 @@ async function showRealPatient(patient) {
         return sum + (s.pain || 0);
       }, 0) / recent7.length).toFixed(1)
     : '-';
-  const adherence = calcCompliance(sessions);
+  const adherence = calcCompliance(sessions, protocols[0]?.frequency);
   const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
   const daysSinceLast = lastSess
     ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
@@ -3085,14 +3112,13 @@ async function showRealPatient(patient) {
 
   // Avatar initials
   const initials = patient.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  const safeEmail = patient.email.replace(/'/g, "\\'");
-  const safeName = patient.name.replace(/"/g, '&quot;');
+  const safeEmail = escJsAttr(patient.email);
+  const safeName = escJsAttr(patient.name);
 
   // Prior week for deltas
   const fourteenAgo = new Date(Date.now() - 14 * 86400000);
   const priorW = sessions.filter(s => { const d = new Date(s.date); return d > fourteenAgo && d <= sevenDaysAgo; });
-  const priorDaysT = new Set(priorW.map(s => new Date(s.date).toDateString())).size;
-  const priorAdhT = Math.round((priorDaysT / 7) * 100);
+  const priorAdhT = calcAdherence(priorW.length, protocols[0]?.frequency);
   const adhDeltaT = parseInt(adherence) - priorAdhT;
   const priorPainT = priorW.length > 0
     ? (priorW.reduce((sum, s) => { if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length; return sum + (s.pain || 0); }, 0) / priorW.length).toFixed(1)
@@ -3278,12 +3304,24 @@ function cnFormat(command) {
   document.getElementById('clinicalNotesEditor')?.focus();
 }
 
+// Clinical notes are saved/loaded as raw editor.innerHTML (rich text from the
+// toolbar's bold/italic/underline/list commands). Any therapist with patient
+// access can write this doc, and it's replayed via innerHTML into every other
+// viewer's browser, so it must be sanitized to a fixed allowlist on both ends —
+// strips event handlers, scripts, and any markup beyond basic formatting.
+function sanitizeNotesHtml(html) {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'br', 'div', 'p', 'span'],
+    ALLOWED_ATTR: []
+  });
+}
+
 async function loadClinicalNotes(patientEmail) {
   try {
     const doc = await db.collection('clinicalNotes').doc(patientEmail).get();
     const editor = document.getElementById('clinicalNotesEditor');
     if (doc.exists && doc.data().html && editor) {
-      editor.innerHTML = doc.data().html;
+      editor.innerHTML = sanitizeNotesHtml(doc.data().html);
     }
   } catch (e) {
     if (e.code !== 'permission-denied') console.error('[Motus] loadClinicalNotes failed:', e);
@@ -3295,7 +3333,7 @@ async function saveClinicalNotes() {
   if (!patientEmail) return;
   const editor = document.getElementById('clinicalNotesEditor');
   if (!editor) return;
-  const html = editor.innerHTML;
+  const html = sanitizeNotesHtml(editor.innerHTML);
   if (html === '<br>' || html === '') {
     try { await db.collection('clinicalNotes').doc(patientEmail).delete(); } catch (_) {}
     return;
@@ -3379,7 +3417,7 @@ function buildSessionHistory(sessions, patientName) {
       const exSessions = exercisesMap[exType];
       const exLabel = exerciseLabels[exType] || exType;
       html += `<div class="prog-exercise-block">
-        <div class="prog-exercise-header">${exLabel}</div>
+        <div class="prog-exercise-header">${escapeHtml(exLabel)}</div>
         <div class="prog-sets-list">
           <div class="prog-sets-header">
             <span class="prog-hdr-label"></span>
@@ -3394,9 +3432,9 @@ function buildSessionHistory(sessions, patientName) {
         const exitedEarly = s.notes && s.notes.toLowerCase().includes('exited');
         let videoBtn = '<span class="prog-set-empty">—</span>';
         if (hasVideo) {
-          const safeUrl = (s.videoUrl || '').replace(/'/g, '%27');
-          const safeDate = (s.parentDate || s.date || '').replace(/'/g, '');
-          const pName = (window._lastHistoryPatientName || '').replace(/'/g, '');
+          const safeUrl = escJsAttr(s.videoUrl || '');
+          const safeDate = escJsAttr(s.parentDate || s.date || '');
+          const pName = escJsAttr(window._lastHistoryPatientName || '');
           videoBtn = `<button class="prog-set-video-btn" onclick="event.stopPropagation(); openVideoModal('${safeUrl}', '${safeDate}', '${pName}')" title="Watch Set ${setNum}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           </button>`;
@@ -3444,8 +3482,8 @@ function buildProtocolList(patientEmail, protocols) {
   return `
     <div class="proto-existing-section">
       ${protocols.map(p => {
-        const exLabel = (exerciseLabels[p.exerciseType] || p.exerciseType).replace(/'/g, "\\'");
-        const demoUrl = p.demoVideoUrl ? p.demoVideoUrl.replace(/'/g, "\\'") : '';
+        const exLabel = escJsAttr(exerciseLabels[p.exerciseType] || p.exerciseType);
+        const demoUrl = p.demoVideoUrl ? escJsAttr(p.demoVideoUrl) : '';
         const demoBtns = p.demoVideoUrl
           ? `<button class="protocol-demo-btn" onclick="playProtocolDemo('${demoUrl}', '${exLabel}')">Play Demo</button>
              <button class="protocol-remove-demo-btn" onclick="removeProtocolDemo('${patientEmail}', '${p.id}')">Remove Demo</button>`
@@ -3453,7 +3491,7 @@ function buildProtocolList(patientEmail, protocols) {
         return `
         <div class="proto-card">
           <div class="proto-card-header">
-            <span class="proto-card-name">${exerciseLabels[p.exerciseType] || p.exerciseType}</span>
+            <span class="proto-card-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
             <div class="protocol-action-btns">
               ${demoBtns}
               <button class="protocol-edit-btn" onclick="editProtocol('${patientEmail}', '${p.id}')">Edit</button>
@@ -3578,8 +3616,8 @@ async function _bapLoadPatients() {
   }
   listEl.innerHTML = patients.map(p => `
     <label class="bap-patient-row">
-      <input type="checkbox" class="bap-patient-cb" value="${p.email}" onchange="_bapUpdateSubmitBtn()">
-      <span class="bap-patient-name">${p.name}</span>
+      <input type="checkbox" class="bap-patient-cb" value="${escapeHtml(p.email)}" onchange="_bapUpdateSubmitBtn()">
+      <span class="bap-patient-name">${escapeHtml(p.name)}</span>
     </label>
   `).join('');
 }
@@ -3662,6 +3700,7 @@ async function bulkAssignProtocol() {
       if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
       if (exerciseParams) newItem.exerciseParams = exerciseParams;
       await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+      writeAuditLog('protocol_created', patientEmail);
       successCount++;
     } catch (e) { /* skip failed patient */ }
   }
@@ -3685,11 +3724,11 @@ function _apmRenderLibrary(query) {
   for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
   listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
     <div class="apm-lib-cat">
-      <div class="apm-lib-cat-label">${cat}</div>
+      <div class="apm-lib-cat-label">${escapeHtml(cat)}</div>
       ${items.map(e => `
         <div class="apm-lib-item" id="apm-item-${e.id}" onclick="apmSelectExercise('${e.id}')">
-          <div class="apm-lib-item-name">${exerciseLabels[e.id] || e.id}</div>
-          <div class="apm-lib-item-desc">${e.desc}</div>
+          <div class="apm-lib-item-name">${escapeHtml(exerciseLabels[e.id] || e.id)}</div>
+          <div class="apm-lib-item-desc">${escapeHtml(e.desc)}</div>
         </div>
       `).join('')}
     </div>
@@ -3861,14 +3900,14 @@ function plRender() {
     for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
     listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
       <div class="apm-lib-cat">
-        <div class="apm-lib-cat-label">${cat}</div>
+        <div class="apm-lib-cat-label">${escapeHtml(cat)}</div>
         ${items.map(e => {
           const label = exerciseLabels[e.id] || e.id;
           const editedClass = e._isEdited ? ' apm-lib-item--edited' : '';
           const activeClass = _plSelectedId === e.id ? ' apm-lib-item--active' : '';
           return `<div class="apm-lib-item${editedClass}${activeClass}" id="pl-item-${e.id}" onclick="plSelectExercise('${e.id}')">
-            <div class="apm-lib-item-name">${label}</div>
-            <div class="apm-lib-item-desc">${e.desc || ''}</div>
+            <div class="apm-lib-item-name">${escapeHtml(label)}</div>
+            <div class="apm-lib-item-desc">${escapeHtml(e.desc || '')}</div>
           </div>`;
         }).join('')}
       </div>
@@ -5216,7 +5255,7 @@ function buildProgressByDay(sessions) {
       const exLabel = exerciseLabels[exType] || exType;
       
       html += `<div class="prog-exercise-block">
-        <div class="prog-exercise-header">${exLabel}</div>
+        <div class="prog-exercise-header">${escapeHtml(exLabel)}</div>
         <div class="prog-sets-list">
           <div class="prog-sets-header">
             <span class="prog-hdr-label"></span>
@@ -5233,9 +5272,9 @@ function buildProgressByDay(sessions) {
         
         let videoBtn = '<span class="prog-set-empty">—</span>';
         if (hasVideo) {
-          const safeUrl = (s.videoUrl || '').replace(/'/g, '%27');
-          const safeDate = (s.parentDate || '').replace(/'/g, '');
-          const patientName = (currentUser?.name || currentUser?.email || '').replace(/'/g, '');
+          const safeUrl = escJsAttr(s.videoUrl || '');
+          const safeDate = escJsAttr(s.parentDate || '');
+          const patientName = escJsAttr(currentUser?.name || currentUser?.email || '');
           videoBtn = `<button class="prog-set-video-btn" onclick="openVideoModal('${safeUrl}', '${safeDate}', '${patientName}')" title="Watch Set ${setNum}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           </button>`;
