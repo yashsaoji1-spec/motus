@@ -181,7 +181,12 @@ service cloud.firestore {
     match /messageThreads/{threadId} {
       allow read: if isAuth() && myEmail() in resource.data.participants;
       allow create: if isAuth() && myEmail() in request.resource.data.participants;
-      allow update: if isAuth() && myEmail() in resource.data.participants;
+      // Only the disconnect flow writes here — restrict to archived + disconnectedAt so
+      // participants can't modify each other's email addresses or hijack the thread.
+      // diff() only lists keys whose values actually changed, so the disconnect flow's
+      // set({merge:true}) writing participants with the same value passes without listing it.
+      allow update: if isAuth() && myEmail() in resource.data.participants &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'disconnectedAt']);
       allow delete: if isAuth() && isAdmin();
     }
 
@@ -298,8 +303,11 @@ service cloud.firestore {
       allow create: if isAuth() && isTherapist() &&
         request.resource.data.invitedBy == myEmail() &&
         isClinicOwner(request.resource.data.clinicId);
+      // Invitee can only flip status — not change clinicId, invitedBy, or any other field.
+      // Without this, an invitee could change clinicId before accepting to join a different clinic.
       allow update: if isAuth() && (
-        (resource.data.inviteeEmail == myEmail()) ||
+        (resource.data.inviteeEmail == myEmail() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
         isAdmin()
       );
       allow delete: if isAuth() && isAdmin();
