@@ -574,6 +574,7 @@ async function finalizeSignup(skipData = false) {
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     await db.collection('users').doc(cred.user.email).set(docData);
+    await writeAuditLog('user_signup', cred.user.email);
     if (!import.meta.env.DEV) await cred.user.sendEmailVerification();
     await auth.signOut();
     _pendingSignup = {};
@@ -1980,6 +1981,7 @@ async function finishManualCamSession() {
       setData: _manualCamSetData
     });
     logAnalyticsEvent('session_completed', { sets_recorded: _manualCamSetData.length });
+    writeAuditLog('session_recorded', currentUser.email);
   } catch(e) {
     console.error('[Motus] Session save error:', e);
     Sentry.captureException(e, { tags: { flow: 'session-save' } });
@@ -2075,6 +2077,7 @@ async function submitManualSession() {
       protocolId:    selectedProtocol?.id || '',
       expireAt:      new Date(Date.now() + 90 * 86400000)
     });
+    writeAuditLog('session_recorded', currentUser.email);
     closeManualSession();
     showScreen('patientScreen');
     updatePatientHomeScreen();
@@ -2243,6 +2246,7 @@ async function deleteProtocol(patientEmail, protocolId) {
   } else {
     await db.collection('protocols').doc(patientEmail).set({ items: updated });
   }
+  writeAuditLog('protocol_deleted', patientEmail);
   const refreshed = await getProtocols(patientEmail);
   const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
   if (protoBody) {
