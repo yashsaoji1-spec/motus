@@ -14,6 +14,7 @@ Check here to see what changed since your last session. Most recent first.
 - Audit log: added missing entries for `user_signup`, `session_recorded` (both the manual-camera and simple-form paths), and `protocol_deleted` — these are the three highest-value gaps in the HIPAA audit trail
 - `every_other` adherence target changed from 3.5 to 3 — using the fractional average caused a Mon/Wed/Fri patient (a perfectly valid every-other-day pattern) to show 86% instead of 100%
 - Pushed and opened PR #17 for review/merge
+- Audit log: `protocol_assigned` split into `protocol_created` vs `protocol_updated` — audit trail previously couldn't distinguish creates from edits; also added missing log for bulk-assign path (was completely untracked)
 
 ---
 
