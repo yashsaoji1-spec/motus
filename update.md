@@ -10,8 +10,10 @@ Check here to see what changed since your last session. Most recent first.
 
 - Firestore rules: `clinicInvites` — restricted the invitee update to `status` only; previously any field could be changed, so an invitee could swap the `clinicId` before accepting to join a different clinic than intended
 - Firestore rules: `messageThreads` — restricted participant updates to `archived` + `disconnectedAt` only; previously any participant could overwrite any field including `participants` itself
+- Firestore rules: `sessions` update now locked to `videoUrl`/`videoExpireAt` only — previously any connected party could overwrite reps, pain, date, or exerciseType after the fact. Core clinical data is now immutable post-recording (admin exempt)
 - Audit log: added missing entries for `user_signup`, `session_recorded` (both the manual-camera and simple-form paths), and `protocol_deleted` — these are the three highest-value gaps in the HIPAA audit trail
 - `every_other` adherence target changed from 3.5 to 3 — using the fractional average caused a Mon/Wed/Fri patient (a perfectly valid every-other-day pattern) to show 86% instead of 100%
+- Pushed and opened PR #17 for review/merge
 
 ---
 
