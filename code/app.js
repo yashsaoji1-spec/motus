@@ -2744,6 +2744,7 @@ async function assignProtocol() {
   }
 
   const existing = await getProtocols(patientEmail);
+  const isEdit = !!editingProtocolId;
 
   if (editingProtocolId) {
     // Edit mode — update the existing protocol item in place
@@ -2786,7 +2787,7 @@ async function assignProtocol() {
     await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
   }
   logAnalyticsEvent('protocol_assigned', { exercise_type: exerciseType });
-  writeAuditLog('protocol_assigned', patientEmail);
+  writeAuditLog(isEdit ? 'protocol_updated' : 'protocol_created', patientEmail);
   closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
@@ -3699,6 +3700,7 @@ async function bulkAssignProtocol() {
       if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
       if (exerciseParams) newItem.exerciseParams = exerciseParams;
       await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+      writeAuditLog('protocol_created', patientEmail);
       successCount++;
     } catch (e) { /* skip failed patient */ }
   }
