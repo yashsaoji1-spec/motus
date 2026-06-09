@@ -95,8 +95,11 @@ service cloud.firestore {
       allow create: if isAuth() && (
         myEmail() == therapistEmail ||
         isAdmin() ||
-        // Patient bootstraps the doc when connecting to their first therapist
-        (isPatient() && request.resource.data.patients.hasOnly([myEmail()]))
+        // Patient bootstraps the doc when connecting to their first therapist.
+        // Restrict to only the patients field so no other keys can be injected.
+        (isPatient() &&
+          request.resource.data.keys().hasOnly(['patients']) &&
+          request.resource.data.patients.hasOnly([myEmail()]))
       );
       allow delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       // Patients may only append their own email to the patients array — no other mutations.
