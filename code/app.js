@@ -491,7 +491,8 @@ async function handleLogin() {
     _loginAttempts = 0;
     // onAuthStateChanged handles routing
   } catch (e) {
-    const isCredError = (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential');
+    const isCredError = (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' ||
+                         e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-login-credentials');
 
     if (isCredError) {
       _loginAttempts++;
@@ -529,13 +530,12 @@ function signupNextStep() {
   if (name.length < 2) { showError('signupError', 'Please enter your full name.'); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('signupError', 'Please enter a valid email address.'); return; }
   if (password.length < 8) { showError('signupError', 'Password must be at least 8 characters.'); return; }
-  _pendingSignup = { name, email, password };
-  // Reset language selection
-  document.querySelectorAll('.lang-card').forEach(c => c.classList.remove('selected'));
-  delete _pendingSignup.language;
-  const btn = document.getElementById('langNextBtn');
-  if (btn) btn.disabled = true;
-  signupGoToStep(1);
+  _pendingSignup = { name, email, password, language: 'en' };
+  const patFields = document.getElementById('signupPatientFields');
+  const thFields  = document.getElementById('signupTherapistFields');
+  if (patFields) patFields.hidden = (selectedRole === 'therapist');
+  if (thFields)  thFields.hidden  = (selectedRole !== 'therapist');
+  signupGoToStep(2);
 }
 
 function signupSelectLanguage(code) {
@@ -777,6 +777,7 @@ async function handleConnect() {
     showScreen('patientScreen');
     await updatePatientHomeScreen();
     await initSetTracker();
+    maybeStartTutorial();
   }, 1800);
 }
 
@@ -784,6 +785,7 @@ async function skipConnect() {
   showScreen('patientScreen');
   await updatePatientHomeScreen();
   await initSetTracker();
+  maybeStartTutorial();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -815,6 +817,7 @@ async function loginSuccess() {
   }
 
   await restoreScreen(savedScreen);
+  maybeStartTutorial();
 }
 
 async function routePatient() {
@@ -824,6 +827,7 @@ async function routePatient() {
     showScreen('patientScreen');
     await updatePatientHomeScreen().catch(e => console.error('updatePatientHomeScreen:', e));
     await initSetTracker().catch(e => console.error('initSetTracker:', e));
+    maybeStartTutorial();
   } else {
     showScreen('connectScreen');
   }
@@ -1755,7 +1759,7 @@ async function openManualCameraSession(protocol) {
   if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
   const targetEl = document.getElementById('manualCamTarget');
   if (targetEl) targetEl.textContent = `Target ${_manualCamTotalSets}\u00D7${protocol.reps || 10}`;
-  if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
+  if (promptEl) promptEl.textContent = 'Ready for set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap record to start';
   const demoUrl = protocol.demoVideoUrl || null;
   const demoBtn = demoUrl
     ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'')}')">DEMO</button>`
@@ -1941,7 +1945,7 @@ async function manualCamSaveSet() {
     const exIdx = (_manualCamExerciseIndex || 0) + 1;
     const exTotal = _manualCamTotalExercises || 1;
     if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
-    if (promptEl) promptEl.textContent = 'Recording set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap stop when finished';
+    if (promptEl) promptEl.textContent = 'Ready for set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap record to start';
     const demoUrlN = _manualCamProtocol?.demoVideoUrl || null;
     const demoBtnN = demoUrlN
       ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlN)}', '')">DEMO</button>`
@@ -2057,37 +2061,6 @@ async function saveCurrentSetAndExit() {
   
   // Now save the session
   await finishManualCamSession();
-}
-
-async function submitManualSession() {
-  const reps = Math.max(0, Math.min(100, parseInt(document.getElementById('manualRepsInput').value) || 0));
-  const pain = Math.max(1, Math.min(10, parseInt(document.getElementById('manualPainSlider').value) || 1));
-  const btn  = document.querySelector('.manual-session-submit');
-  btn.disabled    = true;
-  btn.textContent = 'Saving...';
-  try {
-    const therapistEmail = await getConnectedTherapist();
-    await db.collection('sessions').add({
-      patientEmail:  currentUser.email,
-      date:          new Date().toISOString(),
-      reps,
-      pain,
-      rom:           0,
-      tam:           0,
-      therapistEmail,
-      exerciseType:  selectedProtocol?.exerciseType || '',
-      protocolId:    selectedProtocol?.id || '',
-      expireAt:      new Date(Date.now() + 90 * 86400000)
-    });
-    writeAuditLog('session_recorded', currentUser.email);
-    closeManualSession();
-    showScreen('patientScreen');
-    updatePatientHomeScreen();
-  } catch (e) {
-    console.error('submitManualSession:', e);
-    btn.disabled    = false;
-    btn.textContent = 'Log Session';
-  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3936,7 +3909,10 @@ function buildProtocolLibrary() {
     }
   });
 
-  const allBuiltIns = Object.values(builtInMap).filter(e => !hidden.has(e.id));
+  // Custom exercises may already be in PROTOCOL_CATALOG (the Add Protocol modal
+  // merges them in) — exclude them from built-ins so they don't render twice
+  const customIds = new Set(custom.map(e => e.id));
+  const allBuiltIns = Object.values(builtInMap).filter(e => !hidden.has(e.id) && !customIds.has(e.id));
   const allCustom = custom.filter(e => !hidden.has(e.id));
 
   _plLibrary = [...allBuiltIns, ...allCustom];
@@ -6976,6 +6952,228 @@ function siToggleChip(btn) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   SECTION 18: ONBOARDING TUTORIAL  (spotlight walkthrough on first login)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+let _tutSteps = [];
+let _tutIndex = 0;
+let _tutActive = false;
+let _tutAutoStartAttempted = false;
+
+// Steps with type 'welcome'/'finish' render as centered cards; all others
+// spotlight `target` after running `before` (used for auto-navigation).
+// Steps whose target is missing or hidden (e.g. therapist card when not
+// connected) are skipped automatically.
+const TUTORIAL_STEPS = {
+  patient: [
+    { type: 'welcome' },
+    { target: '.pt-protocol-card', title: 'Your protocol',
+      text: 'Exercises your therapist assigns appear here, along with today’s plan and how often to do them.',
+      before: async () => { await showPatientHome(); } },
+    { target: '.pt-protocol-start', title: 'Start a session',
+      text: 'When you’re ready to exercise, tap Start Session. Motus walks you through each exercise, set by set.' },
+    { target: '.pt-stats-row', title: 'Your stats at a glance',
+      text: 'Adherence shows how consistently you’re completing sessions, and Avg Pain tracks how you’ve been feeling.' },
+    { target: '#patientBottomNav .pt-bottom-nav-item:nth-child(2)', title: 'Track your progress',
+      text: 'The Progress tab keeps a log of every session — reps, pain, and notes — so you can see your improvement over time.',
+      before: async () => { await showProgressScreen(); } },
+    { target: '#patientBottomNav .pt-bottom-nav-item:nth-child(3)', title: 'Message your therapist',
+      text: 'Questions between visits? Send your therapist a message any time from the Messages tab.' },
+    { target: '#ptTherapistCard', title: 'Your therapist',
+      text: 'Your therapist’s card lives here on Home. They see your sessions and adjust your protocol as you improve.',
+      before: async () => { await showPatientHome(); } },
+    { type: 'finish' },
+  ],
+  therapist: [
+    { type: 'welcome' },
+    { target: '.th-patient-list', title: 'Your patients',
+      text: 'Everyone connected to you appears in this list. Tap a patient to open their detail view.' },
+    { target: '.clinic-badge', title: 'Your clinic code',
+      text: 'Share this 6-character code with patients — they enter it when signing up to connect with you.' },
+    { target: '#mainPanel', title: 'Patient detail',
+      text: 'Selecting a patient shows their sessions, pain trend, clinical notes, and assigned protocols — and lets you assign new ones.' },
+    { target: '.th-add-btn', title: 'Bulk assign',
+      text: 'Assign a protocol to several patients at once with Bulk Assign.' },
+    { target: '#thNavMessages', title: 'Messages',
+      text: 'Chat with any of your patients from the Messages section.' },
+    { target: '#thNavLibrary', title: 'Protocol library',
+      text: 'Build and manage reusable exercise protocols in your library, then assign them to patients.' },
+    { type: 'finish' },
+  ],
+};
+
+function startTutorial() {
+  const role = currentRole === 'therapist' ? 'therapist' : 'patient';
+  _tutSteps = TUTORIAL_STEPS[role];
+  _tutIndex = 0;
+  _tutActive = true;
+  document.getElementById('tutorialOverlay').style.display = 'block';
+  showTutorialStep(0, 1);
+}
+
+async function showTutorialStep(idx, dir) {
+  if (!_tutActive) return;
+  if (idx < 0) idx = 0;
+  if (idx >= _tutSteps.length) { finishTutorial(); return; }
+  const step = _tutSteps[idx];
+  _tutIndex = idx;
+
+  const tooltip = document.getElementById('tutTooltip');
+  const welcome = document.getElementById('tutWelcomeCard');
+  const finish  = document.getElementById('tutFinishCard');
+  welcome.style.display = 'none';
+  finish.style.display  = 'none';
+
+  if (step.type === 'welcome' || step.type === 'finish') {
+    tooltip.style.display = 'none';
+    centerTutorialSpotlight();
+    (step.type === 'welcome' ? welcome : finish).style.display = 'block';
+    return;
+  }
+
+  if (step.before) {
+    try { await step.before(); } catch (e) { console.warn('Tutorial step navigation failed:', e); }
+  }
+  // Two frames so the destination screen has painted before measuring
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  if (!_tutActive || _tutIndex !== idx) return;
+
+  const el = document.querySelector(step.target);
+  const rect = el && el.getBoundingClientRect();
+  if (!el || (!rect.width && !rect.height)) {
+    showTutorialStep(idx + (dir || 1), dir);
+    return;
+  }
+  el.scrollIntoView({ block: 'center' });
+  positionTutorialSpotlight(el);
+  renderTutorialTooltip(step, el);
+}
+
+function positionTutorialSpotlight(el) {
+  const pad = 8;
+  const r = el.getBoundingClientRect();
+  const s = document.getElementById('tutSpotlight');
+  s.style.top    = (r.top - pad) + 'px';
+  s.style.left   = (r.left - pad) + 'px';
+  s.style.width  = (r.width + pad * 2) + 'px';
+  s.style.height = (r.height + pad * 2) + 'px';
+}
+
+function centerTutorialSpotlight() {
+  const s = document.getElementById('tutSpotlight');
+  s.style.top    = (window.innerHeight / 2) + 'px';
+  s.style.left   = (window.innerWidth / 2) + 'px';
+  s.style.width  = '0px';
+  s.style.height = '0px';
+}
+
+function renderTutorialTooltip(step, el) {
+  document.getElementById('tutTitle').textContent = step.title;
+  document.getElementById('tutText').textContent  = step.text;
+
+  const contentSteps = _tutSteps.filter(s => !s.type);
+  const dotIdx = _tutSteps.slice(0, _tutIndex).filter(s => !s.type).length;
+  document.getElementById('tutDots').innerHTML = contentSteps
+    .map((_, i) => `<span class="tut-dot${i === dotIdx ? ' tut-dot-active' : ''}"></span>`)
+    .join('');
+
+  document.getElementById('tutBackBtn').style.visibility = dotIdx === 0 ? 'hidden' : '';
+  document.getElementById('tutNextBtn').textContent =
+    _tutIndex === _tutSteps.length - 2 ? 'Finish' : 'Next';
+
+  positionTutorialTooltip(el);
+}
+
+// Place the tooltip on whichever side of the target has room: below, above,
+// right, left — falling back to a clamped position near the target.
+function positionTutorialTooltip(el) {
+  const tip = document.getElementById('tutTooltip');
+  tip.style.visibility = 'hidden';
+  tip.style.display = 'block';
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  const r = el.getBoundingClientRect();
+  const gap = 18, edge = 8;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const clampX = x => Math.max(edge, Math.min(vw - tw - edge, x));
+  const clampY = y => Math.max(edge, Math.min(vh - th - edge, y));
+  let top, left;
+
+  if (vh - r.bottom >= th + gap + edge) {
+    top = r.bottom + gap;
+    left = clampX(r.left + r.width / 2 - tw / 2);
+  } else if (r.top >= th + gap + edge) {
+    top = r.top - th - gap;
+    left = clampX(r.left + r.width / 2 - tw / 2);
+  } else if (vw - r.right >= tw + gap + edge) {
+    top = clampY(r.top + r.height / 2 - th / 2);
+    left = r.right + gap;
+  } else if (r.left >= tw + gap + edge) {
+    top = clampY(r.top + r.height / 2 - th / 2);
+    left = r.left - tw - gap;
+  } else {
+    top = clampY(r.bottom + gap);
+    left = clampX(r.left + r.width / 2 - tw / 2);
+  }
+  tip.style.top  = top + 'px';
+  tip.style.left = left + 'px';
+  tip.style.visibility = '';
+}
+
+function tutorialNext() { showTutorialStep(_tutIndex + 1, 1); }
+function tutorialBack() { showTutorialStep(_tutIndex - 1, -1); }
+
+function closeTutorial() {
+  _tutActive = false;
+  document.getElementById('tutorialOverlay').style.display = 'none';
+  document.getElementById('tutTooltip').style.display = 'none';
+  if (currentRole === 'patient') showPatientHome().catch(() => {});
+}
+
+async function skipTutorial()   { closeTutorial(); await markTutorialCompleted(); }
+async function finishTutorial() { closeTutorial(); await markTutorialCompleted(); }
+
+async function markTutorialCompleted() {
+  if (!currentUser?.email || currentUser.tutorialCompleted) return;
+  currentUser.tutorialCompleted = true;
+  try {
+    await db.collection('users').doc(currentUser.email).update({ tutorialCompleted: true });
+  } catch (e) {
+    console.warn('Failed to save tutorial completion:', e);
+  }
+}
+
+// Fires once per session, 1.5s after first landing on a main app screen,
+// and only for accounts that have never completed the tutorial.
+function maybeStartTutorial() {
+  if (_tutAutoStartAttempted || _tutActive) return;
+  if (!currentUser || currentUser.tutorialCompleted) return;
+  if (currentRole !== 'patient' && currentRole !== 'therapist') return;
+  const active = document.querySelector('.screen.active');
+  const onMainScreen = currentRole === 'therapist'
+    ? active?.id === 'therapistScreen'
+    : ['patientScreen', 'exercisesScreen', 'progressScreen'].includes(active?.id);
+  if (!onMainScreen) return;
+  _tutAutoStartAttempted = true;
+  setTimeout(() => {
+    if (currentUser && !currentUser.tutorialCompleted && !_tutActive) startTutorial();
+  }, 1500);
+}
+
+async function replayTutorial() {
+  if (currentRole === 'patient') await showPatientHome().catch(() => {});
+  else showScreen('therapistScreen');
+  startTutorial();
+}
+
+window.addEventListener('resize', () => {
+  if (!_tutActive) return;
+  const step = _tutSteps[_tutIndex];
+  if (!step || step.type) return;
+  const el = document.querySelector(step.target);
+  if (el) { positionTutorialSpotlight(el); positionTutorialTooltip(el); }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
    WINDOW EXPORTS — required for Vite module mode so inline HTML onclick
    handlers can reach these functions (modules don't auto-pollute globals)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -7052,6 +7250,9 @@ Object.assign(window, {
 
   // Session history
   shLoadMore, toggleShExpand,
+
+  // Onboarding tutorial
+  tutorialNext, tutorialBack, skipTutorial, finishTutorial, replayTutorial,
 
   // Exposed array for exercises screen start buttons
   get _exercisesProtocols() { return _exercisesProtocols; },

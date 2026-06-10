@@ -6625,3 +6625,95 @@ body:has(#manualCamScreen.active) {
 }
 .cn-editable ul, .cn-editable ol { margin: 4px 0; padding-left: 20px; }
 .cn-editable li { margin-bottom: 2px; }
+
+/* ═══════════════════════════════════════════════════════
+   ONBOARDING TUTORIAL
+═══════════════════════════════════════════════════════ */
+.tut-overlay { position: fixed; inset: 0; z-index: 10500; }
+
+.tut-spotlight {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.6);
+  transition: top 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+              left 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+              height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.tut-tooltip {
+  position: fixed;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 8px 30px rgba(2, 32, 51, 0.25);
+  transition: top 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+              left 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tut-title { font-weight: 800; font-size: 1.05rem; color: #0C4A6E; margin-bottom: 6px; }
+.tut-text  { font-size: 0.9rem; color: #475569; line-height: 1.45; }
+
+.tut-dots { display: flex; gap: 6px; justify-content: center; margin: 14px 0 12px; }
+.tut-dot { width: 7px; height: 7px; border-radius: 50%; background: #CBD5E1; transition: background 0.3s; }
+.tut-dot-active { background: var(--accent); }
+
+.tut-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tut-skip-link {
+  background: none; border: none; padding: 6px 0;
+  color: #94A3B8; font-size: 0.8rem; text-decoration: underline;
+  cursor: pointer; font-family: inherit;
+}
+.tut-skip-link:hover { color: #64748B; }
+.tut-action-btns { display: flex; gap: 8px; }
+.tut-back-btn {
+  background: none; border: 1.5px solid var(--accent); color: var(--accent);
+  border-radius: 10px; padding: 8px 14px;
+  font-weight: 700; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+}
+.tut-back-btn:hover { background: var(--accent-dim); }
+.tut-next-btn {
+  background: var(--accent); border: none; color: #fff;
+  border-radius: 10px; padding: 8px 18px;
+  font-weight: 700; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+}
+.tut-next-btn:hover { background: var(--accent-hover); }
+
+.tut-card {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 320px; max-width: calc(100vw - 32px);
+  background: #fff; border-radius: 18px; padding: 32px 26px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(2, 32, 51, 0.3);
+  animation: tutCardIn 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+@keyframes tutCardIn {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.tut-card-logo {
+  width: 56px; height: 56px; border-radius: 16px; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+}
+.tut-card-check {
+  width: 56px; height: 56px; border-radius: 50%; background: #059669;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+  animation: tutCheckPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s backwards;
+}
+@keyframes tutCheckPop {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+.tut-card-title { font-size: 1.3rem; font-weight: 800; color: #0F172A; margin: 0 0 8px; }
+.tut-card-sub   { font-size: 0.92rem; color: #64748B; line-height: 1.45; margin: 0 0 22px; }
+.tut-cta-btn {
+  width: 100%;
+  background: var(--accent); border: none; color: #fff;
+  border-radius: 12px; padding: 13px;
+  font-size: 0.95rem; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+.tut-cta-btn:hover { background: var(--accent-hover); }
