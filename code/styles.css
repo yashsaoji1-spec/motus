@@ -1064,6 +1064,7 @@ body {
 }
 #patientBottomNav .pt-bottom-nav-item:hover,
 #patientBottomNav .pt-bottom-nav-item:active { color: #0EA5E9; }
+#patientBottomNav .pt-bottom-nav-item.pt-nav-active { color: #0EA5E9; }
 #patientBottomNav .pt-bottom-nav-icon-wrap {
   position: relative;
   display: grid;
@@ -6392,6 +6393,21 @@ body:has(#manualCamScreen.active) {
   gap: 6px;
   align-items: center;
 }
+.therapist-scope .pd-demographics {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.therapist-scope .pd-demo-tag {
+  font-family: var(--th-font);
+  font-size: 0.75rem;
+  background: var(--th-surface);
+  color: var(--th-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--th-border);
+}
 .therapist-scope .pd-dot { color: var(--th-border-strong); }
 .therapist-scope .pd-header-actions { display: flex; gap: 8px; }
 .therapist-scope .tp-btn svg { vertical-align: -2px; margin-right: 4px; }
@@ -6434,6 +6450,31 @@ body:has(#manualCamScreen.active) {
   font-size: 0.72rem;
   font-weight: 500;
   margin-top: 2px;
+}
+.therapist-scope .pd-adh-breakdown {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.therapist-scope .pd-adh-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--th-muted, #64748b);
+  line-height: 1.4;
+}
+.therapist-scope .pd-adh-name {
+  font-weight: 500;
+  color: var(--th-text, #334155);
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.therapist-scope .pd-adh-detail {
+  text-align: right;
+  white-space: nowrap;
 }
 
 .therapist-scope .pd-columns {

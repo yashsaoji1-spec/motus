@@ -143,7 +143,7 @@ async function uploadVideoToCloudinary(blob) {
 // ── Video tiers — bitrate (bps), max duration (sec), expiry (days, null = permanent) ──
 const VIDEO_TIERS = {
   demo:    { bitrate: 800_000, maxDurationSec: 120, expireDays: null },
-  session: { bitrate: 500_000, maxDurationSec: 600, expireDays: 14  },
+  session: { bitrate: 500_000, maxDurationSec: 600, expireDays: 30  },
   message: { bitrate: 300_000, maxDurationSec:  60, expireDays:  7  }
 };
 
@@ -215,7 +215,10 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     loadMLModels();
     resetInactivityTimer();
   } catch (e) {
-    console.error('onAuthStateChanged error:', e);
+    console.warn('onAuthStateChanged: clearing stale session —', e.message);
+    await auth.signOut().catch(() => {});
+    currentUser = null;
+    currentRole = null;
     showScreen('loginScreen');
   }
 });
@@ -276,6 +279,22 @@ function generateCodeForEmail(email) {
   return String(Math.abs(hash) % 900000 + 100000);
 }
 
+async function getOrCreateTherapistCode(email) {
+  const ref = db.collection('therapistCodes');
+  const userDoc = await db.collection('users').doc(email).get();
+  if (userDoc.exists && userDoc.data().clinicCode) return userDoc.data().clinicCode;
+  let code = generateCodeForEmail(email);
+  const existing = await ref.doc(code).get();
+  if (existing.exists && existing.data().email !== email) {
+    code = String(100000 + Math.floor(Math.random() * 900000));
+  }
+  await Promise.all([
+    ref.doc(code).set({ email }),
+    db.collection('users').doc(email).update({ clinicCode: code })
+  ]);
+  return code;
+}
+
 async function getConnectedPatients(therapistEmail) {
   const doc = await db.collection('connections').doc(therapistEmail).get();
   const emails = doc.exists ? (doc.data().patients || []) : [];
@@ -298,6 +317,11 @@ async function getConnectedTherapist() {
 }
 
 async function getTherapistForCode(code) {
+  const codeDoc = await db.collection('therapistCodes').doc(code).get();
+  if (codeDoc.exists) {
+    const tDoc = await db.collection('users').doc(codeDoc.data().email).get();
+    if (tDoc.exists) return { email: tDoc.id, ...tDoc.data() };
+  }
   const snap = await db.collection('users').where('role', '==', 'therapist').get();
   for (const doc of snap.docs) {
     if (generateCodeForEmail(doc.id) === code) return { email: doc.id, ...doc.data() };
@@ -370,6 +394,9 @@ function showScreen(screenId) {
   const next = document.getElementById(screenId);
   next.classList.add('active');
   next.scrollTop = 0;
+  if (AUTH_SCREENS.has(screenId)) {
+    next.querySelectorAll('.auth-error, .auth-success').forEach(el => { el.style.display = 'none'; el.textContent = ''; });
+  }
   if (screenTitles[screenId]) document.title = screenTitles[screenId];
   // Move focus to the new screen's first heading or first focusable element
   const focusTarget = next.querySelector('h1, h2, [tabindex="0"], button, input, a[href]');
@@ -578,6 +605,7 @@ async function finalizeSignup(skipData = false) {
     if (!import.meta.env.DEV) await cred.user.sendEmailVerification();
     await auth.signOut();
     _pendingSignup = {};
+    selectedRole = 'patient';
     signupGoToStep(0);
     showScreen('loginScreen');
     showError('loginError', 'Account created. Check your email to verify before signing in.');
@@ -592,6 +620,7 @@ async function finalizeSignup(skipData = false) {
 
 // Settings screen
 function showSettingsScreen() {
+  if (currentRole === 'patient') setPatientNav(3);
   const u = currentUser || {};
   const email = firebase.auth().currentUser?.email || '';
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
@@ -770,7 +799,7 @@ async function loginSuccess() {
     await loadAdminScreen();
   } else if (currentRole === 'therapist') {
     showScreen('therapistScreen');
-    document.getElementById('therapistCode').textContent = generateCodeForEmail(currentUser.email);
+    document.getElementById('therapistCode').textContent = await getOrCreateTherapistCode(currentUser.email);
     await loadConnectedPatients();
     await loadMyClinic();
     await loadMyInvites();
@@ -791,6 +820,7 @@ async function loginSuccess() {
 async function routePatient() {
   const therapistEmail = await getConnectedTherapist().catch(() => null);
   if (therapistEmail) {
+    setPatientNav(0);
     showScreen('patientScreen');
     await updatePatientHomeScreen().catch(e => console.error('updatePatientHomeScreen:', e));
     await initSetTracker().catch(e => console.error('initSetTracker:', e));
@@ -1437,7 +1467,7 @@ async function updatePatientHomeScreen() {
     const p0 = protocols[0];
     const protocolName = p0.protocolName || p0.exerciseName || 'Your Protocol';
     if (kickerEl) kickerEl.textContent = `YOUR PROTOCOL`;
-    if (freqEl) freqEl.textContent = frequencyLabels[p0.frequency] || p0.frequency || '';
+    if (freqEl) freqEl.textContent = getFrequencyLabel(p0.frequency);
     if (titleEl) titleEl.textContent = protocolName;
     if (subtitleEl) subtitleEl.textContent = `${protocols.length} exercise${protocols.length > 1 ? 's' : ''} \xB7 record each set`;
   } else {
@@ -1471,7 +1501,8 @@ async function updatePatientHomeScreen() {
   // Stats row
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
   const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
-  const adherencePct = calcAdherence(recent7.length, protocols[0]?.frequency);
+  const adhResult = calcCompliance(sessions, protocols, 0);
+  const adherencePct = adhResult.overall;
   const avgPain7d = recent7.length > 0
     ? (recent7.reduce((sum, s) => {
         if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
@@ -1479,10 +1510,11 @@ async function updatePatientHomeScreen() {
       }, 0) / recent7.length).toFixed(1)
     : null;
   // Compute prior week stats for delta
+  const priorAdhResult = calcCompliance(sessions, protocols, 1);
+  const priorAdh = priorAdhResult.overall;
+  const adhDelta = adherencePct - priorAdh;
   const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
   const priorWeek = sessions.filter(s => { const d = new Date(s.date); return d > fourteenDaysAgo && d <= sevenDaysAgo; });
-  const priorAdh = calcAdherence(priorWeek.length, protocols[0]?.frequency);
-  const adhDelta = adherencePct - priorAdh;
   const priorPain = priorWeek.length > 0
     ? (priorWeek.reduce((sum, s) => {
         if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
@@ -1495,7 +1527,8 @@ async function updatePatientHomeScreen() {
   const avgPainEl = document.getElementById('ptStatAvgPain');
   const adhDeltaEl = document.getElementById('ptStatAdherenceDelta');
   const painDeltaEl = document.getElementById('ptStatAvgPainDelta');
-  if (adherenceEl) adherenceEl.innerHTML = `${adherencePct}<span class="pt-stat-unit">%</span>`;
+  const adhColor = adherencePct >= 80 ? '#059669' : adherencePct >= 50 ? '#D97706' : '#DC2626';
+  if (adherenceEl) adherenceEl.innerHTML = `<span style="color:${adhColor}">${adherencePct}</span><span class="pt-stat-unit">%</span>`;
   if (avgPainEl) avgPainEl.innerHTML = avgPain7d !== null ? `${avgPain7d}<span class="pt-stat-unit">/10</span>` : '\u2014';
   if (adhDeltaEl) adhDeltaEl.textContent = adhDelta !== 0 ? `${adhDelta > 0 ? '+' : ''}${adhDelta}% vs last week` : '';
   if (painDeltaEl && painDelta !== null) painDeltaEl.textContent = parseFloat(painDelta) !== 0 ? `${parseFloat(painDelta) > 0 ? '+' : ''}${painDelta} vs last week` : '';
@@ -1556,22 +1589,6 @@ async function updatePatientHomeScreen() {
     badgeEl.style.display = 'none';
   }
 
-  // XP / Level system (visual, based on total sessions)
-  const xpContainer = document.getElementById('xpBarContainer');
-  if (xpContainer && sessions.length > 0) {
-    xpContainer.style.display = 'block';
-    const thresholds = [0, 10, 25, 50, 100, 200];
-    let level = 1;
-    for (let i = 1; i < thresholds.length; i++) { if (sessions.length >= thresholds[i]) level = i + 1; }
-    const nextThreshold = thresholds[level] || thresholds[thresholds.length - 1];
-    const prevThreshold = thresholds[level - 1] || 0;
-    const progress = Math.min(100, ((sessions.length - prevThreshold) / (nextThreshold - prevThreshold)) * 100);
-    document.getElementById('xpLevel').textContent = `Level ${level}`;
-    document.getElementById('xpProgressText').textContent = `${sessions.length} / ${nextThreshold} sessions`;
-    document.getElementById('xpBarFill').style.width = `${Math.round(progress)}%`;
-  } else if (xpContainer) {
-    xpContainer.style.display = 'none';
-  }
 
   if (therapistEmail) {
     if (_msgBadgeUnsub) { _msgBadgeUnsub(); _msgBadgeUnsub = null; }
@@ -1644,6 +1661,7 @@ async function startSessionWithProtocol(protocol) {
         // Button state: while playing show only Skip; on ended show Rewatch + Start
         const startBtn  = document.getElementById('demoStartBtn');
         if (startBtn) startBtn.style.display = 'none';
+        let videoFailed = false;
 
         player.onended = () => {
           if (skipBtn) skipBtn.style.display = 'none';
@@ -1653,6 +1671,7 @@ async function startSessionWithProtocol(protocol) {
         };
 
         player.onerror = () => {
+          videoFailed = true;
           if (skipBtn) { skipBtn.style.display = ''; skipBtn.disabled = false; }
           if (startBtn) startBtn.style.display = '';
           player.style.display = 'none';
@@ -1660,6 +1679,7 @@ async function startSessionWithProtocol(protocol) {
 
         // Enable skip only if already watched (stored in user doc)
         db.collection('users').doc(currentUser.email).get().then(snap => {
+          if (videoFailed) return;
           const watched = snap.exists ? (snap.data().demoWatched || []) : [];
           if (skipBtn) {
             skipBtn.style.display = '';
@@ -1704,24 +1724,6 @@ async function startScanSession() {
 
 // ── Manual session logging (used when ANGLE_TRACKING_ENABLED = false) ──────
 
-function openManualSession(protocol) {
-  selectedProtocol = protocol;
-  const label  = exerciseLabels[protocol.exerciseType] || protocol.exerciseType || 'Exercise';
-  const target = protocol.reps || 10;
-  const sets   = protocol.sets || 3;
-  document.getElementById('manualSessionTitle').textContent    = label;
-  document.getElementById('manualSessionSubtitle').textContent = `${sets} sets \u00d7 ${target} reps`;
-  document.getElementById('manualRepsInput').value             = target;
-  document.getElementById('manualPainSlider').value            = 1;
-  document.getElementById('manualPainValue').textContent       = '1';
-  const demoBtn = document.getElementById('manualSessionDemoBtn');
-  if (demoBtn) demoBtn.style.display = protocol.demoVideoUrl ? 'block' : 'none';
-  document.getElementById('manualSessionModal').style.display  = 'flex';
-}
-
-function closeManualSession() {
-  document.getElementById('manualSessionModal').style.display = 'none';
-}
 
 // ── Manual Camera Session (patient with video recording) ──
 
@@ -2123,20 +2125,46 @@ const frequencyLabels = {
   every_other: 'Every Other Day',
   three_week:  '3x Per Week'
 };
+function getFrequencyLabel(freq) {
+  if (frequencyLabels[freq]) return frequencyLabels[freq];
+  if (freq && freq.startsWith('custom_')) return 'Every ' + freq.split('_')[1] + ' Days';
+  return freq || '';
+}
 
-// Expected sessions over a 7-day window per prescribed frequency.
-const sessionsPerWeek = {
-  daily:       7,
-  twice_daily: 14,
-  every_other: 3,
-  three_week:  3
-};
+function toggleCustomFreq() {
+  var sel = document.getElementById('protocolFrequency');
+  var row = document.getElementById('customFreqRow');
+  if (sel && row) row.style.display = sel.value === 'custom' ? '' : 'none';
+}
+function toggleCustomFreqPL() {
+  var sel = document.getElementById('plFrequency');
+  var row = document.getElementById('plCustomFreqRow');
+  if (sel && row) row.style.display = sel.value === 'custom' ? '' : 'none';
+}
 
-// Adherence = sessions actually logged vs. sessions the protocol's frequency calls for,
-// capped at 100% (e.g. a "Twice Daily" patient doing one session/day is at 50%, not 100%).
-function calcAdherence(sessionCount, frequency) {
-  const expected = sessionsPerWeek[frequency] || sessionsPerWeek.daily;
-  return Math.min(100, Math.round((sessionCount / expected) * 100));
+function readFrequencyValue(selectId, customInputId) {
+  var sel = document.getElementById(selectId);
+  if (!sel) return 'daily';
+  if (sel.value === 'custom') {
+    var days = parseInt(document.getElementById(customInputId).value) || 2;
+    return 'custom_' + Math.max(1, Math.min(30, days));
+  }
+  return sel.value;
+}
+
+function setFrequencyValue(selectId, customInputId, customRowId, freq) {
+  var sel = document.getElementById(selectId);
+  var row = document.getElementById(customRowId);
+  var inp = document.getElementById(customInputId);
+  if (!sel) return;
+  if (freq && freq.startsWith('custom_')) {
+    sel.value = 'custom';
+    if (inp) inp.value = parseInt(freq.split('_')[1]) || 2;
+    if (row) row.style.display = '';
+  } else {
+    sel.value = freq || 'daily';
+    if (row) row.style.display = 'none';
+  }
 }
 
 // Thresholds use calibration convention: 0° = straight, higher = more bent.
@@ -2288,9 +2316,11 @@ async function editProtocol(patientEmail, protocolId) {
   const setsEl = document.getElementById('protocolSets');
   const freqEl = document.getElementById('protocolFrequency');
   const notesEl = document.getElementById('protocolNotes');
+  const restEl = document.getElementById('protocolRest');
   if (repsEl) repsEl.value = p.reps || 10;
   if (setsEl) setsEl.value = p.sets || 3;
-  if (freqEl) freqEl.value = p.frequency || 'daily';
+  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', p.frequency || 'daily');
+  if (restEl) restEl.value = p.restSeconds || 30;
   if (notesEl) notesEl.value = p.notes || '';
 
   // Populate demo col with existing demo if present
@@ -2684,9 +2714,6 @@ function exitDemoNoSave() {
   }
 }
 
-function onDemoVideoProgress() {
-  // Progress handler for demo video
-}
 
 function replayDemoInSession() {
   if (selectedProtocol?.demoVideoUrl) {
@@ -2756,8 +2783,9 @@ async function assignProtocol() {
         exerciseName: exerciseLabels[exerciseType] || exerciseType,
         reps,
         sets,
-        frequency:  document.getElementById('protocolFrequency').value,
-        notes:      document.getElementById('protocolNotes').value.trim(),
+        frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
+        restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
+        notes:        document.getElementById('protocolNotes').value.trim(),
         assignedBy: currentUser.name,
         editedAt:   new Date().toISOString()
       };
@@ -2777,7 +2805,8 @@ async function assignProtocol() {
       exerciseName: exerciseLabels[exerciseType] || exerciseType,
       reps,
       sets,
-      frequency:    document.getElementById('protocolFrequency').value,
+      frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
+      restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
       notes:        document.getElementById('protocolNotes').value.trim(),
       assignedBy:   currentUser.name,
       assignedAt:   new Date().toISOString()
@@ -2820,7 +2849,7 @@ function formatProtocol(p) {
   }
 
   return `
-    <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</div>
+    <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${getFrequencyLabel(p.frequency)}</div>
     ${paramsHTML}
     ${p.notes ? `<p class="proto-notes">"${escapeHtml(p.notes)}"</p>` : ''}
     <p class="proto-meta">${escapeHtml(p.assignedBy)}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
@@ -2839,7 +2868,16 @@ async function loadPatientProtocol() {
   if (setEl)  setEl.textContent  = `Set 1 of ${totalSets}`;
 }
 
+function setPatientNav(idx) {
+  const nav = document.getElementById('patientBottomNav');
+  if (!nav) return;
+  nav.querySelectorAll('.pt-bottom-nav-item').forEach((btn, i) => {
+    btn.classList.toggle('pt-nav-active', i === idx);
+  });
+}
+
 async function showPatientHome() {
+  setPatientNav(0);
   showScreen('patientScreen');
   await updatePatientHomeScreen();
 }
@@ -2889,7 +2927,7 @@ async function showExercisesScreen() {
     return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
       <div class="exs-row-left">
         <span class="exs-row-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
-        <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${frequencyLabels[p.frequency] || p.frequency}</span>
+        <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${getFrequencyLabel(p.frequency)}</span>
       </div>
       <div class="exs-row-right">
         ${badge}
@@ -3038,26 +3076,62 @@ function enableMobilePatientDetail(panel) {
   panel.insertAdjacentHTML('afterbegin', '<div style="margin-bottom:16px;"><button class="tp-mobile-back-btn" style="padding:0" onclick="backToPatientList()">← All Patients</button></div>');
 }
 
-// No fake demo data - real sessions only
-function getDemoSessions(patientEmail) {
-  return [];
-}
-
 async function getPatientSessions(patientEmail) {
   const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
   const snap = await db.collection('sessions')
     .where('patientEmail', '==', patientEmail).get();
   const stored = snap.docs.map(d => d.data()).filter(s => s.date >= cutoff);
   if (currentRole === 'therapist') writeAuditLog('session_viewed', patientEmail);
-  return [...getDemoSessions(patientEmail), ...stored]
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  return stored.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-function calcCompliance(sessions, frequency) {
-  if (sessions.length === 0) return 0;
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const recentCount  = sessions.filter(s => new Date(s.date) > sevenDaysAgo).length;
-  return calcAdherence(recentCount, frequency);
+function getIntervalDays(frequency) {
+  const intervals = { daily: 1, twice_daily: 0.5, every_other: 2, three_week: 7 / 3 };
+  if (frequency && frequency.startsWith('custom_')) return parseInt(frequency.split('_')[1]) || 1;
+  return intervals[frequency] || 1;
+}
+
+function getExpectedSessions(frequency, days) {
+  return Math.round(days / getIntervalDays(frequency));
+}
+
+function getCalendarWeekStart(weeksAgo) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1) - (weeksAgo * 7));
+  return d;
+}
+
+function calcCompliance(sessions, protocols, weeksAgo) {
+  if (weeksAgo === undefined) weeksAgo = 0;
+  if (!protocols || protocols.length === 0) return { overall: 0, exercises: [] };
+  var weekStart = getCalendarWeekStart(weeksAgo);
+  var weekEnd = weeksAgo === 0 ? new Date() : new Date(weekStart.getTime() + 7 * 86400000);
+  var daysElapsed = Math.max(1, Math.ceil((weekEnd - weekStart) / 86400000));
+  var recent = sessions.filter(function(s) {
+    var d = new Date(s.date);
+    return d >= weekStart && d < weekEnd;
+  });
+  var exercises = protocols.map(function(p) {
+    var expected = getExpectedSessions(p.frequency, daysElapsed);
+    var actual = recent.filter(function(s) { return s.exerciseType === p.exerciseType; }).length;
+    var capped = Math.min(actual, Math.max(expected, 1));
+    var pct = expected > 0 ? Math.round((capped / expected) * 100) : (actual > 0 ? 100 : 0);
+    var missed = Math.max(0, expected - actual);
+    return {
+      name: exerciseLabels[p.exerciseType] || p.exerciseType,
+      type: p.exerciseType,
+      expected: expected,
+      actual: actual,
+      missed: missed,
+      pct: pct
+    };
+  });
+  var overall = exercises.length > 0
+    ? Math.round(exercises.reduce(function(sum, e) { return sum + e.pct; }, 0) / exercises.length)
+    : 0;
+  return { overall: overall, exercises: exercises };
 }
 
 function makeCollapsible(id, title, bodyHTML, open) {
@@ -3102,7 +3176,8 @@ async function showRealPatient(patient) {
         return sum + (s.pain || 0);
       }, 0) / recent7.length).toFixed(1)
     : '-';
-  const adherence = calcCompliance(sessions, protocols[0]?.frequency);
+  const adhResultT = calcCompliance(sessions, protocols, 0);
+  const adherence = adhResultT.overall;
   const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
   const daysSinceLast = lastSess
     ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
@@ -3115,17 +3190,34 @@ async function showRealPatient(patient) {
   const safeEmail = escJsAttr(patient.email);
   const safeName = escJsAttr(patient.name);
 
+  // Demographics (from patient signup)
+  const demoTags = [
+    patient.ageRange && patient.ageRange !== 'Not specified' ? patient.ageRange : null,
+    patient.injuryArea && patient.injuryArea !== 'Not specified' ? patient.injuryArea : null,
+    patient.rehabDuration && patient.rehabDuration !== 'Not specified' ? patient.rehabDuration : null,
+  ].filter(Boolean);
+  const demographicsHtml = demoTags.length > 0
+    ? `<div class="pd-demographics">${demoTags.map(t => `<span class="pd-demo-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+    : '';
+
   // Prior week for deltas
   const fourteenAgo = new Date(Date.now() - 14 * 86400000);
   const priorW = sessions.filter(s => { const d = new Date(s.date); return d > fourteenAgo && d <= sevenDaysAgo; });
-  const priorAdhT = calcAdherence(priorW.length, protocols[0]?.frequency);
-  const adhDeltaT = parseInt(adherence) - priorAdhT;
+  const priorAdhResultT = calcCompliance(sessions, protocols, 1);
+  const priorAdhT = priorAdhResultT.overall;
+  const adhDeltaT = adherence - priorAdhT;
   const priorPainT = priorW.length > 0
     ? (priorW.reduce((sum, s) => { if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length; return sum + (s.pain || 0); }, 0) / priorW.length).toFixed(1)
     : null;
   const painDeltaT = (avgPain7d !== '-' && priorPainT !== null) ? (parseFloat(avgPain7d) - parseFloat(priorPainT)).toFixed(1) : null;
 
+  const adhColor = adherence >= 80 ? '#059669' : adherence >= 50 ? '#D97706' : '#DC2626';
   const adhDeltaHtml = adhDeltaT !== 0 ? `<span class="pd-vital-delta" style="color:${adhDeltaT > 0 ? '#059669' : '#64748B'}">${adhDeltaT > 0 ? '+' : ''}${adhDeltaT}% vs last week</span>` : '';
+  const adhBreakdownHtml = adhResultT.exercises.length > 0
+    ? '<div class="pd-adh-breakdown">' + adhResultT.exercises.map(function(e) {
+        return '<div class="pd-adh-row"><span class="pd-adh-name">' + escapeHtml(e.name) + '</span><span class="pd-adh-detail">' + e.actual + '/' + e.expected + (e.missed > 0 ? ' (' + e.missed + ' missed)' : '') + '</span></div>';
+      }).join('') + '</div>'
+    : '';
   const painDeltaHtml = painDeltaT !== null && parseFloat(painDeltaT) !== 0 ? `<span class="pd-vital-delta" style="color:${parseFloat(painDeltaT) < 0 ? '#059669' : '#64748B'}">${parseFloat(painDeltaT) > 0 ? '+' : ''}${painDeltaT} vs last week</span>` : '';
 
   // Protocol rows
@@ -3135,7 +3227,7 @@ async function showRealPatient(patient) {
     : protocols.map(p => {
         const exName = exerciseLabels[p.exerciseType] || p.exerciseType;
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
-        const note = p.note || '';
+        const note = p.notes || '';
         return `<li class="pd-protocol-row">
           <div class="pd-protocol-icon">${activityIcon}</div>
           <div class="pd-protocol-meta">
@@ -3162,6 +3254,7 @@ async function showRealPatient(patient) {
             <span class="pd-dot" aria-hidden="true">&middot;</span>
             <span>${sessions.length} session${sessions.length !== 1 ? 's' : ''}</span>
           </div>
+          ${demographicsHtml}
         </div>
         <div class="pd-header-actions">
           <button class="tp-btn" onclick="messagePatient('${safeEmail}')">Message</button>
@@ -3172,8 +3265,9 @@ async function showRealPatient(patient) {
       <section class="pd-vitals">
         <div class="pd-vital">
           <span class="pd-vital-label">ADHERENCE</span>
-          <span class="pd-vital-value">${adherence}<span class="pd-vital-unit">%</span></span>
+          <span class="pd-vital-value" style="color:${adhColor}">${adherence}<span class="pd-vital-unit">%</span></span>
           ${adhDeltaHtml}
+          ${adhBreakdownHtml}
         </div>
         <div class="pd-vital">
           <span class="pd-vital-label">AVG PAIN</span>
@@ -3519,12 +3613,11 @@ async function openAddProtocol(patientEmail, patientName) {
   document.getElementById('apmSubmitBtn').textContent = 'Add to Protocol';
   const repsEl = document.getElementById('protocolReps');
   const setsEl = document.getElementById('protocolSets');
-  const freqEl = document.getElementById('protocolFrequency');
   const notesEl = document.getElementById('protocolNotes');
   const typeEl = document.getElementById('exerciseType');
   if (repsEl) repsEl.value = 10;
   if (setsEl) setsEl.value = 3;
-  if (freqEl) freqEl.value = 'daily';
+  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', 'daily');
   if (notesEl) notesEl.value = '';
   if (typeEl) typeEl.value = '';
   const searchEl = document.getElementById('apmSearch');
@@ -3577,12 +3670,11 @@ async function openBulkAssign() {
   document.getElementById('apmSubmitBtn').textContent = 'Assign to Selected';
   const repsEl  = document.getElementById('protocolReps');
   const setsEl  = document.getElementById('protocolSets');
-  const freqEl  = document.getElementById('protocolFrequency');
   const notesEl = document.getElementById('protocolNotes');
   const typeEl  = document.getElementById('exerciseType');
   if (repsEl)  repsEl.value  = 10;
   if (setsEl)  setsEl.value  = 3;
-  if (freqEl)  freqEl.value  = 'daily';
+  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', 'daily');
   if (notesEl) notesEl.value = '';
   if (typeEl)  typeEl.value  = '';
   const searchEl = document.getElementById('apmSearch');
@@ -3669,7 +3761,7 @@ async function bulkAssignProtocol() {
   const sets = parseInt(document.getElementById('protocolSets').value);
   if (isNaN(reps) || reps < 1) { alert('Please enter a valid rep count.'); return; }
   if (isNaN(sets) || sets < 1) { alert('Please enter a valid set count.'); return; }
-  const freq  = document.getElementById('protocolFrequency').value;
+  const freq  = readFrequencyValue('protocolFrequency', 'customFreqDays');
   const notes = document.getElementById('protocolNotes').value.trim();
   const submitBtn = document.getElementById('apmSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
@@ -3750,10 +3842,9 @@ function apmSelectExercise(id) {
   if (entry) {
     const repsEl = document.getElementById('protocolReps');
     const setsEl = document.getElementById('protocolSets');
-    const freqEl = document.getElementById('protocolFrequency');
     if (repsEl) repsEl.value = entry.dr;
     if (setsEl) setsEl.value = entry.ds;
-    if (freqEl) freqEl.value = entry.df;
+    setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', entry.df);
     const infoEl = document.getElementById('apmSelectedExInfo');
     const nameEl = document.getElementById('apmSelectedExName');
     const descEl = document.getElementById('apmSelectedExDesc');
@@ -3811,9 +3902,6 @@ async function _apmLoadCustomExercises() {
   }
 }
 
-function apmEnterCreateMode() {}
-function apmExitCreateMode() {}
-async function apmSaveCustomExercise() {}
 
 /* ══════════════════════════════════════════════════════════════════════════
     PROTOCOL LIBRARY MODAL
@@ -3953,11 +4041,10 @@ function plSelectExercise(id) {
 
   const repsEl = document.getElementById('plReps');
   const setsEl = document.getElementById('plSets');
-  const freqEl = document.getElementById('plFrequency');
   const descEl = document.getElementById('plDesc');
   if (repsEl) repsEl.value = entry.dr;
   if (setsEl) setsEl.value = entry.ds;
-  if (freqEl) freqEl.value = entry.df;
+  setFrequencyValue('plFrequency', 'plCustomFreqDays', 'plCustomFreqRow', entry.df);
   if (descEl) descEl.value = entry.desc || '';
 
   const infoEl = document.getElementById('plSelectedExInfo');
@@ -4052,7 +4139,7 @@ async function plSaveExercise() {
 
   const dr = parseInt(document.getElementById('plReps').value) || entry.dr;
   const ds = parseInt(document.getElementById('plSets').value) || entry.ds;
-  const df = document.getElementById('plFrequency').value || entry.df;
+  const df = readFrequencyValue('plFrequency', 'plCustomFreqDays') || entry.df;
   const desc = document.getElementById('plDesc').value.trim();
 
   if (entry._isCustom) {
@@ -4233,7 +4320,7 @@ let restTimeRemaining = 30;
 let currentExerciseParams = null;
 let trackedJoints   = [];   // joint keys loaded at session start for per-joint angle tracking
 let jointMaxAngles  = {};   // max angle per tracked joint during the current set
-const REST_DURATION = 30;
+function getRestDuration() { return (_manualCamProtocol && _manualCamProtocol.restSeconds) || 30; }
 function playRepSound() {}
 
 let speedWarningTimeout = null;
@@ -4246,7 +4333,6 @@ function showSpeedWarning() {
   speedWarningTimeout = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
-function toggleSound() {}
 
 function getMiddleFingerAngle(landmarks) {
   const mcp = landmarks[9];
@@ -4617,7 +4703,7 @@ async function advanceSet() {
 }
 
 function startRestTimer() {
-  restTimeRemaining = REST_DURATION;
+  restTimeRemaining = getRestDuration();
   sessionPaused = true;
   const overlay = document.getElementById('restTimerOverlay');
   overlay.style.display = 'flex';
@@ -4626,7 +4712,7 @@ function startRestTimer() {
   restTimerInterval = setInterval(() => {
     restTimeRemaining--;
     document.getElementById('restTimerCount').textContent = restTimeRemaining;
-    const pct = (restTimeRemaining / REST_DURATION) * 100;
+    const pct = (restTimeRemaining / getRestDuration()) * 100;
     document.getElementById('restTimerFill').style.width = pct + '%';
     if (restTimeRemaining <= 0) skipRest();
   }, 1000);
@@ -5158,6 +5244,7 @@ function buildChartConfig(data, { type, color, fillColor }) {
 }
 
 async function showProgressScreen() {
+  setPatientNav(1);
   if (mpCamera) { mpCamera.stop(); mpCamera = null; }
   showScreen('progressScreen');
   await renderProgressScreen();
@@ -5334,8 +5421,12 @@ function closeSetNotesModal() {
 async function renderProgressScreen() {
   window._setNotesData = [];
   var sessions = [];
+  var protocols = [];
   if (currentUser && currentUser.email) {
-    sessions = await getPatientSessions(currentUser.email);
+    [sessions, protocols] = await Promise.all([
+      getPatientSessions(currentUser.email),
+      getProtocols(currentUser.email).catch(() => [])
+    ]);
   }
   const content = document.getElementById('progressContent');
 
@@ -5372,14 +5463,15 @@ async function renderProgressScreen() {
     return age > 7 * msPerDay && age <= 14 * msPerDay;
   });
 
-  const sessionsThisWeek = last7.length;
+  const adhResultProg = calcCompliance(sessions, protocols, 0);
+  const adherenceThisWeek = adhResultProg.overall;
 
   var painTrendValue = null;
   var painTrendClass = '';
   var painTrendDisplay = '\u2014';
   if (last7.length && prior7.length) {
-    const avgLast = last7.reduce(function(s, x) { return s + (x.avgPain || 0); }, 0) / last7.length;
-    const avgPrior = prior7.reduce(function(s, x) { return s + (x.avgPain || 0); }, 0) / prior7.length;
+    const avgLast = last7.reduce(function(s, x) { return s + (x.pain || 0); }, 0) / last7.length;
+    const avgPrior = prior7.reduce(function(s, x) { return s + (x.pain || 0); }, 0) / prior7.length;
     const diff = avgLast - avgPrior;
     if (diff < 0) {
       painTrendDisplay = '\u2193 ' + Math.abs(diff).toFixed(1);
@@ -5392,9 +5484,10 @@ async function renderProgressScreen() {
     }
   }
 
+  var adhColorProg = adherenceThisWeek >= 80 ? '#059669' : adherenceThisWeek >= 50 ? '#D97706' : '#DC2626';
   content.innerHTML =
     '<div class="prog-stats-row">' +
-      '<div class="prog-stat-card"><div class="prog-stat-value">' + sessionsThisWeek + '/7</div><div class="prog-stat-label">This week</div></div>' +
+      '<div class="prog-stat-card"><div class="prog-stat-value" style="color:' + adhColorProg + '">' + adherenceThisWeek + '%</div><div class="prog-stat-label">Adherence</div></div>' +
       '<div class="prog-stat-card"><div class="prog-stat-value ' + painTrendClass + '">' + painTrendDisplay + '</div><div class="prog-stat-label">Pain trend</div></div>' +
     '</div>' +
     buildProgressByDay(sessions);
@@ -5548,39 +5641,35 @@ async function deleteMyAccount() {
   const btn = document.querySelector('.delete-account-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
   try {
-    const deleteFn = firebase.functions().httpsCallable('deleteAccount');
-    await deleteFn();
-    // Auth account is now deleted — sign out locally and send to login
-    await firebase.auth().signOut();
+    const email = currentUser.email;
+    const batch = db.batch();
+    batch.delete(db.collection('users').doc(email));
+    batch.delete(db.collection('protocols').doc(email));
+    batch.delete(db.collection('connections').doc(email));
+    const sessionSnap = await db.collection('sessions').where('patientEmail', '==', email).get();
+    sessionSnap.docs.forEach(d => batch.delete(d.ref));
+    const msgSnap = await db.collection('messages').where('to', '==', email).get();
+    msgSnap.docs.forEach(d => batch.delete(d.ref));
+    const msgSentSnap = await db.collection('messages').where('from', '==', email).get();
+    msgSentSnap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    const user = firebase.auth().currentUser;
+    if (user) await user.delete();
     sessionStorage.clear();
     showScreen('loginScreen');
   } catch (e) {
     console.error('[Motus] Account deletion failed:', e);
-    alert('Deletion failed. Please try again or contact privacy@motus.app.');
+    if (e.code === 'auth/requires-recent-login') {
+      alert('For security, please sign out, sign back in, and try again.');
+    } else {
+      alert('Deletion failed. Please try again or contact support.');
+    }
     if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
   }
 }
 
-async function downloadMyData() {
-  const btn = document.getElementById('downloadMyDataBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Preparing...'; }
-  try {
-    const exportFn = firebase.functions().httpsCallable('exportPatientData');
-    const result = await exportFn();
-    const json = JSON.stringify(result.data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `motus-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    console.error('[Motus] Data export failed:', e);
-    alert('Export failed. Please try again or contact privacy@motus.app.');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Download my data'; }
-  }
+function downloadMyData() {
+  alert('Data export is coming soon. Contact support if you need your data now.');
 }
 
 async function disconnectFromTherapist() {
@@ -5640,6 +5729,7 @@ async function disconnectPatient(patientEmail) {
 }
 
 async function openPatientMessaging() {
+  setPatientNav(2);
   const tEmail = await getConnectedTherapist();
   if (!tEmail) { alert('You are not connected to a therapist yet.'); return; }
   await markRead(currentUser.email, tEmail);
@@ -6906,9 +6996,6 @@ Object.assign(window, {
   // Bottom sheet
   showExerciseDetail, dismissExerciseDetail,
 
-  // Manual session
-  openManualSession, closeManualSession, submitManualSession,
-
   // Patient flows
   startScanSession, startSessionWithProtocol, startSessionByIndex, showPatientHome, showExercisesScreen,
   showProgressScreen, openPatientMessaging, sendMessageFromPatient, toggleMsgSend, toggleExerciseList,
@@ -6916,7 +7003,6 @@ Object.assign(window, {
 
   // Camera session
   flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary, dismissSummaryToProgress,
-  toggleSound,
   openVideoModal, closeVideoModal, downloadSessionVideo,
 
   // Clinics
@@ -6942,8 +7028,8 @@ Object.assign(window, {
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
-  apmEnterCreateMode, apmExitCreateMode, apmSaveCustomExercise,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
+  toggleCustomFreq, toggleCustomFreqPL,
 
   // Protocol Library
   openProtocolLibrary, closeProtocolLibrary, plFilter, plSelectExercise,
@@ -6955,7 +7041,7 @@ Object.assign(window, {
   demoUseThis, demoReRecord, demoClearVideo,
   demoUploadFile, demoHandleFileSelect,
   playProtocolDemo, removeProtocolDemo,
-  closeDemoAndStart, skipDemoVideo, replayDemoInSession, exitDemoNoSave, onDemoVideoProgress,
+  closeDemoAndStart, skipDemoVideo, replayDemoInSession, exitDemoNoSave,
 
   // Manual camera session
   openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,

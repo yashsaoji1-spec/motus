@@ -37,6 +37,29 @@ Also:
 
 ---
 
+## 2026-06-07 -- Yash
+
+**15-fix audit sweep + production deploy**
+
+- Adherence is now frequency-aware: `calcCompliance()` uses daily=7, twice_daily=14, every_other=4, three_week=3 expected sessions/week. Applied to patient home, progress screen, therapist dashboard, and all prior-week deltas.
+- Pain trend fixed: was reading `avgPain` (undefined), now reads `pain`
+- Therapist notes fixed: `p.note` -> `p.notes`
+- Video retention consent/code aligned: both say 30 days now
+- Skip button race condition fixed (video error flag prevents re-disabling)
+- "Responds typically within 4h" hardcoded text removed from patient therapist card
+- Demographics tags now shown on therapist patient detail view
+- "Download my data" shows "coming soon" alert (was calling a non-existent Cloud Function)
+- "Delete my account" now works client-side (Firestore batch + auth deletion)
+- Clinic codes are collision-resistant via new `therapistCodes` Firestore collection
+- Rest seconds fully customizable per protocol (therapist sets it, camera timer uses it)
+- Deleted dead code: XP system, orphaned manual session modal, empty stubs, getDemoSessions
+- Fixed Firestore rules: added `therapistCodes` collection rule (was blocking ALL therapist logins)
+
+**Known issues resolved from last session**
+- "Frequency is display-only" -- FIXED. Adherence now accounts for frequency.
+
+---
+
 ## 2026-06-05 -- Yash
 
 **Session flow fix + repo cleanup**

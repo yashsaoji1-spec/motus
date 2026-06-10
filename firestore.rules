@@ -338,6 +338,14 @@ service cloud.firestore {
     }
 
 
+    // -- therapistCodes/{code} -- maps clinic codes to therapist emails
+    // Therapists create/read their own code; patients read any code (for connect-by-code).
+    match /therapistCodes/{code} {
+      allow read: if isAuth();
+      allow write: if isAuth() && isTherapist() && request.resource.data.email == myEmail();
+    }
+
+
     // -- auditLog/{entryId} -- HIPAA §164.312(b) audit trail
     // Append-only from authenticated clients. No client reads, updates, or deletes.
     // Review via Firebase Console or Cloud Functions only.
