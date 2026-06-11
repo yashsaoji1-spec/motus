@@ -25,23 +25,28 @@
     <div class="auth-logo-icon">
       <svg width="28" height="28" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
     </div>
-    <div class="auth-header-welcome">Welcome back</div>
-    <div class="auth-header-sub">Sign in to continue your recovery.</div>
+    <div class="auth-header-welcome" data-i18n="auth.welcomeBack">Welcome back</div>
+    <div class="auth-header-sub" data-i18n="auth.signInSub">Sign in to continue your recovery.</div>
     <svg class="auth-wave" viewBox="0 0 390 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0,28 C80,56 160,8 260,32 C320,46 360,20 390,28 L390,70 L0,70 Z" fill="#F0F9FF"/></svg>
   </div>
   <div class="auth-form-area">
     <div id="loginError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div class="auth-field">
-      <label for="loginEmail">Email</label>
-      <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" onkeydown="if(event.key==='Enter') handleLogin()" />
+      <label for="loginEmail" data-i18n="auth.email">Email</label>
+      <input type="email" id="loginEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" autocomplete="email" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
     <div class="auth-field">
-      <label for="loginPassword">Password</label>
-      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleLogin()" />
+      <label for="loginPassword" data-i18n="auth.password">Password</label>
+      <input type="password" id="loginPassword" placeholder="Password" data-i18n-ph="auth.passwordPlaceholder" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
-    <p class="auth-forgot-row"><span onclick="showScreen('forgotScreen')">Forgot password?</span></p>
-    <button class="pt-btn-hero" onclick="handleLogin()">Sign In</button>
-    <p class="auth-link-row">New to Motus? <span onclick="showScreen('signupScreen')">Create account</span></p>
+    <p class="auth-forgot-row"><span onclick="showScreen('forgotScreen')" data-i18n="auth.forgotPassword">Forgot password?</span></p>
+    <button class="pt-btn-hero" onclick="handleLogin()" data-i18n="auth.signIn">Sign In</button>
+    <p class="auth-link-row"><span data-i18n="auth.newToMotus">New to Motus?</span> <span onclick="showScreen('signupScreen')" data-i18n="auth.createAccount">Create account</span></p>
+    <div class="auth-lang-toggle">
+      <button type="button" class="auth-lang-btn" onclick="setLanguage('en')">English</button>
+      <span class="auth-lang-sep">·</span>
+      <button type="button" class="auth-lang-btn" onclick="setLanguage('es')">Español</button>
+    </div>
   </div>
 </div>
 
@@ -50,8 +55,8 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="signupScreen" class="screen patient-scope">
   <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title">Create Account</div>
-    <div class="auth-header-sub">Join Motus to start your recovery</div>
+    <div class="auth-header-title" data-i18n="signup.title">Create Account</div>
+    <div class="auth-header-sub" data-i18n="signup.sub">Join Motus to start your recovery</div>
     <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
   </div>
   <div class="auth-form-area">
@@ -59,56 +64,38 @@
     <div class="signup-step" id="signupStep0">
       <div id="signupError" class="auth-error" style="display:none" aria-live="polite"></div>
       <div class="role-segmented">
-        <button id="rolePatientBtn" class="role-seg-btn active" onclick="selectRole('patient')">Patient</button>
-        <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')">Therapist</button>
+        <button id="rolePatientBtn" class="role-seg-btn active" onclick="selectRole('patient')" data-i18n="signup.patient">Patient</button>
+        <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')" data-i18n="signup.therapist">Therapist</button>
       </div>
       <div class="auth-field">
-        <label for="signupName">Full Name</label>
-        <input type="text" id="signupName" placeholder="Your name" maxlength="80" onkeydown="if(event.key==='Enter') signupNextStep()" />
+        <label for="signupName" data-i18n="signup.fullName">Full Name</label>
+        <input type="text" id="signupName" placeholder="Your name" data-i18n-ph="signup.namePlaceholder" maxlength="80" onkeydown="if(event.key==='Enter') signupNextStep()" />
       </div>
       <div class="auth-field">
-        <label for="signupEmail">Email</label>
-        <input type="email" id="signupEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter') signupNextStep()" />
+        <label for="signupEmail" data-i18n="auth.email">Email</label>
+        <input type="email" id="signupEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" onkeydown="if(event.key==='Enter') signupNextStep()" />
       </div>
       <div class="auth-field">
-        <label for="signupPassword">Password</label>
-        <input type="password" id="signupPassword" placeholder="Min. 8 characters" onkeydown="if(event.key==='Enter') signupNextStep()" />
+        <label for="signupPassword" data-i18n="auth.password">Password</label>
+        <input type="password" id="signupPassword" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" onkeydown="if(event.key==='Enter') signupNextStep()" />
       </div>
-      <button class="pt-btn-hero" onclick="signupNextStep()">Continue</button>
-      <p class="auth-link-row">Already have an account? <span onclick="showScreen('loginScreen')">Sign in</span></p>
-      <p class="auth-legal">By creating an account you agree to our <a href="/tos" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
-    </div>
-    <!-- Step 1: language picker -->
-    <div class="signup-step" id="signupStep1" hidden>
-      <button class="signup-back-btn" onclick="signupGoToStep(0)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Back
-      </button>
-      <div class="signup-step-heading">Select your language</div>
-      <div class="lang-picker" id="langPicker">
-        <button class="lang-card" onclick="signupSelectLanguage('en')">English</button>
-        <button class="lang-card" onclick="signupSelectLanguage('es')">Spanish</button>
-        <button class="lang-card" onclick="signupSelectLanguage('fr')">French</button>
-        <button class="lang-card" onclick="signupSelectLanguage('zh')">Mandarin</button>
-        <button class="lang-card" onclick="signupSelectLanguage('hi')">Hindi</button>
-        <button class="lang-card" onclick="signupSelectLanguage('de')">German</button>
-        <button class="lang-card" onclick="signupSelectLanguage('nl')">Dutch</button>
-      </div>
-      <button class="pt-btn-hero" id="langNextBtn" onclick="signupFinishLanguage()" disabled>Next</button>
+      <button class="pt-btn-hero" onclick="signupNextStep()" data-i18n="signup.continue">Continue</button>
+      <p class="auth-link-row"><span data-i18n="signup.haveAccount">Already have an account?</span> <span onclick="showScreen('loginScreen')" data-i18n="signup.signIn">Sign in</span></p>
+      <p class="auth-legal"><span data-i18n="signup.legalPre">By creating an account you agree to our</span> <a href="/tos" target="_blank" data-i18n="signup.tos">Terms of Service</a> <span data-i18n="signup.and">and</span> <a href="/privacy" target="_blank" data-i18n="signup.privacy">Privacy Policy</a>.</p>
     </div>
     <!-- Step 2: data questions -->
     <div class="signup-step" id="signupStep2" hidden>
       <button class="signup-back-btn" onclick="signupGoToStep(0)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Back
+        <span data-i18n="common.back">Back</span>
       </button>
-      <div class="signup-step-heading">A few quick questions</div>
+      <div class="signup-step-heading" data-i18n="signup.quickQuestions">A few quick questions</div>
       <!-- Patient fields -->
       <div id="signupPatientFields">
         <div class="auth-field">
-          <label for="signupAgeRange">Age range</label>
+          <label for="signupAgeRange" data-i18n="signup.ageRange">Age range</label>
           <select id="signupAgeRange" class="auth-select">
-            <option value="">Select...</option>
+            <option value="" data-i18n="opt.select">Select...</option>
             <option value="18-24">18-24</option>
             <option value="25-34">25-34</option>
             <option value="35-44">35-44</option>
@@ -118,39 +105,39 @@
           </select>
         </div>
         <div class="auth-field">
-          <label for="signupInjuryArea">Primary injury area</label>
+          <label for="signupInjuryArea" data-i18n="signup.injuryArea">Primary injury area</label>
           <select id="signupInjuryArea" class="auth-select">
-            <option value="">Select...</option>
-            <option value="hand-wrist">Hand / Wrist</option>
-            <option value="elbow">Elbow</option>
-            <option value="shoulder">Shoulder</option>
-            <option value="knee">Knee</option>
-            <option value="ankle">Ankle</option>
-            <option value="back">Back</option>
-            <option value="other">Other</option>
+            <option value="" data-i18n="opt.select">Select...</option>
+            <option value="hand-wrist" data-i18n="opt.handWrist">Hand / Wrist</option>
+            <option value="elbow" data-i18n="opt.elbow">Elbow</option>
+            <option value="shoulder" data-i18n="opt.shoulder">Shoulder</option>
+            <option value="knee" data-i18n="opt.knee">Knee</option>
+            <option value="ankle" data-i18n="opt.ankle">Ankle</option>
+            <option value="back" data-i18n="opt.back">Back</option>
+            <option value="other" data-i18n="opt.other">Other</option>
           </select>
         </div>
         <div class="auth-field">
-          <label for="signupRehabDuration">Time in rehab</label>
+          <label for="signupRehabDuration" data-i18n="signup.timeInRehab">Time in rehab</label>
           <select id="signupRehabDuration" class="auth-select">
-            <option value="">Select...</option>
-            <option value="<1mo">Less than 1 month</option>
-            <option value="1-3mo">1 to 3 months</option>
-            <option value="3-6mo">3 to 6 months</option>
-            <option value="6-12mo">6 to 12 months</option>
-            <option value="1y+">More than 1 year</option>
+            <option value="" data-i18n="opt.select">Select...</option>
+            <option value="<1mo" data-i18n="opt.lt1mo">Less than 1 month</option>
+            <option value="1-3mo" data-i18n="opt.1to3mo">1 to 3 months</option>
+            <option value="3-6mo" data-i18n="opt.3to6mo">3 to 6 months</option>
+            <option value="6-12mo" data-i18n="opt.6to12mo">6 to 12 months</option>
+            <option value="1y+" data-i18n="opt.1yplus">More than 1 year</option>
           </select>
         </div>
         <div class="auth-field">
-          <label for="signupReferral">How did you hear about Motus?</label>
+          <label for="signupReferral" data-i18n="signup.referral">How did you hear about Motus?</label>
           <select id="signupReferral" class="auth-select">
-            <option value="">Select...</option>
-            <option value="therapist">My therapist</option>
-            <option value="clinic">My clinic</option>
-            <option value="friend">Friend or family</option>
-            <option value="search">Web search</option>
-            <option value="social">Social media</option>
-            <option value="other">Other</option>
+            <option value="" data-i18n="opt.select">Select...</option>
+            <option value="therapist" data-i18n="opt.refTherapist">My therapist</option>
+            <option value="clinic" data-i18n="opt.refClinic">My clinic</option>
+            <option value="friend" data-i18n="opt.refFriend">Friend or family</option>
+            <option value="search" data-i18n="opt.refSearch">Web search</option>
+            <option value="social" data-i18n="opt.refSocial">Social media</option>
+            <option value="other" data-i18n="opt.other">Other</option>
           </select>
         </div>
       </div>
@@ -180,8 +167,8 @@
           </select>
         </div>
       </div>
-      <button class="pt-btn-hero" onclick="finalizeSignup()">Create Account</button>
-      <button class="pt-btn-outline signup-skip-btn" onclick="signupSkipData()">Skip for now</button>
+      <button class="pt-btn-hero" onclick="finalizeSignup()" data-i18n="signup.createAccountBtn">Create Account</button>
+      <button class="pt-btn-outline signup-skip-btn" onclick="signupSkipData()" data-i18n="signup.skip">Skip for now</button>
     </div>
   </div>
 </div>
@@ -191,23 +178,23 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="forgotScreen" class="screen patient-scope">
   <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title">Reset Password</div>
-    <div class="auth-header-sub">We'll send you a reset link</div>
+    <div class="auth-header-title" data-i18n="forgot.title">Reset Password</div>
+    <div class="auth-header-sub" data-i18n="forgot.sub">We'll send you a reset link</div>
     <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
   </div>
   <div class="auth-form-area">
     <div id="forgotError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="forgotSuccess" class="auth-success" style="display:none"></div>
     <div class="auth-field">
-      <label for="forgotEmail">Email address</label>
-      <input type="email" id="forgotEmail" placeholder="you@example.com" />
+      <label for="forgotEmail" data-i18n="forgot.emailAddress">Email address</label>
+      <input type="email" id="forgotEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" />
     </div>
     <div class="auth-field" id="newPasswordField" style="display:none">
-      <label for="forgotNewPassword">New Password</label>
-      <input type="password" id="forgotNewPassword" placeholder="Min. 8 characters" />
+      <label for="forgotNewPassword" data-i18n="forgot.newPassword">New Password</label>
+      <input type="password" id="forgotNewPassword" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" />
     </div>
-    <button class="pt-btn-hero" id="forgotBtn" onclick="handleForgot()">Find Account</button>
-    <p class="auth-link-row"><span onclick="showScreen('loginScreen')">Back to sign in</span></p>
+    <button class="pt-btn-hero" id="forgotBtn" onclick="handleForgot()" data-i18n="forgot.findAccount">Find Account</button>
+    <p class="auth-link-row"><span onclick="showScreen('loginScreen')" data-i18n="forgot.backToSignIn">Back to sign in</span></p>
   </div>
 </div>
 
@@ -216,31 +203,31 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="consentScreen" class="screen patient-scope">
   <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title">Before we begin</div>
-    <div class="auth-header-sub">Please review and accept to continue</div>
+    <div class="auth-header-title" data-i18n="consent.title">Before we begin</div>
+    <div class="auth-header-sub" data-i18n="consent.sub">Please review and accept to continue</div>
     <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
   </div>
   <div class="auth-form-area">
     <div class="consent-card">
-      <div class="consent-section-title">Privacy &amp; Data Use</div>
+      <div class="consent-section-title" data-i18n="consent.privacyHeading">Privacy &amp; Data Use</div>
       <ul class="consent-list">
-        <li>Movement data captured via your device camera</li>
-        <li>Exercise performance shared with your assigned therapist</li>
-        <li>Session videos stored securely, removed after 30 days</li>
-        <li>All data encrypted in transit and at rest</li>
+        <li data-i18n="consent.bullet1">Movement data captured via your device camera</li>
+        <li data-i18n="consent.bullet2">Exercise performance shared with your assigned therapist</li>
+        <li data-i18n="consent.bullet3">Session videos stored securely, removed after 30 days</li>
+        <li data-i18n="consent.bullet4">All data encrypted in transit and at rest</li>
       </ul>
     </div>
     <label class="consent-checkbox-row">
       <input type="checkbox" id="consentCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
-      <span>I understand how my health data will be used and consent to participate in Motus rehabilitation.</span>
+      <span data-i18n="consent.agree">I understand how my health data will be used and consent to participate in Motus rehabilitation.</span>
     </label>
     <label class="consent-checkbox-row">
       <input type="checkbox" id="nppCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
-      <span>I have received the <a href="/hipaa-npp" target="_blank">HIPAA Notice of Privacy Practices</a>.</span>
+      <span><span data-i18n="consent.npp">I have received the</span> <a href="/hipaa-npp" target="_blank" data-i18n="consent.nppLink">HIPAA Notice of Privacy Practices</a>.</span>
     </label>
-    <div id="consentError" class="auth-error" style="display:none" aria-live="polite">Please check both boxes before continuing.</div>
-    <button class="pt-btn-hero" onclick="acceptConsent()">I Agree — Continue</button>
-    <p class="auth-legal">Questions? Email <a href="mailto:privacy@motus.app">privacy@motus.app</a></p>
+    <div id="consentError" class="auth-error" style="display:none" aria-live="polite" data-i18n="consent.error">Please check both boxes before continuing.</div>
+    <button class="pt-btn-hero" onclick="acceptConsent()" data-i18n="consent.continue">I Agree — Continue</button>
+    <p class="auth-legal"><span data-i18n="consent.questions">Questions? Email</span> <a href="mailto:privacy@motus.app">privacy@motus.app</a></p>
   </div>
 </div>
 
@@ -249,13 +236,13 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="pendingScreen" class="screen patient-scope">
   <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title">Account Pending</div>
-    <div class="auth-header-sub">Your therapist account is awaiting approval</div>
+    <div class="auth-header-title" data-i18n="pending.title">Account Pending</div>
+    <div class="auth-header-sub" data-i18n="pending.sub">Your therapist account is awaiting approval</div>
     <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
   </div>
   <div class="auth-form-area">
-    <p>A clinic admin will review and approve your account. Check back soon.</p>
-    <button class="pt-btn-outline" onclick="logout()">Sign Out</button>
+    <p data-i18n="pending.body">A clinic admin will review and approve your account. Check back soon.</p>
+    <button class="pt-btn-outline" onclick="logout()" data-i18n="pending.signOut">Sign Out</button>
   </div>
 </div>
 
@@ -280,21 +267,21 @@
 ═══════════════════════════════════════════════════════ -->
 <div id="connectScreen" class="screen patient-scope">
   <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title">Connect to a Therapist</div>
-    <div class="auth-header-sub">Enter your clinic code to get started</div>
+    <div class="auth-header-title" data-i18n="connect.title">Connect to a Therapist</div>
+    <div class="auth-header-sub" data-i18n="connect.sub">Enter your clinic code to get started</div>
     <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
   </div>
   <div class="auth-form-area">
     <div class="auth-field">
-      <label for="connectCode">Clinic Code</label>
+      <label for="connectCode" data-i18n="connect.clinicCode">Clinic Code</label>
       <input type="text" id="connectCode" class="clinic-code-input" placeholder="------" maxlength="6"
              oninput="this.value=this.value.toUpperCase()"
              onkeydown="if(event.key==='Enter') handleConnect()" />
     </div>
     <div id="connectError" class="auth-error" style="display:none" aria-live="polite"></div>
     <div id="connectSuccess" class="auth-success" style="display:none" aria-live="polite"></div>
-    <button class="pt-btn-hero" onclick="handleConnect()">Connect</button>
-    <button class="pt-btn-outline" onclick="skipConnect()">Skip for now</button>
+    <button class="pt-btn-hero" onclick="handleConnect()" data-i18n="connect.connect">Connect</button>
+    <button class="pt-btn-outline" onclick="skipConnect()" data-i18n="connect.skip">Skip for now</button>
   </div>
 </div>
 
@@ -312,7 +299,7 @@
       <div class="pt-streak-badge" id="streakBadge" style="display:none;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" aria-hidden="true"><path d="M12 2c0 0-7 8-7 13a7 7 0 0 0 14 0c0-5-7-13-7-13z"/></svg>
         <span class="pt-streak-count" id="streakCount">0</span>
-        <span class="pt-streak-label" id="streakLabel">day streak</span>
+        <span class="pt-streak-label" id="streakLabel" data-i18n="home.dayStreak">day streak</span>
         <span class="pt-streak-best" id="streakBest" hidden></span>
       </div>
     </div>
@@ -332,29 +319,29 @@
       <div class="pt-protocol-subtitle" id="ptProtocolSubtitle"></div>
       <div class="pt-protocol-divider"></div>
       <ul class="pt-protocol-list" id="todaysPlanList">
-        <li class="pt-protocol-empty">No exercises assigned yet</li>
+        <li class="pt-protocol-empty" data-i18n="home.noExercisesYet">No exercises assigned yet</li>
       </ul>
       <button class="pt-protocol-start" onclick="showExercisesScreen()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-        Start Session
+        <span data-i18n="home.startSession">Start Session</span>
       </button>
     </section>
 
     <section class="pt-stats-row">
       <div class="pt-stat">
-        <span class="pt-stat-label">ADHERENCE</span>
+        <span class="pt-stat-label" data-i18n="home.adherence">ADHERENCE</span>
         <span class="pt-stat-value" id="ptStatAdherence">—</span>
         <span class="pt-stat-delta" id="ptStatAdherenceDelta"></span>
       </div>
       <div class="pt-stat">
-        <span class="pt-stat-label">AVG PAIN</span>
+        <span class="pt-stat-label" data-i18n="home.avgPain">AVG PAIN</span>
         <span class="pt-stat-value" id="ptStatAvgPain">—</span>
         <span class="pt-stat-delta" id="ptStatAvgPainDelta"></span>
       </div>
     </section>
 
     <div class="pt-therapist-section">
-      <div class="pt-therapist-heading" id="ptTherapistHeading" style="display:none">Your Therapist</div>
+      <div class="pt-therapist-heading" id="ptTherapistHeading" style="display:none" data-i18n="home.yourTherapist">Your Therapist</div>
       <div class="pt-therapist-card" id="ptTherapistCard" style="display:none">
         <div class="pt-therapist-avatar" id="ptTherapistAvatar"></div>
         <div class="pt-therapist-info">
@@ -389,7 +376,7 @@
 <div id="exercisesScreen" class="screen patient-scope">
   <div class="pt-subscreen">
     <div class="pt-subscreen-header">
-      <h2 class="pt-subscreen-title">My Exercises</h2>
+      <h2 class="pt-subscreen-title" data-i18n="ex.myExercises">My Exercises</h2>
       <p class="pt-subscreen-sub" id="exSubtitle"></p>
       <svg class="pt-home-wave" viewBox="0 0 390 20" preserveAspectRatio="none" aria-hidden="true"><path d="M0,10 Q97,0 195,10 Q293,20 390,10 L390,20 L0,20 Z" fill="#F0F9FF"/></svg>
     </div>
@@ -502,11 +489,11 @@
       <span class="mcam-set-label" id="manualCamSetInfo">EXERCISE 1 / 1 · SET 1 / 3</span>
       <span class="mcam-target" id="manualCamTarget"></span>
     </div>
-    <div class="mcam-ex-name" id="manualCamExName">Exercise</div>
+    <div class="mcam-ex-name" id="manualCamExName" data-i18n="cam.exercise">Exercise</div>
   </div>
 
   <!-- Center camera label -->
-  <div class="mcam-cam-label">CAMERA · FRONT</div>
+  <div class="mcam-cam-label" data-i18n="cam.cameraFront">CAMERA · FRONT</div>
 
   <!-- Bottom control card -->
   <div class="mcam-ctrl-card">
@@ -1318,7 +1305,7 @@
     <button class="settings-back-btn" onclick="showSettingsBack()" aria-label="Back">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
-    <span class="settings-title">Settings</span>
+    <span class="settings-title" data-i18n="set.title">Settings</span>
   </div>
   <div class="settings-body">
     <div id="settingsSavedModal" class="settings-saved-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="settingsSavedModalTitle">
@@ -1334,24 +1321,31 @@
 
     <!-- Profile section -->
     <div class="settings-section">
-      <div class="settings-section-title">Profile</div>
+      <div class="settings-section-title" data-i18n="set.profile">Profile</div>
       <div class="settings-field">
-        <label for="settingsName">Name</label>
+        <label for="settingsName" data-i18n="set.name">Name</label>
         <input type="text" id="settingsName" class="auth-input" maxlength="80" />
       </div>
       <div class="settings-field">
-        <label>Email</label>
+        <label data-i18n="auth.email">Email</label>
         <input type="email" id="settingsEmail" class="auth-input" disabled />
+      </div>
+      <div class="settings-field">
+        <label for="settingsLanguage" data-i18n="set.language">Language</label>
+        <select id="settingsLanguage" class="auth-select" onchange="setLanguage(this.value)">
+          <option value="en">English</option>
+          <option value="es">Español</option>
+        </select>
       </div>
     </div>
 
     <!-- About You — patient only -->
     <div class="settings-section" id="settingsPatientSection">
-      <div class="settings-section-title">About You</div>
+      <div class="settings-section-title" data-i18n="set.aboutYou">About You</div>
       <div class="settings-field">
-        <label for="settingsAgeRange">Age range</label>
+        <label for="settingsAgeRange" data-i18n="signup.ageRange">Age range</label>
         <select id="settingsAgeRange" class="auth-select">
-          <option value="">Not specified</option>
+          <option value="" data-i18n="opt.notSpecified">Not specified</option>
           <option value="18-24">18-24</option>
           <option value="25-34">25-34</option>
           <option value="35-44">35-44</option>
@@ -1361,39 +1355,39 @@
         </select>
       </div>
       <div class="settings-field">
-        <label for="settingsInjuryArea">Primary injury area</label>
+        <label for="settingsInjuryArea" data-i18n="signup.injuryArea">Primary injury area</label>
         <select id="settingsInjuryArea" class="auth-select">
-          <option value="">Not specified</option>
-          <option value="hand-wrist">Hand / Wrist</option>
-          <option value="elbow">Elbow</option>
-          <option value="shoulder">Shoulder</option>
-          <option value="knee">Knee</option>
-          <option value="ankle">Ankle</option>
-          <option value="back">Back</option>
-          <option value="other">Other</option>
+          <option value="" data-i18n="opt.notSpecified">Not specified</option>
+          <option value="hand-wrist" data-i18n="opt.handWrist">Hand / Wrist</option>
+          <option value="elbow" data-i18n="opt.elbow">Elbow</option>
+          <option value="shoulder" data-i18n="opt.shoulder">Shoulder</option>
+          <option value="knee" data-i18n="opt.knee">Knee</option>
+          <option value="ankle" data-i18n="opt.ankle">Ankle</option>
+          <option value="back" data-i18n="opt.back">Back</option>
+          <option value="other" data-i18n="opt.other">Other</option>
         </select>
       </div>
       <div class="settings-field">
-        <label for="settingsRehabDuration">Time in rehab</label>
+        <label for="settingsRehabDuration" data-i18n="signup.timeInRehab">Time in rehab</label>
         <select id="settingsRehabDuration" class="auth-select">
-          <option value="">Not specified</option>
-          <option value="<1mo">Less than 1 month</option>
-          <option value="1-3mo">1 to 3 months</option>
-          <option value="3-6mo">3 to 6 months</option>
-          <option value="6-12mo">6 to 12 months</option>
-          <option value="1y+">More than 1 year</option>
+          <option value="" data-i18n="opt.notSpecified">Not specified</option>
+          <option value="<1mo" data-i18n="opt.lt1mo">Less than 1 month</option>
+          <option value="1-3mo" data-i18n="opt.1to3mo">1 to 3 months</option>
+          <option value="3-6mo" data-i18n="opt.3to6mo">3 to 6 months</option>
+          <option value="6-12mo" data-i18n="opt.6to12mo">6 to 12 months</option>
+          <option value="1y+" data-i18n="opt.1yplus">More than 1 year</option>
         </select>
       </div>
       <div class="settings-field">
-        <label for="settingsReferral">How did you hear about Motus?</label>
+        <label for="settingsReferral" data-i18n="signup.referral">How did you hear about Motus?</label>
         <select id="settingsReferral" class="auth-select">
-          <option value="">Not specified</option>
-          <option value="therapist">My therapist</option>
-          <option value="clinic">My clinic</option>
-          <option value="friend">Friend or family</option>
-          <option value="search">Web search</option>
-          <option value="social">Social media</option>
-          <option value="other">Other</option>
+          <option value="" data-i18n="opt.notSpecified">Not specified</option>
+          <option value="therapist" data-i18n="opt.refTherapist">My therapist</option>
+          <option value="clinic" data-i18n="opt.refClinic">My clinic</option>
+          <option value="friend" data-i18n="opt.refFriend">Friend or family</option>
+          <option value="search" data-i18n="opt.refSearch">Web search</option>
+          <option value="social" data-i18n="opt.refSocial">Social media</option>
+          <option value="other" data-i18n="opt.other">Other</option>
         </select>
       </div>
     </div>
@@ -1448,21 +1442,21 @@
 
     <!-- Help section -->
     <div class="settings-section">
-      <div class="settings-section-title">Help</div>
-      <button class="settings-account-btn" onclick="replayTutorial()">Replay tutorial</button>
+      <div class="settings-section-title" data-i18n="set.help">Help</div>
+      <button class="settings-account-btn" onclick="replayTutorial()" data-i18n="set.replayTutorial">Replay tutorial</button>
     </div>
 
     <!-- Account section -->
     <div class="settings-section">
-      <div class="settings-section-title">Account</div>
-      <button class="settings-account-btn" id="settingsDownloadBtn" onclick="downloadMyData()">Download my data</button>
-      <button class="settings-account-btn" id="settingsDisconnectBtn" onclick="disconnectFromTherapist()">Disconnect from therapist</button>
-      <button class="settings-account-btn settings-account-btn--danger" onclick="deleteMyAccount()">Delete account</button>
-      <button class="settings-account-btn" onclick="requestLogout()">Sign out</button>
+      <div class="settings-section-title" data-i18n="set.account">Account</div>
+      <button class="settings-account-btn" id="settingsDownloadBtn" onclick="downloadMyData()" data-i18n="set.downloadData">Download my data</button>
+      <button class="settings-account-btn" id="settingsDisconnectBtn" onclick="disconnectFromTherapist()" data-i18n="set.disconnect">Disconnect from therapist</button>
+      <button class="settings-account-btn settings-account-btn--danger" onclick="deleteMyAccount()" data-i18n="set.deleteAccount">Delete account</button>
+      <button class="settings-account-btn" onclick="requestLogout()" data-i18n="set.signOut">Sign out</button>
     </div>
   </div>
   <div class="settings-footer">
-    <button class="pt-btn-hero" onclick="saveSettings()">Save</button>
+    <button class="pt-btn-hero" onclick="saveSettings()" data-i18n="set.save">Save</button>
   </div>
 </div>
 
@@ -1482,22 +1476,22 @@
 <nav class="pt-bottom-nav" id="patientBottomNav" aria-label="Main navigation" style="display:none">
   <button class="pt-bottom-nav-item" onclick="showPatientHome()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-    <span>Home</span>
+    <span data-i18n="nav.home">Home</span>
   </button>
   <button class="pt-bottom-nav-item" onclick="showProgressScreen()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    <span>Progress</span>
+    <span data-i18n="nav.progress">Progress</span>
   </button>
   <button class="pt-bottom-nav-item" onclick="openPatientMessaging()">
     <span class="pt-bottom-nav-icon-wrap">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span class="pt-bottom-nav-dot" id="patientNavUnreadDot" style="display:none"></span>
     </span>
-    <span>Messages</span>
+    <span data-i18n="nav.messages">Messages</span>
   </button>
   <button class="pt-bottom-nav-item" onclick="showSettingsScreen()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    <span>Settings</span>
+    <span data-i18n="nav.settings">Settings</span>
   </button>
 </nav>
 

@@ -46,6 +46,356 @@ if ('serviceWorker' in navigator) {
 //    to avoid race conditions on mobile where CDN scripts may load slowly ──
 
 /* ══════════════════════════════════════════════════════════════════════════
+   SECTION 0: INTERNATIONALIZATION (i18n)
+   Patient-facing surface is bilingual (en/es). Static strings carry a
+   data-i18n attribute in index.html and are swapped by applyTranslations().
+   Dynamic strings go through t(key, vars). Therapist-only chrome stays English
+   for now (Phase 3). Translations are reviewed for clinical accuracy before
+   shipping any exercise/consent content.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const SUPPORTED_LANGS = ['en', 'es'];
+
+const I18N = {
+  en: {
+    // Auth — login
+    'auth.welcomeBack': 'Welcome back',
+    'auth.signInSub': 'Sign in to continue your recovery.',
+    'auth.email': 'Email',
+    'auth.password': 'Password',
+    'auth.forgotPassword': 'Forgot password?',
+    'auth.signIn': 'Sign In',
+    'auth.newToMotus': 'New to Motus?',
+    'auth.createAccount': 'Create account',
+    'auth.emailPlaceholder': 'you@example.com',
+    'auth.passwordPlaceholder': 'Password',
+    // Auth — signup
+    'signup.title': 'Create Account',
+    'signup.sub': 'Join Motus to start your recovery',
+    'signup.patient': 'Patient',
+    'signup.therapist': 'Therapist',
+    'signup.fullName': 'Full Name',
+    'signup.namePlaceholder': 'Your name',
+    'signup.min8': 'Min. 8 characters',
+    'signup.continue': 'Continue',
+    'signup.haveAccount': 'Already have an account?',
+    'signup.signIn': 'Sign in',
+    'signup.legalPre': 'By creating an account you agree to our',
+    'signup.tos': 'Terms of Service',
+    'signup.and': 'and',
+    'signup.privacy': 'Privacy Policy',
+    'signup.quickQuestions': 'A few quick questions',
+    'signup.ageRange': 'Age range',
+    'signup.injuryArea': 'Primary injury area',
+    'signup.timeInRehab': 'Time in rehab',
+    'signup.referral': 'How did you hear about Motus?',
+    'signup.createAccountBtn': 'Create Account',
+    'signup.skip': 'Skip for now',
+    'common.back': 'Back',
+    'opt.select': 'Select...',
+    'opt.notSpecified': 'Not specified',
+    'opt.handWrist': 'Hand / Wrist',
+    'opt.elbow': 'Elbow',
+    'opt.shoulder': 'Shoulder',
+    'opt.knee': 'Knee',
+    'opt.ankle': 'Ankle',
+    'opt.back': 'Back',
+    'opt.other': 'Other',
+    'opt.lt1mo': 'Less than 1 month',
+    'opt.1to3mo': '1 to 3 months',
+    'opt.3to6mo': '3 to 6 months',
+    'opt.6to12mo': '6 to 12 months',
+    'opt.1yplus': 'More than 1 year',
+    'opt.refTherapist': 'My therapist',
+    'opt.refClinic': 'My clinic',
+    'opt.refFriend': 'Friend or family',
+    'opt.refSearch': 'Web search',
+    'opt.refSocial': 'Social media',
+    // Forgot password
+    'forgot.title': 'Reset Password',
+    'forgot.sub': "We'll send you a reset link",
+    'forgot.emailAddress': 'Email address',
+    'forgot.newPassword': 'New Password',
+    'forgot.findAccount': 'Find Account',
+    'forgot.backToSignIn': 'Back to sign in',
+    // Consent
+    'consent.title': 'Before we begin',
+    'consent.sub': 'Please review and accept to continue',
+    'consent.privacyHeading': 'Privacy & Data Use',
+    'consent.bullet1': 'Movement data captured via your device camera',
+    'consent.bullet2': 'Exercise performance shared with your assigned therapist',
+    'consent.bullet3': 'Session videos stored securely, removed after 30 days',
+    'consent.bullet4': 'All data encrypted in transit and at rest',
+    'consent.agree': 'I understand how my health data will be used and consent to participate in Motus rehabilitation.',
+    'consent.npp': 'I have received the',
+    'consent.nppLink': 'HIPAA Notice of Privacy Practices',
+    'consent.error': 'Please check both boxes before continuing.',
+    'consent.continue': 'I Agree — Continue',
+    'consent.questions': 'Questions? Email',
+    // Pending
+    'pending.title': 'Account Pending',
+    'pending.sub': 'Your therapist account is awaiting approval',
+    'pending.body': 'A clinic admin will review and approve your account. Check back soon.',
+    'pending.signOut': 'Sign Out',
+    // Connect
+    'connect.title': 'Connect to a Therapist',
+    'connect.sub': 'Enter your clinic code to get started',
+    'connect.clinicCode': 'Clinic Code',
+    'connect.connect': 'Connect',
+    'connect.skip': 'Skip for now',
+    // Patient home
+    'home.goodMorning': 'Good morning',
+    'home.goodAfternoon': 'Good afternoon',
+    'home.goodEvening': 'Good evening',
+    'home.dayStreak': 'day streak',
+    'home.yourProtocol': 'Your Protocol',
+    'home.recordEachSet': 'record each set',
+    'home.exercisesOne': '{n} exercise · {action}',
+    'home.exercisesMany': '{n} exercises · {action}',
+    'home.noProtocol': 'No Protocol',
+    'home.askTherapist': 'Ask your therapist to assign exercises',
+    'home.noExercisesYet': 'No exercises assigned yet',
+    'home.startSession': 'Start Session',
+    'home.adherence': 'ADHERENCE',
+    'home.avgPain': 'AVG PAIN',
+    'home.yourTherapist': 'Your Therapist',
+    'home.weekOf': 'Week of {date}',
+    // Exercises
+    'ex.myExercises': 'My Exercises',
+    'ex.repsSets': '{reps} reps × {sets} sets · {freq}',
+    'ex.showAll': 'Show all {n} exercises',
+    'ex.showLess': 'Show less',
+    'ex.done': 'Done',
+    // Session / camera
+    'cam.exercise': 'Exercise',
+    'cam.readyForSet': 'Ready for set {cur} of {total} · tap record to start',
+    'cam.flip': 'FLIP',
+    'cam.demo': 'DEMO',
+    'cam.cameraFront': 'CAMERA · FRONT',
+    // Bottom nav
+    'nav.home': 'Home',
+    'nav.progress': 'Progress',
+    'nav.messages': 'Messages',
+    'nav.settings': 'Settings',
+    // Frequency
+    'freq.daily': 'Daily',
+    'freq.twiceDaily': 'Twice Daily',
+    'freq.everyOther': 'Every Other Day',
+    'freq.threeWeek': '3x Per Week',
+    'freq.everyXDays': 'Every {n} Days',
+    // Settings (patient-facing)
+    'set.title': 'Settings',
+    'set.profile': 'Profile',
+    'set.name': 'Name',
+    'set.aboutYou': 'About You',
+    'set.language': 'Language',
+    'set.help': 'Help',
+    'set.replayTutorial': 'Replay tutorial',
+    'set.account': 'Account',
+    'set.downloadData': 'Download my data',
+    'set.disconnect': 'Disconnect from therapist',
+    'set.deleteAccount': 'Delete account',
+    'set.signOut': 'Sign out',
+    'set.save': 'Save',
+  },
+  es: {
+    'auth.welcomeBack': 'Bienvenido de nuevo',
+    'auth.signInSub': 'Inicia sesión para continuar tu recuperación.',
+    'auth.email': 'Correo electrónico',
+    'auth.password': 'Contraseña',
+    'auth.forgotPassword': '¿Olvidaste tu contraseña?',
+    'auth.signIn': 'Iniciar sesión',
+    'auth.newToMotus': '¿Nuevo en Motus?',
+    'auth.createAccount': 'Crear cuenta',
+    'auth.emailPlaceholder': 'tu@ejemplo.com',
+    'auth.passwordPlaceholder': 'Contraseña',
+    'signup.title': 'Crear cuenta',
+    'signup.sub': 'Únete a Motus para comenzar tu recuperación',
+    'signup.patient': 'Paciente',
+    'signup.therapist': 'Terapeuta',
+    'signup.fullName': 'Nombre completo',
+    'signup.namePlaceholder': 'Tu nombre',
+    'signup.min8': 'Mín. 8 caracteres',
+    'signup.continue': 'Continuar',
+    'signup.haveAccount': '¿Ya tienes una cuenta?',
+    'signup.signIn': 'Iniciar sesión',
+    'signup.legalPre': 'Al crear una cuenta aceptas nuestros',
+    'signup.tos': 'Términos de servicio',
+    'signup.and': 'y',
+    'signup.privacy': 'Política de privacidad',
+    'signup.quickQuestions': 'Unas preguntas rápidas',
+    'signup.ageRange': 'Rango de edad',
+    'signup.injuryArea': 'Zona principal de lesión',
+    'signup.timeInRehab': 'Tiempo en rehabilitación',
+    'signup.referral': '¿Cómo conociste Motus?',
+    'signup.createAccountBtn': 'Crear cuenta',
+    'signup.skip': 'Omitir por ahora',
+    'common.back': 'Atrás',
+    'opt.select': 'Seleccionar...',
+    'opt.notSpecified': 'Sin especificar',
+    'opt.handWrist': 'Mano / Muñeca',
+    'opt.elbow': 'Codo',
+    'opt.shoulder': 'Hombro',
+    'opt.knee': 'Rodilla',
+    'opt.ankle': 'Tobillo',
+    'opt.back': 'Espalda',
+    'opt.other': 'Otro',
+    'opt.lt1mo': 'Menos de 1 mes',
+    'opt.1to3mo': 'De 1 a 3 meses',
+    'opt.3to6mo': 'De 3 a 6 meses',
+    'opt.6to12mo': 'De 6 a 12 meses',
+    'opt.1yplus': 'Más de 1 año',
+    'opt.refTherapist': 'Mi terapeuta',
+    'opt.refClinic': 'Mi clínica',
+    'opt.refFriend': 'Amigo o familiar',
+    'opt.refSearch': 'Búsqueda en la web',
+    'opt.refSocial': 'Redes sociales',
+    'forgot.title': 'Restablecer contraseña',
+    'forgot.sub': 'Te enviaremos un enlace para restablecerla',
+    'forgot.emailAddress': 'Correo electrónico',
+    'forgot.newPassword': 'Nueva contraseña',
+    'forgot.findAccount': 'Buscar cuenta',
+    'forgot.backToSignIn': 'Volver a iniciar sesión',
+    'consent.title': 'Antes de comenzar',
+    'consent.sub': 'Revisa y acepta para continuar',
+    'consent.privacyHeading': 'Privacidad y uso de datos',
+    'consent.bullet1': 'Los datos de movimiento se capturan con la cámara de tu dispositivo',
+    'consent.bullet2': 'Tu desempeño en los ejercicios se comparte con tu terapeuta asignado',
+    'consent.bullet3': 'Los videos de las sesiones se guardan de forma segura y se eliminan a los 30 días',
+    'consent.bullet4': 'Todos los datos están cifrados en tránsito y en reposo',
+    'consent.agree': 'Entiendo cómo se usarán mis datos de salud y doy mi consentimiento para participar en la rehabilitación con Motus.',
+    'consent.npp': 'He recibido el',
+    'consent.nppLink': 'Aviso de Prácticas de Privacidad de HIPAA',
+    'consent.error': 'Marca ambas casillas antes de continuar.',
+    'consent.continue': 'Acepto — Continuar',
+    'consent.questions': '¿Preguntas? Escribe a',
+    'pending.title': 'Cuenta pendiente',
+    'pending.sub': 'Tu cuenta de terapeuta está esperando aprobación',
+    'pending.body': 'Un administrador de la clínica revisará y aprobará tu cuenta. Vuelve pronto.',
+    'pending.signOut': 'Cerrar sesión',
+    'connect.title': 'Conéctate con un terapeuta',
+    'connect.sub': 'Ingresa el código de tu clínica para empezar',
+    'connect.clinicCode': 'Código de la clínica',
+    'connect.connect': 'Conectar',
+    'connect.skip': 'Omitir por ahora',
+    'home.goodMorning': 'Buenos días',
+    'home.goodAfternoon': 'Buenas tardes',
+    'home.goodEvening': 'Buenas noches',
+    'home.dayStreak': 'días seguidos',
+    'home.yourProtocol': 'Tu protocolo',
+    'home.recordEachSet': 'graba cada serie',
+    'home.exercisesOne': '{n} ejercicio · {action}',
+    'home.exercisesMany': '{n} ejercicios · {action}',
+    'home.noProtocol': 'Sin protocolo',
+    'home.askTherapist': 'Pídele a tu terapeuta que te asigne ejercicios',
+    'home.noExercisesYet': 'Aún no tienes ejercicios asignados',
+    'home.startSession': 'Iniciar sesión de ejercicios',
+    'home.adherence': 'CONSTANCIA',
+    'home.avgPain': 'DOLOR PROM.',
+    'home.yourTherapist': 'Tu terapeuta',
+    'home.weekOf': 'Semana del {date}',
+    'ex.myExercises': 'Mis ejercicios',
+    'ex.repsSets': '{reps} reps × {sets} series · {freq}',
+    'ex.showAll': 'Ver los {n} ejercicios',
+    'ex.showLess': 'Ver menos',
+    'ex.done': 'Hecho',
+    'cam.exercise': 'Ejercicio',
+    'cam.readyForSet': 'Listo para la serie {cur} de {total} · toca grabar para empezar',
+    'cam.flip': 'GIRAR',
+    'cam.demo': 'DEMO',
+    'cam.cameraFront': 'CÁMARA · FRONTAL',
+    'nav.home': 'Inicio',
+    'nav.progress': 'Progreso',
+    'nav.messages': 'Mensajes',
+    'nav.settings': 'Ajustes',
+    'freq.daily': 'Diario',
+    'freq.twiceDaily': 'Dos veces al día',
+    'freq.everyOther': 'Día por medio',
+    'freq.threeWeek': '3 veces por semana',
+    'freq.everyXDays': 'Cada {n} días',
+    'set.title': 'Ajustes',
+    'set.profile': 'Perfil',
+    'set.name': 'Nombre',
+    'set.aboutYou': 'Sobre ti',
+    'set.language': 'Idioma',
+    'set.help': 'Ayuda',
+    'set.replayTutorial': 'Ver el tutorial de nuevo',
+    'set.account': 'Cuenta',
+    'set.downloadData': 'Descargar mis datos',
+    'set.disconnect': 'Desconectar del terapeuta',
+    'set.deleteAccount': 'Eliminar cuenta',
+    'set.signOut': 'Cerrar sesión',
+    'set.save': 'Guardar',
+  },
+};
+
+let currentLang = 'en';
+
+function t(key, vars) {
+  let str = (I18N[currentLang] && I18N[currentLang][key]) || I18N.en[key] || key;
+  if (vars) {
+    for (const k in vars) str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
+  }
+  return str;
+}
+
+// Locale for Intl date/number formatting, derived from the active language.
+function dateLocale() {
+  return currentLang === 'es' ? 'es-ES' : 'en-US';
+}
+
+// Swap all static strings carrying data-i18n attributes within `root`.
+// data-i18n -> textContent, data-i18n-ph -> placeholder, data-i18n-aria -> aria-label.
+function applyTranslations(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  scope.querySelectorAll('[data-i18n-ph]').forEach((el) => {
+    el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph')));
+  });
+  scope.querySelectorAll('[data-i18n-aria]').forEach((el) => {
+    el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria')));
+  });
+}
+
+// Set the active language: update memory, <html lang>, localStorage, repaint
+// static strings, and re-render the visible patient screen if it's data-driven.
+function setLanguage(code, opts) {
+  const o = opts || {};
+  if (!SUPPORTED_LANGS.includes(code)) code = 'en';
+  currentLang = code;
+  document.documentElement.setAttribute('lang', code);
+  try { localStorage.setItem('motus_lang', code); } catch (_) {}
+  applyTranslations();
+  // Re-render dynamic patient surfaces that are currently visible.
+  try {
+    if (typeof updatePatientHomeScreen === 'function' && document.getElementById('patientScreen')?.classList.contains('active')) {
+      updatePatientHomeScreen();
+    }
+    const exScreen = document.getElementById('exercisesScreen');
+    if (exScreen?.classList.contains('active') && typeof showExercisesScreen === 'function') {
+      showExercisesScreen();
+    }
+  } catch (_) {}
+  if (o.persist && typeof currentUser === 'object' && currentUser && currentUser.email && typeof db !== 'undefined') {
+    db.collection('users').doc(currentUser.email).update({ language: code }).catch(() => {});
+    currentUser.language = code;
+  }
+}
+
+// Pick the initial language: saved choice > browser language > English.
+function initLanguage() {
+  let lang = null;
+  try { lang = localStorage.getItem('motus_lang'); } catch (_) {}
+  if (!lang) {
+    const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    lang = SUPPORTED_LANGS.includes(nav) ? nav : 'en';
+  }
+  setLanguage(lang);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    SECTION 1: AUTH & STATE  (Firebase)
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -203,6 +553,8 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     const snap = await db.collection('users').doc(firebaseUser.email).get();
     currentUser = { email: firebaseUser.email, ...snap.data() };
     currentRole = currentUser.role;
+    // Apply the user's saved language preference (falls back to current/browser).
+    if (currentUser.language && SUPPORTED_LANGS.includes(currentUser.language)) setLanguage(currentUser.language);
     // Require email verification for non-admin accounts (demo accounts exempt)
     const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com', 'mike.torres@mayoclinic.org', 'test.patient@motus.com']);
     if (!import.meta.env.DEV && !firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
@@ -626,7 +978,7 @@ function showSettingsScreen() {
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
   setVal('settingsName',         u.name || '');
   setVal('settingsEmail',        email);
-  setVal('settingsLanguage',     u.language || 'en');
+  setVal('settingsLanguage',     u.language || currentLang || 'en');
   setVal('settingsAgeRange',     u.demographics?.ageRange || '');
   setVal('settingsInjuryArea',   u.demographics?.injuryArea || '');
   setVal('settingsRehabDuration',u.demographics?.rehabDuration || '');
@@ -1449,7 +1801,7 @@ function closeShareExerciseModal() {
 async function updatePatientHomeScreen() {
   if (!currentUser) return;
   const hour     = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 12 ? t('home.goodMorning') : hour < 17 ? t('home.goodAfternoon') : t('home.goodEvening');
   document.getElementById('patientGreeting').textContent    = greeting;
   document.getElementById('patientDisplayName').textContent = currentUser.name;
 
@@ -1469,18 +1821,18 @@ async function updatePatientHomeScreen() {
   const subtitleEl = document.getElementById('ptProtocolSubtitle');
   if (protocols.length > 0) {
     const p0 = protocols[0];
-    const protocolName = p0.protocolName || p0.exerciseName || 'Your Protocol';
+    const protocolName = p0.protocolName || p0.exerciseName || t('home.yourProtocol');
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-    if (kickerEl) kickerEl.textContent = 'Week of ' + weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (kickerEl) kickerEl.textContent = t('home.weekOf', { date: weekStart.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' }) });
     if (freqEl) freqEl.textContent = getFrequencyLabel(p0.frequency);
     if (titleEl) titleEl.textContent = protocolName;
-    if (subtitleEl) subtitleEl.textContent = `${protocols.length} exercise${protocols.length > 1 ? 's' : ''} \xB7 record each set`;
+    if (subtitleEl) subtitleEl.textContent = t(protocols.length === 1 ? 'home.exercisesOne' : 'home.exercisesMany', { n: protocols.length, action: t('home.recordEachSet') });
   } else {
-    if (kickerEl) kickerEl.textContent = 'YOUR PROTOCOL';
+    if (kickerEl) kickerEl.textContent = t('home.yourProtocol').toUpperCase();
     if (freqEl) freqEl.textContent = '';
-    if (titleEl) titleEl.textContent = 'No Protocol';
-    if (subtitleEl) subtitleEl.textContent = 'Ask your therapist to assign exercises';
+    if (titleEl) titleEl.textContent = t('home.noProtocol');
+    if (subtitleEl) subtitleEl.textContent = t('home.askTherapist');
   }
 
   // Protocol card exercise list with checkmarks
@@ -1500,7 +1852,7 @@ async function updatePatientHomeScreen() {
         return `<li class="pt-protocol-item${done ? ' done' : ''}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span></li>`;
       }).join('');
     } else {
-      planList.innerHTML = '<li class="pt-protocol-empty">No exercises assigned yet</li>';
+      planList.innerHTML = `<li class="pt-protocol-empty">${t('home.noExercisesYet')}</li>`;
     }
   }
 
@@ -1554,7 +1906,7 @@ async function updatePatientHomeScreen() {
       const firstDose = `${protocols[0].sets || 3} sets × ${protocols[0].reps || 10} reps`;
       exSub.textContent = `${firstEx} — ${firstDose}`;
     } else {
-      exSub.textContent = 'No exercises assigned yet';
+      exSub.textContent = t('home.noExercisesYet');
     }
   }
 
@@ -1589,7 +1941,7 @@ async function updatePatientHomeScreen() {
     badgeEl.style.display = 'flex';
     if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame"><svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><path d="M12 23c-3.6 0-8-2.4-8-8.5C4 9.8 9 4.3 11.4 2c.4-.3.9 0 .9.5-.2 3 1.6 5.2 3.2 6.8 1.5 1.5 3.5 3 3.5 5.2 0 4.5-3 8.5-7 8.5z"/></svg></span>');
     countEl.textContent   = streak.current;
-    labelEl.textContent   = 'day streak';
+    labelEl.textContent   = t('home.dayStreak');
     if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
   } else if (badgeEl) {
     badgeEl.style.display = 'none';
@@ -1761,13 +2113,13 @@ async function openManualCameraSession(protocol) {
   if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
   const targetEl = document.getElementById('manualCamTarget');
   if (targetEl) targetEl.textContent = `Target ${_manualCamTotalSets}\u00D7${protocol.reps || 10}`;
-  if (promptEl) promptEl.textContent = 'Ready for set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap record to start';
+  if (promptEl) promptEl.textContent = t('cam.readyForSet', { cur: _manualCamCurrentSet, total: _manualCamTotalSets });
   const demoUrl = protocol.demoVideoUrl || null;
   const demoBtn = demoUrl
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'')}')">DEMO</button>`
-    : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'')}')">${t('cam.demo')}</button>`
+    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
   if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
+    <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
     <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
       <span class="mcam-rec-dot" aria-hidden="true"></span>
     </button>
@@ -1818,10 +2170,10 @@ function manualCamStartRecording() {
   if (promptEl) promptEl.textContent = `Recording set ${_manualCamCurrentSet} of ${_manualCamTotalSets} \u00B7 tap stop when finished`;
   const demoUrlR = _manualCamProtocol?.demoVideoUrl || null;
   const demoBtnR = demoUrlR
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlR)}', '')">DEMO</button>`
-    : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlR)}', '')">${t('cam.demo')}</button>`
+    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
   if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
+    <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
     <button class="mcam-btn-stop" onclick="manualCamEndSet()">
       <div style="width:24px;height:24px;background:#CC2936;border-radius:4px"></div>
     </button>
@@ -1906,10 +2258,10 @@ function manualCamCancelSet() {
   if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
   const demoUrlC = _manualCamProtocol?.demoVideoUrl || null;
   const demoBtnC = demoUrlC
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlC)}', '')">DEMO</button>`
-    : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlC)}', '')">${t('cam.demo')}</button>`
+    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
   if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
+    <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
     <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
       <span class="mcam-rec-dot" aria-hidden="true"></span>
     </button>
@@ -1947,13 +2299,13 @@ async function manualCamSaveSet() {
     const exIdx = (_manualCamExerciseIndex || 0) + 1;
     const exTotal = _manualCamTotalExercises || 1;
     if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
-    if (promptEl) promptEl.textContent = 'Ready for set ' + _manualCamCurrentSet + ' of ' + _manualCamTotalSets + ' \xB7 tap record to start';
+    if (promptEl) promptEl.textContent = t('cam.readyForSet', { cur: _manualCamCurrentSet, total: _manualCamTotalSets });
     const demoUrlN = _manualCamProtocol?.demoVideoUrl || null;
     const demoBtnN = demoUrlN
-      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlN)}', '')">DEMO</button>`
-      : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
+      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlN)}', '')">${t('cam.demo')}</button>`
+      : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
     if (btnsEl) btnsEl.innerHTML = `
-      <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
+      <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
       <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
         <span class="mcam-rec-dot" aria-hidden="true"></span>
       </button>
@@ -2094,15 +2446,15 @@ const exerciseLabels = {
   index_middle_spread:    'Index-Middle Spread',
 };
 
-const frequencyLabels = {
-  daily:       'Daily',
-  twice_daily: 'Twice Daily',
-  every_other: 'Every Other Day',
-  three_week:  '3x Per Week'
+const frequencyKeys = {
+  daily:       'freq.daily',
+  twice_daily: 'freq.twiceDaily',
+  every_other: 'freq.everyOther',
+  three_week:  'freq.threeWeek'
 };
 function getFrequencyLabel(freq) {
-  if (frequencyLabels[freq]) return frequencyLabels[freq];
-  if (freq && freq.startsWith('custom_')) return 'Every ' + freq.split('_')[1] + ' Days';
+  if (frequencyKeys[freq]) return t(frequencyKeys[freq]);
+  if (freq && freq.startsWith('custom_')) return t('freq.everyXDays', { n: freq.split('_')[1] });
   return freq || '';
 }
 
@@ -2897,12 +3249,12 @@ async function showExercisesScreen() {
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
     const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
-    const badge = isDone ? '<span class="exs-row-badge done">Done</span>'
+    const badge = isDone ? `<span class="exs-row-badge done">${t('ex.done')}</span>`
       : `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>`;
     return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
       <div class="exs-row-left">
         <span class="exs-row-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
-        <span class="exs-row-meta">${p.reps} reps × ${p.sets} sets · ${getFrequencyLabel(p.frequency)}</span>
+        <span class="exs-row-meta">${t('ex.repsSets', { reps: p.reps, sets: p.sets, freq: getFrequencyLabel(p.frequency) })}</span>
       </div>
       <div class="exs-row-right">
         ${badge}
@@ -2915,7 +3267,7 @@ async function showExercisesScreen() {
   inner.innerHTML = `<div class="exs-list" id="exsList">
     ${cards.map((c, i) => showToggle && i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
   </div>
-  ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">Show all ${protocols.length} exercises</button>` : ''}`;
+  ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">${t('ex.showAll', { n: protocols.length })}</button>` : ''}`;
 
   showScreen('exercisesScreen');
 }
@@ -2927,10 +3279,10 @@ function toggleExerciseList() {
   const hidden = list.querySelectorAll('.exs-hidden');
   if (hidden.length) {
     hidden.forEach(el => el.classList.remove('exs-hidden'));
-    btn.textContent = 'Show less';
+    btn.textContent = t('ex.showLess');
   } else {
     list.querySelectorAll('.exs-row').forEach((el, i) => { if (i >= 3) el.classList.add('exs-hidden'); });
-    btn.textContent = `Show all ${list.querySelectorAll('.exs-row').length} exercises`;
+    btn.textContent = t('ex.showAll', { n: list.querySelectorAll('.exs-row').length });
   }
 }
 
@@ -4578,6 +4930,7 @@ async function saveSession() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initLanguage();
   const painCongrats = document.getElementById('painSliderCongrats');
   if (painCongrats) {
     painCongrats.addEventListener('input', function() {
@@ -7205,6 +7558,8 @@ window.addEventListener('resize', () => {
 if (import.meta.env.DEV) window.Sentry = Sentry;
 
 Object.assign(window, {
+  // i18n
+  setLanguage, applyTranslations,
   // Auth
   handleLogin, handleForgot, selectRole,
   signupNextStep, signupGoToStep, signupSelectLanguage, signupFinishLanguage, signupSkipData, finalizeSignup,
