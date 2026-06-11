@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Motus Works -- The Complete Guide</title>
+<style>
+  :root {
+    --blue: #2563eb;
+    --blue-light: #dbeafe;
+    --blue-bg: #eff6ff;
+    --green: #16a34a;
+    --green-light: #dcfce7;
+    --orange: #ea580c;
+    --orange-light: #fff7ed;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --teal: #0d9488;
+    --teal-light: #f0fdfa;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--gray-900);
+    line-height: 1.7;
+    background: var(--gray-50);
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #06b6d4 100%);
+    color: white;
+    padding: 80px 24px 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 70%, rgba(255,255,255,0.08) 0%, transparent 50%);
+  }
+  .hero h1 { font-size: 3rem; font-weight: 800; margin-bottom: 12px; position: relative; }
+  .hero p { font-size: 1.2rem; opacity: 0.9; max-width: 600px; margin: 0 auto; position: relative; }
+
+  /* ===== LAYOUT ===== */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+  section {
+    margin: 48px auto;
+    max-width: 900px;
+    padding: 0 24px;
+  }
+
+  section h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  section > .subtitle {
+    color: var(--gray-500);
+    font-size: 1rem;
+    margin-bottom: 28px;
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+  .card h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .card p { color: var(--gray-700); margin-bottom: 12px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* ===== TWO-COL CARDS ===== */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ===== ROLE CARDS ===== */
+  .role-card {
+    border-top: 4px solid;
+    text-align: center;
+  }
+  .role-card.patient { border-color: var(--blue); }
+  .role-card.therapist { border-color: var(--green); }
+  .role-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 2rem;
+  }
+  .role-card.patient .role-icon { background: var(--blue-light); }
+  .role-card.therapist .role-icon { background: var(--green-light); }
+  .role-card ul { text-align: left; padding-left: 20px; color: var(--gray-700); }
+  .role-card li { margin-bottom: 6px; }
+
+  /* ===== ANALOGY BOX ===== */
+  .analogy {
+    background: var(--blue-bg);
+    border-left: 4px solid var(--blue);
+    padding: 20px 24px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin: 20px 0;
+  }
+  .analogy strong { color: var(--blue); }
+
+  .analogy.green {
+    background: var(--green-light);
+    border-left-color: var(--green);
+  }
+  .analogy.green strong { color: var(--green); }
+
+  .analogy.purple {
+    background: var(--purple-light);
+    border-left-color: var(--purple);
+  }
+  .analogy.purple strong { color: var(--purple); }
+
+  .analogy.orange {
+    background: var(--orange-light);
+    border-left-color: var(--orange);
+  }
+  .analogy.orange strong { color: var(--orange); }
+
+  .analogy.teal {
+    background: var(--teal-light);
+    border-left-color: var(--teal);
+  }
+  .analogy.teal strong { color: var(--teal); }
+
+  /* ===== FLOWCHART ===== */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0;
+  }
+  .flow-step {
+    background: white;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 14px 24px;
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+    font-weight: 500;
+    position: relative;
+  }
+  .flow-step.blue { border-color: var(--blue); background: var(--blue-bg); }
+  .flow-step.green { border-color: var(--green); background: var(--green-light); }
+  .flow-step.purple { border-color: var(--purple); background: var(--purple-light); }
+  .flow-step.orange { border-color: var(--orange); background: var(--orange-light); }
+  .flow-step.teal { border-color: var(--teal); background: var(--teal-light); }
+  .flow-step.red { border-color: var(--red); background: var(--red-light); }
+
+  .flow-step small { display: block; font-weight: 400; color: var(--gray-500); font-size: 0.85rem; }
+
+  .flow-arrow {
+    width: 2px;
+    height: 28px;
+    background: var(--gray-300);
+    position: relative;
+  }
+  .flow-arrow::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--gray-300);
+  }
+
+  /* ===== HORIZONTAL FLOW ===== */
+  .hflow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 24px 0;
+    flex-wrap: wrap;
+  }
+  .hflow-step {
+    background: white;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 12px 18px;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 500;
+    min-width: 100px;
+  }
+  .hflow-step.blue { border-color: var(--blue); background: var(--blue-bg); }
+  .hflow-step.green { border-color: var(--green); background: var(--green-light); }
+  .hflow-step.purple { border-color: var(--purple); background: var(--purple-light); }
+  .hflow-step.orange { border-color: var(--orange); background: var(--orange-light); }
+  .hflow-step.teal { border-color: var(--teal); background: var(--teal-light); }
+
+  .hflow-arrow {
+    width: 28px;
+    height: 2px;
+    background: var(--gray-300);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .hflow-arrow::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 8px solid var(--gray-300);
+  }
+
+  /* ===== ARCHITECTURE DIAGRAM ===== */
+  .arch-diagram {
+    background: white;
+    border-radius: var(--radius);
+    padding: 32px;
+    box-shadow: var(--shadow);
+    margin: 24px 0;
+    overflow-x: auto;
+  }
+
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    max-width: 750px;
+    margin: 0 auto;
+  }
+  @media (max-width: 700px) {
+    .arch-grid { grid-template-columns: 1fr; }
+  }
+
+  .arch-box {
+    border: 2px solid;
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+  }
+  .arch-box h4 { font-size: 0.95rem; margin-bottom: 8px; }
+  .arch-box ul { list-style: none; font-size: 0.85rem; color: var(--gray-700); }
+  .arch-box li { margin-bottom: 4px; }
+  .arch-box.blue { border-color: var(--blue); background: var(--blue-bg); }
+  .arch-box.green { border-color: var(--green); background: var(--green-light); }
+  .arch-box.purple { border-color: var(--purple); background: var(--purple-light); }
+  .arch-box.orange { border-color: var(--orange); background: var(--orange-light); }
+  .arch-box.teal { border-color: var(--teal); background: var(--teal-light); }
+  .arch-box.red { border-color: var(--red); background: var(--red-light); }
+
+  .arch-label {
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-500);
+    margin: 24px 0 12px;
+  }
+
+  .arch-connector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+    color: var(--gray-400);
+    font-size: 1.4rem;
+  }
+
+  /* ===== DATA TABLE ===== */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin: 16px 0;
+  }
+  .data-table th {
+    background: var(--gray-100);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--gray-200);
+  }
+  .data-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--gray-100);
+    color: var(--gray-700);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  /* ===== SCREEN CARD ===== */
+  .screen-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .screen-card {
+    border: 2px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+    transition: transform 0.15s;
+  }
+  .screen-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .screen-card .screen-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 4px; }
+  .screen-card .screen-desc { font-size: 0.8rem; color: var(--gray-500); }
+  .screen-card.patient-s { border-color: var(--blue); background: var(--blue-bg); }
+  .screen-card.therapist-s { border-color: var(--green); background: var(--green-light); }
+  .screen-card.auth-s { border-color: var(--gray-300); }
+  .screen-card.shared-s { border-color: var(--purple); background: var(--purple-light); }
+
+  /* ===== EXERCISE LIST ===== */
+  .exercise-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 12px 0;
+  }
+  @media (max-width: 500px) { .exercise-grid { grid-template-columns: 1fr; } }
+  .exercise-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--gray-50);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .exercise-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ===== DEPLOYMENT TABLE ===== */
+  .deploy-phase {
+    margin-bottom: 20px;
+  }
+  .deploy-phase h4 {
+    font-size: 1rem;
+    margin-bottom: 8px;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .status-done { background: var(--green-light); color: var(--green); }
+  .status-blocked { background: var(--orange-light); color: var(--orange); }
+  .status-not { background: var(--gray-100); color: var(--gray-500); }
+
+  /* ===== TABLE OF CONTENTS ===== */
+  .toc {
+    max-width: 900px;
+    margin: -20px auto 0;
+    padding: 0 24px;
+  }
+  .toc-inner {
+    background: white;
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    top: -30px;
+  }
+  .toc h3 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  @media (max-width: 600px) { .toc-grid { grid-template-columns: 1fr; } }
+  .toc a {
+    color: var(--gray-700);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toc a:hover { background: var(--blue-bg); color: var(--blue); }
+  .toc .toc-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--gray-100);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    color: var(--gray-500);
+  }
+
+  /* ===== DIVIDER ===== */
+  .divider {
+    height: 1px;
+    background: var(--gray-200);
+    margin: 48px auto;
+    max-width: 900px;
+  }
+
+  /* ===== FOOTER ===== */
+  footer {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--gray-500);
+    font-size: 0.85rem;
+  }
+
+  /* ===== SVG DIAGRAM ===== */
+  .svg-diagram {
+    display: flex;
+    justify-content: center;
+    margin: 24px 0;
+  }
+  .svg-diagram svg { max-width: 100%; height: auto; }
+
+  /* ===== COLOR-CODED FEATURE BADGES ===== */
+  .feature-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin: 2px 4px;
+  }
+  .tag-active { background: var(--green-light); color: var(--green); }
+  .tag-dormant { background: var(--gray-100); color: var(--gray-500); }
+  .tag-blocked { background: var(--orange-light); color: var(--orange); }
+
+  .callout {
+    background: var(--gray-100);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 16px 0;
+    font-size: 0.9rem;
+    color: var(--gray-700);
+  }
+
+  .pipe-diagram {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    background: var(--gray-900);
+    color: #e5e7eb;
+    padding: 24px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    white-space: pre;
+    margin: 16px 0;
+  }
+  .pipe-diagram .hl-blue { color: #60a5fa; }
+  .pipe-diagram .hl-green { color: #4ade80; }
+  .pipe-diagram .hl-orange { color: #fb923c; }
+  .pipe-diagram .hl-purple { color: #c084fc; }
+  .pipe-diagram .hl-teal { color: #2dd4bf; }
+  .pipe-diagram .hl-gray { color: #6b7280; }
+
+  /* ===== PAIN GRADIENT ===== */
+  .pain-bar {
+    display: flex;
+    border-radius: 6px;
+    overflow: hidden;
+    height: 28px;
+    margin: 12px 0;
+  }
+  .pain-seg {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: white;
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== HERO ==================== -->
+<div class="hero">
+  <h1>How Motus Works</h1>
+  <p>Every screen, every database, every line of code -- explained so a 10-year-old could understand it.</p>
+</div>
+
+<!-- ==================== TABLE OF CONTENTS ==================== -->
+<div class="toc">
+  <div class="toc-inner">
+    <h3>What's Inside</h3>
+    <div class="toc-grid">
+      <a href="#what-is-motus"><span class="toc-num">1</span> What is Motus?</a>
+      <a href="#two-users"><span class="toc-num">2</span> The Two Main Users</a>
+      <a href="#tech-stack"><span class="toc-num">3</span> What It's Built With</a>
+      <a href="#architecture"><span class="toc-num">4</span> How the Pieces Connect</a>
+      <a href="#screens"><span class="toc-num">5</span> Every Screen in the App</a>
+      <a href="#auth"><span class="toc-num">6</span> Signing Up &amp; Logging In</a>
+      <a href="#patient-flow"><span class="toc-num">7</span> The Patient's Journey</a>
+      <a href="#therapist-flow"><span class="toc-num">8</span> The Therapist's Journey</a>
+      <a href="#database"><span class="toc-num">9</span> The Database</a>
+      <a href="#videos"><span class="toc-num">10</span> How Videos Work</a>
+      <a href="#exercises"><span class="toc-num">11</span> The Exercise Library</a>
+      <a href="#messaging"><span class="toc-num">12</span> Messaging System</a>
+      <a href="#security"><span class="toc-num">13</span> Keeping Things Safe</a>
+      <a href="#code-structure"><span class="toc-num">14</span> How the Code is Organized</a>
+      <a href="#deployment"><span class="toc-num">15</span> Deployment Status</a>
+      <a href="#history"><span class="toc-num">16</span> Build History</a>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 1. WHAT IS MOTUS ==================== -->
+<section id="what-is-motus">
+  <h2><span class="num" style="background:var(--blue-light);color:var(--blue)">1</span> What is Motus?</h2>
+  <p class="subtitle">The big picture in 30 seconds</p>
+
+  <div class="card">
+    <p>Motus is a <strong>physical rehabilitation web app</strong>. It connects patients who need to do therapy exercises (like hand rehabilitation after an injury) with the therapists who guide them.</p>
+    <p>Instead of only doing exercises in a clinic, patients can do them <strong>at home</strong>, record themselves on video, report their pain level, and have their therapist monitor everything remotely.</p>
+  </div>
+
+  <div class="analogy">
+    <strong>Think of it like this:</strong> Imagine you broke your finger and need to do specific hand exercises every day to get better. Your therapist gives you a list of exercises through the app, you do them at home while recording a video, and your therapist watches the videos later to make sure you're doing them right -- like a coach watching game film.
+  </div>
+
+  <div class="card">
+    <h3>Who Built It</h3>
+    <p><strong>Yash Saoji</strong> and <strong>Oliver Huelsbeck</strong>, starting in 2025. It was originally called <em>phalanX</em> (phalanges = finger bones), then rebranded to <em>Motus</em> (Latin for "movement"). The app is fully built and functional but hasn't launched publicly yet.</p>
+  </div>
+</section>
+
+<!-- ==================== 2. TWO USERS ==================== -->
+<section id="two-users">
+  <h2><span class="num" style="background:var(--green-light);color:var(--green)">2</span> The Two Main Users</h2>
+  <p class="subtitle">Everything in Motus revolves around two people</p>
+
+  <div class="two-col">
+    <div class="card role-card patient">
+      <div class="role-icon">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <h3>Patient</h3>
+      <p style="color:var(--gray-500);margin-bottom:12px">The person recovering from an injury</p>
+      <ul>
+        <li>Views their assigned exercises</li>
+        <li>Watches demo videos from therapist</li>
+        <li>Records themselves doing exercises</li>
+        <li>Reports pain level (1-10) per set</li>
+        <li>Tracks progress over time</li>
+        <li>Messages their therapist</li>
+      </ul>
+    </div>
+
+    <div class="card role-card therapist">
+      <div class="role-icon">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      </div>
+      <h3>Therapist</h3>
+      <p style="color:var(--gray-500);margin-bottom:12px">The professional guiding recovery</p>
+      <ul>
+        <li>Connects to patients via a clinic code</li>
+        <li>Assigns exercise protocols (what to do, how many reps)</li>
+        <li>Records demo videos showing proper form</li>
+        <li>Reviews patient session videos</li>
+        <li>Writes clinical notes</li>
+        <li>Monitors pain trends and adherence</li>
+        <li>Messages patients</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:4px">
+    <h3>There are also two other roles</h3>
+    <p><strong>Admin</strong> -- approves new therapist accounts (created manually in the database, not through the app).</p>
+    <p><strong>Therapist Pending</strong> -- a therapist who signed up but hasn't been approved yet. They're blocked from using the app until an admin says "yes."</p>
+  </div>
+</section>
+
+<!-- ==================== 3. TECH STACK ==================== -->
+<section id="tech-stack">
+  <h2><span class="num" style="background:var(--purple-light);color:var(--purple)">3</span> What It's Built With</h2>
+  <p class="subtitle">The tools and services behind the app</p>
+
+  <div class="analogy purple">
+    <strong>Think of building an app like building a house.</strong> You need building materials (the code), plumbing (the database), electricity (authentication), a mailbox (messaging), a security system (privacy rules), and a place to store big things like furniture (video storage). Motus uses different services for each of these.
+  </div>
+
+  <div class="arch-diagram">
+    <div class="arch-label">What the user sees (Frontend)</div>
+    <div class="arch-grid" style="grid-template-columns:1fr 1fr">
+      <div class="arch-box blue">
+        <h4>HTML + CSS + JavaScript</h4>
+        <ul>
+          <li>One HTML file (all screens)</li>
+          <li>One JS file (all logic)</li>
+          <li>One CSS file (all styles)</li>
+          <li>No framework (vanilla JS)</li>
+        </ul>
+      </div>
+      <div class="arch-box blue">
+        <h4>Vite (Dev Tool)</h4>
+        <ul>
+          <li>Runs the app locally for testing</li>
+          <li>Bundles the code for deployment</li>
+          <li>Hot reload during development</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="arch-connector">|</div>
+    <div class="arch-label">Behind the scenes (Backend Services)</div>
+
+    <div class="arch-grid">
+      <div class="arch-box green">
+        <h4>Firebase</h4>
+        <ul>
+          <li><strong>Auth</strong> -- login system</li>
+          <li><strong>Firestore</strong> -- database</li>
+          <li><strong>Hosting</strong> -- website lives here</li>
+          <li><strong>Cloud Functions</strong> -- background jobs</li>
+          <li><strong>App Check</strong> -- blocks bots</li>
+        </ul>
+      </div>
+      <div class="arch-box orange">
+        <h4>Cloudinary</h4>
+        <ul>
+          <li>Stores all video recordings</li>
+          <li>Demo videos from therapists</li>
+          <li>Session videos from patients</li>
+          <li>Auto-compresses videos</li>
+        </ul>
+      </div>
+      <div class="arch-box purple">
+        <h4>Other Services</h4>
+        <ul>
+          <li><strong>Sentry</strong> -- catches errors</li>
+          <li><strong>Chart.js</strong> -- pain charts</li>
+          <li><strong>Google Fonts</strong> -- typography</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="arch-connector">|</div>
+    <div class="arch-label">Dormant (built but turned off)</div>
+
+    <div class="arch-grid" style="grid-template-columns:1fr 1fr">
+      <div class="arch-box" style="border-color:var(--gray-300);background:var(--gray-50)">
+        <h4 style="color:var(--gray-500)">MediaPipe Hands</h4>
+        <ul>
+          <li style="color:var(--gray-500)">AI hand tracking (21 landmarks)</li>
+          <li style="color:var(--gray-500)">Would count reps automatically</li>
+          <li style="color:var(--gray-500)">Feature flag OFF currently</li>
+        </ul>
+      </div>
+      <div class="arch-box" style="border-color:var(--gray-300);background:var(--gray-50)">
+        <h4 style="color:var(--gray-500)">TensorFlow.js + MobileNet</h4>
+        <ul>
+          <li style="color:var(--gray-500)">ML angle training</li>
+          <li style="color:var(--gray-500)">Custom patient models</li>
+          <li style="color:var(--gray-500)">Feature flag OFF currently</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="analogy green">
+    <strong>Why no React or Angular?</strong> Motus uses plain JavaScript with no framework. For a two-person team, keeping everything in one file per layer (one HTML file, one JS file, one CSS file) is simpler than managing hundreds of component files. It's like writing in a notebook instead of setting up a filing cabinet -- for a small project, the notebook is faster.
+  </div>
+</section>
+
+<!-- ==================== 4. ARCHITECTURE ==================== -->
+<section id="architecture">
+  <h2><span class="num" style="background:var(--orange-light);color:var(--orange)">4</span> How the Pieces Connect</h2>
+  <p class="subtitle">The complete data flow from phone to cloud and back</p>
+
+  <div class="card">
+    <h3>The Big Picture</h3>
+    <div class="pipe-diagram"><span class="hl-blue">PATIENT'S PHONE/LAPTOP</span>              <span class="hl-green">THERAPIST'S COMPUTER</span>
+         |                                        |
+         |  opens app in browser                   |  opens app in browser
+         v                                        v
+   <span class="hl-purple">+---------------------+              +---------------------+</span>
+   <span class="hl-purple">|     index.html      |              |     index.html      |</span>
+   <span class="hl-purple">|     app.js          | <--- same -->|     app.js          |</span>
+   <span class="hl-purple">|     styles.css      |    code      |     styles.css      |</span>
+   <span class="hl-purple">+---------------------+              +---------------------+</span>
+         |                                        |
+         |  reads/writes data                     |  reads/writes data
+         v                                        v
+   <span class="hl-orange">+--------------------------------------------------+</span>
+   <span class="hl-orange">|              FIREBASE (Google Cloud)               |</span>
+   <span class="hl-orange">|                                                    |</span>
+   <span class="hl-orange">|  Auth        Firestore       Cloud Functions       |</span>
+   <span class="hl-orange">|  (login)     (database)      (background jobs)     |</span>
+   <span class="hl-orange">|                                                    |</span>
+   <span class="hl-orange">|  Hosting     App Check       Analytics             |</span>
+   <span class="hl-orange">|  (website)   (bot blocker)   (usage tracking)      |</span>
+   <span class="hl-orange">+--------------------------------------------------+</span>
+         |                          |
+         |  videos                  |  scheduled jobs
+         v                          v
+   <span class="hl-teal">+-----------------+</span>    <span class="hl-gray">+------------------------+</span>
+   <span class="hl-teal">|   CLOUDINARY    |</span>    <span class="hl-gray">| expireVideos (daily)   |</span>
+   <span class="hl-teal">|   (video CDN)   |</span>    <span class="hl-gray">| dailyBackup (daily)    |</span>
+   <span class="hl-teal">|                 |</span>    <span class="hl-gray">| deleteAccount (on-call)|</span>
+   <span class="hl-teal">+-----------------+</span>    <span class="hl-gray">| exportData (on-call)   |</span>
+                            <span class="hl-gray">+------------------------+</span></div>
+  </div>
+
+  <div class="analogy teal">
+    <strong>The key insight:</strong> Patient and therapist use the <em>exact same code</em>. The app checks your role after login and shows you a different set of screens. It's like the same building with two different lobbies -- patients enter one door, therapists enter another, but they share the same hallways (database, messaging, videos).
+  </div>
+</section>
+
+<!-- ==================== 5. SCREENS ==================== -->
+<section id="screens">
+  <h2><span class="num" style="background:var(--teal-light);color:var(--teal)">5</span> Every Screen in the App</h2>
+  <p class="subtitle">15 screens, 10+ modals -- here's what each one does</p>
+
+  <div class="card">
+    <h3 style="color:var(--gray-500)">Login &amp; Setup Screens</h3>
+    <div class="screen-grid">
+      <div class="screen-card auth-s">
+        <div class="screen-name">Login</div>
+        <div class="screen-desc">Email + password. Locks out after 5 bad attempts for 15 minutes.</div>
+      </div>
+      <div class="screen-card auth-s">
+        <div class="screen-name">Sign Up</div>
+        <div class="screen-desc">3 steps: credentials, language picker, demographics.</div>
+      </div>
+      <div class="screen-card auth-s">
+        <div class="screen-name">Forgot Password</div>
+        <div class="screen-desc">Enter email, get a reset link.</div>
+      </div>
+      <div class="screen-card auth-s">
+        <div class="screen-name">Consent</div>
+        <div class="screen-desc">HIPAA privacy notice. Must accept before accessing anything.</div>
+      </div>
+      <div class="screen-card auth-s">
+        <div class="screen-name">Connect</div>
+        <div class="screen-desc">Patient enters 6-digit code to link to their therapist.</div>
+      </div>
+      <div class="screen-card auth-s">
+        <div class="screen-name">Pending</div>
+        <div class="screen-desc">Therapist waiting for admin approval.</div>
+      </div>
+      <div class="screen-card auth-s">
+        <div class="screen-name">Admin Panel</div>
+        <div class="screen-desc">Approve or reject therapist signups.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--blue)">Patient Screens</h3>
+    <div class="screen-grid">
+      <div class="screen-card patient-s">
+        <div class="screen-name">Home</div>
+        <div class="screen-desc">Today's exercises, completion %, adherence stats, streak badge, "Start Session" button.</div>
+      </div>
+      <div class="screen-card patient-s">
+        <div class="screen-name">Exercises</div>
+        <div class="screen-desc">Full list of assigned exercises with details.</div>
+      </div>
+      <div class="screen-card patient-s">
+        <div class="screen-name">Camera</div>
+        <div class="screen-desc">Record yourself doing exercises. Flip camera, start/stop, per-set input.</div>
+      </div>
+      <div class="screen-card patient-s">
+        <div class="screen-name">Progress</div>
+        <div class="screen-desc">Session history by day, pain trend chart, video playback.</div>
+      </div>
+      <div class="screen-card patient-s">
+        <div class="screen-name">Messages</div>
+        <div class="screen-desc">Text thread with your therapist.</div>
+      </div>
+      <div class="screen-card patient-s">
+        <div class="screen-name">Settings</div>
+        <div class="screen-desc">Profile, language, download data, delete account, disconnect.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--green)">Therapist Screens</h3>
+    <div class="screen-grid">
+      <div class="screen-card therapist-s">
+        <div class="screen-name">Dashboard</div>
+        <div class="screen-desc">Patient list sidebar + main panel with vitals, protocols, charts, notes, messages, session history.</div>
+      </div>
+      <div class="screen-card therapist-s">
+        <div class="screen-name">ML Trainer</div>
+        <div class="screen-desc">Train custom angle models per patient. Currently dormant (feature flag off).</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 6. AUTH ==================== -->
+<section id="auth">
+  <h2><span class="num" style="background:var(--red-light);color:var(--red)">6</span> Signing Up &amp; Logging In</h2>
+  <p class="subtitle">How users get into the app and stay safe</p>
+
+  <div class="card">
+    <h3>The Login Flow</h3>
+    <div class="flow">
+      <div class="flow-step blue">User opens app in browser<small>phalanx-firebase-database.web.app</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step">Enter email + password<small>Firebase Auth checks credentials</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step purple">App reads user's role from database<small>patient? therapist? admin? pending?</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step green">Route to correct home screen<small>Patient home or Therapist dashboard</small></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Patient Signup (3 Steps)</h3>
+    <div class="flow">
+      <div class="flow-step blue">Step 1: Name, email, password, role<small>Toggle: "I'm a patient" or "I'm a therapist"</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step blue">Step 2: Pick your language<small>7 options available</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step blue">Step 3: Demographics<small>Age, injury area, how you heard about Motus</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step orange">Email verification required<small>Check your inbox for a link from Firebase</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step red">Consent screen<small>Must accept HIPAA privacy notice</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step green">You're in!</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Security Features</h3>
+    <table class="data-table">
+      <tr><th>Feature</th><th>How It Works</th></tr>
+      <tr><td>Login lockout</td><td>5 wrong passwords = locked out for 15 minutes</td></tr>
+      <tr><td>Session timeout</td><td>20 minutes of no activity = auto-logout. Warning at 18 min. Recording bypasses this.</td></tr>
+      <tr><td>App Check</td><td>reCAPTCHA v3 in production -- blocks bots from calling the database</td></tr>
+      <tr><td>Email verification</td><td>Must click a link in your email before accessing the app</td></tr>
+    </table>
+  </div>
+
+  <div class="analogy orange">
+    <strong>The clinic code system:</strong> When a patient signs up, they aren't connected to any therapist yet. The therapist gives them a 6-character code (generated from the therapist's email). The patient types it in, and the app links them together. It's like a friend code in a video game -- type it in, and you're connected.
+  </div>
+</section>
+
+<!-- ==================== 7. PATIENT FLOW ==================== -->
+<section id="patient-flow">
+  <h2><span class="num" style="background:var(--blue-light);color:var(--blue)">7</span> The Patient's Journey</h2>
+  <p class="subtitle">What patients see and do, step by step</p>
+
+  <div class="card">
+    <h3>Home Screen -- The Daily Dashboard</h3>
+    <p>When a patient opens the app, they see:</p>
+    <ul style="padding-left:20px;color:var(--gray-700)">
+      <li><strong>Today's Plan</strong> -- their assigned exercises with checkmarks for completed ones</li>
+      <li><strong>Stats Strip</strong> -- 7-day adherence % and average pain, with arrows showing if things are getting better or worse compared to last week</li>
+      <li><strong>Streak Badge</strong> -- how many days in a row they've done their exercises</li>
+      <li><strong>Start Session button</strong> -- the big blue button to begin exercising</li>
+      <li><strong>Bottom Nav</strong> -- Progress and Messages tabs</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Doing an Exercise Session</h3>
+    <p>This is the core of the app. Here's exactly what happens:</p>
+    <div class="flow">
+      <div class="flow-step blue">Tap "Start Session" or pick an exercise<small>App shows the assigned exercise details</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step purple">Watch demo video (optional)<small>Therapist-recorded video showing proper form</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step">Camera opens<small>Browser asks for camera + microphone permission</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step green">Record Set 1<small>Patient does the exercise while recording</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step orange">End set -- input reps + pain<small>How many reps? Pain level 1-10? Any notes?</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step purple">Video uploads to Cloudinary<small>Happens in the background while patient rests</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step">Repeat for remaining sets<small>Set 2, Set 3, etc.</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step teal">Session saved to Firestore<small>All data: reps, pain, video URLs, timestamps</small></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>The Pain Scale</h3>
+    <p>After each set, patients rate their pain from 1 to 10. The app shows this as colored bars:</p>
+    <div class="pain-bar">
+      <div class="pain-seg" style="background:#22c55e">1</div>
+      <div class="pain-seg" style="background:#4ade80">2</div>
+      <div class="pain-seg" style="background:#84cc16">3</div>
+      <div class="pain-seg" style="background:#eab308">4</div>
+      <div class="pain-seg" style="background:#f59e0b">5</div>
+      <div class="pain-seg" style="background:#f97316">6</div>
+      <div class="pain-seg" style="background:#ef4444">7</div>
+      <div class="pain-seg" style="background:#dc2626">8</div>
+      <div class="pain-seg" style="background:#b91c1c">9</div>
+      <div class="pain-seg" style="background:#991b1b">10</div>
+    </div>
+    <p style="font-size:0.85rem;color:var(--gray-500)">Green = barely noticed, Yellow = moderate, Red = severe. Colors are set dynamically by JavaScript, not CSS classes.</p>
+  </div>
+
+  <div class="card">
+    <h3>Progress Screen</h3>
+    <p>Patients can look back at all their previous sessions, grouped by day. Each day expands to show individual sets with video playback, reps, pain, and notes. A <strong>pain trend chart</strong> (powered by Chart.js) shows how pain has changed over time -- the goal is to see that line going down.</p>
+  </div>
+</section>
+
+<!-- ==================== 8. THERAPIST FLOW ==================== -->
+<section id="therapist-flow">
+  <h2><span class="num" style="background:var(--green-light);color:var(--green)">8</span> The Therapist's Journey</h2>
+  <p class="subtitle">What therapists see and do</p>
+
+  <div class="card">
+    <h3>The Dashboard</h3>
+    <p>Therapists see a split-screen layout:</p>
+    <div class="two-col">
+      <div style="background:var(--green-light);border-radius:var(--radius);padding:16px">
+        <h4 style="font-size:0.9rem;margin-bottom:8px">Left: Sidebar</h4>
+        <ul style="font-size:0.85rem;padding-left:16px;color:var(--gray-700)">
+          <li>Motus logo</li>
+          <li>Clinic code (tap to copy)</li>
+          <li>Protocol Library button</li>
+          <li>Patient search bar</li>
+          <li>Connected patients list</li>
+          <li>Sign out button</li>
+        </ul>
+      </div>
+      <div style="background:var(--blue-bg);border-radius:var(--radius);padding:16px">
+        <h4 style="font-size:0.9rem;margin-bottom:8px">Right: Patient Detail</h4>
+        <ul style="font-size:0.85rem;padding-left:16px;color:var(--gray-700)">
+          <li>Patient vitals (adherence, pain, last session)</li>
+          <li>Prescribed protocol list</li>
+          <li>Pain trend chart (1/7/30 day toggle)</li>
+          <li>Clinical notes (rich text editor)</li>
+          <li>Session history (expandable)</li>
+          <li>Messaging thread</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Assigning an Exercise Protocol</h3>
+    <div class="flow">
+      <div class="flow-step green">Click "Edit Protocol" on a patient</div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step">Search the exercise library<small>19 built-in hand/wrist exercises</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step green">Configure: reps, sets, frequency, notes<small>e.g., 10 reps, 3 sets, daily</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step purple">Optionally record a demo video<small>Show the patient how to do it properly</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step teal">Save -- appears on patient's home screen</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>What Therapists Monitor</h3>
+    <table class="data-table">
+      <tr><th>Metric</th><th>What It Tells Them</th></tr>
+      <tr><td>Adherence %</td><td>How many of the last 7 days the patient did at least 1 session. Shows trend vs. prior week.</td></tr>
+      <tr><td>Avg Pain</td><td>Average pain score over last 7 days. Red flag if increasing.</td></tr>
+      <tr><td>Last Session</td><td>"today", "2d ago", etc. Alerts therapist if patient went quiet.</td></tr>
+      <tr><td>Sessions/7d</td><td>How many sessions this week vs. last week.</td></tr>
+      <tr><td>Pain Chart</td><td>Line graph with 1-day, 7-day, or 30-day view. Goal: downward trend.</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Extra Tools</h3>
+    <p><strong>Bulk Assign</strong> -- assign the same exercise to multiple patients at once. Useful for group therapy protocols.</p>
+    <p><strong>Protocol Library</strong> -- therapists can customize the exercise library: hide exercises they don't use, create custom ones, override the defaults for built-in exercises. Each therapist has their own isolated library.</p>
+    <p><strong>Clinical Notes</strong> -- a rich-text editor (bold, italic, bullet lists) that auto-saves. Stored per patient.</p>
+  </div>
+</section>
+
+<!-- ==================== 9. DATABASE ==================== -->
+<section id="database">
+  <h2><span class="num" style="background:var(--orange-light);color:var(--orange)">9</span> The Database</h2>
+  <p class="subtitle">What gets saved, where, and why</p>
+
+  <div class="analogy">
+    <strong>Think of the database like a filing cabinet.</strong> Each drawer (called a "collection") holds a different type of document. When you do something in the app -- log in, record a session, send a message -- it writes a document into the right drawer. When you open a screen, it reads documents from the right drawers to show you your data.
+  </div>
+
+  <div class="card">
+    <h3>Firestore Collections (The Drawers)</h3>
+    <p>Motus uses <strong>Firebase Firestore</strong>, a NoSQL database. Data is organized into collections, each containing documents:</p>
+    <table class="data-table">
+      <tr><th>Collection</th><th>What's In It</th><th>Document ID</th></tr>
+      <tr>
+        <td><strong>users</strong></td>
+        <td>Name, role, consent status, language, demographics</td>
+        <td>The user's email</td>
+      </tr>
+      <tr>
+        <td><strong>connections</strong></td>
+        <td>List of patient emails linked to this therapist</td>
+        <td>Therapist's email</td>
+      </tr>
+      <tr>
+        <td><strong>protocols</strong></td>
+        <td>Exercise assignments (type, reps, sets, frequency, demo video URL)</td>
+        <td>Patient's email</td>
+      </tr>
+      <tr>
+        <td><strong>sessions</strong></td>
+        <td>Each exercise session: reps, pain, video URL, date, per-set data</td>
+        <td>Auto-generated</td>
+      </tr>
+      <tr>
+        <td><strong>messages</strong></td>
+        <td>Each message: from, to, text, timestamp, read status</td>
+        <td>Auto-generated</td>
+      </tr>
+      <tr>
+        <td><strong>clinicalNotes</strong></td>
+        <td>Therapist's notes about a patient (HTML from rich-text editor)</td>
+        <td>Patient's email</td>
+      </tr>
+      <tr>
+        <td><strong>therapistLibrary</strong></td>
+        <td>Custom exercises, hidden built-ins, overrides</td>
+        <td>Therapist's email</td>
+      </tr>
+      <tr>
+        <td><strong>auditLog</strong></td>
+        <td>Every important action: who did what, when. Append-only (can't delete).</td>
+        <td>Auto-generated</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="svg-diagram">
+    <svg width="700" height="420" viewBox="0 0 700 420" fill="none" xmlns="http://www.w3.org/2000/svg" style="font-family:Inter,sans-serif">
+      <!-- Patient -->
+      <rect x="20" y="30" width="120" height="50" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+      <text x="80" y="60" text-anchor="middle" font-size="14" font-weight="600" fill="#2563eb">Patient</text>
+
+      <!-- Therapist -->
+      <rect x="560" y="30" width="120" height="50" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+      <text x="620" y="60" text-anchor="middle" font-size="14" font-weight="600" fill="#16a34a">Therapist</text>
+
+      <!-- Central DB -->
+      <rect x="230" y="150" width="240" height="60" rx="12" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+      <text x="350" y="175" text-anchor="middle" font-size="13" font-weight="700" fill="#ea580c">FIRESTORE DATABASE</text>
+      <text x="350" y="198" text-anchor="middle" font-size="11" fill="#6b7280">Google Cloud</text>
+
+      <!-- Collections as mini-boxes -->
+      <rect x="50" y="270" width="100" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="100" y="293" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">users</text>
+
+      <rect x="170" y="270" width="100" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="220" y="293" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">sessions</text>
+
+      <rect x="290" y="270" width="100" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="340" y="293" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">protocols</text>
+
+      <rect x="410" y="270" width="100" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="460" y="293" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">messages</text>
+
+      <rect x="530" y="270" width="120" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="590" y="293" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">connections</text>
+
+      <rect x="120" y="340" width="120" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="180" y="363" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">clinicalNotes</text>
+
+      <rect x="270" y="340" width="140" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="340" y="363" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">therapistLibrary</text>
+
+      <rect x="440" y="340" width="120" height="36" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5"/>
+      <text x="500" y="363" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">auditLog</text>
+
+      <!-- Lines from Patient -->
+      <line x1="80" y1="80" x2="80" y2="130" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="4"/>
+      <line x1="80" y1="130" x2="300" y2="155" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="150" y="120" font-size="10" fill="#6b7280">writes sessions, reads protocols</text>
+
+      <!-- Lines from Therapist -->
+      <line x1="620" y1="80" x2="620" y2="130" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="4"/>
+      <line x1="620" y1="130" x2="400" y2="155" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="4"/>
+      <text x="480" y="120" font-size="10" fill="#6b7280">writes protocols, reads sessions</text>
+
+      <!-- Lines from DB to collections -->
+      <line x1="350" y1="210" x2="100" y2="270" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="350" y1="210" x2="220" y2="270" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="350" y1="210" x2="340" y2="270" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="350" y1="210" x2="460" y2="270" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="350" y1="210" x2="590" y2="270" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="280" y1="240" x2="180" y2="340" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="350" y1="240" x2="340" y2="340" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="420" y1="240" x2="500" y2="340" stroke="#d1d5db" stroke-width="1"/>
+    </svg>
+  </div>
+
+  <div class="analogy green">
+    <strong>Why is the document ID the user's email?</strong> It makes lookups instant. When you log in, the app knows your email, so it can go directly to <code>users/you@email.com</code> without searching through every document. It's like a phonebook organized by name -- you look up "Saoji" and go straight to the right page.
+  </div>
+</section>
+
+<!-- ==================== 10. VIDEOS ==================== -->
+<section id="videos">
+  <h2><span class="num" style="background:var(--teal-light);color:var(--teal)">10</span> How Videos Work</h2>
+  <p class="subtitle">Recording, uploading, storing, and watching</p>
+
+  <div class="card">
+    <h3>The Video Pipeline</h3>
+    <div class="hflow">
+      <div class="hflow-step blue">Camera records</div>
+      <div class="hflow-arrow"></div>
+      <div class="hflow-step purple">Blob created</div>
+      <div class="hflow-arrow"></div>
+      <div class="hflow-step orange">Upload to Cloudinary</div>
+      <div class="hflow-arrow"></div>
+      <div class="hflow-step teal">URL saved to Firestore</div>
+      <div class="hflow-arrow"></div>
+      <div class="hflow-step green">Therapist watches</div>
+    </div>
+    <p style="margin-top:16px;font-size:0.9rem;color:var(--gray-700)">The browser's <code>MediaRecorder</code> API captures video from the camera. When recording stops, it produces a "blob" (a chunk of binary data). That blob gets uploaded to Cloudinary via a simple <code>fetch()</code> POST request. Cloudinary returns a URL, which gets saved into the Firestore session document. When the therapist clicks "play," it loads the video from that Cloudinary URL.</p>
+  </div>
+
+  <div class="card">
+    <h3>Three Types of Videos</h3>
+    <table class="data-table">
+      <tr><th>Type</th><th>Quality</th><th>Max Length</th><th>Expires After</th><th>Used For</th></tr>
+      <tr><td><strong>Demo</strong></td><td>800 kbps (best)</td><td>2 minutes</td><td>Never</td><td>Therapist showing proper exercise form</td></tr>
+      <tr><td><strong>Session</strong></td><td>500 kbps</td><td>10 minutes</td><td>14 days</td><td>Patient recording their exercise set</td></tr>
+      <tr><td><strong>Message</strong></td><td>300 kbps (smallest)</td><td>1 minute</td><td>7 days</td><td>Video messages between patient and therapist</td></tr>
+    </table>
+  </div>
+
+  <div class="analogy purple">
+    <strong>Why Cloudinary and not Firebase?</strong> Cloudinary is a service specifically designed for video -- it handles compression, format conversion, and fast delivery automatically. Uploading is "unsigned" (no secret key needed in the browser), which keeps things simple. Deleting old videos requires the secret key, so that happens on the server side through a Cloud Function. It's like using YouTube to host videos instead of trying to build your own video player from scratch.
+  </div>
+
+  <div class="card">
+    <h3>Cloud Function: Video Expiry</h3>
+    <p>A scheduled Cloud Function called <code>expireVideos</code> runs once per day. It:</p>
+    <ol style="padding-left:20px;color:var(--gray-700)">
+      <li>Finds all session documents where <code>videoExpireAt</code> is in the past</li>
+      <li>Calls the Cloudinary API (with the secret key) to delete the video file</li>
+      <li>Sets <code>videoUrl</code> to null in Firestore so the app knows it's gone</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ==================== 11. EXERCISES ==================== -->
+<section id="exercises">
+  <h2><span class="num" style="background:var(--blue-light);color:var(--blue)">11</span> The Exercise Library</h2>
+  <p class="subtitle">19 built-in hand and wrist exercises</p>
+
+  <div class="card">
+    <p>Motus comes with 19 exercises organized into 6 categories, all focused on hand rehabilitation:</p>
+
+    <h4 style="margin:16px 0 8px;color:var(--blue)">Tendon Gliding (4 exercises)</h4>
+    <div class="exercise-grid">
+      <div class="exercise-item"><span class="exercise-dot" style="background:#3b82f6"></span>Full Fist</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#3b82f6"></span>Hook Fist</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#3b82f6"></span>Tabletop Position</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#3b82f6"></span>Straight Fist</div>
+    </div>
+
+    <h4 style="margin:16px 0 8px;color:var(--green)">Individual Finger (5 exercises)</h4>
+    <div class="exercise-grid">
+      <div class="exercise-item"><span class="exercise-dot" style="background:#16a34a"></span>Index Finger Flexion</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#16a34a"></span>Middle Finger Flexion</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#16a34a"></span>Ring Finger Flexion</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#16a34a"></span>Pinky Finger Flexion</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#16a34a"></span>Thumb Flexion</div>
+    </div>
+
+    <h4 style="margin:16px 0 8px;color:var(--purple)">Blocking &amp; Isolation (2 exercises)</h4>
+    <div class="exercise-grid">
+      <div class="exercise-item"><span class="exercise-dot" style="background:#7c3aed"></span>PIP Blocking</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#7c3aed"></span>DIP Blocking</div>
+    </div>
+
+    <h4 style="margin:16px 0 8px;color:var(--orange)">Opposition &amp; Pinch (4 exercises)</h4>
+    <div class="exercise-grid">
+      <div class="exercise-item"><span class="exercise-dot" style="background:#ea580c"></span>Thumb-Index Opposition</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#ea580c"></span>Thumb-Middle Opposition</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#ea580c"></span>Thumb-Ring Opposition</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#ea580c"></span>Thumb-Little Opposition</div>
+    </div>
+
+    <h4 style="margin:16px 0 8px;color:var(--teal)">Spreading (2 exercises)</h4>
+    <div class="exercise-grid">
+      <div class="exercise-item"><span class="exercise-dot" style="background:#0d9488"></span>Finger Abduction</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#0d9488"></span>Index-Middle Spread</div>
+    </div>
+
+    <h4 style="margin:16px 0 8px;color:var(--red)">Grip &amp; Composite (2 exercises)</h4>
+    <div class="exercise-grid">
+      <div class="exercise-item"><span class="exercise-dot" style="background:#dc2626"></span>Grip Squeeze</div>
+      <div class="exercise-item"><span class="exercise-dot" style="background:#dc2626"></span>Finger Flexion</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Each Exercise Has Default Settings</h3>
+    <p>The <code>EXERCISE_DEFAULTS</code> constant in app.js defines what each exercise measures:</p>
+    <table class="data-table">
+      <tr><th>Metric Type</th><th>What It Measures</th><th>Used By</th></tr>
+      <tr><td><strong>Angle</strong></td><td>Joint flexion/extension in degrees. Has flexAt/extendAt thresholds per joint.</td><td>Fists, blocking, individual fingers</td></tr>
+      <tr><td><strong>Distance</strong></td><td>How far apart two fingertips are (0 = touching, 1 = fully open)</td><td>Opposition exercises, spreading</td></tr>
+      <tr><td><strong>Abduction</strong></td><td>How wide fingers spread apart</td><td>Finger abduction</td></tr>
+    </table>
+    <p style="margin-top:12px"><span class="feature-tag tag-dormant">Dormant</span> These measurements only work when the ML angle tracking feature flag is ON. Currently, the manual camera mode just records video without measuring angles.</p>
+  </div>
+</section>
+
+<!-- ==================== 12. MESSAGING ==================== -->
+<section id="messaging">
+  <h2><span class="num" style="background:var(--purple-light);color:var(--purple)">12</span> Messaging System</h2>
+  <p class="subtitle">Simple, real-time text messaging</p>
+
+  <div class="card">
+    <p>Motus has built-in messaging between patients and their connected therapist. It works like a simple text chat.</p>
+    <div class="flow">
+      <div class="flow-step purple">Patient types message + hits Send<small>sendMessage(from, to, text)</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step orange">Document written to Firestore<small>messages collection: from, to, text, timestamp, read status</small></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-step green">Therapist's app detects new message<small>Firestore real-time listener auto-updates the thread</small></div>
+    </div>
+    <p style="margin-top:16px">Messages are organized into <strong>threads</strong>. A thread ID is just both email addresses sorted and joined with a colon (e.g., <code>doctor@clinic.com:patient@gmail.com</code>). Each message tracks who has read it. Unread counts show as badges.</p>
+  </div>
+
+  <div class="analogy">
+    <strong>How real-time works:</strong> Firestore has a feature called "listeners" -- the app subscribes to changes in the messages collection, and whenever a new document appears, the screen updates automatically. No refreshing needed. It's like having a mailbox that rings a bell every time a new letter arrives.
+  </div>
+</section>
+
+<!-- ==================== 13. SECURITY ==================== -->
+<section id="security">
+  <h2><span class="num" style="background:var(--red-light);color:var(--red)">13</span> Keeping Things Safe</h2>
+  <p class="subtitle">HIPAA compliance, privacy rules, and data protection</p>
+
+  <div class="card">
+    <h3>Why This Matters More Than Most Apps</h3>
+    <p>Motus handles <strong>Protected Health Information (PHI)</strong> -- things like medical videos, pain levels, injury details, and therapist notes. In the United States, health data is protected by a law called <strong>HIPAA</strong>. Breaking HIPAA rules can result in massive fines. So Motus has to be much more careful than a typical app.</p>
+  </div>
+
+  <div class="card">
+    <h3>Security Layers</h3>
+    <table class="data-table">
+      <tr><th>Layer</th><th>What It Does</th><th>How</th></tr>
+      <tr><td>Firestore Rules</td><td>Controls who can read/write what data</td><td>Patients can only see their own data. Therapists can only see data for patients connected to them. Audit log is append-only.</td></tr>
+      <tr><td>App Check</td><td>Blocks fake/bot requests</td><td>reCAPTCHA v3 in production verifies the request comes from a real browser, not a script.</td></tr>
+      <tr><td>XSS Protection</td><td>Prevents code injection</td><td>All user-generated text is escaped before rendering. No raw innerHTML with user content.</td></tr>
+      <tr><td>Input Validation</td><td>Rejects bad data</td><td>Length limits, type checking on all form inputs.</td></tr>
+      <tr><td>Session Timeout</td><td>Auto-logout on idle</td><td>20 minutes of no clicks = logged out. Warning at 18 min.</td></tr>
+      <tr><td>Audit Logging</td><td>Records every important action</td><td>Who did what, when. Can never be deleted or modified.</td></tr>
+      <tr><td>PHI Scrubbing</td><td>Keeps health data out of error reports</td><td>Sentry replaces email addresses with [email] before sending.</td></tr>
+      <tr><td>Consent</td><td>Legal acknowledgment</td><td>Patients must read and accept the HIPAA NPP before accessing any screen.</td></tr>
+      <tr><td>Data Export</td><td>HIPAA Right of Access</td><td>Cloud Function returns all of a patient's data as JSON on request.</td></tr>
+      <tr><td>Account Deletion</td><td>HIPAA Right to Delete</td><td>Cloud Function deletes everything: user doc, sessions, messages, videos, Firebase Auth account.</td></tr>
+      <tr><td>Automated Backups</td><td>Disaster recovery</td><td>Daily Firestore export to Google Cloud Storage. 90-day retention.</td></tr>
+      <tr><td>Video Expiry</td><td>Minimizes stored PHI</td><td>Session videos auto-delete after 14 days. Message videos after 7 days.</td></tr>
+    </table>
+  </div>
+
+  <div class="analogy orange">
+    <strong>Think of Firestore rules like a bouncer at a club.</strong> Every time someone tries to read or write data, the bouncer checks: "Are you logged in? Is this YOUR data? Are you a therapist connected to THIS patient?" If any answer is no, the request is blocked -- the code never even runs. This happens at the database level, so even if someone tried to hack the JavaScript, the database itself would reject the request.
+  </div>
+</section>
+
+<!-- ==================== 14. CODE STRUCTURE ==================== -->
+<section id="code-structure">
+  <h2><span class="num" style="background:var(--gray-200);color:var(--gray-700)">14</span> How the Code is Organized</h2>
+  <p class="subtitle">One file per layer -- the intentional simplicity</p>
+
+  <div class="card">
+    <h3>File Structure</h3>
+    <div class="pipe-diagram"><span class="hl-blue">motus-yash/</span>
+  <span class="hl-green">code/</span>                        <span class="hl-gray">-- the entire frontend</span>
+    index.html               <span class="hl-gray">-- 971 lines, every screen + modal</span>
+    app.js                   <span class="hl-gray">-- 6,075 lines, ALL JavaScript</span>
+    styles.css               <span class="hl-gray">-- 3,995 lines, ALL styles</span>
+
+  <span class="hl-orange">functions/</span>                   <span class="hl-gray">-- Firebase Cloud Functions (server)</span>
+    index.js                 <span class="hl-gray">-- expireVideos, dailyBackup, deleteAccount, exportData</span>
+    package.json
+
+  <span class="hl-purple">firestore.rules</span>              <span class="hl-gray">-- who can read/write what</span>
+  firestore.indexes.json       <span class="hl-gray">-- compound query indexes</span>
+  firebase.json                <span class="hl-gray">-- hosting + functions config</span>
+  vite.config.mjs              <span class="hl-gray">-- dev server + build settings</span>
+  package.json                 <span class="hl-gray">-- dependencies</span></div>
+  </div>
+
+  <div class="card">
+    <h3>app.js -- The 17 Sections</h3>
+    <p>All 6,075 lines of JavaScript live in one file, divided into numbered sections:</p>
+    <table class="data-table">
+      <tr><th>#</th><th>Section</th><th>Lines</th><th>What It Does</th></tr>
+      <tr><td>1</td><td>Auth &amp; State</td><td>15-185</td><td>Firebase setup, constants, state variables, video upload function</td></tr>
+      <tr><td>2</td><td>Navigation</td><td>186-253</td><td>Screen switching, role selection, session persistence</td></tr>
+      <tr><td>3</td><td>Login/Signup/Forgot</td><td>254-344</td><td>Authentication forms, lockout logic</td></tr>
+      <tr><td>4</td><td>Connect</td><td>345-370</td><td>Clinic code input, patient-therapist linking</td></tr>
+      <tr><td>5</td><td>Login Success/Logout</td><td>371-462</td><td>Post-login routing, consent checking, session restore</td></tr>
+      <tr><td>5b</td><td>Admin Panel</td><td>463-499</td><td>Approve/reject therapist accounts</td></tr>
+      <tr><td>6</td><td>Patient Home</td><td>500-1034</td><td>Dashboard, exercise sessions, manual camera, all recording logic</td></tr>
+      <tr><td>7</td><td>Protocol System</td><td>1035-1847</td><td>Exercise library, demo recording, protocol CRUD</td></tr>
+      <tr><td>8</td><td>Therapist Panel</td><td>1848-2954</td><td>Dashboard, patient detail, protocol form, bulk assign, library</td></tr>
+      <tr><td style="color:var(--gray-500)">9</td><td style="color:var(--gray-500)">Rep Counter</td><td style="color:var(--gray-500)">2955-3262</td><td style="color:var(--gray-500)">Angle measurement, rep counting (DORMANT)</td></tr>
+      <tr><td>10</td><td>Set Tracking</td><td>3263-3484</td><td>Set dots, rest timer, session summary overlay</td></tr>
+      <tr><td style="color:var(--gray-500)">11</td><td style="color:var(--gray-500)">Patient Camera</td><td style="color:var(--gray-500)">3485-3877</td><td style="color:var(--gray-500)">MediaPipe camera, video compression (DORMANT path)</td></tr>
+      <tr><td>12</td><td>Progress Screen</td><td>3878-4163</td><td>Session history, pain charts, video playback</td></tr>
+      <tr><td style="color:var(--gray-500)">13</td><td style="color:var(--gray-500)">Joint Selector</td><td style="color:var(--gray-500)">4164-4735</td><td style="color:var(--gray-500)">Joint angle monitoring charts (DORMANT)</td></tr>
+      <tr><td>15</td><td>Messaging</td><td>4736-4928</td><td>Message sending, threads, read status</td></tr>
+      <tr><td style="color:var(--gray-500)">17</td><td style="color:var(--gray-500)">ML Angle Trainer</td><td style="color:var(--gray-500)">4929-6005</td><td style="color:var(--gray-500)">TensorFlow model training (DORMANT)</td></tr>
+      <tr><td>--</td><td>Window Exports</td><td>6006-6075</td><td>Exposes functions to HTML onclick handlers</td></tr>
+    </table>
+    <p style="margin-top:12px;font-size:0.85rem;color:var(--gray-500)">Sections 14 and 16 don't exist (skipped in numbering). Sections 9, 11, 13, and 17 are dormant -- their code is fully written but only activates when ANGLE_TRACKING_ENABLED = true.</p>
+  </div>
+
+  <div class="analogy teal">
+    <strong>Why one giant file instead of many small ones?</strong> This was a deliberate decision (documented as Decision D-1). For a two-person team using AI-assisted coding, having everything in one file makes it easy to find things and make changes that touch multiple parts of the app. It's like keeping all your homework in one binder instead of 17 different folders -- less organized, but nothing ever gets lost.
+  </div>
+
+  <div class="card">
+    <h3>The Window Exports Trick</h3>
+    <p>Because <code>app.js</code> is loaded as an ES module (with <code>type="module"</code>), functions inside it are private by default. HTML buttons use <code>onclick="functionName()"</code>, which only works if the function is a global variable on <code>window</code>.</p>
+    <p>Solution: at the very end of app.js, there's a big <code>Object.assign(window, { ... })</code> block that explicitly exposes every function that HTML buttons need to call. If you write a new function and forget to add it here, clicking the button will do nothing.</p>
+  </div>
+</section>
+
+<!-- ==================== 15. DEPLOYMENT ==================== -->
+<section id="deployment">
+  <h2><span class="num" style="background:var(--green-light);color:var(--green)">15</span> Deployment Status</h2>
+  <p class="subtitle">What's done, what's left, and what's blocking launch</p>
+
+  <div class="card">
+    <h3>49 items across 5 phases</h3>
+
+    <div class="deploy-phase">
+      <h4>Phase A: Code Fixes (8/9 done)</h4>
+      <p style="font-size:0.85rem;color:var(--gray-500)">Security holes patched, rebranded from phalanX, Firebase migrated to new project.</p>
+      <table class="data-table">
+        <tr><td>Rebrand phalanX to Motus</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Fix XSS vulnerabilities</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Lock down Firebase API key</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Firebase App Check</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Restrict Cloudinary preset</td><td><span class="status-badge status-blocked">Needs Blaze</span></td></tr>
+        <tr><td>Migrate to motus-prod project</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Session timeout</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Input validation</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Code cleanup</td><td><span class="status-badge status-done">Done</span></td></tr>
+      </table>
+    </div>
+
+    <div class="deploy-phase">
+      <h4>Phase B: Testing (8/8 done)</h4>
+      <p style="font-size:0.85rem;color:var(--gray-500)">CI/CD, staging environment, Firebase rules tests, Playwright E2E, Lighthouse audit.</p>
+      <p><span class="status-badge status-done">All Complete</span></p>
+    </div>
+
+    <div class="deploy-phase">
+      <h4>Phase C: Compliance (11/12 done)</h4>
+      <p style="font-size:0.85rem;color:var(--gray-500)">HIPAA requirements: privacy policy, audit logging, backups, data export, account deletion.</p>
+      <table class="data-table">
+        <tr><td>BAAs (Firebase + Cloudinary)</td><td><span class="status-badge status-blocked">Blocked</span></td></tr>
+        <tr><td>Everything else</td><td><span class="status-badge status-done">Done</span></td></tr>
+      </table>
+    </div>
+
+    <div class="deploy-phase">
+      <h4>Phase D: Deployment (5/12 done)</h4>
+      <p style="font-size:0.85rem;color:var(--gray-500)">Monitoring, custom domain, PWA, native apps, app store submissions.</p>
+      <table class="data-table">
+        <tr><td>Error monitoring (Sentry)</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Analytics</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Budget alerts</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>PWA manifest</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Capacitor setup</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td>Custom domain</td><td><span class="status-badge status-blocked">Blocked -- need to buy domain</span></td></tr>
+        <tr><td>Uptime monitoring, TestFlight, App Store, Google Play</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+      </table>
+    </div>
+
+    <div class="deploy-phase">
+      <h4>Phase E: Business (0/8 done)</h4>
+      <p style="font-size:0.85rem;color:var(--gray-500)">LLC, monetization, support, docs, pilot program, credentialing.</p>
+      <p><span class="status-badge status-not">Not Started</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>What's Blocking Launch?</h3>
+    <ol style="padding-left:20px;color:var(--gray-700)">
+      <li><strong>Custom domain</strong> -- need to buy a domain (e.g., motustherapy.com) and point it at Firebase Hosting</li>
+      <li><strong>BAAs</strong> -- need to sign Business Associate Agreements with Firebase (requires Blaze plan upgrade) and decide whether to keep Cloudinary or migrate video storage to Firebase Storage</li>
+      <li><strong>Pilot user</strong> -- need at least one real therapist + patient to test with before any public release</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ==================== 16. HISTORY ==================== -->
+<section id="history">
+  <h2><span class="num" style="background:var(--purple-light);color:var(--purple)">16</span> Build History</h2>
+  <p class="subtitle">How Motus was built, in chronological order</p>
+
+  <div class="card">
+    <table class="data-table">
+      <tr><th>When</th><th>What Happened</th></tr>
+      <tr><td><strong>2025 Q3-Q4</strong></td><td>Core app built: patient flow, therapist dashboard, Firebase auth + Firestore, demo accounts. Originally called <em>phalanX</em>.</td></tr>
+      <tr><td><strong>2025 Q4</strong></td><td>ML angle tracking disabled (feature flag set to false). Manual camera sessions become the default path.</td></tr>
+      <tr><td><strong>2026 Q1</strong></td><td>Manual camera with per-set video recording. Audio added to recordings. Therapist panel UI refresh. Protocol Library modal with per-therapist customization.</td></tr>
+      <tr><td><strong>Apr 8</strong></td><td>Wiki initialized -- persistent context layer for Claude Code sessions.</td></tr>
+      <tr><td><strong>Apr 10</strong></td><td>Clinic code feature built. App pivoted to general physical rehab (not just hand therapy).</td></tr>
+      <tr><td><strong>Apr 11-12</strong></td><td>Full 49-item deployment checklist created. CI/CD + staging + Firebase rules tests done.</td></tr>
+      <tr><td><strong>Apr 14</strong></td><td>Deployment items 31-37 complete (monitoring, analytics, PWA, Capacitor).</td></tr>
+      <tr><td><strong>Apr 15</strong></td><td>Settings page + messaging fixes + dev email bypass.</td></tr>
+      <tr><td><strong>Apr 17-18</strong></td><td>Design handoff from Oliver implemented: patient home protocol cards, camera controls layout, pain bars, therapist vitals with deltas. Fixed therapist panel scroll bug.</td></tr>
+      <tr><td><strong>Apr 19</strong></td><td>Therapist detail cleanup: redundant "Recent Sessions" removed, Clinical Notes got rich-text editor, Mobility replaced with "Last Session." Sidebar UX fixes.</td></tr>
+      <tr><td><strong>Apr 20</strong></td><td>Clinical notes Firestore persistence. Sidebar tooltip. Sign-out button.</td></tr>
+      <tr><td><strong>Apr 21</strong></td><td>Pain Index chart with 1D/7D/30D toggle. Session history time labels. Day card nesting fix. <em>Last logged session.</em></td></tr>
+    </table>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ==================== FOOTER ==================== -->
+<footer>
+  <p>Built for Yash Saoji -- generated from the actual Motus codebase, wiki, and build logs.</p>
+  <p style="margin-top:4px">Motus by Yash Saoji &amp; Oliver Huelsbeck, 2025-2026.</p>
+</footer>
+
+</body>
+</html>
