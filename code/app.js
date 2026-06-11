@@ -1845,7 +1845,7 @@ async function updatePatientHomeScreen() {
   if (planList) {
     if (protocols.length > 0) {
       planList.innerHTML = protocols.map(p => {
-        const name = exerciseLabels[p.exerciseType] || p.exerciseName || p.exerciseType;
+        const name = exName(p.exerciseType, p.exerciseName);
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
         const done = completedTypes.has(p.exerciseType);
         const checkSvg = done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
@@ -1902,7 +1902,7 @@ async function updatePatientHomeScreen() {
     if (protocols.length > 1) {
       exSub.textContent = `${protocols.length} exercises`;
     } else if (protocols.length === 1) {
-      const firstEx = exerciseLabels[protocols[0].exerciseType] || protocols[0].exerciseType;
+      const firstEx = exName(protocols[0].exerciseType, protocols[0].exerciseName);
       const firstDose = `${protocols[0].sets || 3} sets × ${protocols[0].reps || 10} reps`;
       exSub.textContent = `${firstEx} — ${firstDose}`;
     } else {
@@ -2012,7 +2012,7 @@ async function startSessionWithProtocol(protocol) {
       const nameEl  = document.getElementById('demoVideoExName');
       const skipBtn = document.getElementById('demoSkipBtn');
       if (overlay && player) {
-        if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
+        if (nameEl) nameEl.textContent = exName(protocol.exerciseType, protocol.exerciseName);
         player.src = protocol.demoVideoUrl;
         player.poster = protocol.demoVideoUrl.replace('/video/upload/', '/video/upload/so_1,w_400,h_225,c_fill/').replace('.mp4', '.jpg').replace('.webm', '.jpg');
 
@@ -2107,7 +2107,7 @@ async function openManualCameraSession(protocol) {
   const promptEl = document.getElementById('manualCamPrompt');
   const btnsEl = document.getElementById('manualCamBtns');
 
-  if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseName || protocol.exerciseType || 'Exercise';
+  if (nameEl) nameEl.textContent = exName(protocol.exerciseType, protocol.exerciseName) || t('cam.exercise');
   const exIdx = (_manualCamExerciseIndex || 0) + 1;
   const exTotal = _manualCamTotalExercises || 1;
   if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
@@ -2116,7 +2116,7 @@ async function openManualCameraSession(protocol) {
   if (promptEl) promptEl.textContent = t('cam.readyForSet', { cur: _manualCamCurrentSet, total: _manualCamTotalSets });
   const demoUrl = protocol.demoVideoUrl || null;
   const demoBtn = demoUrl
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exerciseLabels[protocol.exerciseType]||protocol.exerciseType||'')}')">${t('cam.demo')}</button>`
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exName(protocol.exerciseType, protocol.exerciseName))}')">${t('cam.demo')}</button>`
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
@@ -2226,7 +2226,7 @@ function manualCamEndSet() {
 
     // Exercise name
     const exNameEl = document.getElementById('setInputExName');
-    if (exNameEl) exNameEl.textContent = (exerciseLabels[_manualCamProtocol?.exerciseType] || _manualCamProtocol?.exerciseName || '').toUpperCase();
+    if (exNameEl) exNameEl.textContent = exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName).toUpperCase();
 
     // Stepper display
     const repsDisp = document.getElementById('siRepsDisplay');
@@ -2445,6 +2445,95 @@ const exerciseLabels = {
   thumb_little_opposition:'Thumb to Little Pinch',
   index_middle_spread:    'Index-Middle Spread',
 };
+
+// Snapshot of the built-in English names BEFORE any runtime mutation (custom /
+// edited exercises get written into exerciseLabels later). Used by exName() to
+// tell a therapist's rename apart from an untouched built-in.
+const BUILTIN_NAMES_EN = { ...exerciseLabels };
+
+/* ── Exercise library translations (Phase 2) ───────────────────────────────
+   Built-in exercise names, descriptions, and categories. Clinical content —
+   the Spanish here is machine-translated and MUST be reviewed by a
+   Spanish-speaking PT before real patients rely on it. Custom/edited
+   exercises (therapist-authored) are never translated; they show verbatim. */
+const EXERCISE_NAME_ES = {
+  full_fist:               'Puño completo',
+  hook_fist:               'Puño en gancho',
+  tabletop_position:       'Posición de mesa',
+  index_flexion:           'Flexión del dedo índice',
+  middle_flexion:          'Flexión del dedo medio',
+  ring_flexion:            'Flexión del dedo anular',
+  pinky_flexion:           'Flexión del meñique',
+  thumb_flexion:           'Flexión del pulgar',
+  thumb_index_opposition:  'Oposición pulgar-índice',
+  thumb_opposition:        'Oposición del pulgar',
+  finger_flexion:          'Flexión de los dedos',
+  finger_extension:        'Extensión de los dedos',
+  grip_squeeze:            'Apretón de agarre',
+  finger_abduction:        'Abducción de los dedos',
+  wrist_flexion:           'Flexión de muñeca',
+  wrist_extension:         'Extensión de muñeca',
+  straight_fist:           'Puño recto',
+  pip_blocking:            'Bloqueo PIP',
+  dip_blocking:            'Bloqueo DIP',
+  thumb_ring_opposition:   'Pinza pulgar-anular',
+  thumb_little_opposition: 'Pinza pulgar-meñique',
+  index_middle_spread:     'Separación índice-medio',
+};
+
+const EXERCISE_DESC_ES = {
+  hook_fist:               'Flexiona los nudillos medio y de la punta mientras los nudillos de la base quedan rectos.',
+  straight_fist:           'Flexiona todos los nudillos excepto la articulación de la punta; las yemas apuntan hacia abajo.',
+  tabletop_position:       'Nudillos de la base a 90°; las articulaciones media y de la punta quedan rectas.',
+  full_fist:               'Cierra el puño por completo y luego ábrelo del todo. Los cuatro dedos se flexionan juntos.',
+  finger_extension:        'Endereza y separa todos los dedos partiendo de una posición ligeramente flexionada.',
+  index_flexion:           'Flexiona y extiende el dedo índice en todo su rango disponible.',
+  middle_flexion:          'Flexiona y extiende el dedo medio en todo su rango disponible.',
+  ring_flexion:            'Flexiona y extiende el dedo anular en todo su rango disponible.',
+  pinky_flexion:           'Flexiona y extiende el meñique en todo su rango disponible.',
+  thumb_flexion:           'Flexiona el pulgar a través de la palma hacia el meñique y regresa.',
+  pip_blocking:            'Estabiliza el nudillo de la base; flexiona y extiende solo la articulación media.',
+  dip_blocking:            'Estabiliza la articulación media; flexiona y extiende solo la articulación de la punta.',
+  thumb_index_opposition:  'La punta del pulgar toca la yema del índice y luego vuelve a abrirse.',
+  thumb_opposition:        'La punta del pulgar toca la yema del dedo medio y regresa.',
+  thumb_ring_opposition:   'La punta del pulgar toca la yema del anular y regresa.',
+  thumb_little_opposition: 'La punta del pulgar toca la yema del meñique y regresa.',
+  finger_abduction:        'Separa bien los cuatro dedos y luego júntalos de nuevo.',
+  index_middle_spread:     'Separa solo el dedo índice y el medio y luego ciérralos.',
+  grip_squeeze:            'Todos los dedos se flexionan a la vez formando un puño completo. Desarrolla la fuerza de agarre.',
+  finger_flexion:          'Cualquier dedo que complete un ciclo completo de flexión-extensión cuenta como una repetición.',
+};
+
+const CATEGORY_ES = {
+  'Tendon Gliding':        'Deslizamiento tendinoso',
+  'Individual Finger':     'Dedo individual',
+  'Blocking & Isolation':  'Bloqueo y aislamiento',
+  'Opposition & Pinch':    'Oposición y pinza',
+  'Spreading & Abduction': 'Separación y abducción',
+  'Grip & Composite':      'Agarre y compuesto',
+};
+
+// Display name for an exercise id, in the viewer's language.
+// A therapist rename (runtime label differs from the English built-in) always
+// wins and shows verbatim. Custom exercises (no built-in entry) show verbatim.
+function exName(id, fallbackName) {
+  if (!id) return fallbackName || '';
+  const enDefault = BUILTIN_NAMES_EN[id];
+  const runtime = exerciseLabels[id];
+  if (enDefault && runtime && runtime !== enDefault) return runtime; // therapist edit/override
+  if (currentLang === 'es' && EXERCISE_NAME_ES[id]) return EXERCISE_NAME_ES[id];
+  return runtime || enDefault || fallbackName || id;
+}
+
+// Translate a catalog description / category to the viewer's language.
+function exDesc(id, fallback) {
+  if (currentLang === 'es' && EXERCISE_DESC_ES[id]) return EXERCISE_DESC_ES[id];
+  return fallback || '';
+}
+function exCat(cat) {
+  if (currentLang === 'es' && CATEGORY_ES[cat]) return CATEGORY_ES[cat];
+  return cat || '';
+}
 
 const frequencyKeys = {
   daily:       'freq.daily',
@@ -3044,7 +3133,7 @@ function exitDemoNoSave() {
 
 function replayDemoInSession() {
   if (selectedProtocol?.demoVideoUrl) {
-    const label = exerciseLabels[selectedProtocol.exerciseType] || selectedProtocol.exerciseType;
+    const label = exName(selectedProtocol.exerciseType, selectedProtocol.exerciseName);
     openVideoModal(selectedProtocol.demoVideoUrl, 'Demo', label);
   }
 }
@@ -3191,7 +3280,7 @@ async function loadPatientProtocol() {
   // Populate camera header with exercise info
   const nameEl = document.getElementById('camExerciseName');
   const setEl  = document.getElementById('camSetLabel');
-  if (nameEl) nameEl.textContent = exerciseLabels[protocol.exerciseType] || protocol.exerciseType;
+  if (nameEl) nameEl.textContent = exName(protocol.exerciseType, protocol.exerciseName);
   if (setEl)  setEl.textContent  = `Set 1 of ${totalSets}`;
 }
 
@@ -3253,7 +3342,7 @@ async function showExercisesScreen() {
       : `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>`;
     return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
       <div class="exs-row-left">
-        <span class="exs-row-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
+        <span class="exs-row-name">${escapeHtml(exName(p.exerciseType, p.exerciseName))}</span>
         <span class="exs-row-meta">${t('ex.repsSets', { reps: p.reps, sets: p.sets, freq: getFrequencyLabel(p.frequency) })}</span>
       </div>
       <div class="exs-row-right">
@@ -3448,7 +3537,7 @@ function calcCompliance(sessions, protocols, weeksAgo) {
     var pct = expected > 0 ? Math.round((capped / expected) * 100) : (actual > 0 ? 100 : 0);
     var missed = Math.max(0, expected - actual);
     return {
-      name: exerciseLabels[p.exerciseType] || p.exerciseType,
+      name: exName(p.exerciseType, p.exerciseName),
       type: p.exerciseType,
       expected: expected,
       actual: actual,
@@ -3552,12 +3641,12 @@ async function showRealPatient(patient) {
   const protocolRowsHtml = protocols.length === 0
     ? '<li class="pd-protocol-row"><div class="pd-protocol-meta"><div class="pd-protocol-name" style="color:var(--th-muted)">No exercises assigned yet.</div></div></li>'
     : protocols.map(p => {
-        const exName = exerciseLabels[p.exerciseType] || p.exerciseType;
+        const exLabel = exName(p.exerciseType, p.exerciseName);
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
         const note = p.notes || '';
         return `<li class="pd-protocol-row">
           <div class="pd-protocol-meta">
-            <div class="pd-protocol-name">${escapeHtml(exName)}</div>
+            <div class="pd-protocol-name">${escapeHtml(exLabel)}</div>
             ${note ? `<div class="pd-protocol-params">${escapeHtml(note)}</div>` : ''}
           </div>
           <span class="pd-protocol-params" style="font-family:var(--font-mono);white-space:nowrap">${dose}</span>
@@ -3835,7 +3924,7 @@ function buildSessionHistory(sessions, patientName) {
       <div class="prog-day-body">`;
     Object.keys(exercisesMap).forEach(exType => {
       const exSessions = exercisesMap[exType];
-      const exLabel = exerciseLabels[exType] || exType;
+      const exLabel = exName(exType);
       html += `<div class="prog-exercise-block">
         <div class="prog-exercise-header">${escapeHtml(exLabel)}</div>
         <div class="prog-sets-list">
@@ -3902,7 +3991,7 @@ function buildProtocolList(patientEmail, protocols) {
   return `
     <div class="proto-existing-section">
       ${protocols.map(p => {
-        const exLabel = escJsAttr(exerciseLabels[p.exerciseType] || p.exerciseType);
+        const exLabel = escJsAttr(exName(p.exerciseType, p.exerciseName));
         const demoUrl = p.demoVideoUrl ? escJsAttr(p.demoVideoUrl) : '';
         const demoBtns = p.demoVideoUrl
           ? `<button class="protocol-demo-btn" onclick="playProtocolDemo('${demoUrl}', '${exLabel}')">Play Demo</button>
@@ -3911,7 +4000,7 @@ function buildProtocolList(patientEmail, protocols) {
         return `
         <div class="proto-card">
           <div class="proto-card-header">
-            <span class="proto-card-name">${escapeHtml(exerciseLabels[p.exerciseType] || p.exerciseType)}</span>
+            <span class="proto-card-name">${escapeHtml(exName(p.exerciseType, p.exerciseName))}</span>
             <div class="protocol-action-btns">
               ${demoBtns}
               <button class="protocol-edit-btn" onclick="editProtocol('${patientEmail}', '${p.id}')">Edit</button>
@@ -4132,7 +4221,7 @@ function _apmRenderLibrary(query) {
   if (!listEl) return;
   const q = query.toLowerCase().trim();
   const filtered = PROTOCOL_CATALOG.filter(e =>
-    !q || (exerciseLabels[e.id] || '').toLowerCase().includes(q) || e.cat.toLowerCase().includes(q) || e.desc.toLowerCase().includes(q)
+    !q || exName(e.id).toLowerCase().includes(q) || exCat(e.cat).toLowerCase().includes(q) || exDesc(e.id, e.desc).toLowerCase().includes(q)
   );
   if (!filtered.length) {
     listEl.innerHTML = '<div class="apm-lib-empty">No exercises found</div>';
@@ -4142,11 +4231,11 @@ function _apmRenderLibrary(query) {
   for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
   listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
     <div class="apm-lib-cat">
-      <div class="apm-lib-cat-label">${escapeHtml(cat)}</div>
+      <div class="apm-lib-cat-label">${escapeHtml(exCat(cat))}</div>
       ${items.map(e => `
         <div class="apm-lib-item" id="apm-item-${e.id}" onclick="apmSelectExercise('${e.id}')">
-          <div class="apm-lib-item-name">${escapeHtml(exerciseLabels[e.id] || e.id)}</div>
-          <div class="apm-lib-item-desc">${escapeHtml(e.desc)}</div>
+          <div class="apm-lib-item-name">${escapeHtml(exName(e.id))}</div>
+          <div class="apm-lib-item-desc">${escapeHtml(exDesc(e.id, e.desc))}</div>
         </div>
       `).join('')}
     </div>
@@ -4174,8 +4263,8 @@ function apmSelectExercise(id) {
     const infoEl = document.getElementById('apmSelectedExInfo');
     const nameEl = document.getElementById('apmSelectedExName');
     const descEl = document.getElementById('apmSelectedExDesc');
-    if (nameEl) nameEl.textContent = exerciseLabels[id] || id;
-    if (descEl) descEl.textContent = entry.desc || '';
+    if (nameEl) nameEl.textContent = exName(id);
+    if (descEl) descEl.textContent = exDesc(id, entry.desc);
     if (infoEl) infoEl.style.display = 'block';
   }
   updateExerciseParamsUI(id, null);
@@ -4307,7 +4396,7 @@ function plRender() {
   if (!listEl) return;
   const q = (document.getElementById('plSearch')?.value || '').toLowerCase().trim();
   const filtered = _plLibrary.filter(e =>
-    !q || (exerciseLabels[e.id] || e.id).toLowerCase().includes(q) || e.cat.toLowerCase().includes(q) || (e.desc || '').toLowerCase().includes(q)
+    !q || exName(e.id).toLowerCase().includes(q) || exCat(e.cat).toLowerCase().includes(q) || exDesc(e.id, e.desc).toLowerCase().includes(q)
   );
 
   if (!filtered.length) {
@@ -4317,14 +4406,14 @@ function plRender() {
     for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
     listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
       <div class="apm-lib-cat">
-        <div class="apm-lib-cat-label">${escapeHtml(cat)}</div>
+        <div class="apm-lib-cat-label">${escapeHtml(exCat(cat))}</div>
         ${items.map(e => {
-          const label = exerciseLabels[e.id] || e.id;
+          const label = exName(e.id);
           const editedClass = e._isEdited ? ' apm-lib-item--edited' : '';
           const activeClass = _plSelectedId === e.id ? ' apm-lib-item--active' : '';
           return `<div class="apm-lib-item${editedClass}${activeClass}" id="pl-item-${e.id}" onclick="plSelectExercise('${e.id}')">
             <div class="apm-lib-item-name">${escapeHtml(label)}</div>
-            <div class="apm-lib-item-desc">${escapeHtml(e.desc || '')}</div>
+            <div class="apm-lib-item-desc">${escapeHtml(exDesc(e.id, e.desc))}</div>
           </div>`;
         }).join('')}
       </div>
@@ -4337,7 +4426,7 @@ function plRender() {
     const allExercises = [...PROTOCOL_CATALOG, ...(_plTherapistData.customExercises || [])];
     const hiddenExercises = hiddenIds.map(id => {
       const found = allExercises.find(e => e.id === id);
-      return found ? { ...found, label: exerciseLabels[id] || id } : { id, label: id };
+      return found ? { ...found, label: exName(id) } : { id, label: id };
     });
     hiddenList.innerHTML = hiddenExercises.map(e => `
       <div class="pl-hidden-item">
@@ -4379,8 +4468,8 @@ function plSelectExercise(id) {
   const infoEl = document.getElementById('plSelectedExInfo');
   const nameEl = document.getElementById('plSelectedExName');
   const descInfoEl = document.getElementById('plSelectedExDesc');
-  if (nameEl) nameEl.textContent = exerciseLabels[id] || id;
-  if (descInfoEl) descInfoEl.textContent = entry.desc || '';
+  if (nameEl) nameEl.textContent = exName(id);
+  if (descInfoEl) descInfoEl.textContent = exDesc(id, entry.desc);
   if (infoEl) infoEl.style.display = 'block';
 
   const resetBtn = document.getElementById('plResetBtn');
@@ -5671,7 +5760,7 @@ function buildProgressByDay(sessions) {
     
     Object.keys(exercisesMap).forEach(exType => {
       const exSessions = exercisesMap[exType];
-      const exLabel = exerciseLabels[exType] || exType;
+      const exLabel = exName(exType);
       
       html += `<div class="prog-exercise-block">
         <div class="prog-exercise-header">${escapeHtml(exLabel)}</div>
