@@ -1470,7 +1470,9 @@ async function updatePatientHomeScreen() {
   if (protocols.length > 0) {
     const p0 = protocols[0];
     const protocolName = p0.protocolName || p0.exerciseName || 'Your Protocol';
-    if (kickerEl) kickerEl.textContent = `YOUR PROTOCOL`;
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+    if (kickerEl) kickerEl.textContent = 'Week of ' + weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     if (freqEl) freqEl.textContent = getFrequencyLabel(p0.frequency);
     if (titleEl) titleEl.textContent = protocolName;
     if (subtitleEl) subtitleEl.textContent = `${protocols.length} exercise${protocols.length > 1 ? 's' : ''} \xB7 record each set`;
@@ -1766,8 +1768,8 @@ async function openManualCameraSession(protocol) {
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
-    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
+      <span class="mcam-rec-dot" aria-hidden="true"></span>
     </button>
     ${demoBtn}
   `;
@@ -1908,8 +1910,8 @@ function manualCamCancelSet() {
     : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
   if (btnsEl) btnsEl.innerHTML = `
     <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
-    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
+      <span class="mcam-rec-dot" aria-hidden="true"></span>
     </button>
     ${demoBtnC}
   `;
@@ -1952,8 +1954,8 @@ async function manualCamSaveSet() {
       : `<button class="mcam-btn-side" disabled style="opacity:0.3">DEMO</button>`;
     if (btnsEl) btnsEl.innerHTML = `
       <button class="mcam-btn-side flip" onclick="flipCamera()">FLIP</button>
-      <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
+        <span class="mcam-rec-dot" aria-hidden="true"></span>
       </button>
       ${demoBtnN}
     `;
@@ -2908,9 +2910,10 @@ async function showExercisesScreen() {
       </div>
     </div>`;
   });
-  const showToggle = protocols.length > EXS_COLLAPSED_MAX;
+  // Only collapse when it hides 2+ exercises — a toggle hiding a single row is pointless
+  const showToggle = protocols.length > EXS_COLLAPSED_MAX + 1;
   inner.innerHTML = `<div class="exs-list" id="exsList">
-    ${cards.map((c, i) => i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
+    ${cards.map((c, i) => showToggle && i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
   </div>
   ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">Show all ${protocols.length} exercises</button>` : ''}`;
 
@@ -2981,7 +2984,7 @@ async function loadConnectedPatients() {
       ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
       : null;
     const subText = lastSess
-      ? `Last ${daysSinceLast === 0 ? 'today' : daysSinceLast + 'd ago'} · avg pain ${lastPainVal}`
+      ? `${daysSinceLast === 0 ? 'Today' : daysSinceLast === 1 ? 'Yesterday' : daysSinceLast + ' days ago'} · avg pain ${lastPainVal}`
       : 'No sessions yet';
     btn.innerHTML = `
       <div class="patient-row-avatar">${escapeHtml(initials)}</div>
@@ -3156,7 +3159,7 @@ async function showRealPatient(patient) {
     ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
     : null;
   const lastSessDisplay = daysSinceLast === null ? '-' : daysSinceLast === 0 ? 'today' : daysSinceLast;
-  const lastSessUnit = daysSinceLast === null ? '' : daysSinceLast === 0 ? '' : 'd ago';
+  const lastSessUnit = daysSinceLast === null ? '' : daysSinceLast === 0 ? '' : daysSinceLast === 1 ? ' day ago' : ' days ago';
 
   // Avatar initials
   const initials = patient.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -3194,7 +3197,6 @@ async function showRealPatient(patient) {
   const painDeltaHtml = painDeltaT !== null && parseFloat(painDeltaT) !== 0 ? `<span class="pd-vital-delta" style="color:${parseFloat(painDeltaT) < 0 ? '#059669' : '#64748B'}">${parseFloat(painDeltaT) > 0 ? '+' : ''}${painDeltaT} vs last week</span>` : '';
 
   // Protocol rows
-  const activityIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
   const protocolRowsHtml = protocols.length === 0
     ? '<li class="pd-protocol-row"><div class="pd-protocol-meta"><div class="pd-protocol-name" style="color:var(--th-muted)">No exercises assigned yet.</div></div></li>'
     : protocols.map(p => {
@@ -3202,7 +3204,6 @@ async function showRealPatient(patient) {
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
         const note = p.notes || '';
         return `<li class="pd-protocol-row">
-          <div class="pd-protocol-icon">${activityIcon}</div>
           <div class="pd-protocol-meta">
             <div class="pd-protocol-name">${escapeHtml(exName)}</div>
             ${note ? `<div class="pd-protocol-params">${escapeHtml(note)}</div>` : ''}
@@ -3275,7 +3276,7 @@ async function showRealPatient(patient) {
               <button class="pain-range-btn" data-range="30">30D</button>
             </div>
           </header>
-          <canvas id="painChart" height="160"></canvas>
+          <div class="pd-chart-wrap"><canvas id="painChart"></canvas></div>
         </section>
       </div>
 
@@ -5202,6 +5203,8 @@ function buildChartConfig(data, { type, color, fillColor }) {
       tension: 0.35, fill: true
     },
     options: {
+      responsive: true,
+      maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       interaction: { mode: 'index', intersect: false },
       scales: {
@@ -5560,10 +5563,16 @@ function _renderThreadHtml(thread, myEmail) {
     ? lastReadSentIdx : -1;
 
   let html = '';
+  let prevDayKey = null;
   for (let i = 0; i < thread.length; i++) {
     const m = thread[i];
     const mine = m.from === myEmail;
     const cls = mine ? 'sent' : 'received';
+    const dayKey = new Date(m.timestamp).toDateString();
+    if (dayKey !== prevDayKey) {
+      html += `<div class="msg-day-divider">${_msgDayLabel(m.timestamp)}</div>`;
+      prevDayKey = dayKey;
+    }
     html += `<div class="msg-bubble ${cls}">${escapeHtml(m.text)}</div>`;
     const next = thread[i + 1];
     const isLastInCluster = !next || next.from !== m.from;
@@ -5576,10 +5585,26 @@ function _renderThreadHtml(thread, myEmail) {
       // Show "Read [time]" below the last read sent when there are newer unread ones
       html += `<div class="msg-timestamp sent">Read ${timeAgo(m.timestamp)}</div>`;
     } else if (isLastInCluster) {
-      html += `<div class="msg-timestamp ${cls}">${timeAgo(m.timestamp)}</div>`;
+      html += `<div class="msg-timestamp ${cls}">${_msgClock(m.timestamp)}</div>`;
     }
   }
   return html;
+}
+
+function _msgDayLabel(isoStr) {
+  const d = new Date(isoStr);
+  const now = new Date();
+  const startOfDay = x => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  const opts = { month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString('en-US', opts);
+}
+
+function _msgClock(isoStr) {
+  return new Date(isoStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
 function subscribeThread(containerId, myEmail, otherEmail, emptyMsg) {

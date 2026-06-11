@@ -252,9 +252,10 @@ body {
 
 .auth-wave {
   display: block;
-  width: 100%;
+  /* bleed past the header's 24px side padding so the wave spans edge to edge */
+  width: calc(100% + 48px);
   height: 70px;
-  margin-top: 16px;
+  margin: 16px -24px 0;
 }
 
 .auth-forgot-row {
@@ -286,6 +287,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 5px;
+}
+
+/* breathing room between the last field and the primary action */
+.auth-form-area .pt-btn-hero {
+  margin-top: 8px;
 }
 
 .auth-field label {
@@ -419,6 +425,7 @@ body {
   border-radius: 10px;
   padding: 3px;
   gap: 0;
+  margin-bottom: 8px;
 }
 
 .role-seg-btn {
@@ -637,8 +644,14 @@ body {
 }
 .patient-scope .pt-home-wave {
   display: block;
-  width: 100%;
-  margin-bottom: -1px;
+  /* bleed past the header's 22px side padding so the wave spans edge to edge */
+  width: calc(100% + 44px);
+  margin: 0 -22px -1px;
+}
+.patient-scope .pt-subscreen-header .pt-home-wave {
+  /* subscreen headers use 20px side padding and 16px bottom padding */
+  width: calc(100% + 40px);
+  margin: 12px -20px -16px;
 }
 
 /* Streak badge */
@@ -2057,6 +2070,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   flex: 1; min-width: 120px;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4);
+}
+.patient-scope .prog-stat-card,
+.patient-scope .prog-day-card {
+  background: var(--pt-surface);
+  border-color: var(--pt-border);
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(14,165,233,0.06);
 }
 .prog-stat-value { font-size: 1.3rem; font-weight: 700; color: var(--text); }
 .prog-stat-value.improving { color: var(--success); }
@@ -3667,7 +3687,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .pt-msg-screen {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* fixed height so the thread scrolls internally and the composer stays on screen;
+     bottom padding clears the fixed bottom nav */
+  height: 100vh;
+  height: 100dvh;
+  padding-bottom: 70px;
   background: var(--pt-bg);
 }
 
@@ -3701,6 +3725,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .msg-thread .msg-bubble.sent { align-self: flex-end; background: var(--accent); color: #fff; border-radius: 16px 16px 4px 16px; }
 .msg-thread .msg-bubble.received { align-self: flex-start; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 16px 16px 16px 4px; }
 .msg-thread .msg-timestamp { font-size: 0.7rem; color: var(--muted); margin-bottom: 6px; }
+.msg-thread .msg-day-divider,
+.therapist-msg-thread .msg-day-divider {
+  align-self: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
 .msg-thread .msg-timestamp.sent { align-self: flex-end; }
 .msg-thread .msg-timestamp.received { align-self: flex-start; }
 
@@ -4545,6 +4579,12 @@ body:has(#manualCamScreen.active) {
   -webkit-tap-highlight-color: transparent;
 }
 .mcam-btn-primary:hover { background: #F0F9FF; }
+.mcam-rec-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #CC2936;
+}
 
 .mcam-btn-stop {
   width: 68px; height: 68px;
@@ -5538,7 +5578,7 @@ body:has(#manualCamScreen.active) {
   color: var(--muted);
   font-size: var(--text-sm);
   text-align: center;
-  padding: 1.5rem 0;
+  padding: 0.5rem 0;
   line-height: 1.6;
 }
 
@@ -5552,6 +5592,7 @@ body:has(#manualCamScreen.active) {
 .clinic-join-panels {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 1rem;
   margin-bottom: 1rem;
 }
@@ -5703,6 +5744,12 @@ body:has(#manualCamScreen.active) {
   position: fixed; bottom: 0; left: 0; right: 0;
   padding: 12px 20px; background: var(--surface);
   border-top: 1px solid var(--border); z-index: 10;
+}
+/* on wide screens, keep the settings column readable instead of edge-to-edge */
+@media (min-width: 760px) {
+  .settings-body > * { max-width: 680px; width: 100%; margin-left: auto; margin-right: auto; }
+  .settings-footer { display: flex; justify-content: center; }
+  .settings-footer .pt-btn-hero { max-width: 680px; width: 100%; }
 }
 .settings-saved-modal {
   position: fixed; inset: 0; background: rgba(0,0,0,0.4);
@@ -6012,7 +6059,8 @@ body:has(#manualCamScreen.active) {
   text-transform: uppercase;
 }
 .patient-scope .auth-gradient-header {
-  padding-bottom: 36px;
+  /* no bottom padding — the wave SVG must sit flush with the header's bottom edge */
+  padding-bottom: 0;
 }
 
 /* ── Therapist Dashboard (Screens 14 + 15) ───────────────────────────────── */
@@ -6292,6 +6340,8 @@ body:has(#manualCamScreen.active) {
   flex: 1;
   display: grid;
   place-items: center;
+  /* group the icon/heading/text in the middle instead of spreading them down the panel */
+  align-content: center;
   padding: 40px;
   text-align: center;
 }
@@ -6415,6 +6465,8 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .pd-vitals {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  /* size each card to its content — stretch leaves big voids when one card is tall */
+  align-items: start;
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -6480,6 +6532,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .pd-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: start;
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -6507,6 +6560,10 @@ body:has(#manualCamScreen.active) {
   font-weight: 700;
   color: var(--th-text-strong);
   margin: 0;
+}
+.therapist-scope .pd-chart-wrap {
+  position: relative;
+  height: 240px;
 }
 .pain-range-toggle {
   display: flex;
