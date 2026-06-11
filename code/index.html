@@ -81,7 +81,7 @@
       </div>
       <button class="pt-btn-hero" onclick="signupNextStep()" data-i18n="signup.continue">Continue</button>
       <p class="auth-link-row"><span data-i18n="signup.haveAccount">Already have an account?</span> <span onclick="showScreen('loginScreen')" data-i18n="signup.signIn">Sign in</span></p>
-      <p class="auth-legal"><span data-i18n="signup.legalPre">By creating an account you agree to our</span> <a href="/tos" target="_blank" data-i18n="signup.tos">Terms of Service</a> <span data-i18n="signup.and">and</span> <a href="/privacy" target="_blank" data-i18n="signup.privacy">Privacy Policy</a>.</p>
+      <p class="auth-legal"><span data-i18n="signup.legalPre">By creating an account you agree to our</span> <a href="/tos" target="_blank" data-legal="tos" data-i18n="signup.tos">Terms of Service</a> <span data-i18n="signup.and">and</span> <a href="/privacy" target="_blank" data-legal="privacy" data-i18n="signup.privacy">Privacy Policy</a>.</p>
     </div>
     <!-- Step 2: data questions -->
     <div class="signup-step" id="signupStep2" hidden>
@@ -223,7 +223,7 @@
     </label>
     <label class="consent-checkbox-row">
       <input type="checkbox" id="nppCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
-      <span><span data-i18n="consent.npp">I have received the</span> <a href="/hipaa-npp" target="_blank" data-i18n="consent.nppLink">HIPAA Notice of Privacy Practices</a>.</span>
+      <span><span data-i18n="consent.npp">I have received the</span> <a href="/hipaa-npp" target="_blank" data-legal="hipaa-npp" data-i18n="consent.nppLink">HIPAA Notice of Privacy Practices</a>.</span>
     </label>
     <div id="consentError" class="auth-error" style="display:none" aria-live="polite" data-i18n="consent.error">Please check both boxes before continuing.</div>
     <button class="pt-btn-hero" onclick="acceptConsent()" data-i18n="consent.continue">I Agree — Continue</button>

@@ -357,6 +357,11 @@ function applyTranslations(root) {
   scope.querySelectorAll('[data-i18n-aria]').forEach((el) => {
     el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria')));
   });
+  // Point in-app legal links at the Spanish page when the UI is in Spanish.
+  scope.querySelectorAll('[data-legal]').forEach((el) => {
+    const base = el.getAttribute('data-legal');
+    el.setAttribute('href', currentLang === 'es' ? '/' + base + '-es' : '/' + base);
+  });
 }
 
 // Set the active language: update memory, <html lang>, localStorage, repaint
