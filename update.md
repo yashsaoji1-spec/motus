@@ -4,6 +4,32 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-12 -- Yash
+
+**UI polish pass + bilingual (en/es) i18n + Spanish legal pages**
+
+All of this is on the `yash` branch and deployed to **staging only** -- prod is NOT updated (it's missing this plus the 06-10/11 tutorial + bug sweep). Hold prod until we manually test, check a real phone, and get the Spanish reviewed.
+
+UI polish (`fdf10f5`):
+- Unified the curved wave header across patient screens; removed a leftover gradient band under the login wave
+- Patient home kicker shows the week ("Week of Jun 8") instead of repeating "Your Protocol"; record button is a red dot (was a play triangle) with an aria-label
+- Messages now group under day dividers (Today/Yesterday/date) with clock times
+- Therapist vitals/columns no longer stretch into big empty voids (align-items:start); Pain Index chart capped at 240px; empty state centered; protocol rows left-aligned
+- **Bug fix:** patient Messages composer was pushed below the screen (min-height:100vh) -- now fixed 100dvh with an internally scrolling thread
+- Settings is a centered 680px column on wide screens; signup + clinic spacing tightened
+
+i18n (`c5b87b5` Phase 1, `3f24394` Phase 2):
+- New lightweight i18n layer in app.js: en/es dictionary, `t(key)` helper, `data-i18n` attributes, `setLanguage()`. Language = saved account pref > localStorage > browser; persists to the user's Firestore doc; swaps live, no reload
+- Phase 1: entire patient surface translated (auth, home, session, settings) + Settings language selector re-added + pre-auth login toggle; removed the orphaned 7-language signup picker
+- Phase 2: built-in exercise library translated (names/descriptions/categories) via exName()/exDesc()/exCat() -- viewer language; therapist renames + custom exercises stay verbatim; session/protocol records still store English (language-neutral)
+
+Legal pages (`504a7af`):
+- Added privacy-es.html, tos-es.html, hipaa-npp-es.html with a controlling-language disclaimer (English governs) + English/Español toggles; in-app legal links are language-aware; Firebase rewrites added for the -es clean URLs
+
+**Heads up:** all Spanish is machine-translated by Claude. The clinical exercise cues and the legal/HIPAA text need a Spanish-speaking PT / legal review before any real Spanish-speaking patient relies on them. Therapist dashboard chrome is still English (Phase 3, not started). ios/android Capacitor copies of the legal pages are still English-only -- regenerate with `npx cap sync`.
+
+---
+
 ## 2026-06-08 -- Oliver
 
 **Firestore rule tightening + audit log + adherence edge case**
