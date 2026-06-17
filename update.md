@@ -4,6 +4,37 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-17 -- Yash
+
+**Deployment-readiness pass: legal truth + security headers + real data export + UI fixes -- on staging**
+
+All on `yash`, deployed to **staging (motus-staging1) only** -- prod untouched. These are the "safe, no-Blaze" items from the deployment plan.
+
+Security + compliance:
+- `firebase.json`: added **HSTS, Referrer-Policy, Permissions-Policy** (camera/mic locked to `self`; geolocation/payment/usb blocked) -- were missing entirely.
+- **Real data export:** replaced the `downloadMyData()` "coming soon" stub with a working client-side JSON export (profile + protocol + sessions + messages, audit-logged). Fulfills the HIPAA Right-of-Access promise the policy makes.
+- **Legal pages made truthful:** removed the false "videos auto-deleted after 14 days" (no deletion code exists yet, and the number was wrong -- config is 30/7); "under 13" -> 18+ to match ToS; softened the App Check claim (wired but not enforced); reconciled the NPP payment/insurance contradiction (we don't bill); added a named Privacy Officer. Mirrored all factual fixes into the Spanish pages.
+- **Contact email:** swapped `privacy@motus.app` (bounces -- domain not owned) -> `yashsaoji1@gmail.com` everywhere, as an interim until a real domain + forwarding exists.
+
+UI fixes:
+- **Session-save failures now surface.** The manual-camera path silently showed success on a failed save (therapist got nothing, data lost); now it alerts and offers a retry that preserves the recorded sets.
+- **Therapist "Notes for Patient" now visible to patients** -- rendered inline in each exercise row. The detail sheet that previously showed them was dead code (never invoked).
+- **Removed the redundant Start Session -> identical list step.** Home "Start Session" now uses the smart-start; today's-plan list items are tappable to start directly.
+- **Therapist patient-detail:** labeled the time windows (`AVG PAIN - 7D`, `N sessions (90d)`) and defaulted the Pain Index chart to **30D** (was 1D).
+
+Still open (need Blaze/Cloud Functions, not done here): video -> Firebase Storage migration; account-deletion cascade (`deleteMyAccount` still orphans calibration/clinicalNotes/jointTracking/videos + the therapist's connection entry); scheduled video expiry. Spanish legal text is machine-translated and still needs professional review.
+
+---
+
+## 2026-06-12 (later) -- Yash
+
+**LLC reference removed + full deployment-readiness plan drafted**
+
+- Removed "Motus Health, LLC" from the HIPAA NPP (`code/public/hipaa-npp.html` + `-es`) -> just "Motus" (we don't have a formed entity yet). Uncommitted on `yash`.
+- Ran a deep multi-agent audit of the whole app and wrote a single "Ready to Email the RAC" deployment checklist (lives in the wiki, not the repo). Key things it surfaced that we should tackle before real patients: **patient videos are public PHI on Cloudinary** (recommend migrating video to **Firebase Storage** -- also ~100x cheaper than Cloudinary's HIPAA tier); **there's no `functions/` dir** so `firebase deploy` currently fails and our policy promises (auto-delete, data export, 6-yr audit) aren't enforced by any code; `deleteMyAccount` leaves orphaned data; `privacy@motus.app` is a domain we don't own so it bounces. No prod deploy yet -- this is planning, not shipped code.
+
+---
+
 ## 2026-06-12 -- Yash
 
 **UI polish pass + bilingual (en/es) i18n + Spanish legal pages**

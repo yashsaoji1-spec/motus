@@ -1849,12 +1849,15 @@ async function updatePatientHomeScreen() {
   const planList = document.getElementById('todaysPlanList');
   if (planList) {
     if (protocols.length > 0) {
-      planList.innerHTML = protocols.map(p => {
+      // Tapping a plan item starts that exercise directly — no need to open the
+      // identical list on the exercises screen. Keep the index map in sync.
+      _exercisesProtocols = protocols;
+      planList.innerHTML = protocols.map((p, i) => {
         const name = exName(p.exerciseType, p.exerciseName);
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
         const done = completedTypes.has(p.exerciseType);
         const checkSvg = done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
-        return `<li class="pt-protocol-item${done ? ' done' : ''}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span></li>`;
+        return `<li class="pt-protocol-item${done ? ' done' : ''}" role="button" tabindex="0" style="cursor:pointer" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span><svg class="pt-protocol-item-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></li>`;
       }).join('');
     } else {
       planList.innerHTML = `<li class="pt-protocol-empty">${t('home.noExercisesYet')}</li>`;
@@ -2333,9 +2336,10 @@ async function finishManualCamSession() {
     ? Math.round(_manualCamSetData.reduce((sum, s) => sum + s.pain, 0) / _manualCamSetData.length) 
     : 1;
   
+  let saveOk = false;
   try {
     const therapistEmail = await getConnectedTherapist();
-    const docRef = await db.collection('sessions').add({
+    await db.collection('sessions').add({
       patientEmail: currentUser.email,
       date: new Date().toISOString(),
       reps: totalReps,
@@ -2347,11 +2351,20 @@ async function finishManualCamSession() {
     });
     logAnalyticsEvent('session_completed', { sets_recorded: _manualCamSetData.length });
     writeAuditLog('session_recorded', currentUser.email);
+    saveOk = true;
   } catch(e) {
     console.error('[Motus] Session save error:', e);
     Sentry.captureException(e, { tags: { flow: 'session-save' } });
   }
-  
+
+  // Don't pretend the session saved when it didn't — the therapist would never
+  // see the data. Tell the patient and let them retry without losing their sets.
+  if (!saveOk) {
+    const retry = confirm('We couldn’t save your session — please check your internet connection.\n\nTap OK to try again, or Cancel to discard this session.');
+    if (retry) return finishManualCamSession();
+    // else: patient chose to discard; fall through to reset and exit
+  }
+
   _manualCamProtocol = null;
   _manualCamSetData = [];
   await updatePatientHomeScreen();
@@ -3349,6 +3362,7 @@ async function showExercisesScreen() {
       <div class="exs-row-left">
         <span class="exs-row-name">${escapeHtml(exName(p.exerciseType, p.exerciseName))}</span>
         <span class="exs-row-meta">${t('ex.repsSets', { reps: p.reps, sets: p.sets, freq: getFrequencyLabel(p.frequency) })}</span>
+        ${p.notes ? `<span class="exs-row-note">${escapeHtml(p.notes)}</span>` : ''}
       </div>
       <div class="exs-row-right">
         ${badge}
@@ -3672,7 +3686,7 @@ async function showRealPatient(patient) {
           <div class="pd-sub">
             <span>${protocols.length > 0 ? (protocols[0].protocolName || protocols[0].exerciseName || 'Protocol') : 'No protocol'}</span>
             <span class="pd-dot" aria-hidden="true">&middot;</span>
-            <span>${sessions.length} session${sessions.length !== 1 ? 's' : ''}</span>
+            <span>${sessions.length} session${sessions.length !== 1 ? 's' : ''} (90d)</span>
           </div>
           ${demographicsHtml}
         </div>
@@ -3690,7 +3704,7 @@ async function showRealPatient(patient) {
           ${adhBreakdownHtml}
         </div>
         <div class="pd-vital">
-          <span class="pd-vital-label">AVG PAIN</span>
+          <span class="pd-vital-label">AVG PAIN &middot; 7D</span>
           <span class="pd-vital-value">${avgPain7d}${avgPain7d !== '-' ? '<span class="pd-vital-unit">/10</span>' : ''}</span>
           ${painDeltaHtml}
         </div>
@@ -3717,9 +3731,9 @@ async function showRealPatient(patient) {
           <header class="pd-card-header" style="display:flex;align-items:center;justify-content:space-between">
             <h2>Pain Index</h2>
             <div class="pain-range-toggle">
-              <button class="pain-range-btn active" data-range="1">1D</button>
+              <button class="pain-range-btn" data-range="1">1D</button>
               <button class="pain-range-btn" data-range="7">7D</button>
-              <button class="pain-range-btn" data-range="30">30D</button>
+              <button class="pain-range-btn active" data-range="30">30D</button>
             </div>
           </header>
           <div class="pd-chart-wrap"><canvas id="painChart"></canvas></div>
@@ -3733,7 +3747,7 @@ async function showRealPatient(patient) {
 
   if (sessions.length > 0) {
     window._painChartSessions = sessions;
-    renderPainChart(sessions, 1);
+    renderPainChart(sessions, 30);
     document.querySelectorAll('.pain-range-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.pain-range-btn').forEach(b => b.classList.remove('active'));
@@ -6116,8 +6130,75 @@ async function deleteMyAccount() {
   }
 }
 
-function downloadMyData() {
-  alert('Data export is coming soon. Contact support if you need your data now.');
+async function downloadMyData() {
+  const btn = document.getElementById('settingsDownloadBtn');
+  const origText = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing...'; }
+  try {
+    const email = currentUser.email;
+
+    // Helper: read a single doc, return its data or null (never throws).
+    const safeDoc = async (col, id) => {
+      try { const d = await db.collection(col).doc(id).get(); return d.exists ? d.data() : null; }
+      catch (e) { console.warn(`[Motus] export: could not read ${col}/${id}`, e); return null; }
+    };
+    // Helper: read a query, return array of {id, ...data} (never throws).
+    const safeQuery = async (q) => {
+      try { const s = await q.get(); return s.docs.map(d => ({ id: d.id, ...d.data() })); }
+      catch (e) { console.warn('[Motus] export: query failed', e); return []; }
+    };
+
+    const [profile, protocol, sessionsTo, sessionsFrom, msgsTo, msgsFrom] = await Promise.all([
+      safeDoc('users', email),
+      safeDoc('protocols', email),
+      safeQuery(db.collection('sessions').where('patientEmail', '==', email)),
+      safeQuery(db.collection('sessions').where('userEmail', '==', email)),
+      safeQuery(db.collection('messages').where('to', '==', email)),
+      safeQuery(db.collection('messages').where('from', '==', email)),
+    ]);
+
+    // Merge session results from either field name, de-duped by id.
+    const sessionsById = {};
+    [...sessionsTo, ...sessionsFrom].forEach(s => { sessionsById[s.id] = s; });
+    const sessions = Object.values(sessionsById);
+
+    // Merge messages, de-duped, sorted oldest-first when a timestamp exists.
+    const msgsById = {};
+    [...msgsTo, ...msgsFrom].forEach(m => { msgsById[m.id] = m; });
+    const messages = Object.values(msgsById).sort((a, b) => {
+      const ta = a.createdAt?.seconds || a.timestamp || 0;
+      const tb = b.createdAt?.seconds || b.timestamp || 0;
+      return ta - tb;
+    });
+
+    const exportData = {
+      _about: 'Motus personal data export (HIPAA Right of Access). This file contains the health information Motus holds about you that is readable from your account.',
+      _generatedAt: new Date().toISOString(),
+      _account: email,
+      _note: 'Clinical notes written by your therapist are part of the therapist\'s designated record set and are not readable from a patient account; request them directly from your therapist or email the contact on our Privacy Policy. Session video files are not embedded here; you can view or save them in the app while they are retained.',
+      profile,
+      protocol,
+      sessions,
+      messages,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `motus-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    try { await writeAuditLog('data_exported', email); } catch (_) {}
+  } catch (e) {
+    console.error('[Motus] Data export failed:', e);
+    alert('Export failed. Please try again or contact support.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText || 'Download my data'; }
+  }
 }
 
 async function disconnectFromTherapist() {
