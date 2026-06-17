@@ -9,6 +9,7 @@ import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
 import 'firebase/compat/analytics';
+import 'firebase/compat/storage';
 import Chart from 'chart.js/auto';
 import * as Sentry from '@sentry/browser';
 
@@ -468,29 +469,33 @@ let _manualCamVideoUrl  = null;   // uploaded video URL for current set
 let _manualCamCurrentBlob = null; // video blob from current set
 let _manualCamTimerInterval = null; // recording timer interval
 
-const CLOUDINARY_CLOUD  = 'dslbugsdg';
-const CLOUDINARY_PRESET = 'phalanx-videos';
-async function uploadVideoToCloudinary(blob) {
-  if (!blob || blob.size === 0) return null;
+// ── Video upload → Firebase Storage (resumable; returns {url, storagePath}) ──
+// Replaces the old public-Cloudinary unsigned preset. The patient (owner) uploads;
+// the resulting download URL is stored in the Firestore doc, which is itself
+// access-gated by Firestore rules, so only the patient + their connected therapist
+// ever receive it. Direct path reads are locked to the owner in storage.rules.
+// Short-lived signed URLs via a Cloud Function are the planned hardening (deployment
+// plan step 21). storagePath is persisted so the expiry/deletion Function can remove
+// the object. onProgress(pct) is optional for an upload progress UI.
+async function uploadVideoToStorage(blob, storagePath, onProgress) {
+  if (!blob || blob.size === 0 || !storagePath) return null;
   try {
-    const form = new FormData();
-    form.append('file', blob);
-    form.append('upload_preset', CLOUDINARY_PRESET);
-    form.append('resource_type', 'video');
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, {
-      method: 'POST',
-      body: form
-    });
-    const data = await res.json();
-    if (data.secure_url) {
-      logAnalyticsEvent('video_upload_success');
-      return data.secure_url;
+    const ref = storage.ref(storagePath);
+    const task = ref.put(blob, { contentType: blob.type || 'video/webm' });
+    if (onProgress) {
+      task.on('state_changed', snap => {
+        const pct = snap.totalBytes ? Math.round(100 * snap.bytesTransferred / snap.totalBytes) : 0;
+        try { onProgress(pct); } catch (_) {}
+      });
     }
-    return null;
-  } catch(e) {
+    await task;
+    const url = await ref.getDownloadURL();
+    logAnalyticsEvent('video_upload_success');
+    return { url, storagePath };
+  } catch (e) {
     console.warn('[Motus] Video upload error:', e);
     Sentry.captureException(e, { tags: { flow: 'video-upload' } });
-    logAnalyticsEvent('video_upload_failure', { error_code: e.message || 'unknown' });
+    logAnalyticsEvent('video_upload_failure', { error_code: e.code || e.message || 'unknown' });
     return null;
   }
 }
@@ -537,8 +542,9 @@ if (!import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.m
   firebase.appCheck().activate(import.meta.env.VITE_RECAPTCHA_SITE_KEY, true);
 }
 
-const db   = firebase.firestore();
-const auth = firebase.auth();
+const db      = firebase.firestore();
+const auth    = firebase.auth();
+const storage = firebase.storage();
 
 db.enablePersistence({ synchronizeTabs: true }).catch(err => {
   if (err.code === 'failed-precondition') console.warn('Persistence failed: multiple tabs open');
@@ -2287,15 +2293,16 @@ async function manualCamSaveSet() {
   document.getElementById('setInputModal').style.display = 'none';
   
   // Upload video and get URL from saved blob
-  let videoUrl = null;
+  let videoUrl = null, videoStoragePath = null;
   const blob = _manualCamCurrentBlob;
   _manualCamCurrentBlob = null;
-  
+
   if (blob && blob.size > 0) {
-    videoUrl = await uploadVideoToCloudinary(blob);
+    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.webm`);
+    if (up) { videoUrl = up.url; videoStoragePath = up.storagePath; }
   }
 
-  _manualCamSetData.push({ reps, pain, notes, videoUrl });
+  _manualCamSetData.push({ reps, pain, notes, videoUrl, videoStoragePath });
   
   if (_manualCamCurrentSet >= _manualCamTotalSets) {
     await finishManualCamSession();
@@ -2423,13 +2430,14 @@ async function saveCurrentSetAndExit() {
   const blob = _manualCamCurrentBlob;
   _manualCamCurrentBlob = null;
   
-  let videoUrl = null;
+  let videoUrl = null, videoStoragePath = null;
   if (blob && blob.size > 0) {
-    videoUrl = await uploadVideoToCloudinary(blob);
+    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.webm`);
+    if (up) { videoUrl = up.url; videoStoragePath = up.storagePath; }
   }
-  
+
   // Add with default reps/pain since user didn't fill modal
-  _manualCamSetData.push({ reps: _manualCamProtocol?.reps || 10, pain: 1, notes: 'Exited early', videoUrl });
+  _manualCamSetData.push({ reps: _manualCamProtocol?.reps || 10, pain: 1, notes: 'Exited early', videoUrl, videoStoragePath });
   
   // Now save the session
   await finishManualCamSession();
@@ -3195,7 +3203,7 @@ async function assignProtocol() {
   let demoVideoUrl = _demoExistingVideoUrl || null;
   if (_demoBlob) {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading demo...'; }
-    demoVideoUrl = await uploadVideoToCloudinary(_demoBlob);
+    { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
     if (demoVideoUrl) {
       _demoThumbnailUrl = _getThumbnailUrl(demoVideoUrl);
     } else {
@@ -4204,7 +4212,7 @@ async function bulkAssignProtocol() {
   let demoVideoUrl = null;
   if (_demoBlob) {
     if (submitBtn) submitBtn.textContent = 'Uploading demo...';
-    demoVideoUrl = await uploadVideoToCloudinary(_demoBlob);
+    { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
     if (submitBtn) submitBtn.textContent = 'Assigning...';
   }
 
@@ -5565,15 +5573,15 @@ async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session
   if (!blob || blob.size === 0 || !docId) return;
   const tierConfig = VIDEO_TIERS[tier] || VIDEO_TIERS.session;
   try {
-    const secureUrl = await uploadVideoToCloudinary(blob);
-    if (secureUrl) {
-      const update = { videoUrl: secureUrl };
+    const up = await uploadVideoToStorage(blob, `${collection}/${currentUser.email}/${docId}.webm`);
+    if (up) {
+      const update = { videoUrl: up.url, videoStoragePath: up.storagePath };
       if (tierConfig.expireDays !== null) {
         update.videoExpireAt = new Date(Date.now() + tierConfig.expireDays * 86400000).toISOString();
       }
       await db.collection(collection).doc(docId).update(update);
     } else {
-      console.warn('[Motus] Cloudinary upload failed');
+      console.warn('[Motus] Video upload failed');
     }
   } catch(e) {
     console.warn('[Motus] Video upload error:', e);

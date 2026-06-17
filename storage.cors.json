@@ -1,0 +1,14 @@
+[
+  {
+    "origin": [
+      "https://motus-prod.web.app",
+      "https://motus-prod.firebaseapp.com",
+      "https://motus-staging1.web.app",
+      "https://motus-staging1.firebaseapp.com",
+      "http://localhost:5173"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Range", "Accept-Ranges", "Range"],
+    "maxAgeSeconds": 3600
+  }
+]

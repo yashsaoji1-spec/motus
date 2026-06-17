@@ -1,0 +1,43 @@
+rules_version = '2';
+
+// Firebase Storage security rules for Motus.
+//
+// Note: Storage rules CANNOT read Firestore, so the patient<->therapist connection
+// can't be checked here. Patient session videos are therefore locked to the OWNER
+// for direct path access; the connected therapist views them via the tokenized
+// download URL stored in the Firestore session doc (that doc is itself gated by
+// Firestore rules, so only the patient + their therapist ever receive the URL).
+// Planned hardening: a getSignedVideoUrl Cloud Function issuing short-lived signed
+// URLs, after which the read rules below can deny all direct access. See the
+// deployment plan (step 21) and the PHI data-flow inventory.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Patient session / per-set videos: sessions/{patientEmail}/...
+    match /sessions/{patientEmail}/{allPaths=**} {
+      allow read: if request.auth != null
+                  && request.auth.token.email == patientEmail;
+      allow write: if request.auth != null
+                   && request.auth.token.email == patientEmail
+                   && request.resource.size < 200 * 1024 * 1024
+                   && request.resource.contentType.matches('video/.*');
+    }
+
+    // Therapist exercise demo videos: demos/{therapistEmail}/...
+    // Instructional content shown to assigned patients — not PHI. Owner therapist
+    // writes; any authenticated user may read.
+    match /demos/{therapistEmail}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.token.email == therapistEmail
+                   && request.resource.size < 200 * 1024 * 1024
+                   && request.resource.contentType.matches('video/.*');
+    }
+
+    // Deny everything else by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

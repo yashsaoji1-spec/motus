@@ -4,6 +4,34 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-17 (later) -- Yash
+
+**Video storage: Cloudinary -> Firebase Storage migration (code-complete, NOT yet deployed/tested)**
+
+The big one from the deployment plan. Patient session videos were going to an **unsigned public Cloudinary
+preset** (public PHI -- the top security hole). Migrated all video upload to **Firebase Storage**:
+
+- New `uploadVideoToStorage()` (resumable + progress, returns `{url, storagePath}`) replaces
+  `uploadVideoToCloudinary()`; all 6 call sites cut over (manual-cam per-set x2, angle-path `uploadVideo`,
+  demo uploads x2). `videoStoragePath` is now persisted so the future expiry/deletion Function can delete
+  the object.
+- New `storage.rules`: patient videos are **owner-only by path**; demo videos readable by any authed user
+  (instructional, not PHI); deny-all default. Registered in `firebase.json`. Storage host added to CSP.
+  `storage.cors.json` added for video range-requests.
+- **Security model:** the download URL is stored in the Firestore session doc (gated by Firestore rules),
+  so only the patient + connected therapist get it. This closes the public-video hole. Therapist viewing
+  currently uses that tokenized download URL, **not** a short-lived signed URL -- the `getSignedVideoUrl`
+  Cloud Function is the deferred hardening (needs Functions/Blaze).
+
+**Important:** this is **uncommitted-risk code** -- it builds clean but is **untested**, because Firebase
+Storage needs the **Blaze plan** (a card on file) to provision a bucket on prod/staging. Nothing deployed.
+Legacy/demo Cloudinary URLs still play (kept in CSP); disable the old `phalanx-videos` preset after cutover
+is confirmed. Poster thumbnails are graceful-empty for now (polish later).
+
+Plan + PHI data-flow inventory updated to reflect code-complete/untested status.
+
+---
+
 ## 2026-06-17 -- Yash
 
 **Deployment-readiness pass: legal truth + security headers + real data export + UI fixes -- on staging**
