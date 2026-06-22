@@ -4,6 +4,31 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-21 (later) -- Yash
+
+**Signed-URL video viewing (the hardening) + patient connect dead-end fix -- TESTED on staging**
+
+- **`getSignedVideoUrl` (callable, deployed + tested):** therapist/patient viewing now goes through a
+  server-side access check that returns a **15-minute signed URL**, instead of a permanent download URL.
+  Session videos now store **only the storage path** (no permanent URL in Firestore at all). storage.rules
+  stays owner-only; signed URLs bypass rules via the service-account signature. Verified: therapist watched
+  a patient's set video via signed URL.
+- **Patient connect dead-end fixed:** a patient who skipped connecting had no way back. Now the home shows
+  a **"Connect to a therapist"** button (replaces Start Session) whenever they're not connected, opening
+  the connect screen. Skip is no longer a trap.
+- **Video modal caption** fixed: no longer claims "hand tracking overlay" (angle tracking is off).
+- **CSP:** added `storage.googleapis.com` to `media-src`/`img-src` (signed-URL host).
+
+**Infra note for prod:** the signed-URL function needs two one-time grants per environment — `allUsers`
+Cloud Run Invoker on `getsignedvideourl`, and **Service Account Token Creator** on the compute service
+account (so it can sign URLs). Both done on staging.
+
+**Open / minor:** assign button is unguarded against double-click (can create a duplicate exercise) -- fix
+optional; App Check `recaptcha-error` still noisy (non-fatal); bucket CORS not applied (video played
+without it). Still staging only; prod untouched.
+
+---
+
 ## 2026-06-21 -- Yash
 
 **Cloud Functions live on staging: account-deletion cascade + video expiry (TESTED end-to-end)**

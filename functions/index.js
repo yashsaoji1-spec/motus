@@ -143,6 +143,47 @@ exports.deleteMyAccount = onCall(async (request) => {
   return { ok: true };
 });
 
+// ── callable: short-lived signed URL for a video ─────────────────────────────
+// Replaces handing out permanent download URLs. Verifies the caller may see the
+// video (patient owner, their connected therapist, or admin for sessions; any
+// authed user for demos), then returns a 15-minute signed URL. Signed URLs are
+// authenticated by the service account and bypass Storage rules, so storage.rules
+// can keep direct path reads locked to the owner.
+exports.getSignedVideoUrl = onCall(async (request) => {
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  if (!email) throw new HttpsError('unauthenticated', 'You must be signed in.');
+  const path = request.data && request.data.path;
+  if (!path || typeof path !== 'string') throw new HttpsError('invalid-argument', 'Missing video path.');
+
+  if (path.startsWith('sessions/')) {
+    const patientEmail = path.split('/')[1];
+    let allowed = email === patientEmail;
+    if (!allowed) {
+      const u = await db.collection('users').doc(patientEmail).get();
+      allowed = u.exists && u.data().therapistEmail === email; // connected therapist
+    }
+    if (!allowed) {
+      const me = await db.collection('users').doc(email).get();
+      allowed = me.exists && me.data().role === 'admin';
+    }
+    if (!allowed) throw new HttpsError('permission-denied', 'Not authorized for this video.');
+  } else if (!path.startsWith('demos/')) {
+    throw new HttpsError('permission-denied', 'Invalid video path.');
+  }
+
+  try {
+    const [url] = await bucket.file(path).getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: Date.now() + 15 * 60 * 1000,
+    });
+    return { url };
+  } catch (e) {
+    console.error('[getSignedVideoUrl] sign failed for', path, e);
+    throw new HttpsError('internal', 'Could not generate video link.');
+  }
+});
+
 // ── scheduled: expire old session videos ─────────────────────────────────────
 exports.expireVideos = onSchedule('every 24 hours', async () => {
   const cutoff = new Date(Date.now() - SESSION_RETENTION_DAYS * 86400000).toISOString();

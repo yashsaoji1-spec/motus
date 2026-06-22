@@ -1152,6 +1152,11 @@ async function skipConnect() {
   maybeStartTutorial();
 }
 
+// Reconnect path for an unconnected patient (home "Connect to a therapist" button).
+function goToConnect() {
+  showScreen('connectScreen');
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 5: LOGIN SUCCESS / LOGOUT
    ══════════════════════════════════════════════════════════════════════════ */
@@ -1825,6 +1830,11 @@ async function updatePatientHomeScreen() {
 
   const disconnectBtn = document.getElementById('disconnectTherapistBtn');
   if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
+  // Unconnected patients get a Connect button instead of Start Session — no dead-end.
+  const startBtn = document.getElementById('ptStartSessionBtn');
+  const connectBtn = document.getElementById('ptConnectTherapistBtn');
+  if (startBtn) startBtn.style.display = therapistEmail ? '' : 'none';
+  if (connectBtn) connectBtn.style.display = therapistEmail ? 'none' : '';
 
   // Protocol card header
   const kickerEl = document.getElementById('ptProtocolKicker');
@@ -2293,17 +2303,17 @@ async function manualCamSaveSet() {
   
   document.getElementById('setInputModal').style.display = 'none';
   
-  // Upload video and get URL from saved blob
-  let videoUrl = null, videoStoragePath = null;
+  // Upload video to Storage; store only the path (viewing uses signed URLs).
+  let videoStoragePath = null;
   const blob = _manualCamCurrentBlob;
   _manualCamCurrentBlob = null;
 
   if (blob && blob.size > 0) {
     const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.webm`);
-    if (up) { videoUrl = up.url; videoStoragePath = up.storagePath; }
+    if (up) videoStoragePath = up.storagePath;
   }
 
-  _manualCamSetData.push({ reps, pain, notes, videoUrl, videoStoragePath });
+  _manualCamSetData.push({ reps, pain, notes, videoStoragePath });
   
   if (_manualCamCurrentSet >= _manualCamTotalSets) {
     await finishManualCamSession();
@@ -2431,14 +2441,14 @@ async function saveCurrentSetAndExit() {
   const blob = _manualCamCurrentBlob;
   _manualCamCurrentBlob = null;
   
-  let videoUrl = null, videoStoragePath = null;
+  let videoStoragePath = null;
   if (blob && blob.size > 0) {
     const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.webm`);
-    if (up) { videoUrl = up.url; videoStoragePath = up.storagePath; }
+    if (up) videoStoragePath = up.storagePath;
   }
 
   // Add with default reps/pain since user didn't fill modal
-  _manualCamSetData.push({ reps: _manualCamProtocol?.reps || 10, pain: 1, notes: 'Exited early', videoUrl, videoStoragePath });
+  _manualCamSetData.push({ reps: _manualCamProtocol?.reps || 10, pain: 1, notes: 'Exited early', videoStoragePath });
   
   // Now save the session
   await finishManualCamSession();
@@ -3965,14 +3975,16 @@ function buildSessionHistory(sessions, patientName) {
           </div>`;
       exSessions.forEach((s, idx) => {
         const setNum = idx + 1;
-        const hasVideo = !!s.videoUrl;
+        const hasVideo = !!(s.videoStoragePath || s.videoUrl);
         const exitedEarly = s.notes && s.notes.toLowerCase().includes('exited');
         let videoBtn = '<span class="prog-set-empty">—</span>';
         if (hasVideo) {
-          const safeUrl = escJsAttr(s.videoUrl || '');
           const safeDate = escJsAttr(s.parentDate || s.date || '');
           const pName = escJsAttr(window._lastHistoryPatientName || '');
-          videoBtn = `<button class="prog-set-video-btn" onclick="event.stopPropagation(); openVideoModal('${safeUrl}', '${safeDate}', '${pName}')" title="Watch Set ${setNum}">
+          const onClick = s.videoStoragePath
+            ? `openSessionVideo('${escJsAttr(s.videoStoragePath)}', '${safeDate}', '${pName}')`
+            : `openVideoModal('${escJsAttr(s.videoUrl || '')}', '${safeDate}', '${pName}')`;
+          videoBtn = `<button class="prog-set-video-btn" onclick="event.stopPropagation(); ${onClick}" title="Watch Set ${setNum}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           </button>`;
         }
@@ -5591,6 +5603,23 @@ async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session
 
 // ── Video modal ──
 
+// Resolve a Storage path to a short-lived (15-min) signed URL via the function,
+// then play it. Session videos no longer store a permanent URL — every view is
+// access-checked server-side and the link expires.
+async function getSignedVideoUrlFor(storagePath) {
+  const res = await firebase.functions().httpsCallable('getSignedVideoUrl')({ path: storagePath });
+  return res.data.url;
+}
+async function openSessionVideo(storagePath, sessionDate, patientName) {
+  try {
+    const url = await getSignedVideoUrlFor(storagePath);
+    openVideoModal(url, sessionDate, patientName);
+  } catch (e) {
+    console.error('[Motus] video link failed:', e);
+    alert('Could not load the video. Please try again.');
+  }
+}
+
 function openVideoModal(videoUrl, sessionDate, patientName) {
   const player = document.getElementById('videoModalPlayer');
   const dlBtn  = document.getElementById('videoModalDownload');
@@ -5803,15 +5832,17 @@ function buildProgressByDay(sessions) {
       
       exSessions.forEach((s, idx) => {
         const setNum = idx + 1;
-        const hasVideo = !!s.videoUrl;
+        const hasVideo = !!(s.videoStoragePath || s.videoUrl);
         const exitedEarly = s.notes && s.notes.toLowerCase().includes('exited');
-        
+
         let videoBtn = '<span class="prog-set-empty">—</span>';
         if (hasVideo) {
-          const safeUrl = escJsAttr(s.videoUrl || '');
           const safeDate = escJsAttr(s.parentDate || '');
           const patientName = escJsAttr(currentUser?.name || currentUser?.email || '');
-          videoBtn = `<button class="prog-set-video-btn" onclick="openVideoModal('${safeUrl}', '${safeDate}', '${patientName}')" title="Watch Set ${setNum}">
+          const onClick = s.videoStoragePath
+            ? `openSessionVideo('${escJsAttr(s.videoStoragePath)}', '${safeDate}', '${patientName}')`
+            : `openVideoModal('${escJsAttr(s.videoUrl || '')}', '${safeDate}', '${patientName}')`;
+          videoBtn = `<button class="prog-set-video-btn" onclick="${onClick}" title="Watch Set ${setNum}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           </button>`;
         }
@@ -7735,7 +7766,7 @@ Object.assign(window, {
   handleLogin, handleForgot, selectRole,
   signupNextStep, signupGoToStep, signupSelectLanguage, signupFinishLanguage, signupSkipData, finalizeSignup,
   showSettingsScreen, showSettingsBack, saveSettings, settingsSavedGoHome, settingsSavedStay,
-  handleConnect, skipConnect,
+  handleConnect, skipConnect, goToConnect,
   logout, requestLogout, closeLogoutModal, confirmLogout, resetInactivityTimer,
   approveTherapist, rejectTherapist, acceptConsent,
 
@@ -7752,7 +7783,7 @@ Object.assign(window, {
 
   // Camera session
   flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary, dismissSummaryToProgress,
-  openVideoModal, closeVideoModal, downloadSessionVideo,
+  openVideoModal, openSessionVideo, closeVideoModal, downloadSessionVideo,
 
   // Clinics
   showMyClinicOrJoin, showCreateClinicScreen, createClinic,
