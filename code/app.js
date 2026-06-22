@@ -10,6 +10,7 @@ import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
 import 'firebase/compat/analytics';
 import 'firebase/compat/storage';
+import 'firebase/compat/functions';
 import Chart from 'chart.js/auto';
 import * as Sentry from '@sentry/browser';
 
@@ -6111,29 +6112,16 @@ async function deleteMyAccount() {
   const btn = document.querySelector('.delete-account-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
   try {
-    const email = currentUser.email;
-    const batch = db.batch();
-    batch.delete(db.collection('users').doc(email));
-    batch.delete(db.collection('protocols').doc(email));
-    batch.delete(db.collection('connections').doc(email));
-    const sessionSnap = await db.collection('sessions').where('patientEmail', '==', email).get();
-    sessionSnap.docs.forEach(d => batch.delete(d.ref));
-    const msgSnap = await db.collection('messages').where('to', '==', email).get();
-    msgSnap.docs.forEach(d => batch.delete(d.ref));
-    const msgSentSnap = await db.collection('messages').where('from', '==', email).get();
-    msgSentSnap.docs.forEach(d => batch.delete(d.ref));
-    await batch.commit();
-    const user = firebase.auth().currentUser;
-    if (user) await user.delete();
+    // Server-side cascade (Cloud Function) removes ALL of the user's data across
+    // every collection + Storage and deletes the auth user — far more complete than
+    // a client batch, and it works without a recent re-login.
+    await firebase.functions().httpsCallable('deleteMyAccount')();
+    try { await auth.signOut(); } catch (_) {}
     sessionStorage.clear();
     showScreen('loginScreen');
   } catch (e) {
     console.error('[Motus] Account deletion failed:', e);
-    if (e.code === 'auth/requires-recent-login') {
-      alert('For security, please sign out, sign back in, and try again.');
-    } else {
-      alert('Deletion failed. Please try again or contact support.');
-    }
+    alert('Deletion failed. Please try again or contact support.');
     if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
   }
 }

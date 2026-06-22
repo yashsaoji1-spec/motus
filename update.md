@@ -4,6 +4,39 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-21 -- Yash
+
+**Cloud Functions live on staging: account-deletion cascade + video expiry (TESTED end-to-end)**
+
+Staging (`motus-staging1`) is now on Blaze (Google $300 free trial). Built and deployed the first Cloud
+Functions and verified them:
+
+- **`deleteMyAccount` (callable):** full server-side cascade. Patient deletion removes their `users`,
+  `protocols`, `calibration`, `clinicalNotes`, `jointTracking`, all `sessions`, messages/threads, **and
+  their Storage videos**, plus removes them from the therapist's `connections`. Therapist deletion removes
+  their own artifacts (library, codes, custom exercises, owned clinics, demo videos) and disconnects their
+  patients. Excludes `auditLog` (HIPAA retention). Then deletes the auth user. **Replaces the old
+  client-side delete, which left orphans everywhere (and which the Firestore rules correctly blocked).**
+  Verified on staging: deleting a test patient left nothing behind.
+- **`expireVideos` (scheduled daily):** deletes session videos older than 30 days from Storage and clears
+  their refs. Deployed; runs automatically.
+- Client `deleteMyAccount()` now calls the callable, then signs out.
+
+**Infra/config fixed along the way** (all needed for the above to work in the browser):
+- CSP (`firebase.json`): added Cloud Functions, fonts, Sentry, GA, reCAPTCHA hosts to `connect-src`/`script-src`.
+- **Service worker rewrite** (`sw.js`): it was intercepting *all* requests (incl. cross-origin Firebase/
+  fonts/functions) and re-fetching them under its own old-CSP context, which broke everything. Now it only
+  touches same-origin app files; everything else goes straight to the network. Bumped cache to v2.
+- Granted the `deletemyaccount` Cloud Run service public invoker (callables must be publicly invokable; the
+  auto-created org had blocked it).
+- `.gitignore`: now tracks `functions/` source (was wholesale-ignored), still ignores `node_modules`.
+
+**Known noise (non-fatal, pending):** `appCheck/recaptcha-error` floods the console on staging — App Check
+isn't enforced, so it blocks nothing; the staging reCAPTCHA key just isn't registered for the domain. Will
+quiet later. Still on staging only; prod untouched.
+
+---
+
 ## 2026-06-17 (later) -- Yash
 
 **Video storage: Cloudinary -> Firebase Storage migration (code-complete, NOT yet deployed/tested)**

@@ -26,8 +26,8 @@ android/
 ios/
 capacitor.config.json
 
-# Cloud Functions (not deployed yet -- no Blaze plan)
-functions/
+# Cloud Functions — track source, ignore installed deps
+functions/node_modules/
 
 # Tests (not running)
 tests/
