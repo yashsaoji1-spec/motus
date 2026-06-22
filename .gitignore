@@ -29,8 +29,8 @@ capacitor.config.json
 # Cloud Functions — track source, ignore installed deps
 functions/node_modules/
 
-# Tests (not running)
-tests/
+# Tests — rules tests are tracked and passing; e2e (playwright) not set up yet
+tests/e2e/
 playwright.config.js
 vitest.config.js
 

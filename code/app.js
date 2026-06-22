@@ -511,6 +511,13 @@ const VIDEO_TIERS = {
 // ── Feature flags — set to false to disable without deleting code ──
 const ANGLE_TRACKING_ENABLED = false;
 
+// ── Consent / Notice of Privacy Practices version ──
+// Bump this date string whenever the consent language or the NPP materially
+// changes. A patient whose stored acknowledgment doesn't match the current
+// version is re-prompted to consent before any PHI screen loads — this is the
+// per-user, per-version acknowledgment HIPAA expects.
+const NPP_VERSION = '2026-06-21';
+
 // ── Firebase config — replace all REPLACE_* values with your project's config ──
 // Get these from: Firebase console → Project Settings → Your apps → SDK setup
 // Required Firestore composite indexes (create in Firebase console → Firestore → Indexes):
@@ -709,6 +716,34 @@ async function isThreadArchived(email1, email2) {
   }
 }
 
+// Deterministic, non-reversible pseudonym for an email so audit entries can
+// correlate events for one user across time WITHOUT storing PHI (the raw
+// email). Same email always maps to the same id, so an investigator can follow
+// a user's activity without the log itself being identifiable.
+async function pseudonymizeEmail(email) {
+  try {
+    const data = new TextEncoder().encode(String(email).toLowerCase().trim());
+    const buf  = await crypto.subtle.digest('SHA-256', data);
+    const hex  = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return 'u_' + hex.slice(0, 16);
+  } catch (_) {
+    return 'u_unknown';
+  }
+}
+
+// Replace every email-looking token in a resourceId with its pseudonym, so
+// composite ids (e.g. a "from:to" message thread) are fully de-identified.
+async function redactResourceId(resourceId) {
+  if (!resourceId) return resourceId;
+  const emails = String(resourceId).match(/[^\s:]+@[^\s:]+\.[^\s:]+/g);
+  if (!emails) return resourceId;
+  let out = String(resourceId);
+  for (const e of emails) {
+    out = out.split(e).join(await pseudonymizeEmail(e));
+  }
+  return out;
+}
+
 async function writeAuditLog(action, resourceId = '') {
   try {
     const user = firebase.auth().currentUser;
@@ -717,7 +752,7 @@ async function writeAuditLog(action, resourceId = '') {
     await db.collection('auditLog').add({
       actorId:   user.uid,
       action,
-      resourceId,
+      resourceId: await redactResourceId(resourceId),  // never store raw emails (PHI)
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       userAgent: navigator.userAgent,
     });
@@ -1177,8 +1212,10 @@ async function loginSuccess() {
   } else if (currentRole === 'therapist_pending') {
     showScreen('pendingScreen');
   } else {
-    // patient -- require consent + NPP acknowledgment before any PHI screen
-    if (!currentUser.consentGiven || !currentUser.nppAcknowledgedAt) {
+    // patient -- require consent + current-version NPP acknowledgment before
+    // any PHI screen. A mismatch (never consented, or consented to an older
+    // version) re-prompts. This gate is the enforced block on PHI writes.
+    if (!currentUser.consentGiven || currentUser.nppVersionAccepted !== NPP_VERSION) {
       showScreen('consentScreen');
       return;
     }
@@ -1219,6 +1256,7 @@ async function acceptConsent() {
       consentGiven: true,
       consentTimestamp: timestamp,
       nppAcknowledgedAt: timestamp,
+      nppVersionAccepted: NPP_VERSION,
     });
   } catch (e) {
     if (err) {
@@ -1230,6 +1268,8 @@ async function acceptConsent() {
   currentUser.consentGiven = true;
   currentUser.consentTimestamp = timestamp;
   currentUser.nppAcknowledgedAt = timestamp;
+  currentUser.nppVersionAccepted = NPP_VERSION;
+  await writeAuditLog('consent_accepted', `${currentUser.email}:${NPP_VERSION}`);
   await routePatient();
 }
 

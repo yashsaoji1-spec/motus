@@ -33,6 +33,13 @@ service cloud.firestore {
       return myRole() == 'admin';
     }
 
+    // True once the patient has accepted consent. Server-side floor behind the
+    // client consent gate — blocks PHI writes from a patient who never consented.
+    // (Per-version re-prompting is enforced client-side against NPP_VERSION.)
+    function hasConsented() {
+      return get(/databases/$(database)/documents/users/$(myEmail())).data.consentGiven == true;
+    }
+
     // True if the current therapist has this patient in their connections doc.
     function connectedToPatient(patientEmail) {
       return exists(/databases/$(database)/documents/connections/$(myEmail())) &&
@@ -139,7 +146,7 @@ service cloud.firestore {
       allow read: if isAuth() && isTherapist() && connectedToPatient(resource.data.patientEmail);
       allow read: if isAuth() && isAdmin();
       allow create: if isAuth() && (
-        myEmail() == request.resource.data.patientEmail ||
+        (myEmail() == request.resource.data.patientEmail && hasConsented()) ||
         isAdmin()
       ) && (!('notes' in request.resource.data) || request.resource.data.notes.size() <= 1000);
       // Only videoUrl and videoExpireAt may be updated (async video upload after session is saved).
@@ -348,9 +355,10 @@ service cloud.firestore {
 
     // -- auditLog/{entryId} -- HIPAA §164.312(b) audit trail
     // Append-only from authenticated clients. No client reads, updates, or deletes.
-    // Review via Firebase Console or Cloud Functions only.
+    // actorId must be the caller's own UID so an entry can't be forged under
+    // another actor. Review via Firebase Console or Cloud Functions only.
     match /auditLog/{entryId} {
-      allow create: if isAuth();
+      allow create: if isAuth() && request.resource.data.actorId == request.auth.uid;
       allow read, update, delete: if false;
     }
 

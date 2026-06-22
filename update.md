@@ -4,6 +4,27 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-22 -- Yash
+
+**Audit-log de-PHI + consent versioning + enforced consent gate -- TESTED on staging**
+
+- **Audit log no longer stores PHI.** `writeAuditLog` now runs every `resourceId` through
+  `redactResourceId`, which replaces any email with a stable SHA-256 pseudonym (`u_<16hex>`).
+  Same email always maps to the same id, so you can still correlate one user's activity without
+  the log being identifiable. Covers all ~14 audit call sites centrally. Verified on a real
+  `session_recorded` entry (resourceId = `u_...`, actorId = UID).
+- **Consent is now versioned.** New `NPP_VERSION` constant; the patient gate requires
+  `nppVersionAccepted === NPP_VERSION` (not just "consented once"). Bumping that string re-prompts
+  every patient -- the per-user, per-version acknowledgment HIPAA wants. `acceptConsent` stores the
+  version and writes a `consent_accepted` audit entry.
+- **Server-side teeth (firestore.rules):** patient `sessions` create now requires `hasConsented()`
+  -- a never-consented patient physically cannot write PHI, even outside the UI. `auditLog` create
+  now requires `actorId == request.auth.uid` so entries can't be forged under another actor.
+- **Rules tests added + passing:** `tests/rules/security.test.js` (9 tests, run with `npm run test:rules`)
+  covers the consent gate, audit forgery protection, and core self-promotion/read invariants.
+  Added `vitest.config.mjs` so vitest doesn't inherit `root: 'code'`.
+- Deployed `firestore:rules` + `hosting` to **staging only**. Prod cutover still pending.
+
 ## 2026-06-21 (later) -- Yash
 
 **Signed-URL video viewing (the hardening) + patient connect dead-end fix -- TESTED on staging**
