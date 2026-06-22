@@ -39,26 +39,30 @@ const PROTOCOL_ITEMS = [
   { id: 'seed_wrist', exerciseType: 'wrist_flexion',  exerciseName: 'Wrist Flexion',  reps: 10, sets: 2, frequency: 'daily', restSeconds: 45, notes: 'Keep forearm supported on the table.', assignedBy: THERAPIST.name, assignedAt: daysAgo(28).toISOString() },
 ];
 
-// 12 sessions over ~28 days, pain trending 7 → 2 (recovery story for the chart).
+// Daily sessions for all 3 exercises over the last DAYS days (including today),
+// pain trending 7 -> 2. Daily coverage in the current calendar week keeps the
+// adherence widget healthy regardless of which day the demo is recorded.
+const DAYS = 10;
 function buildSessions() {
   const sessions = [];
-  const dayOffsets = [27, 25, 23, 20, 18, 15, 12, 10, 7, 5, 3, 1];
-  dayOffsets.forEach((off, i) => {
-    const pain = Math.max(2, Math.round(7 - (i / (dayOffsets.length - 1)) * 5)); // 7 down to ~2
-    const ex = PROTOCOL_ITEMS[i % PROTOCOL_ITEMS.length];
-    const setData = Array.from({ length: ex.sets }, (_, s) => ({ set: s + 1, reps: ex.reps, pain }));
-    const totalReps = setData.reduce((sum, s) => sum + s.reps, 0);
-    sessions.push({
-      patientEmail: PATIENT.email,
-      date: daysAgo(off).toISOString(),
-      reps: totalReps,
-      pain,
-      exerciseType: ex.exerciseType,
-      protocolId: ex.id,
-      therapistEmail: THERAPIST.email,
-      setData,
+  for (let off = DAYS - 1; off >= 0; off--) {
+    // more recent (smaller off) => lower pain: off=9 -> 7, off=0 -> 2
+    const pain = Math.max(2, Math.round(2 + (off / (DAYS - 1)) * 5));
+    PROTOCOL_ITEMS.forEach((ex) => {
+      const setData = Array.from({ length: ex.sets }, (_, s) => ({ set: s + 1, reps: ex.reps, pain }));
+      const totalReps = setData.reduce((sum, s) => sum + s.reps, 0);
+      sessions.push({
+        patientEmail: PATIENT.email,
+        date: daysAgo(off).toISOString(),
+        reps: totalReps,
+        pain,
+        exerciseType: ex.exerciseType,
+        protocolId: ex.id,
+        therapistEmail: THERAPIST.email,
+        setData,
+      });
     });
-  });
+  }
   return sessions;
 }
 

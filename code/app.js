@@ -5979,12 +5979,20 @@ async function renderProgressScreen() {
     }
   });
   
+  // Sessions store `date` (ISO string); `timestamp` is not a session field, so
+  // fall back to date — otherwise these buckets are always empty and the pain
+  // trend never renders.
+  function sessionTime(s) {
+    if (s.timestamp) return (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp));
+    if (s.date) return new Date(s.date);
+    return null;
+  }
   const last7 = expandedSessions.filter(function(s) {
-    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    var ts = sessionTime(s);
     return ts && (now - ts.getTime()) <= 7 * msPerDay;
   });
   const prior7 = expandedSessions.filter(function(s) {
-    var ts = s.timestamp ? (s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp)) : null;
+    var ts = sessionTime(s);
     if (!ts) return false;
     var age = now - ts.getTime();
     return age > 7 * msPerDay && age <= 14 * msPerDay;
