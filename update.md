@@ -4,6 +4,29 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-22 (later) -- Yash
+
+**PROD CUTOVER -- the whole video-security stack is now live and tested on prod**
+
+- **motus-prod upgraded to Blaze** (same $300-trial billing account as staging), **Storage bucket
+  provisioned** (us-east1), **all 3 Cloud Functions deployed** (`deleteMyAccount`, `expireVideos`,
+  `getSignedVideoUrl`), invoker grants + Token Creator grant done. Rules + storage rules + hosting
+  deployed with the new code (consent gate, audit de-PHI, CSP).
+- **Verified end-to-end ON PROD:** video upload -> Firebase Storage, signed-URL playback by the
+  therapist, and the full account-deletion cascade (nothing left behind). Prod is now at feature
+  parity with staging on the security stack.
+- **Cloudinary removed from the CSP** (connect/media/img-src). Code was already off Cloudinary;
+  this drops the last allow-listed reference. Still TODO (Yash, console): disable the
+  `phalanx-videos` upload preset in the Cloudinary dashboard so the old unsigned preset can't be
+  abused.
+- **3 UI fixes (also on staging):** patient connect now reflects without a refresh; patient home
+  shows a 3-way CTA (Connect / Message therapist when no protocol / Start Session); onboarding
+  tutorial is now strictly once-ever (marked done on first show + localStorage backstop).
+- Commits `e8bf098` (UI fixes) + this one (CSP). prod + staging + git all in sync.
+- **Still for M1:** remove demo-login bypass + delete prod demo accounts (holding until the RAC
+  demo video is recorded), seed clean demo data, record the 2-min demo video. External: attorney
+  review, domain, contact inbox.
+
 ## 2026-06-22 -- Yash
 
 **Audit-log de-PHI + consent versioning + enforced consent gate -- TESTED on staging**
