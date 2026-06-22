@@ -5705,8 +5705,11 @@ function downloadSessionVideo(url, date, patientName) {
    SECTION 12: PROGRESS SCREEN
    ══════════════════════════════════════════════════════════════════════════ */
 
-let _painChartInstance = null;
-function renderPainChart(sessions, days) {
+const _painChartInstances = {};
+function renderPainChart(sessions, days, canvasId) {
+  canvasId = canvasId || 'painChart';
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
   cutoff.setHours(0, 0, 0, 0);
@@ -5715,8 +5718,8 @@ function renderPainChart(sessions, days) {
   const painData = chartSessions.map(s => s.pain || 0);
   const labels = buildChartLabels(chartSessions);
   const cfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
-  if (_painChartInstance) _painChartInstance.destroy();
-  _painChartInstance = new Chart(document.getElementById('painChart').getContext('2d'), {
+  if (_painChartInstances[canvasId]) _painChartInstances[canvasId].destroy();
+  _painChartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
     type: 'line', data: { labels, datasets: [cfg.dataset] }, options: cfg.options
   });
 }
@@ -6025,7 +6028,32 @@ async function renderProgressScreen() {
       '<div class="prog-stat-card"><div class="prog-stat-value" style="color:' + adhColorProg + '">' + adherenceThisWeek + '%</div><div class="prog-stat-label">Adherence</div></div>' +
       '<div class="prog-stat-card"><div class="prog-stat-value ' + painTrendClass + '">' + painTrendDisplay + '</div><div class="prog-stat-label">Pain trend</div></div>' +
     '</div>' +
+    (sessions.length ?
+      '<div class="prog-chart-card">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2)">' +
+          '<h3 style="font-size:0.95rem;font-weight:700;color:var(--text);margin:0">Pain Index</h3>' +
+          '<div class="pain-range-toggle">' +
+            '<button class="pain-range-btn" data-range="7">7D</button>' +
+            '<button class="pain-range-btn active" data-range="30">30D</button>' +
+            '<button class="pain-range-btn" data-range="90">90D</button>' +
+          '</div>' +
+        '</div>' +
+        '<canvas id="patientPainChart"></canvas>' +
+      '</div>'
+    : '') +
     buildProgressByDay(sessions);
+
+  if (sessions.length > 0) {
+    renderPainChart(sessions, 30, 'patientPainChart');
+    const scope = document.getElementById('progressContent');
+    scope.querySelectorAll('.pain-range-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        scope.querySelectorAll('.pain-range-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        renderPainChart(sessions, parseInt(btn.dataset.range), 'patientPainChart');
+      });
+    });
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
