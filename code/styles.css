@@ -3852,6 +3852,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .pt-msg-send-btn:not(:disabled) { opacity: 1; }
+.pt-msg-send-label {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .msg-unread-badge {
   background: var(--accent); color: #fff; font-size: 0.65rem;
@@ -4626,6 +4635,51 @@ body:has(#manualCamScreen.active) {
   -webkit-tap-highlight-color: transparent;
 }
 .mcam-btn-stop:hover { background: #FEF2F2; }
+
+/* F-001: Done / Save session CTA on manual cam screen */
+.mcam-done-btn {
+  margin-top: 14px;
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 12px;
+  font-family: var(--pt-font);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mcam-done-btn:hover { background: #F8FAFC; }
+
+/* F-001: Session-saved banner on patient home */
+.pt-session-saved-banner {
+  background: #D1FAE5;
+  border: 1px solid #34D399;
+  color: #065F46;
+  font-family: var(--pt-font);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+/* F-003: Approval banner on admin screen */
+.admin-approval-banner {
+  background: #D1FAE5;
+  border: 1px solid #34D399;
+  color: #065F46;
+  font-family: var(--font);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  text-align: center;
+}
 
 /* Legacy classes still used by cameraScreen */
 .cam-hud-back {

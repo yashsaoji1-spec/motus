@@ -173,6 +173,12 @@ const I18N = {
     'cam.flip': 'FLIP',
     'cam.demo': 'DEMO',
     'cam.cameraFront': 'CAMERA · FRONT',
+    'cam.done': 'Done',
+    'cam.sessionSaved': 'Session saved!',
+    // Messaging
+    'msg.send': 'Send',
+    // Admin
+    'admin.therapistApproved': 'Therapist approved',
     // Bottom nav
     'nav.home': 'Home',
     'nav.progress': 'Progress',
@@ -305,6 +311,10 @@ const I18N = {
     'cam.flip': 'GIRAR',
     'cam.demo': 'DEMO',
     'cam.cameraFront': 'CÁMARA · FRONTAL',
+    'cam.done': 'Hecho',
+    'cam.sessionSaved': '¡Sesión guardada!',
+    'msg.send': 'Enviar',
+    'admin.therapistApproved': 'Terapeuta aprobado',
     'nav.home': 'Inicio',
     'nav.progress': 'Progreso',
     'nav.messages': 'Mensajes',
@@ -1299,6 +1309,11 @@ async function approveTherapist(email) {
   await db.collection('users').doc(email).update({ role: 'therapist' });
   writeAuditLog('admin_action:approve_therapist', email);
   await loadAdminScreen();
+  const banner = document.getElementById('adminApprovalBanner');
+  if (banner) {
+    banner.style.display = 'block';
+    setTimeout(() => { banner.style.display = 'none'; }, 3000);
+  }
 }
 
 async function rejectTherapist(email) {
@@ -2382,6 +2397,13 @@ async function finishManualCamSession() {
   _manualCamSetData = [];
   await updatePatientHomeScreen();
   showScreen('patientScreen');
+  if (saveOk) {
+    const banner = document.getElementById('ptSessionSavedBanner');
+    if (banner) {
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 3000);
+    }
+  }
 }
 
 function manualCamExit() {
@@ -7811,7 +7833,7 @@ Object.assign(window, {
   closeDemoAndStart, skipDemoVideo, replayDemoInSession, exitDemoNoSave,
 
   // Manual camera session
-  openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,
+  openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet, finishManualCamSession,
   updatePainBar, siAdjustReps, siSelectPain, siToggleChip,
 
   // Progress screen

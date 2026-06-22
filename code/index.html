@@ -258,6 +258,8 @@
       </div>
       <button class="th-btn" onclick="logout()">Sign Out</button>
     </div>
+    <div id="adminApprovalBanner" class="admin-approval-banner" style="display:none;" aria-live="polite"
+         data-i18n="admin.therapistApproved">Therapist approved</div>
     <div id="pendingTherapistList" class="th-admin-list"></div>
   </div>
 </div>
@@ -310,6 +312,10 @@
 
   <!-- Protocol card + stats + therapist -->
   <div class="pt-home-grid-zone">
+    <!-- F-001: Session-saved success banner (shown briefly after returning from recording) -->
+    <div id="ptSessionSavedBanner" class="pt-session-saved-banner" style="display:none;" aria-live="polite"
+         data-i18n="cam.sessionSaved">Session saved!</div>
+
     <section class="pt-protocol-card">
       <div class="pt-protocol-kicker-row">
         <span class="pt-protocol-kicker" id="ptProtocolKicker">YOUR PROTOCOL</span>
@@ -499,6 +505,8 @@
   <div class="mcam-ctrl-card">
     <p class="mcam-prompt" id="manualCamPrompt">Tap Start when ready to begin</p>
     <div class="mcam-btns" id="manualCamBtns"></div>
+    <button class="mcam-done-btn" id="manualCamDoneBtn" onclick="finishManualCamSession()"
+            data-i18n="cam.done">Done</button>
   </div>
 
   <!-- Hidden stubs -->
@@ -708,8 +716,10 @@
              maxlength="2000"
              onkeydown="if(event.key==='Enter'&&!document.getElementById('msgSendBtn').disabled)sendMessageFromPatient()"
              oninput="toggleMsgSend()" />
-      <button class="pt-msg-send-btn" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      <button class="pt-msg-send-btn" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled
+              data-i18n-aria="msg.send">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+        <span class="pt-msg-send-label" data-i18n="msg.send">Send</span>
       </button>
     </div>
   </div>
