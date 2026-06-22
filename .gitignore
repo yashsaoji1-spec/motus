@@ -30,9 +30,8 @@ capacitor.config.json
 # Cloud Functions (not deployed yet -- no Blaze plan)
 functions/
 
-# Tests — seed script committed; other test infra excluded
-tests/
-!tests/seed.mjs
+# Tests — committed: seed.mjs, audit harness; excluded: shot output
+tests/audit/shots/
 playwright.config.js
 vitest.config.js
 

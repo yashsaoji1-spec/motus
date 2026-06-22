@@ -29,8 +29,10 @@
     "prompt-sync": "^4.2.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@firebase/rules-unit-testing": "^5.0.0",
     "@playwright/test": "^1.59.1",
+    "axe-core": "^4.12.1",
     "firebase-admin": "^12.0.0",
     "firebase-tools": "^15.22.0",
     "sharp": "^0.34.5",
