@@ -1169,6 +1169,7 @@ async function handleConnect() {
   const therapist = await getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   await saveConnection(therapist.email, currentUser.email);
+  currentUser.therapistEmail = therapist.email;  // keep in-memory user in sync so the home screen sees the connection without a refresh
   const successEl = document.getElementById('connectSuccess');
   successEl.textContent = `Connected to ${therapist.name}! Loading your exercises...`;
   successEl.style.display = 'block';
@@ -1870,11 +1871,17 @@ async function updatePatientHomeScreen() {
 
   const disconnectBtn = document.getElementById('disconnectTherapistBtn');
   if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
-  // Unconnected patients get a Connect button instead of Start Session — no dead-end.
+  // Three-way CTA so there's never a dead button:
+  //   not connected        → Connect to a therapist
+  //   connected, no plan    → Message your therapist (nothing to start yet)
+  //   connected, has plan   → Start Session
+  const hasProtocol = protocols.length > 0;
   const startBtn = document.getElementById('ptStartSessionBtn');
   const connectBtn = document.getElementById('ptConnectTherapistBtn');
-  if (startBtn) startBtn.style.display = therapistEmail ? '' : 'none';
+  const msgBtn = document.getElementById('ptMessageTherapistBtn');
+  if (startBtn) startBtn.style.display = (therapistEmail && hasProtocol) ? '' : 'none';
   if (connectBtn) connectBtn.style.display = therapistEmail ? 'none' : '';
+  if (msgBtn) msgBtn.style.display = (therapistEmail && !hasProtocol) ? '' : 'none';
 
   // Protocol card header
   const kickerEl = document.getElementById('ptProtocolKicker');
@@ -7752,21 +7759,35 @@ function closeTutorial() {
 async function skipTutorial()   { closeTutorial(); await markTutorialCompleted(); }
 async function finishTutorial() { closeTutorial(); await markTutorialCompleted(); }
 
+function tutorialLSKey(email) { return 'motus_tutorial_done:' + email; }
+
 async function markTutorialCompleted() {
-  if (!currentUser?.email || currentUser.tutorialCompleted) return;
+  if (!currentUser?.email) return;
   currentUser.tutorialCompleted = true;
+  // localStorage backstop — guarantees no auto-replay on this device even if the
+  // Firestore write fails or the user doc field doesn't round-trip.
+  try { localStorage.setItem(tutorialLSKey(currentUser.email), '1'); } catch (_) {}
   try {
-    await db.collection('users').doc(currentUser.email).update({ tutorialCompleted: true });
+    // set(merge) rather than update() so it persists even if the field/doc shape varies.
+    await db.collection('users').doc(currentUser.email).set({ tutorialCompleted: true }, { merge: true });
   } catch (e) {
     console.warn('Failed to save tutorial completion:', e);
   }
 }
 
-// Fires once per session, 1.5s after first landing on a main app screen,
-// and only for accounts that have never completed the tutorial.
+// Auto-fires at most ONCE EVER per account: 1.5s after first landing on a main
+// app screen. It's marked completed the moment it fires, so it never replays
+// regardless of how it's dismissed (skip, finish, navigate away, reload).
+// The Settings "replay" path calls startTutorial() directly, bypassing this gate.
 function maybeStartTutorial() {
   if (_tutAutoStartAttempted || _tutActive) return;
   if (!currentUser || currentUser.tutorialCompleted) return;
+  try {
+    if (localStorage.getItem(tutorialLSKey(currentUser.email)) === '1') {
+      currentUser.tutorialCompleted = true;
+      return;
+    }
+  } catch (_) {}
   if (currentRole !== 'patient' && currentRole !== 'therapist') return;
   const active = document.querySelector('.screen.active');
   const onMainScreen = currentRole === 'therapist'
@@ -7775,7 +7796,10 @@ function maybeStartTutorial() {
   if (!onMainScreen) return;
   _tutAutoStartAttempted = true;
   setTimeout(() => {
-    if (currentUser && !currentUser.tutorialCompleted && !_tutActive) startTutorial();
+    if (currentUser && !currentUser.tutorialCompleted && !_tutActive) {
+      startTutorial();
+      markTutorialCompleted();  // record as seen on first auto-show, so it's truly once-ever
+    }
   }, 1500);
 }
 
