@@ -4,6 +4,33 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-22 (latest) -- Yash
+
+**Post-cutover polish from live testing (all on prod + staging)**
+
+- **Pain-trend box was broken for every patient** -- the Progress "Pain trend" widget keyed off a
+  `s.timestamp` field that sessions don't have (they store `date`), so it always showed "--". Fixed to
+  fall back to `date`. Now shows e.g. "down 1.4".
+- **Added a pain chart to the patient Progress screen** -- there was no graph anywhere for patients before,
+  only stat cards + a list. Pain Index line chart with 7/30/90-day toggles. (Parameterized
+  `renderPainChart` with a canvasId so it no longer collides with the therapist chart.)
+- **Patient home is now a 3-way CTA** -- not connected = "Connect to a therapist"; connected but no
+  protocol = **"Message your therapist"**; connected + protocol = "Start Session". And `handleConnect` now
+  updates the in-memory user so connecting reflects without a refresh.
+- **Onboarding tutorial is strictly once-ever now** -- it only marked complete on Skip/finish before, so
+  any other dismissal re-fired it. Marked complete on first show + localStorage backstop.
+- **Camera fixes** -- front-camera preview now mirrors (moving right reads as right) but a back camera
+  (phone filming the hand) stays raw; removed the stray dead-center "CAMERA - FRONT" label.
+- **Demo data seeded on prod** (`seed.js`) -- james.park / sarah.chen, 30 daily sessions + 5 messages,
+  fictional (no PHI), for the demo video. Run with a service-account key (gitignored), deleted after.
+- **Heads-up: App Check enforcement is ON for prod Firestore.** I briefly gated App Check off to quiet
+  console noise and it broke login (no token -> permission denied) -- reverted. Don't disable App Check
+  activation; the reCAPTCHA console warnings are benign.
+- **NOT TESTED yet:** camera-error recovery + log-without-video (a denied camera no longer strands the
+  patient -- recovery overlay + no-video logging). Built + deployed, needs a real camera-denied run.
+
+Commits `e8bf098`, `8bcb3bf`, `4273004`, `2af2637`, `9b4dd89`, `2cb4083`, `dc6991a`, `2669cb0`.
+
 ## 2026-06-22 (later) -- Yash
 
 **PROD CUTOVER -- the whole video-security stack is now live and tested on prod**
