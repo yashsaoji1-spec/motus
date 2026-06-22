@@ -6,6 +6,10 @@ dist/
 # Environment files
 .env.*
 
+# Service-account keys — full-admin credentials, never commit
+serviceAccountKey.json
+*-service-account*.json
+
 # Firebase config (must stay in root for CLI, but not needed on GitHub)
 .firebaserc
 firebase.json
