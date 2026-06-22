@@ -546,7 +546,13 @@ function logAnalyticsEvent(name, params = {}) {
 // then enable enforcement on Firestore once staging confirms everything works.
 // Skip App Check entirely in E2E test runs (VITE_E2E_TEST=true) — fresh Playwright
 // contexts generate unregistered debug tokens which cause 403 errors.
-if (!import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.meta.env.VITE_E2E_TEST) {
+// App Check feature flag — keep OFF until the reCAPTCHA v3 provider is registered
+// in Firebase Console → App Check for each web app AND you're ready to enforce.
+// Activating before registration provides no protection (enforcement is what
+// gates access) and only spams the console with token-fetch errors.
+// To turn on: register the provider, flip this to true, then enable enforcement.
+const APPCHECK_ENABLED = false;
+if (APPCHECK_ENABLED && !import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_SITE_KEY && !import.meta.env.VITE_E2E_TEST) {
   firebase.appCheck().activate(import.meta.env.VITE_RECAPTCHA_SITE_KEY, true);
 }
 

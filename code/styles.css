@@ -1277,7 +1277,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .cam-viewport video { object-fit: contain; }
 .cam-viewport video, .cam-viewport canvas {
   position: absolute; width: 100%; height: 100%;
-  transform: scaleX(-1);
+  /* No mirror: moving right reads as right, and the preview matches the
+     (un-mirrored) recorded video. */
 }
 
 .cam-flip-btn {
