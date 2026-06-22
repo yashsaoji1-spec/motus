@@ -20,7 +20,8 @@ TODO.md
 ENVIRONMENT_PROBE.md
 .octogent
 .superpowers/
-docs/
+docs/*
+!docs/superpowers/
 
 # Native builds (Capacitor -- not deployed)
 android/
