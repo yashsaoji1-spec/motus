@@ -5,6 +5,7 @@ dist/
 
 # Environment files
 .env.*
+!.env.audit
 
 # Firebase config (must stay in root for CLI, but not needed on GitHub)
 .firebaserc

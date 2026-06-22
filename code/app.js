@@ -527,6 +527,12 @@ const FIREBASE_CONFIG = {
 
 firebase.initializeApp(FIREBASE_CONFIG);
 
+if (import.meta.env.VITE_USE_EMULATORS === 'true') {
+  firebase.auth().useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+  firebase.firestore().useEmulator('127.0.0.1', 8181);
+  console.info('[motus] Connected to Firebase emulators (audit)');
+}
+
 // ── Analytics — production only, no PHI in event parameters ──
 const analytics = import.meta.env.PROD ? firebase.analytics() : null;
 function logAnalyticsEvent(name, params = {}) {
