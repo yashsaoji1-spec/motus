@@ -2178,7 +2178,7 @@ async function openManualCameraSession(protocol) {
   _manualCamVideoUrl = null;
 
   const video = document.getElementById('manualCamVideo');
-  if (video) video.style.transform = 'scaleX(1)';
+  // Mirror set after the stream starts (we mirror only the front camera).
 
   const nameEl = document.getElementById('manualCamExName');
   const setInfoEl = document.getElementById('manualCamSetInfo');
@@ -2220,6 +2220,11 @@ async function manualCamStartCamera() {
     _manualCamStream = stream;
     video.srcObject = stream;
     await video.play();
+    // Mirror the preview ONLY for a front/user-facing camera (selfie view: moving
+    // right reads as right). A back camera (phone filming the hand) stays raw.
+    // Laptop webcams often report no facingMode — treat those as front.
+    const facing = stream.getVideoTracks()[0]?.getSettings().facingMode;
+    video.style.transform = (facing === 'environment') ? 'scaleX(1)' : 'scaleX(-1)';
   } catch(e) {
     console.error('[Motus] Manual camera error:', e);
     Sentry.captureException(e, { tags: { flow: 'camera-manual' } });
