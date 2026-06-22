@@ -469,6 +469,7 @@ let _manualCamChunks    = [];    // recorded chunks for current set
 let _manualCamVideoUrl  = null;   // uploaded video URL for current set
 let _manualCamCurrentBlob = null; // video blob from current set
 let _manualCamTimerInterval = null; // recording timer interval
+let _manualCamNoVideo = false;    // true when camera unavailable / user opted to log without video
 
 // ── Video upload → Firebase Storage (resumable; returns {url, storagePath}) ──
 // Replaces the old public-Cloudinary unsigned preset. The patient (owner) uploads;
@@ -2176,6 +2177,7 @@ async function openManualCameraSession(protocol) {
     .reduce((sum, s) => sum + (s.setData?.length > 0 ? s.setData.length : 1), 0);
   _manualCamCurrentSet = Math.min(_alreadyDone + 1, _manualCamTotalSets);
   _manualCamVideoUrl = null;
+  _manualCamNoVideo = false;
 
   const video = document.getElementById('manualCamVideo');
   // Mirror set after the stream starts (we mirror only the front camera).
@@ -2191,21 +2193,34 @@ async function openManualCameraSession(protocol) {
   if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
   const targetEl = document.getElementById('manualCamTarget');
   if (targetEl) targetEl.textContent = `Target ${_manualCamTotalSets}\u00D7${protocol.reps || 10}`;
-  if (promptEl) promptEl.textContent = t('cam.readyForSet', { cur: _manualCamCurrentSet, total: _manualCamTotalSets });
-  const demoUrl = protocol.demoVideoUrl || null;
-  const demoBtn = demoUrl
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exName(protocol.exerciseType, protocol.exerciseName))}')">${t('cam.demo')}</button>`
-    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
-  if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
-    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
-      <span class="mcam-rec-dot" aria-hidden="true"></span>
-    </button>
-    ${demoBtn}
-  `;
+  manualCamSetReadyState();
 
   showScreen('manualCamScreen');
   await manualCamStartCamera();
+}
+
+// Renders the control card's prompt + buttons for the "ready" state, branching
+// on whether we have a working camera. In no-video mode the user gets a single
+// "Log this set" button instead of the record control.
+function manualCamSetReadyState() {
+  const promptEl = document.getElementById('manualCamPrompt');
+  const btnsEl = document.getElementById('manualCamBtns');
+  const demoUrl = _manualCamProtocol?.demoVideoUrl || null;
+  const demoBtn = demoUrl
+    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName))}')">${t('cam.demo')}</button>`
+    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
+  if (_manualCamNoVideo) {
+    if (promptEl) promptEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets} · do your set, then log it`;
+    if (btnsEl) btnsEl.innerHTML = `<button class="mcam-btn-logset" onclick="manualCamLogWithoutVideo()">Log this set</button>`;
+  } else {
+    if (promptEl) promptEl.textContent = t('cam.readyForSet', { cur: _manualCamCurrentSet, total: _manualCamTotalSets });
+    if (btnsEl) btnsEl.innerHTML = `
+      <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
+      <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
+        <span class="mcam-rec-dot" aria-hidden="true"></span>
+      </button>
+      ${demoBtn}`;
+  }
 }
 
 async function manualCamStartCamera() {
@@ -2228,8 +2243,32 @@ async function manualCamStartCamera() {
   } catch(e) {
     console.error('[Motus] Manual camera error:', e);
     Sentry.captureException(e, { tags: { flow: 'camera-manual' } });
-    alert('Could not access camera. Please allow camera permissions.');
+    // Don't strand the user on a black screen — offer retry or log-without-video.
+    const overlay = document.getElementById('manualCamError');
+    const msg = document.getElementById('manualCamErrorMsg');
+    if (msg) {
+      msg.textContent = (e && e.name === 'NotAllowedError')
+        ? 'Camera permission is blocked. You can enable it in your browser settings and retry, or log this set without a video.'
+        : "We couldn't start your camera. You can retry, or log this set without a video.";
+    }
+    if (overlay) overlay.style.display = 'flex';
   }
+}
+
+function manualCamRetryCamera() {
+  const overlay = document.getElementById('manualCamError');
+  if (overlay) overlay.style.display = 'none';
+  manualCamStartCamera();
+}
+
+// Enter no-video mode and open the reps/pain entry for the current set.
+// Used both from the camera-error overlay and the per-set "Log this set" button.
+function manualCamLogWithoutVideo() {
+  const overlay = document.getElementById('manualCamError');
+  if (overlay) overlay.style.display = 'none';
+  _manualCamNoVideo = true;
+  _manualCamCurrentBlob = null;
+  openSetInputModal();
 }
 
 function manualCamStartRecording() {
@@ -2290,66 +2329,50 @@ function manualCamEndSet() {
     _manualCamRecorder = null;
     _manualCamCurrentBlob = new Blob(_manualCamChunks, { type: mimeType });
     _manualCamChunks = [];
-    
-    // Show input modal
-    const setInput = document.getElementById('setInputModal');
-    const repsInput = document.getElementById('setInputReps');
-    const painInput = document.getElementById('setInputPain');
-    const painVal = document.getElementById('setInputPainVal');
-    const notesInput = document.getElementById('setInputNotes');
-    
-    const defaultReps = _manualCamProtocol?.reps || 10;
-    if (repsInput) repsInput.value = defaultReps;
-    if (painInput) painInput.value = 1;
-    if (notesInput) notesInput.value = '';
-
-    // Badge
-    const badge = document.getElementById('setInputBadgeText');
-    if (badge) badge.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets} complete`;
-
-    // Exercise name
-    const exNameEl = document.getElementById('setInputExName');
-    if (exNameEl) exNameEl.textContent = exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName).toUpperCase();
-
-    // Stepper display
-    const repsDisp = document.getElementById('siRepsDisplay');
-    const repsTgt = document.getElementById('siRepsTarget');
-    if (repsDisp) repsDisp.textContent = defaultReps;
-    if (repsTgt) repsTgt.textContent = `TARGET ${defaultReps}`;
-
-    // Pain squares
-    siInitPainGrid();
-    siSelectPain(1);
-
-    // Reset chips
-    document.querySelectorAll('.si-chip').forEach(c => c.classList.remove('active'));
-
-    // Update save button label
-    const saveBtn = document.querySelector('.si-save-btn');
-    if (saveBtn) saveBtn.textContent = _manualCamCurrentSet >= _manualCamTotalSets ? 'Save · finish →' : 'Save · next set →';
-
-    if (setInput) setInput.style.display = 'flex';
+    openSetInputModal();
   };
 
   _manualCamRecorder.stop();
 }
 
+// Populates and shows the reps/pain/notes entry for the current set. Works the
+// same whether a video was recorded (blob set) or not (no-video mode).
+function openSetInputModal() {
+  const setInput = document.getElementById('setInputModal');
+  const repsInput = document.getElementById('setInputReps');
+  const painInput = document.getElementById('setInputPain');
+  const notesInput = document.getElementById('setInputNotes');
+
+  const defaultReps = _manualCamProtocol?.reps || 10;
+  if (repsInput) repsInput.value = defaultReps;
+  if (painInput) painInput.value = 1;
+  if (notesInput) notesInput.value = '';
+
+  const badge = document.getElementById('setInputBadgeText');
+  if (badge) badge.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets} complete`;
+
+  const exNameEl = document.getElementById('setInputExName');
+  if (exNameEl) exNameEl.textContent = exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName).toUpperCase();
+
+  const repsDisp = document.getElementById('siRepsDisplay');
+  const repsTgt = document.getElementById('siRepsTarget');
+  if (repsDisp) repsDisp.textContent = defaultReps;
+  if (repsTgt) repsTgt.textContent = `TARGET ${defaultReps}`;
+
+  siInitPainGrid();
+  siSelectPain(1);
+
+  document.querySelectorAll('.si-chip').forEach(c => c.classList.remove('active'));
+
+  const saveBtn = document.querySelector('.si-save-btn');
+  if (saveBtn) saveBtn.textContent = _manualCamCurrentSet >= _manualCamTotalSets ? 'Save · finish →' : 'Save · next set →';
+
+  if (setInput) setInput.style.display = 'flex';
+}
+
 function manualCamCancelSet() {
   document.getElementById('setInputModal').style.display = 'none';
-  const promptEl = document.getElementById('manualCamPrompt');
-  const btnsEl = document.getElementById('manualCamBtns');
-  if (promptEl) promptEl.textContent = 'Tap Start when ready to begin';
-  const demoUrlC = _manualCamProtocol?.demoVideoUrl || null;
-  const demoBtnC = demoUrlC
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlC)}', '')">${t('cam.demo')}</button>`
-    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
-  if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
-    <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
-      <span class="mcam-rec-dot" aria-hidden="true"></span>
-    </button>
-    ${demoBtnC}
-  `;
+  manualCamSetReadyState();
 }
 
 async function manualCamSaveSet() {
@@ -2378,23 +2401,10 @@ async function manualCamSaveSet() {
   } else {
     _manualCamCurrentSet++;
     const setInfoEl = document.getElementById('manualCamSetInfo');
-    const promptEl = document.getElementById('manualCamPrompt');
-    const btnsEl = document.getElementById('manualCamBtns');
     const exIdx = (_manualCamExerciseIndex || 0) + 1;
     const exTotal = _manualCamTotalExercises || 1;
     if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
-    if (promptEl) promptEl.textContent = t('cam.readyForSet', { cur: _manualCamCurrentSet, total: _manualCamTotalSets });
-    const demoUrlN = _manualCamProtocol?.demoVideoUrl || null;
-    const demoBtnN = demoUrlN
-      ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlN)}', '')">${t('cam.demo')}</button>`
-      : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
-    if (btnsEl) btnsEl.innerHTML = `
-      <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
-      <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
-        <span class="mcam-rec-dot" aria-hidden="true"></span>
-      </button>
-      ${demoBtnN}
-    `;
+    manualCamSetReadyState();
   }
 }
 
@@ -7936,6 +7946,7 @@ Object.assign(window, {
 
   // Manual camera session
   openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,
+  manualCamRetryCamera, manualCamLogWithoutVideo,
   updatePainBar, siAdjustReps, siSelectPain, siToggleChip,
 
   // Progress screen

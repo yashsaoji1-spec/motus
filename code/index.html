@@ -503,6 +503,17 @@
     <div class="mcam-btns" id="manualCamBtns"></div>
   </div>
 
+  <!-- Camera error / recovery overlay -->
+  <div class="mcam-error" id="manualCamError" style="display:none;">
+    <div class="mcam-error-card">
+      <svg class="mcam-error-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l22 22"/><path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m4-2h4l2 3h4a2 2 0 0 1 2 2v9.34m-7.72-2.06a4 4 0 1 1-5.56-5.56"/></svg>
+      <h3 class="mcam-error-title">Camera unavailable</h3>
+      <p class="mcam-error-msg" id="manualCamErrorMsg">We couldn't start your camera. You can retry, or log this set without a video.</p>
+      <button class="mcam-error-retry" onclick="manualCamRetryCamera()">Retry camera</button>
+      <button class="mcam-error-skip" onclick="manualCamLogWithoutVideo()">Log without video</button>
+    </div>
+  </div>
+
   <!-- Hidden stubs -->
   <div style="display:none" aria-hidden="true">
     <div id="camSetProgress"></div>

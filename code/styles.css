@@ -4627,6 +4627,62 @@ body:has(#manualCamScreen.active) {
 }
 .mcam-btn-stop:hover { background: #FEF2F2; }
 
+/* Wide "Log this set" button (no-video mode) */
+.mcam-btn-logset {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #0EA5E9;
+  border: none;
+  color: #fff;
+  font-family: var(--pt-font);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mcam-btn-logset:hover { background: #0284C7; }
+
+/* Camera error / recovery overlay */
+.mcam-error {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2,6,23,0.72);
+}
+.mcam-error-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 24px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #0C4A6E;
+}
+.mcam-error-icon { margin-bottom: 4px; }
+.mcam-error-title { font-family: var(--pt-font); font-size: 1.1rem; font-weight: 800; margin: 0; color: #0C4A6E; }
+.mcam-error-msg { font-size: 0.88rem; color: #475569; line-height: 1.5; margin: 0 0 8px; }
+.mcam-error-retry {
+  width: 100%; padding: 13px; border-radius: 12px;
+  background: #0EA5E9; border: none; color: #fff;
+  font-family: var(--pt-font); font-size: 0.95rem; font-weight: 700; cursor: pointer;
+}
+.mcam-error-retry:hover { background: #0284C7; }
+.mcam-error-skip {
+  width: 100%; padding: 13px; border-radius: 12px;
+  background: #fff; border: 1px solid #CBD5E1; color: #0C4A6E;
+  font-family: var(--pt-font); font-size: 0.95rem; font-weight: 600; cursor: pointer;
+}
+.mcam-error-skip:hover { background: #F1F5F9; }
+
 /* Legacy classes still used by cameraScreen */
 .cam-hud-back {
   font-family: var(--pt-font);
