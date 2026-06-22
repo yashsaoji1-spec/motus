@@ -52,6 +52,8 @@ playwright-report/
 logs/
 
 # Misc
-scripts/
+!scripts/
+scripts/*
+!scripts/*.mjs
 public/404.html
 .npmrc
