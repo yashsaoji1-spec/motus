@@ -4685,6 +4685,46 @@ body:has(#manualCamScreen.active) {
   text-align: center;
 }
 
+/* F-009: patient home load-error banner */
+.pt-home-load-error {
+  background: #FEE2E2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+  font-family: var(--pt-font);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+/* F-013: manualCamScreen saving overlay */
+.mcam-saving-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  color: #fff;
+  font-family: var(--pt-font);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* F-016: messaging error message */
+.pt-msg-error {
+  color: #991B1B;
+  font-family: var(--pt-font);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  text-align: center;
+}
+
 /* Legacy classes still used by cameraScreen */
 .cam-hud-back {
   font-family: var(--pt-font);

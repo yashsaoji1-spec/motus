@@ -66,6 +66,8 @@ const I18N = {
     'auth.password': 'Password',
     'auth.forgotPassword': 'Forgot password?',
     'auth.signIn': 'Sign In',
+    'auth.signingIn': 'Signing in…',
+    'auth.creatingAccount': 'Creating account…',
     'auth.newToMotus': 'New to Motus?',
     'auth.createAccount': 'Create account',
     'auth.emailPlaceholder': 'you@example.com',
@@ -145,6 +147,8 @@ const I18N = {
     'connect.connect': 'Connect',
     'connect.skip': 'Skip for now',
     // Patient home
+    'home.loading': 'Loading…',
+    'home.loadError': "Couldn't load your exercises — check your connection.",
     'home.goodMorning': 'Good morning',
     'home.goodAfternoon': 'Good afternoon',
     'home.goodEvening': 'Good evening',
@@ -175,8 +179,10 @@ const I18N = {
     'cam.cameraFront': 'CAMERA · FRONT',
     'cam.done': 'Done',
     'cam.sessionSaved': 'Session saved!',
+    'cam.saving': 'Saving session…',
     // Messaging
     'msg.send': 'Send',
+    'msg.sendError': 'Message not sent — try again',
     // Admin
     'admin.therapistApproved': 'Therapist approved',
     // Bottom nav
@@ -212,6 +218,8 @@ const I18N = {
     'auth.password': 'Contraseña',
     'auth.forgotPassword': '¿Olvidaste tu contraseña?',
     'auth.signIn': 'Iniciar sesión',
+    'auth.signingIn': 'Iniciando sesión…',
+    'auth.creatingAccount': 'Creando cuenta…',
     'auth.newToMotus': '¿Nuevo en Motus?',
     'auth.createAccount': 'Crear cuenta',
     'auth.emailPlaceholder': 'tu@ejemplo.com',
@@ -285,6 +293,8 @@ const I18N = {
     'connect.clinicCode': 'Código de la clínica',
     'connect.connect': 'Conectar',
     'connect.skip': 'Omitir por ahora',
+    'home.loading': 'Cargando…',
+    'home.loadError': 'No pudimos cargar tus ejercicios — verifica tu conexión.',
     'home.goodMorning': 'Buenos días',
     'home.goodAfternoon': 'Buenas tardes',
     'home.goodEvening': 'Buenas noches',
@@ -313,7 +323,9 @@ const I18N = {
     'cam.cameraFront': 'CÁMARA · FRONTAL',
     'cam.done': 'Hecho',
     'cam.sessionSaved': '¡Sesión guardada!',
+    'cam.saving': 'Guardando sesión…',
     'msg.send': 'Enviar',
+    'msg.sendError': 'Mensaje no enviado — inténtalo de nuevo',
     'admin.therapistApproved': 'Terapeuta aprobado',
     'nav.home': 'Inicio',
     'nav.progress': 'Progreso',
@@ -865,6 +877,9 @@ async function handleLogin() {
   const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
   if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
+  const btn = document.getElementById('loginBtn');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('auth.signingIn'); }
   try {
     await auth.signInWithEmailAndPassword(email, password);
     _loginAttempts = 0;
@@ -887,6 +902,8 @@ async function handleLogin() {
       isCredError
         ? `Incorrect email or password. ${LOGIN_MAX_ATTEMPTS - _loginAttempts} attempt(s) remaining.`
         : (e.message || 'Sign in failed. Please try again.'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
 
@@ -977,6 +994,9 @@ async function finalizeSignup(skipData = false) {
       }
     }
   }
+  const btn = document.getElementById('signupCreateBtn');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('auth.creatingAccount'); }
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     await db.collection('users').doc(cred.user.email).set(docData);
@@ -994,6 +1014,8 @@ async function finalizeSignup(skipData = false) {
         ? 'An account with that email already exists.'
         : (e.message || 'Sign up failed. Please try again.'));
     signupGoToStep(0);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
 
@@ -1837,11 +1859,32 @@ async function updatePatientHomeScreen() {
   document.getElementById('patientGreeting').textContent    = greeting;
   document.getElementById('patientDisplayName').textContent = currentUser.name;
 
-  const [protocols, sessions, therapistEmail] = await Promise.all([
-    getProtocols(currentUser.email).catch(() => []),
-    getPatientSessions(currentUser.email).catch(() => []),
-    getConnectedTherapist().catch(() => null),
-  ]);
+  // F-008: show loading placeholder while queries run
+  const loadErrorEl = document.getElementById('ptHomeLoadError');
+  const protocolCard = document.getElementById('ptProtocolTitle');
+  if (protocolCard) { protocolCard.textContent = t('home.loading'); }
+  if (loadErrorEl) loadErrorEl.style.display = 'none';
+
+  let protocols, sessions, therapistEmail;
+  let allFailed = false;
+  try {
+    const results = await Promise.allSettled([
+      getProtocols(currentUser.email),
+      getPatientSessions(currentUser.email),
+      getConnectedTherapist(),
+    ]);
+    protocols      = results[0].status === 'fulfilled' ? results[0].value : [];
+    sessions       = results[1].status === 'fulfilled' ? results[1].value : [];
+    therapistEmail = results[2].status === 'fulfilled' ? results[2].value : null;
+    // F-009: if all three failed, show user-facing error
+    allFailed = results.every(r => r.status === 'rejected');
+    if (allFailed && loadErrorEl) {
+      loadErrorEl.textContent = t('home.loadError');
+      loadErrorEl.style.display = 'block';
+    }
+  } catch {
+    protocols = []; sessions = []; therapistEmail = null;
+  }
 
   const disconnectBtn = document.getElementById('disconnectTherapistBtn');
   if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
@@ -2352,18 +2395,26 @@ async function manualCamSaveSet() {
 
 async function finishManualCamSession() {
   if (!_manualCamProtocol) return;
-  
+
   // Stop camera
   if (_manualCamStream) {
     _manualCamStream.getTracks().forEach(t => t.stop());
     _manualCamStream = null;
   }
-  
+
   const totalReps = _manualCamSetData.reduce((sum, s) => sum + s.reps, 0);
-  const avgPain = _manualCamSetData.length > 0 
-    ? Math.round(_manualCamSetData.reduce((sum, s) => sum + s.pain, 0) / _manualCamSetData.length) 
+  const avgPain = _manualCamSetData.length > 0
+    ? Math.round(_manualCamSetData.reduce((sum, s) => sum + s.pain, 0) / _manualCamSetData.length)
     : 1;
-  
+
+  // F-013: disable controls and show saving indicator
+  const doneBtn = document.getElementById('manualCamDoneBtn');
+  const exitBtn = document.querySelector('#manualCamScreen .mcam-exit-btn');
+  const savingOverlay = document.getElementById('manualCamSavingOverlay');
+  if (doneBtn) doneBtn.disabled = true;
+  if (exitBtn) exitBtn.disabled = true;
+  if (savingOverlay) savingOverlay.style.display = 'flex';
+
   let saveOk = false;
   try {
     const therapistEmail = await getConnectedTherapist();
@@ -2383,6 +2434,10 @@ async function finishManualCamSession() {
   } catch(e) {
     console.error('[Motus] Session save error:', e);
     Sentry.captureException(e, { tags: { flow: 'session-save' } });
+  } finally {
+    if (savingOverlay) savingOverlay.style.display = 'none';
+    if (doneBtn) doneBtn.disabled = false;
+    if (exitBtn) exitBtn.disabled = false;
   }
 
   // Don't pretend the session saved when it didn't — the therapist would never
@@ -6316,10 +6371,26 @@ async function sendMessageFromPatient() {
   const tEmail = await getConnectedTherapist();
   if (!tEmail) return;
   const input = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('msgSendBtn');
+  const errEl = document.getElementById('msgSendError');
   if (!input.value.trim()) return;
-  await sendMessage(currentUser.email, tEmail, input.value);
-  input.value = '';
-  toggleMsgSend();
+  const draft = input.value;
+  if (errEl) errEl.style.display = 'none';
+  // F-015: disable input + button during send to prevent duplicate messages
+  if (sendBtn) sendBtn.disabled = true;
+  if (input) input.disabled = true;
+  try {
+    await sendMessage(currentUser.email, tEmail, draft);
+    input.value = '';
+    toggleMsgSend();
+  } catch {
+    // F-016: restore draft + re-enable + show error on failure
+    input.value = draft;
+    if (errEl) { errEl.textContent = t('msg.sendError'); errEl.style.display = 'block'; }
+  } finally {
+    if (input) input.disabled = false;
+    if (sendBtn) { sendBtn.disabled = !input.value.trim(); }
+  }
 }
 
 // ── Therapist-side panel builder ──────────────────────────────────────────────

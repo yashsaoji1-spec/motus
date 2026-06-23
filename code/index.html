@@ -40,7 +40,7 @@
       <input type="password" id="loginPassword" placeholder="Password" data-i18n-ph="auth.passwordPlaceholder" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleLogin()" />
     </div>
     <p class="auth-forgot-row"><span onclick="showScreen('forgotScreen')" data-i18n="auth.forgotPassword">Forgot password?</span></p>
-    <button class="pt-btn-hero" onclick="handleLogin()" data-i18n="auth.signIn">Sign In</button>
+    <button class="pt-btn-hero" id="loginBtn" onclick="handleLogin()" data-i18n="auth.signIn">Sign In</button>
     <p class="auth-link-row"><span data-i18n="auth.newToMotus">New to Motus?</span> <span onclick="showScreen('signupScreen')" data-i18n="auth.createAccount">Create account</span></p>
     <div class="auth-lang-toggle">
       <button type="button" class="auth-lang-btn" onclick="setLanguage('en')">English</button>
@@ -167,7 +167,7 @@
           </select>
         </div>
       </div>
-      <button class="pt-btn-hero" onclick="finalizeSignup()" data-i18n="signup.createAccountBtn">Create Account</button>
+      <button class="pt-btn-hero" id="signupCreateBtn" onclick="finalizeSignup()" data-i18n="signup.createAccountBtn">Create Account</button>
       <button class="pt-btn-outline signup-skip-btn" onclick="signupSkipData()" data-i18n="signup.skip">Skip for now</button>
     </div>
   </div>
@@ -315,6 +315,9 @@
     <!-- F-001: Session-saved success banner (shown briefly after returning from recording) -->
     <div id="ptSessionSavedBanner" class="pt-session-saved-banner" style="display:none;" aria-live="polite"
          data-i18n="cam.sessionSaved">Session saved!</div>
+
+    <!-- F-008/F-009: home-screen load state -->
+    <div id="ptHomeLoadError" class="pt-home-load-error" style="display:none;" aria-live="polite"></div>
 
     <section class="pt-protocol-card">
       <div class="pt-protocol-kicker-row">
@@ -508,6 +511,9 @@
     <button class="mcam-done-btn" id="manualCamDoneBtn" onclick="finishManualCamSession()"
             data-i18n="cam.done">Done</button>
   </div>
+
+  <!-- F-013: saving overlay (shown during Firestore write) -->
+  <div id="manualCamSavingOverlay" class="mcam-saving-overlay" style="display:none;" aria-live="polite" data-i18n="cam.saving">Saving session…</div>
 
   <!-- Hidden stubs -->
   <div style="display:none" aria-hidden="true">
@@ -711,6 +717,7 @@
       <span class="pt-msg-title" id="msgHeaderTitle">Therapist</span>
     </div>
     <div class="msg-thread" id="msgThread"></div>
+    <div id="msgSendError" class="pt-msg-error" style="display:none;" aria-live="polite"></div>
     <div class="pt-msg-input-row">
       <input type="text" id="msgInput" class="pt-msg-input" placeholder="Type a message..."
              maxlength="2000"
