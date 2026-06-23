@@ -867,7 +867,7 @@ body {
 }
 .patient-scope .pt-protocol-item.done .pt-protocol-item-name {
   font-weight: 600;
-  color: #94A3B8;
+  color: #475569;
   text-decoration: line-through;
 }
 .patient-scope .pt-protocol-item-dose {
