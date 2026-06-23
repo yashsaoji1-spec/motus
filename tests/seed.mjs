@@ -16,6 +16,9 @@ const personas = [
 ];
 
 async function run() {
+  // Clear emulator Firestore so seeding is idempotent (repeatable test runs)
+  await fetch('http://127.0.0.1:8181/emulator/v1/projects/demo-motus/databases/(default)/documents', { method: 'DELETE' });
+
   for (const p of personas) {
     await auth.createUser({ email: p.email, password: PASS }).catch(() => {});
     await db.doc(`users/${p.email}`).set({
