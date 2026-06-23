@@ -103,6 +103,9 @@
   --th-input-bg:       #F1F5F9;
   --th-danger-soft:    #FEE2E2;
   --th-success-soft:   #D1FAE5;
+  --th-error:          #991B1B;
+  --th-error-bg:       #FEE2E2;
+  --th-error-border:   #FCA5A5;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4728,7 +4731,7 @@ body:has(#manualCamScreen.active) {
 /* F-011: assignProtocol inline error in modal footer */
 .apm-assign-error {
   flex: 1;
-  color: #991B1B;
+  color: var(--th-error, #991B1B);
   font-family: var(--font);
   font-size: 0.82rem;
   font-weight: 500;
@@ -4749,9 +4752,9 @@ body:has(#manualCamScreen.active) {
   color: var(--th-muted, #64748b);
 }
 .clinic-load-error {
-  background: #FEE2E2;
-  border: 1px solid #FCA5A5;
-  color: #991B1B;
+  background: var(--th-error-bg, #FEE2E2);
+  border: 1px solid var(--th-error-border, #FCA5A5);
+  color: var(--th-error, #991B1B);
   font-weight: 500;
 }
 

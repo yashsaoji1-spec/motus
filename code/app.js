@@ -192,6 +192,7 @@ const I18N = {
     'th.protocolSaved': 'Protocol saved',
     'th.assignError': 'Could not save protocol — check your connection.',
     'th.bulkAssignFailed': 'Some patients could not be assigned: {emails}',
+    'th.bulkAssignSuccess': 'Exercise assigned to {count} patient(s).',
     // Clinic screen
     'clinic.loading': 'Loading clinic…',
     'clinic.loadError': 'Could not load clinic — check your connection.',
@@ -343,6 +344,7 @@ const I18N = {
     'th.protocolSaved': 'Protocolo guardado',
     'th.assignError': 'No se pudo guardar el protocolo — verifica tu conexión.',
     'th.bulkAssignFailed': 'Algunos pacientes no pudieron ser asignados: {emails}',
+    'th.bulkAssignSuccess': 'Ejercicio asignado a {count} paciente(s).',
     'clinic.loading': 'Cargando clínica…',
     'clinic.loadError': 'No se pudo cargar la clínica — verifica tu conexión.',
     'nav.home': 'Inicio',
@@ -1365,7 +1367,8 @@ async function approveTherapist(email) {
   } catch (e) {
     console.error('[Motus] approveTherapist error:', e);
     if (errEl) { errEl.textContent = t('admin.approveError'); errEl.style.display = 'block'; }
-    // Restore button only on error — on success the row is removed by loadAdminScreen
+  } finally {
+    // Restore button in finally — operating on a detached node after row removal is harmless
     if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
@@ -1577,8 +1580,6 @@ async function showClinicScreen() {
   try {
     // F-018: wrap in try/catch; render error on failure
     await loadMyClinic();
-    if (!_myClinic) { showJoinClinicScreen(); return; }
-    _renderClinicScreen();
   } catch (e) {
     console.error('[Motus] showClinicScreen error:', e);
     if (content) {
@@ -1588,7 +1589,10 @@ async function showClinicScreen() {
       errEl.textContent = t('clinic.loadError');
       content.replaceChildren(errEl);
     }
+    return;
   }
+  if (!_myClinic) { showJoinClinicScreen(); return; }
+  _renderClinicScreen();
 }
 
 function _renderClinicScreen() {
@@ -4370,47 +4374,50 @@ async function bulkAssignProtocol() {
   const submitBtn = document.getElementById('apmSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
 
-  // Upload demo once, reuse URL across all patients
-  let demoVideoUrl = null;
-  if (_demoBlob) {
-    if (submitBtn) submitBtn.textContent = 'Uploading demo...';
-    { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
-    if (submitBtn) submitBtn.textContent = 'Assigning...';
-  }
-
-  let successCount = 0;
-  const failedEmails = [];
-  const now = Date.now();
-  for (const patientEmail of selected) {
-    try {
-      const existing = await getProtocols(patientEmail);
-      const newItem = {
-        id:           (now + successCount).toString(),
-        exerciseType,
-        reps,
-        sets,
-        frequency:    freq,
-        notes,
-        assignedBy:   currentUser.name,
-        assignedAt:   new Date().toISOString()
-      };
-      if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
-      if (exerciseParams) newItem.exerciseParams = exerciseParams;
-      await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
-      writeAuditLog('protocol_created', patientEmail);
-      successCount++;
-    } catch (e) {
-      // F-012: record which patients failed instead of silently skipping
-      failedEmails.push(patientEmail);
+  try {
+    // Upload demo once, reuse URL across all patients
+    let demoVideoUrl = null;
+    if (_demoBlob) {
+      if (submitBtn) submitBtn.textContent = 'Uploading demo...';
+      { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
+      if (submitBtn) submitBtn.textContent = 'Assigning...';
     }
-  }
-  if (submitBtn) submitBtn.disabled = false;
-  closeAddProtocol();
-  // F-012: report failed patients alongside the success count
-  if (failedEmails.length > 0) {
-    alert(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + `\n\n(${successCount} of ${selected.length} succeeded)`);
-  } else {
-    alert(`Exercise assigned to ${successCount} patient${successCount !== 1 ? 's' : ''}.`);
+
+    let successCount = 0;
+    const failedEmails = [];
+    const now = Date.now();
+    for (const patientEmail of selected) {
+      try {
+        const existing = await getProtocols(patientEmail);
+        const newItem = {
+          id:           (now + successCount).toString(),
+          exerciseType,
+          reps,
+          sets,
+          frequency:    freq,
+          notes,
+          assignedBy:   currentUser.name,
+          assignedAt:   new Date().toISOString()
+        };
+        if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
+        if (exerciseParams) newItem.exerciseParams = exerciseParams;
+        await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+        writeAuditLog('protocol_created', patientEmail);
+        successCount++;
+      } catch (e) {
+        // F-012: record which patients failed instead of silently skipping
+        failedEmails.push(patientEmail);
+      }
+    }
+    // F-012: report failed patients alongside the success count
+    if (failedEmails.length > 0) {
+      alert(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + `\n\n(${successCount} of ${selected.length} succeeded)`);
+    } else {
+      alert(t('th.bulkAssignSuccess', { count: successCount }));
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+    closeAddProtocol();
   }
 }
 
