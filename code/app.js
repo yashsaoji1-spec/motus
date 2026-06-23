@@ -1884,7 +1884,7 @@ async function updatePatientHomeScreen() {
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
         const done = completedTypes.has(p.exerciseType);
         const checkSvg = done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
-        return `<li class="pt-protocol-item${done ? ' done' : ''}" role="button" tabindex="0" style="cursor:pointer" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span><svg class="pt-protocol-item-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></li>`;
+        return `<li class="pt-protocol-item${done ? ' done' : ''}" tabindex="0" style="cursor:pointer" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span><svg class="pt-protocol-item-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></li>`;
       }).join('');
     } else {
       planList.innerHTML = `<li class="pt-protocol-empty">${t('home.noExercisesYet')}</li>`;

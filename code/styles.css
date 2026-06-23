@@ -41,6 +41,7 @@
   --surface:     #FFFFFF;
   --border:      #E0F2FE;
   --accent:      #0EA5E9;
+  --accent-text: #0369A1;
   --accent-hover:#0284C7;
   --accent-dim:  rgba(14, 165, 233, 0.08);
   --accent-glow: rgba(14, 165, 233, 0.25);
@@ -56,8 +57,10 @@
 /* ── Patient scope ──────────────────────────────────────────────────────── */
 .patient-scope {
   --pt-primary:       #0EA5E9;
+  --pt-primary-text:  var(--accent-text);
   --pt-primary-hover: #0284C7;
   --pt-accent:        #059669;
+  --pt-success-text:  #047857;
   --pt-bg:            #F0F9FF;
   --pt-surface:       #FFFFFF;
   --pt-surface-muted: #F8FAFC;
@@ -82,6 +85,7 @@
   --th-text:           #334155;
   --th-text-strong:    #0F172A;
   --th-muted:          #94A3B8;
+  --th-muted-text:     #475569;
   --th-bg:             #FFFFFF;
   --th-surface:        #FAFAFA;
   --th-surface-hover:  #F8FAFC;
@@ -280,13 +284,13 @@ body {
   font-family: var(--pt-font);
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   cursor: pointer;
   min-height: auto;
 }
 .auth-lang-sep { color: var(--pt-muted); }
 .auth-forgot-row span {
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   font-weight: 700;
   cursor: pointer;
 }
@@ -319,7 +323,7 @@ body {
   font-family: var(--pt-font);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -399,7 +403,7 @@ body {
   color: var(--pt-muted);
 }
 .auth-link-row span, .auth-link-row a {
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
@@ -413,7 +417,7 @@ body {
   text-align: center;
   line-height: 1.5;
 }
-.auth-legal a { color: var(--pt-primary); }
+.auth-legal a { color: var(--pt-primary-text); }
 
 .auth-error {
   background: #FEE2E2;
@@ -465,7 +469,7 @@ body {
 }
 
 .role-seg-btn.active {
-  background: var(--pt-primary);
+  background: var(--pt-primary-text);
   color: #fff;
 }
 
@@ -482,7 +486,7 @@ body {
   font-family: var(--pt-font);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin-bottom: 8px;
@@ -507,7 +511,7 @@ body {
   line-height: 1.5;
 }
 
-.consent-checkbox-row a { color: var(--pt-primary); }
+.consent-checkbox-row a { color: var(--pt-primary-text); }
 
 .clinic-code-input {
   text-align: center;
@@ -794,7 +798,7 @@ body {
   font-size: 0.69rem;
   font-weight: 700;
   letter-spacing: 0.07em;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   text-transform: uppercase;
 }
 .patient-scope .pt-protocol-freq {
@@ -802,7 +806,7 @@ body {
   font-size: 0.7rem;
   font-weight: 600;
   color: #fff;
-  background: var(--pt-primary);
+  background: var(--pt-primary-text);
   padding: 3px 10px;
   border-radius: 20px;
   letter-spacing: 0.02em;
@@ -946,7 +950,7 @@ body {
   font-family: var(--pt-font);
   font-size: 0.69rem;
   font-weight: 700;
-  color: #059669;
+  color: var(--pt-success-text);
   margin-top: 2px;
 }
 
@@ -1536,7 +1540,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 
 .th-add-btn {
@@ -6237,7 +6241,7 @@ body:has(#manualCamScreen.active) {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 .therapist-scope .th-add-btn {
   padding: 3px 8px;
@@ -6277,7 +6281,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .clinic-badge > span:first-child {
   font-family: var(--th-font);
   font-size: 0.74rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   font-weight: 600;
 }
 .therapist-scope .clinic-badge-code {
@@ -6363,7 +6367,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .patient-row-sub {
   font-family: var(--th-font);
   font-size: 0.76rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 .therapist-scope .patient-row-dot {
   width: 8px;
@@ -6440,7 +6444,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .tp-main-empty p {
   font-family: var(--th-font);
   font-size: 0.95rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   max-width: 380px;
   margin: 0 auto 16px;
   line-height: 1.55;
