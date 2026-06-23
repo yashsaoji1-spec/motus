@@ -26,8 +26,9 @@ Check here to see what changed since your last session. Most recent first.
 - **Heads-up: App Check enforcement is ON for prod Firestore.** I briefly gated App Check off to quiet
   console noise and it broke login (no token -> permission denied) -- reverted. Don't disable App Check
   activation; the reCAPTCHA console warnings are benign.
-- **NOT TESTED yet:** camera-error recovery + log-without-video (a denied camera no longer strands the
-  patient -- recovery overlay + no-video logging). Built + deployed, needs a real camera-denied run.
+- **Camera-error recovery + log-without-video -- VERIFIED on prod:** a denied/unavailable camera no longer
+  strands the patient. Blocked camera -> "Camera unavailable" recovery card (Retry / Log without video) ->
+  reps/pain entry -> session saves and shows in Progress with no video. (Tested 2026-06-22.)
 
 Commits `e8bf098`, `8bcb3bf`, `4273004`, `2af2637`, `9b4dd89`, `2cb4083`, `dc6991a`, `2669cb0`.
 
