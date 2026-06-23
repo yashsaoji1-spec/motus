@@ -260,6 +260,7 @@
     </div>
     <div id="adminApprovalBanner" class="admin-approval-banner" style="display:none;" aria-live="polite"
          data-i18n="admin.therapistApproved">Therapist approved</div>
+    <div id="adminApproveError" class="auth-error" style="display:none;" aria-live="polite"></div>
     <div id="pendingTherapistList" class="th-admin-list"></div>
   </div>
 </div>
@@ -671,6 +672,10 @@
     </div>
     <div class="sidebar-footer"></div>
   </div>
+
+  <!-- F-010: Protocol saved success banner -->
+  <div id="protocolSavedBanner" class="admin-approval-banner" style="display:none;" aria-live="polite"
+       data-i18n="th.protocolSaved">Protocol saved</div>
 
   <!-- Main detail panel -->
   <div class="main-panel" id="mainPanel">
@@ -1162,6 +1167,7 @@
       </div>
     </div>
     <div class="apm-footer">
+      <div id="apmAssignError" class="apm-assign-error" style="display:none;" aria-live="polite"></div>
       <button class="apm-cancel-btn" id="apmCancelBtn" onclick="closeAddProtocol()">Cancel</button>
       <button class="apm-submit-btn" id="apmSubmitBtn" onclick="assignProtocol()">Add to Protocol</button>
     </div>

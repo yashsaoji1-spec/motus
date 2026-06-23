@@ -4725,6 +4725,36 @@ body:has(#manualCamScreen.active) {
   text-align: center;
 }
 
+/* F-011: assignProtocol inline error in modal footer */
+.apm-assign-error {
+  flex: 1;
+  color: #991B1B;
+  font-family: var(--font);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 4px 0;
+}
+
+/* F-017/F-018: clinic screen loading / error placeholders */
+.clinic-loading-msg,
+.clinic-load-error {
+  font-family: var(--font);
+  font-size: 0.9rem;
+  padding: 24px 16px;
+  text-align: center;
+  border-radius: var(--radius-md);
+  margin: 16px;
+}
+.clinic-loading-msg {
+  color: var(--th-muted, #64748b);
+}
+.clinic-load-error {
+  background: #FEE2E2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+  font-weight: 500;
+}
+
 /* Legacy classes still used by cameraScreen */
 .cam-hud-back {
   font-family: var(--pt-font);

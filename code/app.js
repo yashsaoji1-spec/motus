@@ -185,6 +185,16 @@ const I18N = {
     'msg.sendError': 'Message not sent — try again',
     // Admin
     'admin.therapistApproved': 'Therapist approved',
+    'admin.approving': 'Approving…',
+    'admin.approveError': 'Could not approve therapist — try again.',
+    // Therapist protocol modal
+    'th.assignSaving': 'Saving…',
+    'th.protocolSaved': 'Protocol saved',
+    'th.assignError': 'Could not save protocol — check your connection.',
+    'th.bulkAssignFailed': 'Some patients could not be assigned: {emails}',
+    // Clinic screen
+    'clinic.loading': 'Loading clinic…',
+    'clinic.loadError': 'Could not load clinic — check your connection.',
     // Bottom nav
     'nav.home': 'Home',
     'nav.progress': 'Progress',
@@ -327,6 +337,14 @@ const I18N = {
     'msg.send': 'Enviar',
     'msg.sendError': 'Mensaje no enviado — inténtalo de nuevo',
     'admin.therapistApproved': 'Terapeuta aprobado',
+    'admin.approving': 'Aprobando…',
+    'admin.approveError': 'No se pudo aprobar al terapeuta — inténtalo de nuevo.',
+    'th.assignSaving': 'Guardando…',
+    'th.protocolSaved': 'Protocolo guardado',
+    'th.assignError': 'No se pudo guardar el protocolo — verifica tu conexión.',
+    'th.bulkAssignFailed': 'Algunos pacientes no pudieron ser asignados: {emails}',
+    'clinic.loading': 'Cargando clínica…',
+    'clinic.loadError': 'No se pudo cargar la clínica — verifica tu conexión.',
     'nav.home': 'Inicio',
     'nav.progress': 'Progreso',
     'nav.messages': 'Mensajes',
@@ -1328,13 +1346,27 @@ async function loadAdminScreen() {
 }
 
 async function approveTherapist(email) {
-  await db.collection('users').doc(email).update({ role: 'therapist' });
-  writeAuditLog('admin_action:approve_therapist', email);
-  await loadAdminScreen();
-  const banner = document.getElementById('adminApprovalBanner');
-  if (banner) {
-    banner.style.display = 'block';
-    setTimeout(() => { banner.style.display = 'none'; }, 3000);
+  // F-019: disable the Approve button to prevent double-approve
+  const btn = document.querySelector(`button[onclick="approveTherapist('${email}')"]`);
+  const origText = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = t('admin.approving'); }
+  const errEl = document.getElementById('adminApproveError');
+  if (errEl) errEl.style.display = 'none';
+  try {
+    // F-020: wrap in try/catch
+    await db.collection('users').doc(email).update({ role: 'therapist' });
+    writeAuditLog('admin_action:approve_therapist', email);
+    await loadAdminScreen();
+    const banner = document.getElementById('adminApprovalBanner');
+    if (banner) {
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 3000);
+    }
+  } catch (e) {
+    console.error('[Motus] approveTherapist error:', e);
+    if (errEl) { errEl.textContent = t('admin.approveError'); errEl.style.display = 'block'; }
+    // Restore button only on error — on success the row is removed by loadAdminScreen
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
 
@@ -1532,10 +1564,31 @@ async function declineInvite(inviteId) {
 }
 
 async function showClinicScreen() {
-  await loadMyClinic();
-  if (!_myClinic) { showJoinClinicScreen(); return; }
-  _renderClinicScreen();
+  // F-017: show loading placeholder before async fetch
+  const content = document.getElementById('clinicScreenContent');
+  if (content) {
+    const loadingEl = document.createElement('p');
+    loadingEl.className = 'clinic-loading-msg';
+    loadingEl.setAttribute('aria-live', 'polite');
+    loadingEl.textContent = t('clinic.loading');
+    content.replaceChildren(loadingEl);
+  }
   showScreen('clinicScreen');
+  try {
+    // F-018: wrap in try/catch; render error on failure
+    await loadMyClinic();
+    if (!_myClinic) { showJoinClinicScreen(); return; }
+    _renderClinicScreen();
+  } catch (e) {
+    console.error('[Motus] showClinicScreen error:', e);
+    if (content) {
+      const errEl = document.createElement('p');
+      errEl.className = 'clinic-load-error';
+      errEl.setAttribute('aria-live', 'polite');
+      errEl.textContent = t('clinic.loadError');
+      content.replaceChildren(errEl);
+    }
+  }
 }
 
 function _renderClinicScreen() {
@@ -3295,15 +3348,45 @@ async function assignProtocol() {
     if (submitBtn) submitBtn.disabled = false;
   }
 
-  const existing = await getProtocols(patientEmail);
-  const isEdit = !!editingProtocolId;
+  // F-011: disable submit and clear any previous error before the Firestore write
+  const apmErrEl = document.getElementById('apmAssignError');
+  if (apmErrEl) apmErrEl.style.display = 'none';
+  const origSubmitText = submitBtn ? submitBtn.textContent : null;
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = t('th.assignSaving'); }
 
-  if (editingProtocolId) {
-    // Edit mode — update the existing protocol item in place
-    const updated = existing.map(p => {
-      if (p.id !== editingProtocolId) return p;
-      const edited = {
-        ...p,
+  let saveOk = false;
+  try {
+    const existing = await getProtocols(patientEmail);
+    const isEdit = !!editingProtocolId;
+
+    if (editingProtocolId) {
+      // Edit mode — update the existing protocol item in place
+      const updated = existing.map(p => {
+        if (p.id !== editingProtocolId) return p;
+        const edited = {
+          ...p,
+          exerciseType,
+          exerciseName: exerciseLabels[exerciseType] || exerciseType,
+          reps,
+          sets,
+          frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
+          restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
+          notes:        document.getElementById('protocolNotes').value.trim(),
+          assignedBy: currentUser.name,
+          editedAt:   new Date().toISOString()
+        };
+        if (demoVideoUrl !== undefined) edited.demoVideoUrl = demoVideoUrl;
+        if (exerciseParams) edited.exerciseParams = exerciseParams;
+        else delete edited.exerciseParams;
+        return edited;
+      });
+      await db.collection('protocols').doc(patientEmail).set({ items: updated });
+      editingProtocolId = null;
+      editingPatientEmail = null;
+    } else {
+      // Add mode — append a new protocol item
+      const newItem = {
+        id:           Date.now().toString(),
         exerciseType,
         exerciseName: exerciseLabels[exerciseType] || exerciseType,
         reps,
@@ -3311,40 +3394,36 @@ async function assignProtocol() {
         frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
         restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
         notes:        document.getElementById('protocolNotes').value.trim(),
-        assignedBy: currentUser.name,
-        editedAt:   new Date().toISOString()
+        assignedBy:   currentUser.name,
+        assignedAt:   new Date().toISOString()
       };
-      if (demoVideoUrl !== undefined) edited.demoVideoUrl = demoVideoUrl;
-      if (exerciseParams) edited.exerciseParams = exerciseParams;
-      else delete edited.exerciseParams;
-      return edited;
-    });
-    await db.collection('protocols').doc(patientEmail).set({ items: updated });
-    editingProtocolId = null;
-    editingPatientEmail = null;
-  } else {
-    // Add mode — append a new protocol item
-    const newItem = {
-      id:           Date.now().toString(),
-      exerciseType,
-      exerciseName: exerciseLabels[exerciseType] || exerciseType,
-      reps,
-      sets,
-      frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
-      restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
-      notes:        document.getElementById('protocolNotes').value.trim(),
-      assignedBy:   currentUser.name,
-      assignedAt:   new Date().toISOString()
-    };
-    if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
-    if (exerciseParams) newItem.exerciseParams = exerciseParams;
-    await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+      if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
+      if (exerciseParams) newItem.exerciseParams = exerciseParams;
+      await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+    }
+    logAnalyticsEvent('protocol_assigned', { exercise_type: exerciseType });
+    writeAuditLog(isEdit ? 'protocol_updated' : 'protocol_created', patientEmail);
+    saveOk = true;
+  } catch (e) {
+    // F-011: show inline error in modal; keep modal open so therapist can retry
+    console.error('[Motus] assignProtocol error:', e);
+    if (apmErrEl) { apmErrEl.textContent = t('th.assignError'); apmErrEl.style.display = 'block'; }
+  } finally {
+    // F-011: restore submit button
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = origSubmitText; }
   }
-  logAnalyticsEvent('protocol_assigned', { exercise_type: exerciseType });
-  writeAuditLog(isEdit ? 'protocol_updated' : 'protocol_created', patientEmail);
+
+  if (!saveOk) return;
+
+  // F-010: show success banner after close
   closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  const savedBanner = document.getElementById('protocolSavedBanner');
+  if (savedBanner) {
+    savedBanner.style.display = 'block';
+    setTimeout(() => { savedBanner.style.display = 'none'; }, 3000);
+  }
 }
 
 function formatProtocol(p) {
@@ -4300,6 +4379,7 @@ async function bulkAssignProtocol() {
   }
 
   let successCount = 0;
+  const failedEmails = [];
   const now = Date.now();
   for (const patientEmail of selected) {
     try {
@@ -4319,11 +4399,19 @@ async function bulkAssignProtocol() {
       await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
       writeAuditLog('protocol_created', patientEmail);
       successCount++;
-    } catch (e) { /* skip failed patient */ }
+    } catch (e) {
+      // F-012: record which patients failed instead of silently skipping
+      failedEmails.push(patientEmail);
+    }
   }
   if (submitBtn) submitBtn.disabled = false;
   closeAddProtocol();
-  alert(`Exercise assigned to ${successCount} patient${successCount !== 1 ? 's' : ''}.`);
+  // F-012: report failed patients alongside the success count
+  if (failedEmails.length > 0) {
+    alert(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + `\n\n(${successCount} of ${selected.length} succeeded)`);
+  } else {
+    alert(`Exercise assigned to ${successCount} patient${successCount !== 1 ? 's' : ''}.`);
+  }
 }
 
 function _apmRenderLibrary(query) {
