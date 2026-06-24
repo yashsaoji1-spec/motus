@@ -221,6 +221,15 @@ const I18N = {
     'set.deleteAccount': 'Delete account',
     'set.signOut': 'Sign out',
     'set.save': 'Save',
+    // Destructive-action confirm modal
+    'confirm.title': 'Are you sure?',
+    'confirm.cancel': 'Cancel',
+    'confirm.deleteProtocol.body': 'Delete this exercise? This can\'t be undone.',
+    'confirm.deleteProtocol.ok': 'Delete Exercise',
+    'confirm.disconnect.body': 'Disconnect from your therapist? You\'ll lose access to your assigned exercises and messages.',
+    'confirm.disconnect.ok': 'Disconnect',
+    'confirm.rejectTherapist.body': 'Reject this therapist? Their account will be permanently deleted.',
+    'confirm.rejectTherapist.ok': 'Reject Account',
   },
   es: {
     'auth.welcomeBack': 'Bienvenido de nuevo',
@@ -369,6 +378,15 @@ const I18N = {
     'set.deleteAccount': 'Eliminar cuenta',
     'set.signOut': 'Cerrar sesión',
     'set.save': 'Guardar',
+    // Destructive-action confirm modal
+    'confirm.title': '¿Estás seguro?',
+    'confirm.cancel': 'Cancelar',
+    'confirm.deleteProtocol.body': '¿Eliminar este ejercicio? Esta acción no se puede deshacer.',
+    'confirm.deleteProtocol.ok': 'Eliminar ejercicio',
+    'confirm.disconnect.body': '¿Desconectarte de tu terapeuta? Perderás acceso a tus ejercicios asignados y mensajes.',
+    'confirm.disconnect.ok': 'Desconectar',
+    'confirm.rejectTherapist.body': '¿Rechazar a este terapeuta? Su cuenta será eliminada permanentemente.',
+    'confirm.rejectTherapist.ok': 'Rechazar cuenta',
   },
 };
 
@@ -1321,6 +1339,33 @@ function requestLogout() {
 function closeLogoutModal() { document.getElementById('logoutModal').style.display = 'none'; }
 function confirmLogout()    { closeLogoutModal(); logout(); }
 
+/* ── Generic destructive-action confirm modal ─────────────────────────────
+   One reusable modal driven by _confirmCallback; body/OK text set per call. */
+let _confirmCallback = null;
+
+function _openConfirmModal(bodyKey, okKey, callback) {
+  _confirmCallback = callback;
+  const el = document.getElementById('confirmModal');
+  if (!el) return callback(); // fallback: skip modal if DOM missing
+  document.getElementById('confirmModalTitle').textContent = t('confirm.title');
+  document.getElementById('confirmModalBody').textContent  = t(bodyKey);
+  document.getElementById('confirmModalOk').textContent    = t(okKey);
+  document.getElementById('confirmModalCancel').textContent = t('confirm.cancel');
+  el.style.display = 'flex';
+}
+
+function _closeConfirmModal() {
+  const el = document.getElementById('confirmModal');
+  if (el) el.style.display = 'none';
+  _confirmCallback = null;
+}
+
+function _doConfirm() {
+  const cb = _confirmCallback;
+  _closeConfirmModal();
+  if (cb) cb();
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 5b: ADMIN PANEL
    ══════════════════════════════════════════════════════════════════════════ */
@@ -1374,10 +1419,11 @@ async function approveTherapist(email) {
 }
 
 async function rejectTherapist(email) {
-  if (!confirm(`Remove ${email}'s account entirely?`)) return;
-  await db.collection('users').doc(email).delete();
-  writeAuditLog('admin_action:reject_therapist', email);
-  await loadAdminScreen();
+  _openConfirmModal('confirm.rejectTherapist.body', 'confirm.rejectTherapist.ok', async () => {
+    await db.collection('users').doc(email).delete();
+    writeAuditLog('admin_action:reject_therapist', email);
+    await loadAdminScreen();
+  });
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -2846,26 +2892,27 @@ async function getExistingProtocol(patientEmail) {
 }
 
 async function deleteProtocol(patientEmail, protocolId) {
-  if (!confirm(`Remove this exercise from the patient's protocol?`)) return;
-  const existing = await getProtocols(patientEmail);
-  // Note: if the deleted item has a demoVideoUrl, the Cloudinary file becomes orphaned.
-  // Client-side deletion requires a signed API call — deferred to future Cloud Function cleanup.
-  const updated = existing.filter(p => p.id !== protocolId);
-  if (updated.length === 0) {
-    await db.collection('protocols').doc(patientEmail).delete();
-  } else {
-    await db.collection('protocols').doc(patientEmail).set({ items: updated });
-  }
-  writeAuditLog('protocol_deleted', patientEmail);
-  const refreshed = await getProtocols(patientEmail);
-  const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
-  if (protoBody) {
-    protoBody.innerHTML = buildProtocolForm(patientEmail, refreshed);
-    updateExerciseParamsUI('full_fist', null);
-  } else {
-    const snap = await db.collection('users').doc(patientEmail).get();
-    if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
-  }
+  _openConfirmModal('confirm.deleteProtocol.body', 'confirm.deleteProtocol.ok', async () => {
+    const existing = await getProtocols(patientEmail);
+    // Note: if the deleted item has a demoVideoUrl, the Cloudinary file becomes orphaned.
+    // Client-side deletion requires a signed API call — deferred to future Cloud Function cleanup.
+    const updated = existing.filter(p => p.id !== protocolId);
+    if (updated.length === 0) {
+      await db.collection('protocols').doc(patientEmail).delete();
+    } else {
+      await db.collection('protocols').doc(patientEmail).set({ items: updated });
+    }
+    writeAuditLog('protocol_deleted', patientEmail);
+    const refreshed = await getProtocols(patientEmail);
+    const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
+    if (protoBody) {
+      protoBody.innerHTML = buildProtocolForm(patientEmail, refreshed);
+      updateExerciseParamsUI('full_fist', null);
+    } else {
+      const snap = await db.collection('users').doc(patientEmail).get();
+      if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+    }
+  });
 }
 
 async function editProtocol(patientEmail, protocolId) {
@@ -6390,29 +6437,30 @@ async function downloadMyData() {
 async function disconnectFromTherapist() {
   const tEmail = currentUser?.therapistEmail;
   if (!tEmail) return;
-  if (!confirm('Disconnect from your therapist? You will lose access to assigned protocols and messaging.')) return;
-  const threadId = getThreadId(currentUser.email, tEmail);
-  try {
-    await Promise.all([
-      db.collection('connections').doc(tEmail).update({
-        patients: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
-      }),
-      db.collection('users').doc(currentUser.email).update({
-        therapistEmail: firebase.firestore.FieldValue.delete(),
-      }),
-      db.collection('messageThreads').doc(threadId).set({
-        archived: true,
-        disconnectedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        participants: [currentUser.email, tEmail].sort(),
-      }, { merge: true }),
-    ]);
-    await writeAuditLog('therapist_disconnected', tEmail);
-    currentUser.therapistEmail = null;
-    await routePatient();
-  } catch (e) {
-    console.error('[Motus] Disconnect from therapist failed:', e);
-    alert('Failed to disconnect. Please try again.');
-  }
+  _openConfirmModal('confirm.disconnect.body', 'confirm.disconnect.ok', async () => {
+    const threadId = getThreadId(currentUser.email, tEmail);
+    try {
+      await Promise.all([
+        db.collection('connections').doc(tEmail).update({
+          patients: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
+        }),
+        db.collection('users').doc(currentUser.email).update({
+          therapistEmail: firebase.firestore.FieldValue.delete(),
+        }),
+        db.collection('messageThreads').doc(threadId).set({
+          archived: true,
+          disconnectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          participants: [currentUser.email, tEmail].sort(),
+        }, { merge: true }),
+      ]);
+      await writeAuditLog('therapist_disconnected', tEmail);
+      currentUser.therapistEmail = null;
+      await routePatient();
+    } catch (e) {
+      console.error('[Motus] Disconnect from therapist failed:', e);
+      alert('Failed to disconnect. Please try again.');
+    }
+  });
 }
 
 async function disconnectPatient(patientEmail) {
@@ -7943,6 +7991,7 @@ Object.assign(window, {
   showSettingsScreen, showSettingsBack, saveSettings, settingsSavedGoHome, settingsSavedStay,
   handleConnect, skipConnect,
   logout, requestLogout, closeLogoutModal, confirmLogout, resetInactivityTimer,
+  _openConfirmModal, _closeConfirmModal, _doConfirm,
   approveTherapist, rejectTherapist, acceptConsent,
 
   // Navigation
