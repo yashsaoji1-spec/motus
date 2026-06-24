@@ -16,6 +16,12 @@ const personas = [
 ];
 
 async function run() {
+  // Guard: never allow destructive reset against a non-local host
+  const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST || '';
+  if (!emulatorHost.startsWith('127.0.0.1') && !emulatorHost.startsWith('localhost')) {
+    throw new Error(`Refusing to run seed against non-local FIRESTORE_EMULATOR_HOST: "${emulatorHost}"`);
+  }
+
   // Clear emulator Firestore so seeding is idempotent (repeatable test runs)
   await fetch('http://127.0.0.1:8181/emulator/v1/projects/demo-motus/databases/(default)/documents', { method: 'DELETE' });
 

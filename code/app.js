@@ -3487,6 +3487,7 @@ async function assignProtocol() {
 
   // Upload demo video if a new blob was recorded/selected
   const submitBtn = document.getElementById('apmSubmitBtn');
+  const origSubmitText = submitBtn ? submitBtn.textContent : null;
   let demoVideoUrl = _demoExistingVideoUrl || null;
   if (_demoBlob) {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading demo...'; }
@@ -3502,7 +3503,6 @@ async function assignProtocol() {
   // F-011: disable submit and clear any previous error before the Firestore write
   const apmErrEl = document.getElementById('apmAssignError');
   if (apmErrEl) apmErrEl.style.display = 'none';
-  const origSubmitText = submitBtn ? submitBtn.textContent : null;
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = t('th.assignSaving'); }
 
   let saveOk = false;
@@ -4521,6 +4521,7 @@ async function bulkAssignProtocol() {
   const freq  = readFrequencyValue('protocolFrequency', 'customFreqDays');
   const notes = document.getElementById('protocolNotes').value.trim();
   const submitBtn = document.getElementById('apmSubmitBtn');
+  const origSubmitText = submitBtn ? submitBtn.textContent : null;
   if (submitBtn) submitBtn.disabled = true;
 
   try {
@@ -4568,7 +4569,7 @@ async function bulkAssignProtocol() {
     console.error('[Motus] bulkAssignProtocol failed', err);
     alert(t('th.bulkAssignError'));
   } finally {
-    if (submitBtn) submitBtn.disabled = false;
+    if (submitBtn) { submitBtn.disabled = false; if (origSubmitText) submitBtn.textContent = origSubmitText; }
     closeAddProtocol();
   }
 }
