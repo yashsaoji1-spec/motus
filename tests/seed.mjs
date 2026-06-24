@@ -25,6 +25,7 @@ async function run() {
       name: p.name, role: p.role, consentGiven: true,
       consentTimestamp: admin.firestore.FieldValue.serverTimestamp(),
       nppAcknowledgedAt: new Date().toISOString(),
+      nppVersionAccepted: '2026-06-21',
     });
   }
 
