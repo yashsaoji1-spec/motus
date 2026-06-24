@@ -192,7 +192,10 @@ const I18N = {
     'th.protocolSaved': 'Protocol saved',
     'th.assignError': 'Could not save protocol — check your connection.',
     'th.bulkAssignFailed': 'Some patients could not be assigned: {emails}',
+    'th.bulkAssignPartial': '({ok} of {total} succeeded)',
     'th.bulkAssignSuccess': 'Exercise assigned to {count} patient(s).',
+    'th.bulkAssignError': 'Assignment failed — check your connection and try again.',
+    'confirm.actionFailed': 'Action failed — check your connection and try again.',
     // Clinic screen
     'clinic.loading': 'Loading clinic…',
     'clinic.loadError': 'Could not load clinic — check your connection.',
@@ -353,7 +356,10 @@ const I18N = {
     'th.protocolSaved': 'Protocolo guardado',
     'th.assignError': 'No se pudo guardar el protocolo — verifica tu conexión.',
     'th.bulkAssignFailed': 'Algunos pacientes no pudieron ser asignados: {emails}',
+    'th.bulkAssignPartial': '({ok} de {total} tuvieron éxito)',
     'th.bulkAssignSuccess': 'Ejercicio asignado a {count} paciente(s).',
+    'th.bulkAssignError': 'La asignación falló — verifica tu conexión e inténtalo de nuevo.',
+    'confirm.actionFailed': 'La acción falló — verifica tu conexión e inténtalo de nuevo.',
     'clinic.loading': 'Cargando clínica…',
     'clinic.loadError': 'No se pudo cargar la clínica — verifica tu conexión.',
     'nav.home': 'Inicio',
@@ -1343,6 +1349,8 @@ function confirmLogout()    { closeLogoutModal(); logout(); }
    One reusable modal driven by _confirmCallback; body/OK text set per call. */
 let _confirmCallback = null;
 
+let _confirmEscHandler = null;
+
 function _openConfirmModal(bodyKey, okKey, callback) {
   _confirmCallback = callback;
   const el = document.getElementById('confirmModal');
@@ -1352,18 +1360,31 @@ function _openConfirmModal(bodyKey, okKey, callback) {
   document.getElementById('confirmModalOk').textContent    = t(okKey);
   document.getElementById('confirmModalCancel').textContent = t('confirm.cancel');
   el.style.display = 'flex';
+  const cancelBtn = document.getElementById('confirmModalCancel');
+  if (cancelBtn) cancelBtn.focus();
+  _confirmEscHandler = function(e) { if (e.key === 'Escape') _closeConfirmModal(); };
+  document.addEventListener('keydown', _confirmEscHandler);
 }
 
 function _closeConfirmModal() {
   const el = document.getElementById('confirmModal');
   if (el) el.style.display = 'none';
   _confirmCallback = null;
+  if (_confirmEscHandler) {
+    document.removeEventListener('keydown', _confirmEscHandler);
+    _confirmEscHandler = null;
+  }
 }
 
 function _doConfirm() {
   const cb = _confirmCallback;
   _closeConfirmModal();
-  if (cb) cb();
+  if (cb) {
+    Promise.resolve(cb()).catch(err => {
+      console.error('[Motus] confirm action failed', err);
+      alert(t('confirm.actionFailed'));
+    });
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -4458,10 +4479,13 @@ async function bulkAssignProtocol() {
     }
     // F-012: report failed patients alongside the success count
     if (failedEmails.length > 0) {
-      alert(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + `\n\n(${successCount} of ${selected.length} succeeded)`);
+      alert(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + '\n\n' + t('th.bulkAssignPartial', { ok: successCount, total: selected.length }));
     } else {
       alert(t('th.bulkAssignSuccess', { count: successCount }));
     }
+  } catch (err) {
+    console.error('[Motus] bulkAssignProtocol failed', err);
+    alert(t('th.bulkAssignError'));
   } finally {
     if (submitBtn) submitBtn.disabled = false;
     closeAddProtocol();
