@@ -1346,7 +1346,7 @@ let _confirmCallback = null;
 function _openConfirmModal(bodyKey, okKey, callback) {
   _confirmCallback = callback;
   const el = document.getElementById('confirmModal');
-  if (!el) return callback(); // fallback: skip modal if DOM missing
+  if (!el) { console.error('[Motus] confirmModal missing'); return; }
   document.getElementById('confirmModalTitle').textContent = t('confirm.title');
   document.getElementById('confirmModalBody').textContent  = t(bodyKey);
   document.getElementById('confirmModalOk').textContent    = t(okKey);
