@@ -67,6 +67,8 @@ const I18N = {
     'auth.password': 'Password',
     'auth.forgotPassword': 'Forgot password?',
     'auth.signIn': 'Sign In',
+    'auth.signingIn': 'Signing in…',
+    'auth.creatingAccount': 'Creating account…',
     'auth.newToMotus': 'New to Motus?',
     'auth.createAccount': 'Create account',
     'auth.emailPlaceholder': 'you@example.com',
@@ -146,6 +148,8 @@ const I18N = {
     'connect.connect': 'Connect',
     'connect.skip': 'Skip for now',
     // Patient home
+    'home.loading': 'Loading…',
+    'home.loadError': "Couldn't load your exercises — check your connection.",
     'home.goodMorning': 'Good morning',
     'home.goodAfternoon': 'Good afternoon',
     'home.goodEvening': 'Good evening',
@@ -174,6 +178,28 @@ const I18N = {
     'cam.flip': 'FLIP',
     'cam.demo': 'DEMO',
     'cam.cameraFront': 'CAMERA · FRONT',
+    'cam.done': 'Done',
+    'cam.sessionSaved': 'Session saved!',
+    'cam.saving': 'Saving session…',
+    // Messaging
+    'msg.send': 'Send',
+    'msg.sendError': 'Message not sent — try again',
+    // Admin
+    'admin.therapistApproved': 'Therapist approved',
+    'admin.approving': 'Approving…',
+    'admin.approveError': 'Could not approve therapist — try again.',
+    // Therapist protocol modal
+    'th.assignSaving': 'Saving…',
+    'th.protocolSaved': 'Protocol saved',
+    'th.assignError': 'Could not save protocol — check your connection.',
+    'th.bulkAssignFailed': 'Some patients could not be assigned: {emails}',
+    'th.bulkAssignPartial': '({ok} of {total} succeeded)',
+    'th.bulkAssignSuccess': 'Exercise assigned to {count} patient(s).',
+    'th.bulkAssignError': 'Assignment failed — check your connection and try again.',
+    'confirm.actionFailed': 'Action failed — check your connection and try again.',
+    // Clinic screen
+    'clinic.loading': 'Loading clinic…',
+    'clinic.loadError': 'Could not load clinic — check your connection.',
     // Bottom nav
     'nav.home': 'Home',
     'nav.progress': 'Progress',
@@ -199,6 +225,15 @@ const I18N = {
     'set.deleteAccount': 'Delete account',
     'set.signOut': 'Sign out',
     'set.save': 'Save',
+    // Destructive-action confirm modal
+    'confirm.title': 'Are you sure?',
+    'confirm.cancel': 'Cancel',
+    'confirm.deleteProtocol.body': 'Delete this exercise? This can\'t be undone.',
+    'confirm.deleteProtocol.ok': 'Delete Exercise',
+    'confirm.disconnect.body': 'Disconnect from your therapist? You\'ll lose access to your assigned exercises and messages.',
+    'confirm.disconnect.ok': 'Disconnect',
+    'confirm.rejectTherapist.body': 'Reject this therapist? Their account will be permanently deleted.',
+    'confirm.rejectTherapist.ok': 'Reject Account',
   },
   es: {
     'auth.welcomeBack': 'Bienvenido de nuevo',
@@ -207,6 +242,8 @@ const I18N = {
     'auth.password': 'Contraseña',
     'auth.forgotPassword': '¿Olvidaste tu contraseña?',
     'auth.signIn': 'Iniciar sesión',
+    'auth.signingIn': 'Iniciando sesión…',
+    'auth.creatingAccount': 'Creando cuenta…',
     'auth.newToMotus': '¿Nuevo en Motus?',
     'auth.createAccount': 'Crear cuenta',
     'auth.emailPlaceholder': 'tu@ejemplo.com',
@@ -280,6 +317,8 @@ const I18N = {
     'connect.clinicCode': 'Código de la clínica',
     'connect.connect': 'Conectar',
     'connect.skip': 'Omitir por ahora',
+    'home.loading': 'Cargando…',
+    'home.loadError': 'No pudimos cargar tus ejercicios — verifica tu conexión.',
     'home.goodMorning': 'Buenos días',
     'home.goodAfternoon': 'Buenas tardes',
     'home.goodEvening': 'Buenas noches',
@@ -306,6 +345,24 @@ const I18N = {
     'cam.flip': 'GIRAR',
     'cam.demo': 'DEMO',
     'cam.cameraFront': 'CÁMARA · FRONTAL',
+    'cam.done': 'Hecho',
+    'cam.sessionSaved': '¡Sesión guardada!',
+    'cam.saving': 'Guardando sesión…',
+    'msg.send': 'Enviar',
+    'msg.sendError': 'Mensaje no enviado — inténtalo de nuevo',
+    'admin.therapistApproved': 'Terapeuta aprobado',
+    'admin.approving': 'Aprobando…',
+    'admin.approveError': 'No se pudo aprobar al terapeuta — inténtalo de nuevo.',
+    'th.assignSaving': 'Guardando…',
+    'th.protocolSaved': 'Protocolo guardado',
+    'th.assignError': 'No se pudo guardar el protocolo — verifica tu conexión.',
+    'th.bulkAssignFailed': 'Algunos pacientes no pudieron ser asignados: {emails}',
+    'th.bulkAssignPartial': '({ok} de {total} tuvieron éxito)',
+    'th.bulkAssignSuccess': 'Ejercicio asignado a {count} paciente(s).',
+    'th.bulkAssignError': 'La asignación falló — verifica tu conexión e inténtalo de nuevo.',
+    'confirm.actionFailed': 'La acción falló — verifica tu conexión e inténtalo de nuevo.',
+    'clinic.loading': 'Cargando clínica…',
+    'clinic.loadError': 'No se pudo cargar la clínica — verifica tu conexión.',
     'nav.home': 'Inicio',
     'nav.progress': 'Progreso',
     'nav.messages': 'Mensajes',
@@ -328,6 +385,15 @@ const I18N = {
     'set.deleteAccount': 'Eliminar cuenta',
     'set.signOut': 'Cerrar sesión',
     'set.save': 'Guardar',
+    // Destructive-action confirm modal
+    'confirm.title': '¿Estás seguro?',
+    'confirm.cancel': 'Cancelar',
+    'confirm.deleteProtocol.body': '¿Eliminar este ejercicio? Esta acción no se puede deshacer.',
+    'confirm.deleteProtocol.ok': 'Eliminar ejercicio',
+    'confirm.disconnect.body': '¿Desconectarte de tu terapeuta? Perderás acceso a tus ejercicios asignados y mensajes.',
+    'confirm.disconnect.ok': 'Desconectar',
+    'confirm.rejectTherapist.body': '¿Rechazar a este terapeuta? Su cuenta será eliminada permanentemente.',
+    'confirm.rejectTherapist.ok': 'Rechazar cuenta',
   },
 };
 
@@ -535,6 +601,12 @@ const FIREBASE_CONFIG = {
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
+
+if (import.meta.env.VITE_USE_EMULATORS === 'true') {
+  firebase.auth().useEmulator('http://127.0.0.1:9099', { disableWarnings: true });
+  firebase.firestore().useEmulator('127.0.0.1', 8181);
+  console.info('[motus] Connected to Firebase emulators (audit)');
+}
 
 // ── Analytics — production only, no PHI in event parameters ──
 const analytics = import.meta.env.PROD ? firebase.analytics() : null;
@@ -892,6 +964,9 @@ async function handleLogin() {
   const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
   if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
+  const btn = document.getElementById('loginBtn');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('auth.signingIn'); }
   try {
     await auth.signInWithEmailAndPassword(email, password);
     _loginAttempts = 0;
@@ -914,6 +989,8 @@ async function handleLogin() {
       isCredError
         ? `Incorrect email or password. ${LOGIN_MAX_ATTEMPTS - _loginAttempts} attempt(s) remaining.`
         : (e.message || 'Sign in failed. Please try again.'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
 
@@ -1004,6 +1081,9 @@ async function finalizeSignup(skipData = false) {
       }
     }
   }
+  const btn = document.getElementById('signupCreateBtn');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('auth.creatingAccount'); }
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     await db.collection('users').doc(cred.user.email).set(docData);
@@ -1021,6 +1101,8 @@ async function finalizeSignup(skipData = false) {
         ? 'An account with that email already exists.'
         : (e.message || 'Sign up failed. Please try again.'));
     signupGoToStep(0);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
 
@@ -1317,6 +1399,48 @@ function requestLogout() {
 function closeLogoutModal() { document.getElementById('logoutModal').style.display = 'none'; }
 function confirmLogout()    { closeLogoutModal(); logout(); }
 
+/* ── Generic destructive-action confirm modal ─────────────────────────────
+   One reusable modal driven by _confirmCallback; body/OK text set per call. */
+let _confirmCallback = null;
+
+let _confirmEscHandler = null;
+
+function _openConfirmModal(bodyKey, okKey, callback) {
+  _confirmCallback = callback;
+  const el = document.getElementById('confirmModal');
+  if (!el) { console.error('[Motus] confirmModal missing'); return; }
+  document.getElementById('confirmModalTitle').textContent = t('confirm.title');
+  document.getElementById('confirmModalBody').textContent  = t(bodyKey);
+  document.getElementById('confirmModalOk').textContent    = t(okKey);
+  document.getElementById('confirmModalCancel').textContent = t('confirm.cancel');
+  el.style.display = 'flex';
+  const cancelBtn = document.getElementById('confirmModalCancel');
+  if (cancelBtn) cancelBtn.focus();
+  _confirmEscHandler = function(e) { if (e.key === 'Escape') _closeConfirmModal(); };
+  document.addEventListener('keydown', _confirmEscHandler);
+}
+
+function _closeConfirmModal() {
+  const el = document.getElementById('confirmModal');
+  if (el) el.style.display = 'none';
+  _confirmCallback = null;
+  if (_confirmEscHandler) {
+    document.removeEventListener('keydown', _confirmEscHandler);
+    _confirmEscHandler = null;
+  }
+}
+
+function _doConfirm() {
+  const cb = _confirmCallback;
+  _closeConfirmModal();
+  if (cb) {
+    Promise.resolve(cb()).catch(err => {
+      console.error('[Motus] confirm action failed', err);
+      alert(t('confirm.actionFailed'));
+    });
+  }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 5b: ADMIN PANEL
    ══════════════════════════════════════════════════════════════════════════ */
@@ -1344,16 +1468,37 @@ async function loadAdminScreen() {
 }
 
 async function approveTherapist(email) {
-  await db.collection('users').doc(email).update({ role: 'therapist' });
-  writeAuditLog('admin_action:approve_therapist', email);
-  await loadAdminScreen();
+  // F-019: disable the Approve button to prevent double-approve
+  const btn = document.querySelector(`button[onclick="approveTherapist('${email}')"]`);
+  const origText = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = t('admin.approving'); }
+  const errEl = document.getElementById('adminApproveError');
+  if (errEl) errEl.style.display = 'none';
+  try {
+    // F-020: wrap in try/catch
+    await db.collection('users').doc(email).update({ role: 'therapist' });
+    writeAuditLog('admin_action:approve_therapist', email);
+    await loadAdminScreen();
+    const banner = document.getElementById('adminApprovalBanner');
+    if (banner) {
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 3000);
+    }
+  } catch (e) {
+    console.error('[Motus] approveTherapist error:', e);
+    if (errEl) { errEl.textContent = t('admin.approveError'); errEl.style.display = 'block'; }
+  } finally {
+    // Restore button in finally — operating on a detached node after row removal is harmless
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
 }
 
 async function rejectTherapist(email) {
-  if (!confirm(`Remove ${email}'s account entirely?`)) return;
-  await db.collection('users').doc(email).delete();
-  writeAuditLog('admin_action:reject_therapist', email);
-  await loadAdminScreen();
+  _openConfirmModal('confirm.rejectTherapist.body', 'confirm.rejectTherapist.ok', async () => {
+    await db.collection('users').doc(email).delete();
+    writeAuditLog('admin_action:reject_therapist', email);
+    await loadAdminScreen();
+  });
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1543,10 +1688,32 @@ async function declineInvite(inviteId) {
 }
 
 async function showClinicScreen() {
-  await loadMyClinic();
+  // F-017: show loading placeholder before async fetch
+  const content = document.getElementById('clinicScreenContent');
+  if (content) {
+    const loadingEl = document.createElement('p');
+    loadingEl.className = 'clinic-loading-msg';
+    loadingEl.setAttribute('aria-live', 'polite');
+    loadingEl.textContent = t('clinic.loading');
+    content.replaceChildren(loadingEl);
+  }
+  showScreen('clinicScreen');
+  try {
+    // F-018: wrap in try/catch; render error on failure
+    await loadMyClinic();
+  } catch (e) {
+    console.error('[Motus] showClinicScreen error:', e);
+    if (content) {
+      const errEl = document.createElement('p');
+      errEl.className = 'clinic-load-error';
+      errEl.setAttribute('aria-live', 'polite');
+      errEl.textContent = t('clinic.loadError');
+      content.replaceChildren(errEl);
+    }
+    return;
+  }
   if (!_myClinic) { showJoinClinicScreen(); return; }
   _renderClinicScreen();
-  showScreen('clinicScreen');
 }
 
 function _renderClinicScreen() {
@@ -1870,11 +2037,32 @@ async function updatePatientHomeScreen() {
   document.getElementById('patientGreeting').textContent    = greeting;
   document.getElementById('patientDisplayName').textContent = currentUser.name;
 
-  const [protocols, sessions, therapistEmail] = await Promise.all([
-    getProtocols(currentUser.email).catch(() => []),
-    getPatientSessions(currentUser.email).catch(() => []),
-    getConnectedTherapist().catch(() => null),
-  ]);
+  // F-008: show loading placeholder while queries run
+  const loadErrorEl = document.getElementById('ptHomeLoadError');
+  const protocolCard = document.getElementById('ptProtocolTitle');
+  if (protocolCard) { protocolCard.textContent = t('home.loading'); }
+  if (loadErrorEl) loadErrorEl.style.display = 'none';
+
+  let protocols, sessions, therapistEmail;
+  let allFailed = false;
+  try {
+    const results = await Promise.allSettled([
+      getProtocols(currentUser.email),
+      getPatientSessions(currentUser.email),
+      getConnectedTherapist(),
+    ]);
+    protocols      = results[0].status === 'fulfilled' ? results[0].value : [];
+    sessions       = results[1].status === 'fulfilled' ? results[1].value : [];
+    therapistEmail = results[2].status === 'fulfilled' ? results[2].value : null;
+    // F-009: if all three failed, show user-facing error
+    allFailed = results.every(r => r.status === 'rejected');
+    if (allFailed && loadErrorEl) {
+      loadErrorEl.textContent = t('home.loadError');
+      loadErrorEl.style.display = 'block';
+    }
+  } catch {
+    protocols = []; sessions = []; therapistEmail = null;
+  }
 
   const disconnectBtn = document.getElementById('disconnectTherapistBtn');
   if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
@@ -1928,7 +2116,7 @@ async function updatePatientHomeScreen() {
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
         const done = completedTypes.has(p.exerciseType);
         const checkSvg = done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
-        return `<li class="pt-protocol-item${done ? ' done' : ''}" role="button" tabindex="0" style="cursor:pointer" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span><svg class="pt-protocol-item-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></li>`;
+        return `<li class="pt-protocol-item${done ? ' done' : ''}" tabindex="0" style="cursor:pointer" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span><svg class="pt-protocol-item-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></li>`;
       }).join('');
     } else {
       planList.innerHTML = `<li class="pt-protocol-empty">${t('home.noExercisesYet')}</li>`;
@@ -2410,18 +2598,26 @@ async function manualCamSaveSet() {
 
 async function finishManualCamSession() {
   if (!_manualCamProtocol) return;
-  
+
   // Stop camera
   if (_manualCamStream) {
     _manualCamStream.getTracks().forEach(t => t.stop());
     _manualCamStream = null;
   }
-  
+
   const totalReps = _manualCamSetData.reduce((sum, s) => sum + s.reps, 0);
-  const avgPain = _manualCamSetData.length > 0 
-    ? Math.round(_manualCamSetData.reduce((sum, s) => sum + s.pain, 0) / _manualCamSetData.length) 
+  const avgPain = _manualCamSetData.length > 0
+    ? Math.round(_manualCamSetData.reduce((sum, s) => sum + s.pain, 0) / _manualCamSetData.length)
     : 1;
-  
+
+  // F-013: disable controls and show saving indicator
+  const doneBtn = document.getElementById('manualCamDoneBtn');
+  const exitBtn = document.querySelector('#manualCamScreen .mcam-exit-btn');
+  const savingOverlay = document.getElementById('manualCamSavingOverlay');
+  if (doneBtn) doneBtn.disabled = true;
+  if (exitBtn) exitBtn.disabled = true;
+  if (savingOverlay) savingOverlay.style.display = 'flex';
+
   let saveOk = false;
   try {
     const therapistEmail = await getConnectedTherapist();
@@ -2441,6 +2637,10 @@ async function finishManualCamSession() {
   } catch(e) {
     console.error('[Motus] Session save error:', e);
     Sentry.captureException(e, { tags: { flow: 'session-save' } });
+  } finally {
+    if (savingOverlay) savingOverlay.style.display = 'none';
+    if (doneBtn) doneBtn.disabled = false;
+    if (exitBtn) exitBtn.disabled = false;
   }
 
   // Don't pretend the session saved when it didn't — the therapist would never
@@ -2455,6 +2655,13 @@ async function finishManualCamSession() {
   _manualCamSetData = [];
   await updatePatientHomeScreen();
   showScreen('patientScreen');
+  if (saveOk) {
+    const banner = document.getElementById('ptSessionSavedBanner');
+    if (banner) {
+      banner.style.display = 'block';
+      setTimeout(() => { banner.style.display = 'none'; }, 3000);
+    }
+  }
 }
 
 function manualCamExit() {
@@ -2785,26 +2992,27 @@ async function getExistingProtocol(patientEmail) {
 }
 
 async function deleteProtocol(patientEmail, protocolId) {
-  if (!confirm(`Remove this exercise from the patient's protocol?`)) return;
-  const existing = await getProtocols(patientEmail);
-  // Note: if the deleted item has a demoVideoUrl, the Cloudinary file becomes orphaned.
-  // Client-side deletion requires a signed API call — deferred to future Cloud Function cleanup.
-  const updated = existing.filter(p => p.id !== protocolId);
-  if (updated.length === 0) {
-    await db.collection('protocols').doc(patientEmail).delete();
-  } else {
-    await db.collection('protocols').doc(patientEmail).set({ items: updated });
-  }
-  writeAuditLog('protocol_deleted', patientEmail);
-  const refreshed = await getProtocols(patientEmail);
-  const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
-  if (protoBody) {
-    protoBody.innerHTML = buildProtocolForm(patientEmail, refreshed);
-    updateExerciseParamsUI('full_fist', null);
-  } else {
-    const snap = await db.collection('users').doc(patientEmail).get();
-    if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
-  }
+  _openConfirmModal('confirm.deleteProtocol.body', 'confirm.deleteProtocol.ok', async () => {
+    const existing = await getProtocols(patientEmail);
+    // Note: if the deleted item has a demoVideoUrl, the Cloudinary file becomes orphaned.
+    // Client-side deletion requires a signed API call — deferred to future Cloud Function cleanup.
+    const updated = existing.filter(p => p.id !== protocolId);
+    if (updated.length === 0) {
+      await db.collection('protocols').doc(patientEmail).delete();
+    } else {
+      await db.collection('protocols').doc(patientEmail).set({ items: updated });
+    }
+    writeAuditLog('protocol_deleted', patientEmail);
+    const refreshed = await getProtocols(patientEmail);
+    const protoBody = document.querySelector('#tps-protocol .tp-colsec-body');
+    if (protoBody) {
+      protoBody.innerHTML = buildProtocolForm(patientEmail, refreshed);
+      updateExerciseParamsUI('full_fist', null);
+    } else {
+      const snap = await db.collection('users').doc(patientEmail).get();
+      if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+    }
+  });
 }
 
 async function editProtocol(patientEmail, protocolId) {
@@ -3291,15 +3499,45 @@ async function assignProtocol() {
     if (submitBtn) submitBtn.disabled = false;
   }
 
-  const existing = await getProtocols(patientEmail);
-  const isEdit = !!editingProtocolId;
+  // F-011: disable submit and clear any previous error before the Firestore write
+  const apmErrEl = document.getElementById('apmAssignError');
+  if (apmErrEl) apmErrEl.style.display = 'none';
+  const origSubmitText = submitBtn ? submitBtn.textContent : null;
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = t('th.assignSaving'); }
 
-  if (editingProtocolId) {
-    // Edit mode — update the existing protocol item in place
-    const updated = existing.map(p => {
-      if (p.id !== editingProtocolId) return p;
-      const edited = {
-        ...p,
+  let saveOk = false;
+  try {
+    const existing = await getProtocols(patientEmail);
+    const isEdit = !!editingProtocolId;
+
+    if (editingProtocolId) {
+      // Edit mode — update the existing protocol item in place
+      const updated = existing.map(p => {
+        if (p.id !== editingProtocolId) return p;
+        const edited = {
+          ...p,
+          exerciseType,
+          exerciseName: exerciseLabels[exerciseType] || exerciseType,
+          reps,
+          sets,
+          frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
+          restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
+          notes:        document.getElementById('protocolNotes').value.trim(),
+          assignedBy: currentUser.name,
+          editedAt:   new Date().toISOString()
+        };
+        if (demoVideoUrl !== undefined) edited.demoVideoUrl = demoVideoUrl;
+        if (exerciseParams) edited.exerciseParams = exerciseParams;
+        else delete edited.exerciseParams;
+        return edited;
+      });
+      await db.collection('protocols').doc(patientEmail).set({ items: updated });
+      editingProtocolId = null;
+      editingPatientEmail = null;
+    } else {
+      // Add mode — append a new protocol item
+      const newItem = {
+        id:           Date.now().toString(),
         exerciseType,
         exerciseName: exerciseLabels[exerciseType] || exerciseType,
         reps,
@@ -3307,40 +3545,36 @@ async function assignProtocol() {
         frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
         restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
         notes:        document.getElementById('protocolNotes').value.trim(),
-        assignedBy: currentUser.name,
-        editedAt:   new Date().toISOString()
+        assignedBy:   currentUser.name,
+        assignedAt:   new Date().toISOString()
       };
-      if (demoVideoUrl !== undefined) edited.demoVideoUrl = demoVideoUrl;
-      if (exerciseParams) edited.exerciseParams = exerciseParams;
-      else delete edited.exerciseParams;
-      return edited;
-    });
-    await db.collection('protocols').doc(patientEmail).set({ items: updated });
-    editingProtocolId = null;
-    editingPatientEmail = null;
-  } else {
-    // Add mode — append a new protocol item
-    const newItem = {
-      id:           Date.now().toString(),
-      exerciseType,
-      exerciseName: exerciseLabels[exerciseType] || exerciseType,
-      reps,
-      sets,
-      frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
-      restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
-      notes:        document.getElementById('protocolNotes').value.trim(),
-      assignedBy:   currentUser.name,
-      assignedAt:   new Date().toISOString()
-    };
-    if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
-    if (exerciseParams) newItem.exerciseParams = exerciseParams;
-    await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+      if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
+      if (exerciseParams) newItem.exerciseParams = exerciseParams;
+      await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+    }
+    logAnalyticsEvent('protocol_assigned', { exercise_type: exerciseType });
+    writeAuditLog(isEdit ? 'protocol_updated' : 'protocol_created', patientEmail);
+    saveOk = true;
+  } catch (e) {
+    // F-011: show inline error in modal; keep modal open so therapist can retry
+    console.error('[Motus] assignProtocol error:', e);
+    if (apmErrEl) { apmErrEl.textContent = t('th.assignError'); apmErrEl.style.display = 'block'; }
+  } finally {
+    // F-011: restore submit button
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = origSubmitText; }
   }
-  logAnalyticsEvent('protocol_assigned', { exercise_type: exerciseType });
-  writeAuditLog(isEdit ? 'protocol_updated' : 'protocol_created', patientEmail);
+
+  if (!saveOk) return;
+
+  // F-010: show success banner after close
   closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
+  const savedBanner = document.getElementById('protocolSavedBanner');
+  if (savedBanner) {
+    savedBanner.style.display = 'block';
+    setTimeout(() => { savedBanner.style.display = 'none'; }, 3000);
+  }
 }
 
 function formatProtocol(p) {
@@ -4289,39 +4523,54 @@ async function bulkAssignProtocol() {
   const submitBtn = document.getElementById('apmSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
 
-  // Upload demo once, reuse URL across all patients
-  let demoVideoUrl = null;
-  if (_demoBlob) {
-    if (submitBtn) submitBtn.textContent = 'Uploading demo...';
-    { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
-    if (submitBtn) submitBtn.textContent = 'Assigning...';
-  }
+  try {
+    // Upload demo once, reuse URL across all patients
+    let demoVideoUrl = null;
+    if (_demoBlob) {
+      if (submitBtn) submitBtn.textContent = 'Uploading demo...';
+      { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
+      if (submitBtn) submitBtn.textContent = 'Assigning...';
+    }
 
-  let successCount = 0;
-  const now = Date.now();
-  for (const patientEmail of selected) {
-    try {
-      const existing = await getProtocols(patientEmail);
-      const newItem = {
-        id:           (now + successCount).toString(),
-        exerciseType,
-        reps,
-        sets,
-        frequency:    freq,
-        notes,
-        assignedBy:   currentUser.name,
-        assignedAt:   new Date().toISOString()
-      };
-      if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
-      if (exerciseParams) newItem.exerciseParams = exerciseParams;
-      await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
-      writeAuditLog('protocol_created', patientEmail);
-      successCount++;
-    } catch (e) { /* skip failed patient */ }
+    let successCount = 0;
+    const failedEmails = [];
+    const now = Date.now();
+    for (const patientEmail of selected) {
+      try {
+        const existing = await getProtocols(patientEmail);
+        const newItem = {
+          id:           (now + successCount).toString(),
+          exerciseType,
+          reps,
+          sets,
+          frequency:    freq,
+          notes,
+          assignedBy:   currentUser.name,
+          assignedAt:   new Date().toISOString()
+        };
+        if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
+        if (exerciseParams) newItem.exerciseParams = exerciseParams;
+        await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
+        writeAuditLog('protocol_created', patientEmail);
+        successCount++;
+      } catch (e) {
+        // F-012: record which patients failed instead of silently skipping
+        failedEmails.push(patientEmail);
+      }
+    }
+    // F-012: report failed patients alongside the success count
+    if (failedEmails.length > 0) {
+      alert(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + '\n\n' + t('th.bulkAssignPartial', { ok: successCount, total: selected.length }));
+    } else {
+      alert(t('th.bulkAssignSuccess', { count: successCount }));
+    }
+  } catch (err) {
+    console.error('[Motus] bulkAssignProtocol failed', err);
+    alert(t('th.bulkAssignError'));
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+    closeAddProtocol();
   }
-  if (submitBtn) submitBtn.disabled = false;
-  closeAddProtocol();
-  alert(`Exercise assigned to ${successCount} patient${successCount !== 1 ? 's' : ''}.`);
 }
 
 function _apmRenderLibrary(query) {
@@ -6335,29 +6584,30 @@ async function downloadMyData() {
 async function disconnectFromTherapist() {
   const tEmail = currentUser?.therapistEmail;
   if (!tEmail) return;
-  if (!confirm('Disconnect from your therapist? You will lose access to assigned protocols and messaging.')) return;
-  const threadId = getThreadId(currentUser.email, tEmail);
-  try {
-    await Promise.all([
-      db.collection('connections').doc(tEmail).update({
-        patients: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
-      }),
-      db.collection('users').doc(currentUser.email).update({
-        therapistEmail: firebase.firestore.FieldValue.delete(),
-      }),
-      db.collection('messageThreads').doc(threadId).set({
-        archived: true,
-        disconnectedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        participants: [currentUser.email, tEmail].sort(),
-      }, { merge: true }),
-    ]);
-    await writeAuditLog('therapist_disconnected', tEmail);
-    currentUser.therapistEmail = null;
-    await routePatient();
-  } catch (e) {
-    console.error('[Motus] Disconnect from therapist failed:', e);
-    alert('Failed to disconnect. Please try again.');
-  }
+  _openConfirmModal('confirm.disconnect.body', 'confirm.disconnect.ok', async () => {
+    const threadId = getThreadId(currentUser.email, tEmail);
+    try {
+      await Promise.all([
+        db.collection('connections').doc(tEmail).update({
+          patients: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
+        }),
+        db.collection('users').doc(currentUser.email).update({
+          therapistEmail: firebase.firestore.FieldValue.delete(),
+        }),
+        db.collection('messageThreads').doc(threadId).set({
+          archived: true,
+          disconnectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          participants: [currentUser.email, tEmail].sort(),
+        }, { merge: true }),
+      ]);
+      await writeAuditLog('therapist_disconnected', tEmail);
+      currentUser.therapistEmail = null;
+      await routePatient();
+    } catch (e) {
+      console.error('[Motus] Disconnect from therapist failed:', e);
+      alert('Failed to disconnect. Please try again.');
+    }
+  });
 }
 
 async function disconnectPatient(patientEmail) {
@@ -6411,10 +6661,26 @@ async function sendMessageFromPatient() {
   const tEmail = await getConnectedTherapist();
   if (!tEmail) return;
   const input = document.getElementById('msgInput');
+  const sendBtn = document.getElementById('msgSendBtn');
+  const errEl = document.getElementById('msgSendError');
   if (!input.value.trim()) return;
-  await sendMessage(currentUser.email, tEmail, input.value);
-  input.value = '';
-  toggleMsgSend();
+  const draft = input.value;
+  if (errEl) errEl.style.display = 'none';
+  // F-015: disable input + button during send to prevent duplicate messages
+  if (sendBtn) sendBtn.disabled = true;
+  if (input) input.disabled = true;
+  try {
+    await sendMessage(currentUser.email, tEmail, draft);
+    input.value = '';
+    toggleMsgSend();
+  } catch {
+    // F-016: restore draft + re-enable + show error on failure
+    input.value = draft;
+    if (errEl) { errEl.textContent = t('msg.sendError'); errEl.style.display = 'block'; }
+  } finally {
+    if (input) input.disabled = false;
+    if (sendBtn) { sendBtn.disabled = !input.value.trim(); }
+  }
 }
 
 // ── Therapist-side panel builder ──────────────────────────────────────────────
@@ -7889,6 +8155,7 @@ Object.assign(window, {
   showSettingsScreen, showSettingsBack, saveSettings, settingsSavedGoHome, settingsSavedStay,
   handleConnect, skipConnect, goToConnect,
   logout, requestLogout, closeLogoutModal, confirmLogout, resetInactivityTimer,
+  _openConfirmModal, _closeConfirmModal, _doConfirm,
   approveTherapist, rejectTherapist, acceptConsent,
 
   // Navigation
@@ -7945,7 +8212,7 @@ Object.assign(window, {
   closeDemoAndStart, skipDemoVideo, replayDemoInSession, exitDemoNoSave,
 
   // Manual camera session
-  openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet,
+  openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet, finishManualCamSession,
   manualCamRetryCamera, manualCamLogWithoutVideo,
   updatePainBar, siAdjustReps, siSelectPain, siToggleChip,
 

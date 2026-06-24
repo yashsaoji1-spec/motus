@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
+    "dev:audit": "vite --mode audit",
     "build": "vite build",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -28,9 +29,12 @@
     "prompt-sync": "^4.2.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@firebase/rules-unit-testing": "^5.0.0",
     "@playwright/test": "^1.59.1",
+    "axe-core": "^4.12.1",
     "firebase-admin": "^12.0.0",
+    "firebase-tools": "^15.22.0",
     "sharp": "^0.34.5",
     "vite": "^8.0.8",
     "vitest": "^4.1.4"
