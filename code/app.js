@@ -124,16 +124,16 @@ const I18N = {
     'forgot.backToSignIn': 'Back to sign in',
     // Consent
     'consent.title': 'Before we begin',
-    'consent.sub': 'Please review and accept to continue',
-    'consent.privacyHeading': 'Privacy & Data Use',
-    'consent.bullet1': 'Movement data captured via your device camera',
-    'consent.bullet2': 'Exercise performance shared with your assigned therapist',
-    'consent.bullet3': 'Session videos stored securely, removed after 30 days',
-    'consent.bullet4': 'All data encrypted in transit and at rest',
-    'consent.agree': 'I understand how my health data will be used and consent to participate in Motus rehabilitation.',
+    'consent.sub': 'Please read and agree to continue',
+    'consent.privacyHeading': 'How we use your health data',
+    'consent.bullet1': 'We use your device camera to record how you move',
+    'consent.bullet2': 'Your therapist can see how your exercises go',
+    'consent.bullet3': 'Your videos are stored safely and deleted after 30 days',
+    'consent.bullet4': 'Your data is encrypted (kept private) when sent and stored',
+    'consent.agree': 'I agree to let Motus use my health data for my physical therapy.',
     'consent.npp': 'I have received the',
     'consent.nppLink': 'HIPAA Notice of Privacy Practices',
-    'consent.error': 'Please check both boxes before continuing.',
+    'consent.error': 'Please check both boxes to continue.',
     'consent.continue': 'I Agree — Continue',
     'consent.questions': 'Questions? Email',
     // Pending
@@ -162,7 +162,7 @@ const I18N = {
     'home.askTherapist': 'Ask your therapist to assign exercises',
     'home.noExercisesYet': 'No exercises assigned yet',
     'home.startSession': 'Start Session',
-    'home.adherence': 'ADHERENCE',
+    'home.adherence': 'CONSISTENCY',
     'home.avgPain': 'AVG PAIN',
     'home.yourTherapist': 'Your Therapist',
     'home.weekOf': 'Week of {date}',
@@ -298,16 +298,16 @@ const I18N = {
     'forgot.findAccount': 'Buscar cuenta',
     'forgot.backToSignIn': 'Volver a iniciar sesión',
     'consent.title': 'Antes de comenzar',
-    'consent.sub': 'Revisa y acepta para continuar',
-    'consent.privacyHeading': 'Privacidad y uso de datos',
-    'consent.bullet1': 'Los datos de movimiento se capturan con la cámara de tu dispositivo',
-    'consent.bullet2': 'Tu desempeño en los ejercicios se comparte con tu terapeuta asignado',
-    'consent.bullet3': 'Los videos de las sesiones se guardan de forma segura y se eliminan a los 30 días',
-    'consent.bullet4': 'Todos los datos están cifrados en tránsito y en reposo',
-    'consent.agree': 'Entiendo cómo se usarán mis datos de salud y doy mi consentimiento para participar en la rehabilitación con Motus.',
+    'consent.sub': 'Lee y acepta para continuar',
+    'consent.privacyHeading': 'Cómo usamos tus datos de salud',
+    'consent.bullet1': 'Usamos la cámara de tu dispositivo para grabar cómo te mueves',
+    'consent.bullet2': 'Tu terapeuta puede ver cómo te van los ejercicios',
+    'consent.bullet3': 'Tus videos se guardan de forma segura y se eliminan a los 30 días',
+    'consent.bullet4': 'Tus datos están cifrados (protegidos) cuando se envían y se guardan',
+    'consent.agree': 'Acepto que Motus use mis datos de salud para mi terapia física.',
     'consent.npp': 'He recibido el',
     'consent.nppLink': 'Aviso de Prácticas de Privacidad de HIPAA',
-    'consent.error': 'Marca ambas casillas antes de continuar.',
+    'consent.error': 'Marca ambas casillas para continuar.',
     'consent.continue': 'Acepto — Continuar',
     'consent.questions': '¿Preguntas? Escribe a',
     'pending.title': 'Cuenta pendiente',
@@ -6300,7 +6300,7 @@ async function renderProgressScreen() {
   var adhColorProg = adherenceThisWeek >= 80 ? '#059669' : adherenceThisWeek >= 50 ? '#D97706' : '#DC2626';
   content.innerHTML =
     '<div class="prog-stats-row">' +
-      '<div class="prog-stat-card"><div class="prog-stat-value" style="color:' + adhColorProg + '">' + adherenceThisWeek + '%</div><div class="prog-stat-label">Adherence</div></div>' +
+      '<div class="prog-stat-card"><div class="prog-stat-value" style="color:' + adhColorProg + '">' + adherenceThisWeek + '%</div><div class="prog-stat-label">Consistency</div></div>' +
       '<div class="prog-stat-card"><div class="prog-stat-value ' + painTrendClass + '">' + painTrendDisplay + '</div><div class="prog-stat-label">Pain trend</div></div>' +
     '</div>' +
     (sessions.length ?
@@ -7928,7 +7928,7 @@ const TUTORIAL_STEPS = {
     { target: '.pt-protocol-start', title: 'Start a session',
       text: 'When you’re ready to exercise, tap Start Session. Motus walks you through each exercise, set by set.' },
     { target: '.pt-stats-row', title: 'Your stats at a glance',
-      text: 'Adherence shows how consistently you’re completing sessions, and Avg Pain tracks how you’ve been feeling.' },
+      text: 'Consistency shows how often you complete your sessions, and Avg Pain tracks how you’ve been feeling.' },
     { target: '#patientBottomNav .pt-bottom-nav-item:nth-child(2)', title: 'Track your progress',
       text: 'The Progress tab keeps a log of every session — reps, pain, and notes — so you can see your improvement over time.',
       before: async () => { await showProgressScreen(); } },
