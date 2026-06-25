@@ -234,6 +234,8 @@ const I18N = {
     'confirm.disconnect.ok': 'Disconnect',
     'confirm.rejectTherapist.body': 'Reject this therapist? Their account will be permanently deleted.',
     'confirm.rejectTherapist.ok': 'Reject Account',
+    'confirm.deleteAccount.body': 'This will permanently delete your account, all session history, and all videos. This can\'t be undone.',
+    'confirm.deleteAccount.ok': 'Delete Account',
   },
   es: {
     'auth.welcomeBack': 'Bienvenido de nuevo',
@@ -394,6 +396,8 @@ const I18N = {
     'confirm.disconnect.ok': 'Desconectar',
     'confirm.rejectTherapist.body': '¿Rechazar a este terapeuta? Su cuenta será eliminada permanentemente.',
     'confirm.rejectTherapist.ok': 'Rechazar cuenta',
+    'confirm.deleteAccount.body': 'Esto eliminará permanentemente tu cuenta, todo tu historial de sesiones y todos los videos. Esta acción no se puede deshacer.',
+    'confirm.deleteAccount.ok': 'Eliminar cuenta',
   },
 };
 
@@ -6489,26 +6493,25 @@ function subscribeThread(containerId, myEmail, otherEmail, emptyMsg) {
 // ── Patient-side functions ────────────────────────────────────────────────────
 
 async function deleteMyAccount() {
-  const confirmed = confirm(
-    'This will permanently delete your account, all session history, and all videos.\n\nThis cannot be undone. Are you sure?'
-  );
-  if (!confirmed) return;
-
-  const btn = document.querySelector('.delete-account-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
-  try {
-    // Server-side cascade (Cloud Function) removes ALL of the user's data across
-    // every collection + Storage and deletes the auth user — far more complete than
-    // a client batch, and it works without a recent re-login.
-    await firebase.functions().httpsCallable('deleteMyAccount')();
-    try { await auth.signOut(); } catch (_) {}
-    sessionStorage.clear();
-    showScreen('loginScreen');
-  } catch (e) {
-    console.error('[Motus] Account deletion failed:', e);
-    alert('Deletion failed. Please try again or contact support.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
-  }
+  // App-styled confirm modal (matches deleteProtocol/disconnect/reject) — replaces
+  // the old native confirm(). The deletion runs only if the user confirms.
+  _openConfirmModal('confirm.deleteAccount.body', 'confirm.deleteAccount.ok', async () => {
+    const btn = document.querySelector('.delete-account-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
+    try {
+      // Server-side cascade (Cloud Function) removes ALL of the user's data across
+      // every collection + Storage and deletes the auth user — far more complete than
+      // a client batch, and it works without a recent re-login.
+      await firebase.functions().httpsCallable('deleteMyAccount')();
+      try { await auth.signOut(); } catch (_) {}
+      sessionStorage.clear();
+      showScreen('loginScreen');
+    } catch (e) {
+      console.error('[Motus] Account deletion failed:', e);
+      alert('Deletion failed. Please try again or contact support.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
+    }
+  });
 }
 
 async function downloadMyData() {
@@ -6692,7 +6695,8 @@ function buildMessagePanel(patientEmail) {
     <div class="therapist-msg-input-wrap">
       <input type="text" id="therapistMsgInput" class="therapist-msg-input" placeholder="Send a message…" />
       <button id="therapistMsgSend" class="therapist-msg-send">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <span>${t('msg.send')}</span>
       </button>
     </div>
   </div>`;
