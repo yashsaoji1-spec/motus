@@ -41,6 +41,7 @@
   --surface:     #FFFFFF;
   --border:      #E0F2FE;
   --accent:      #0EA5E9;
+  --accent-text: #0369A1;
   --accent-hover:#0284C7;
   --accent-dim:  rgba(14, 165, 233, 0.08);
   --accent-glow: rgba(14, 165, 233, 0.25);
@@ -56,8 +57,10 @@
 /* ── Patient scope ──────────────────────────────────────────────────────── */
 .patient-scope {
   --pt-primary:       #0EA5E9;
+  --pt-primary-text:  var(--accent-text);
   --pt-primary-hover: #0284C7;
   --pt-accent:        #059669;
+  --pt-success-text:  #047857;
   --pt-bg:            #F0F9FF;
   --pt-surface:       #FFFFFF;
   --pt-surface-muted: #F8FAFC;
@@ -82,6 +85,7 @@
   --th-text:           #334155;
   --th-text-strong:    #0F172A;
   --th-muted:          #94A3B8;
+  --th-muted-text:     #475569;
   --th-bg:             #FFFFFF;
   --th-surface:        #FAFAFA;
   --th-surface-hover:  #F8FAFC;
@@ -99,6 +103,9 @@
   --th-input-bg:       #F1F5F9;
   --th-danger-soft:    #FEE2E2;
   --th-success-soft:   #D1FAE5;
+  --th-error:          #991B1B;
+  --th-error-bg:       #FEE2E2;
+  --th-error-border:   #FCA5A5;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -280,13 +287,13 @@ body {
   font-family: var(--pt-font);
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   cursor: pointer;
   min-height: auto;
 }
 .auth-lang-sep { color: var(--pt-muted); }
 .auth-forgot-row span {
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   font-weight: 700;
   cursor: pointer;
 }
@@ -319,7 +326,7 @@ body {
   font-family: var(--pt-font);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -363,7 +370,7 @@ body {
   width: 100%;
   padding: 12px;
   background: var(--pt-surface);
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   font-family: var(--pt-font);
   font-size: 0.9rem;
   font-weight: 700;
@@ -399,7 +406,7 @@ body {
   color: var(--pt-muted);
 }
 .auth-link-row span, .auth-link-row a {
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
@@ -413,7 +420,7 @@ body {
   text-align: center;
   line-height: 1.5;
 }
-.auth-legal a { color: var(--pt-primary); }
+.auth-legal a { color: var(--pt-primary-text); }
 
 .auth-error {
   background: #FEE2E2;
@@ -465,7 +472,7 @@ body {
 }
 
 .role-seg-btn.active {
-  background: var(--pt-primary);
+  background: var(--pt-primary-text);
   color: #fff;
 }
 
@@ -482,7 +489,7 @@ body {
   font-family: var(--pt-font);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin-bottom: 8px;
@@ -507,7 +514,7 @@ body {
   line-height: 1.5;
 }
 
-.consent-checkbox-row a { color: var(--pt-primary); }
+.consent-checkbox-row a { color: var(--pt-primary-text); }
 
 .clinic-code-input {
   text-align: center;
@@ -794,7 +801,7 @@ body {
   font-size: 0.69rem;
   font-weight: 700;
   letter-spacing: 0.07em;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   text-transform: uppercase;
 }
 .patient-scope .pt-protocol-freq {
@@ -802,7 +809,7 @@ body {
   font-size: 0.7rem;
   font-weight: 600;
   color: #fff;
-  background: var(--pt-primary);
+  background: var(--pt-primary-text);
   padding: 3px 10px;
   border-radius: 20px;
   letter-spacing: 0.02em;
@@ -863,7 +870,7 @@ body {
 }
 .patient-scope .pt-protocol-item.done .pt-protocol-item-name {
   font-weight: 600;
-  color: #94A3B8;
+  color: #475569;
   text-decoration: line-through;
 }
 .patient-scope .pt-protocol-item-dose {
@@ -946,7 +953,7 @@ body {
   font-family: var(--pt-font);
   font-size: 0.69rem;
   font-weight: 700;
-  color: #059669;
+  color: var(--pt-success-text);
   margin-top: 2px;
 }
 
@@ -1000,7 +1007,7 @@ body {
   display: grid;
   place-items: center;
   cursor: pointer;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
 }
 
 /* Legacy nav-grid (kept for any remaining references) */
@@ -1036,7 +1043,7 @@ body {
   height: 36px;
   border-radius: 10px;
   background: var(--pt-border);
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   display: grid;
   place-items: center;
   position: relative;
@@ -1427,7 +1434,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .nav-drawer-title { font-weight: 600; font-size: 1rem; color: var(--th-text-strong); }
 .sidebar-close-btn {
   background: none; border: none; cursor: pointer; padding: 4px;
-  color: var(--th-muted); line-height: 1;
+  color: var(--th-muted-text); line-height: 1;
 }
 .sidebar-close-btn:hover { color: var(--th-text-strong); }
 .nav-drawer-item {
@@ -1536,7 +1543,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 
 .th-add-btn {
@@ -1611,7 +1618,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   left: 8px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   pointer-events: none;
 }
 
@@ -1636,7 +1643,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .sidebar-switch-user {
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   cursor: pointer;
 }
 
@@ -1674,7 +1681,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tp-patient-meta {
   font-family: var(--th-font);
   font-size: 0.65rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   margin-top: 1px;
 }
 
@@ -1705,7 +1712,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   justify-content: center;
   font-family: var(--th-font);
   font-size: 0.88rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 
 .tp-patient-header {
@@ -1728,7 +1735,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .tp-patient-header-meta {
   font-family: var(--th-font);
   font-size: 0.72rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   margin-top: 2px;
 }
 
@@ -1744,7 +1751,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-family: var(--th-font);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   padding: 10px 0;
   margin-right: 20px;
   border: none;
@@ -1782,7 +1789,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .session-card-meta {
   font-family: var(--th-font);
   font-size: 0.65rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   margin-top: 2px;
 }
 
@@ -3852,6 +3859,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 
 .pt-msg-send-btn:not(:disabled) { opacity: 1; }
+.pt-msg-send-label {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .msg-unread-badge {
   background: var(--accent); color: #fff; font-size: 0.65rem;
@@ -3897,7 +3913,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .therapist-msg-thread .msg-bubble { max-width: 72%; padding: 8px 12px; border-radius: 16px; font-size: 0.875rem; line-height: 1.4; word-break: break-word; }
 .therapist-msg-thread .msg-bubble.sent { align-self: flex-end; background: var(--th-primary); color: #fff; border-radius: 16px 16px 4px 16px; }
 .therapist-msg-thread .msg-bubble.received { align-self: flex-start; background: var(--th-surface); color: var(--th-text); border: 1px solid var(--th-border); border-radius: 16px 16px 16px 4px; }
-.therapist-msg-thread .msg-timestamp { font-size: 0.7rem; color: var(--th-muted); margin-bottom: 6px; }
+.therapist-msg-thread .msg-timestamp { font-size: 0.7rem; color: var(--th-muted-text); margin-bottom: 6px; }
 .therapist-msg-thread .msg-timestamp.sent { align-self: flex-end; }
 .therapist-msg-thread .msg-timestamp.received { align-self: flex-start; }
 
@@ -4683,6 +4699,121 @@ body:has(#manualCamScreen.active) {
 }
 .mcam-error-skip:hover { background: #F1F5F9; }
 
+/* F-001: Done / Save session CTA on manual cam screen */
+.mcam-done-btn {
+  margin-top: 14px;
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 12px;
+  font-family: var(--pt-font);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mcam-done-btn:hover { background: #F8FAFC; }
+
+/* F-001: Session-saved banner on patient home */
+.pt-session-saved-banner {
+  background: #D1FAE5;
+  border: 1px solid #34D399;
+  color: #065F46;
+  font-family: var(--pt-font);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+/* F-003: Approval banner on admin screen */
+.admin-approval-banner {
+  background: #D1FAE5;
+  border: 1px solid #34D399;
+  color: #065F46;
+  font-family: var(--th-font);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+/* F-009: patient home load-error banner */
+.pt-home-load-error {
+  background: #FEE2E2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+  font-family: var(--pt-font);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+/* F-013: manualCamScreen saving overlay */
+.mcam-saving-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  color: #fff;
+  font-family: var(--pt-font);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* F-016: messaging error message */
+.pt-msg-error {
+  color: #991B1B;
+  font-family: var(--pt-font);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  text-align: center;
+}
+
+/* F-011: assignProtocol inline error in modal footer */
+.apm-assign-error {
+  flex: 1;
+  color: var(--th-error, #991B1B);
+  font-family: var(--th-font);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 4px 0;
+}
+
+/* F-017/F-018: clinic screen loading / error placeholders */
+.clinic-loading-msg,
+.clinic-load-error {
+  font-family: var(--th-font);
+  font-size: 0.9rem;
+  padding: 24px 16px;
+  text-align: center;
+  border-radius: var(--radius-md);
+  margin: 16px;
+}
+.clinic-loading-msg {
+  color: var(--th-muted-text, #475569);
+}
+.clinic-load-error {
+  background: var(--th-error-bg, #FEE2E2);
+  border: 1px solid var(--th-error-border, #FCA5A5);
+  color: var(--th-error, #991B1B);
+  font-weight: 500;
+}
+
 /* Legacy classes still used by cameraScreen */
 .cam-hud-back {
   font-family: var(--pt-font);
@@ -4785,7 +4916,7 @@ body:has(#manualCamScreen.active) {
   font-family: var(--pt-font);
   font-size: 0.7rem;
   font-weight: 700;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   text-transform: uppercase;
   letter-spacing: 0.07em;
   margin-bottom: 6px;
@@ -4866,7 +4997,7 @@ body:has(#manualCamScreen.active) {
   border: none;
   font-size: 1.4rem;
   font-weight: 300;
-  color: var(--pt-primary);
+  color: var(--pt-primary-text);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -6017,7 +6148,7 @@ body:has(#manualCamScreen.active) {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.patient-scope .m-badge--info   { background: var(--pt-border); color: var(--pt-primary); }
+.patient-scope .m-badge--info   { background: var(--pt-border); color: var(--pt-primary-text); }
 .patient-scope .m-badge--ok     { background: rgba(16,185,129,0.12); color: var(--success); }
 .patient-scope .m-badge--warn   { background: var(--gold-dim); color: var(--gold); }
 .patient-scope .m-badge--danger { background: rgba(204,41,54,0.1); color: var(--danger); }
@@ -6033,8 +6164,8 @@ body:has(#manualCamScreen.active) {
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
-.patient-scope .m-kicker { color: var(--pt-primary); }
-.therapist-scope .m-kicker { color: var(--th-muted); }
+.patient-scope .m-kicker { color: var(--pt-primary-text); }
+.therapist-scope .m-kicker { color: var(--th-muted-text); }
 
 
 /* ── Icon button (round) ──────────────────────────────────────────────── */
@@ -6239,7 +6370,7 @@ body:has(#manualCamScreen.active) {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 .therapist-scope .th-add-btn {
   padding: 3px 8px;
@@ -6279,7 +6410,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .clinic-badge > span:first-child {
   font-family: var(--th-font);
   font-size: 0.74rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   font-weight: 600;
 }
 .therapist-scope .clinic-badge-code {
@@ -6290,7 +6421,7 @@ body:has(#manualCamScreen.active) {
   color: var(--th-text-strong);
   letter-spacing: 0.08em;
 }
-.therapist-scope .clinic-badge svg { color: var(--th-muted); }
+.therapist-scope .clinic-badge svg { color: var(--th-muted-text); }
 
 .therapist-scope .sidebar-search-wrap {
   position: relative;
@@ -6301,7 +6432,7 @@ body:has(#manualCamScreen.active) {
   top: 50%;
   left: 12px;
   transform: translateY(-50%);
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   pointer-events: none;
 }
 .therapist-scope .sidebar-search {
@@ -6365,7 +6496,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .patient-row-sub {
   font-family: var(--th-font);
   font-size: 0.76rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 .therapist-scope .patient-row-dot {
   width: 8px;
@@ -6386,7 +6517,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .sidebar-switch-user {
   font-family: var(--th-font);
   font-size: 0.78rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   cursor: pointer;
 }
 .therapist-scope .sidebar-switch-user:hover { color: var(--th-primary); }
@@ -6395,7 +6526,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .sidebar-empty {
   padding: 24px 16px;
   text-align: center;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   font-family: var(--th-font);
   font-size: 0.88rem;
   line-height: 1.5;
@@ -6442,7 +6573,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .tp-main-empty p {
   font-family: var(--th-font);
   font-size: 0.95rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   max-width: 380px;
   margin: 0 auto 16px;
   line-height: 1.55;
@@ -6523,7 +6654,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .pd-sub {
   font-family: var(--th-font);
   font-size: 0.88rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   display: flex;
   gap: 6px;
   align-items: center;
@@ -6538,7 +6669,7 @@ body:has(#manualCamScreen.active) {
   font-family: var(--th-font);
   font-size: 0.75rem;
   background: var(--th-surface);
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--th-border);
@@ -6566,7 +6697,7 @@ body:has(#manualCamScreen.active) {
   font-family: var(--th-font);
   font-size: 0.76rem;
   font-weight: 600;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   letter-spacing: 0.02em;
   margin-bottom: 6px;
 }
@@ -6579,7 +6710,7 @@ body:has(#manualCamScreen.active) {
 }
 .therapist-scope .pd-vital-unit {
   font-size: 0.8rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   margin-left: 3px;
 }
 .therapist-scope .pd-vital-delta {
@@ -6598,7 +6729,7 @@ body:has(#manualCamScreen.active) {
   display: flex;
   justify-content: space-between;
   font-size: 0.68rem;
-  color: var(--th-muted, #64748b);
+  color: var(--th-muted-text, #475569);
   line-height: 1.4;
 }
 .therapist-scope .pd-adh-name {
@@ -6710,7 +6841,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope .pd-protocol-params {
   font-family: var(--th-font);
   font-size: 0.8rem;
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   margin-top: 2px;
 }
 .therapist-scope .pd-protocol-status {
@@ -6721,7 +6852,7 @@ body:has(#manualCamScreen.active) {
   padding: 3px 10px;
   border-radius: 50px;
   background: var(--th-border);
-  color: var(--th-muted);
+  color: var(--th-muted-text);
 }
 .therapist-scope .pd-protocol-status--active {
   background: rgba(37,99,235,0.1);
@@ -6762,7 +6893,7 @@ body:has(#manualCamScreen.active) {
 }
 .cn-editable:empty::before {
   content: attr(data-placeholder);
-  color: var(--th-muted);
+  color: var(--th-muted-text);
   pointer-events: none;
 }
 .cn-editable ul, .cn-editable ol { margin: 4px 0; padding-left: 20px; }

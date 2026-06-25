@@ -5,6 +5,7 @@ dist/
 
 # Environment files
 .env.*
+!.env.audit
 
 # Service-account keys — full-admin credentials, never commit
 serviceAccountKey.json
@@ -23,7 +24,8 @@ TODO.md
 ENVIRONMENT_PROBE.md
 .octogent
 .superpowers/
-docs/
+docs/*
+!docs/superpowers/
 
 # Native builds (Capacitor -- not deployed)
 android/
@@ -35,6 +37,9 @@ functions/node_modules/
 
 # Tests — rules tests are tracked and passing; e2e (playwright) not set up yet
 tests/e2e/
+# Tests — committed: seed.mjs, audit harness; excluded: shot output and baseline artifacts
+tests/audit/shots/
+tests/audit/*-baseline.txt
 playwright.config.js
 vitest.config.js
 
@@ -54,6 +59,8 @@ playwright-report/
 logs/
 
 # Misc
-scripts/
+!scripts/
+scripts/*
+!scripts/*.mjs
 public/404.html
 .npmrc
