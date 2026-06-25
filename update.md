@@ -4,6 +4,31 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-25 -- Yash
+
+**Merged Oliver's UI-clarity + a11y audit branch into main + a patient-facing copy/UX polish pass.**
+(All on `main`/`yash` + **staging**; prod NOT deployed yet — needs a smoke-test first.)
+
+- **Merged `feature/ui-clarity-audit-on-main` → main** (`845f599`) after verifying Oliver's fix commit
+  `e6f6e7e` resolved the review's must-fix items (the undefined `var(--font)`, the WCAG contrast sweep,
+  button-label restores, pinned devDeps, seed host guard). Revert anchor: tag `pre-oliver-merge`.
+- **Heads-up (not bugs):** the send-button fix is a screen-reader-only label (no visible change in his
+  version), and only 3 of 11 native `confirm()` calls were migrated to the app modal — so account
+  deletion + clinic actions still used the browser dialog after the merge.
+- **Follow-up fixes (Yash):**
+  - **Account deletion now uses the app-styled confirm modal** (was native `confirm()`), en+es.
+  - **Visible "Send" labels** on both the patient and therapist message composers (were icon-only).
+  - **Plain-language consent screen** (~grade 6, en+es): rewrote the consent statement + data-use bullets
+    + heading + error. Kept the legal "HIPAA Notice of Privacy Practices" link name; the formal NPP/Privacy
+    legal pages are left for the attorney pass.
+  - **"Adherence" → "Consistency"** on patient-facing screens (home, Progress, tutorial). Therapist
+    clinical view keeps "ADHERENCE". Spanish already said "Constancia".
+- **★ Flagged for redesign:** the **recording area (`manualCamScreen`)** — camera view + record/log
+  controls + the reps/pain set-input modal — is poorly designed and needs a UX rework (not just cleanup).
+  Worth a joint pass.
+- Commits: `845f599` (merge), `940272c` (account modal + send labels), `99ae550` (consent copy +
+  Adherence→Consistency).
+
 ## 2026-06-22 (latest) -- Yash
 
 **Post-cutover polish from live testing (all on prod + staging)**
