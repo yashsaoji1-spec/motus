@@ -4,6 +4,26 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-06-26 -- Yash
+
+**Fixed a prod horizontal-scroll bug + rebuilt the recording area to use the native camera.** (Both deployed to prod.)
+
+- **Horizontal scroll on the patient dashboard (iOS Safari):** the global guard used `overflow-x: clip`,
+  which older iOS Safari ignores entirely, so any sub-pixel overflow / rubber-band scrolled the page.
+  Switched `html` + `body` to `overflow-x: hidden` + `overscroll-behavior-x: none`, and dropped the
+  `100vw` max-widths (`100%` is safer). Also fixed a real overflow on the therapist patient-detail header
+  (`.pd-header-actions` — Message/Edit buttons now wrap on phones).
+- **Recording area redesign (the flagged `manualCamScreen`):** removed the in-app live camera
+  (`getUserMedia` + `MediaRecorder` + flip/mirror/timer/error-overlay). The patient now sees a clean
+  light screen with the **Set x/y counter preserved**, a **Record set** button that opens the **phone's
+  native camera** (`<input type=file accept=video/* capture>`), plus **Log without video** and **Done**.
+  Per-set flow (record → log reps/pain → next set) is unchanged. File extension follows the capture type
+  (iOS `.mov`, Android `.mp4`); `uploadVideoToStorage` already uses the blob's real MIME type.
+- **Open item to verify on a real iPhone:** therapist playback of an iOS `.mov`/HEVC video across browsers
+  (Safari plays it; Chrome may not). If it won't play, we add a note or a transcode step.
+
+---
+
 ## 2026-06-25 -- Yash
 
 **Merged Oliver's UI-clarity + a11y audit branch into main + a patient-facing copy/UX polish pass.**

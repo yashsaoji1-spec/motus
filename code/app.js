@@ -175,6 +175,11 @@ const I18N = {
     // Session / camera
     'cam.exercise': 'Exercise',
     'cam.readyForSet': 'Ready for set {cur} of {total} · tap record to start',
+    'cam.recordTitle': 'Record your set',
+    'cam.recordHint': 'Tap record to open your camera. Film your set, then come back to log it.',
+    'cam.recordSet': 'Record set',
+    'cam.watchDemo': 'Watch demo',
+    'cam.logWithoutVideo': 'Log without video',
     'cam.flip': 'FLIP',
     'cam.demo': 'DEMO',
     'cam.cameraFront': 'CAMERA · FRONT',
@@ -344,6 +349,11 @@ const I18N = {
     'ex.done': 'Hecho',
     'cam.exercise': 'Ejercicio',
     'cam.readyForSet': 'Listo para la serie {cur} de {total} · toca grabar para empezar',
+    'cam.recordTitle': 'Graba tu serie',
+    'cam.recordHint': 'Toca grabar para abrir tu cámara. Graba tu serie y vuelve para registrarla.',
+    'cam.recordSet': 'Grabar serie',
+    'cam.watchDemo': 'Ver demostración',
+    'cam.logWithoutVideo': 'Registrar sin video',
     'cam.flip': 'GIRAR',
     'cam.demo': 'DEMO',
     'cam.cameraFront': 'CÁMARA · FRONTAL',
@@ -2370,9 +2380,7 @@ async function openManualCameraSession(protocol) {
   _manualCamCurrentSet = Math.min(_alreadyDone + 1, _manualCamTotalSets);
   _manualCamVideoUrl = null;
   _manualCamNoVideo = false;
-
-  const video = document.getElementById('manualCamVideo');
-  // Mirror set after the stream starts (we mirror only the front camera).
+  _manualCamCurrentBlob = null;
 
   const nameEl = document.getElementById('manualCamExName');
   const setInfoEl = document.getElementById('manualCamSetInfo');
@@ -2388,144 +2396,71 @@ async function openManualCameraSession(protocol) {
   manualCamSetReadyState();
 
   showScreen('manualCamScreen');
-  await manualCamStartCamera();
 }
 
 // Renders the control card's prompt + buttons for the "ready" state, branching
 // on whether we have a working camera. In no-video mode the user gets a single
 // "Log this set" button instead of the record control.
 function manualCamSetReadyState() {
+  // Each set starts clean — no carried-over capture from the previous set.
+  _manualCamCurrentBlob = null;
+  _manualCamNoVideo = false;
+
   const promptEl = document.getElementById('manualCamPrompt');
   const btnsEl = document.getElementById('manualCamBtns');
   const demoUrl = _manualCamProtocol?.demoVideoUrl || null;
-  const demoBtn = demoUrl
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName))}')">${t('cam.demo')}</button>`
-    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
-  if (_manualCamNoVideo) {
-    if (promptEl) promptEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets} · do your set, then log it`;
-    if (btnsEl) btnsEl.innerHTML = `<button class="mcam-btn-logset" onclick="manualCamLogWithoutVideo()">Log this set</button>`;
-  } else {
-    if (promptEl) promptEl.textContent = t('cam.readyForSet', { cur: _manualCamCurrentSet, total: _manualCamTotalSets });
-    if (btnsEl) btnsEl.innerHTML = `
-      <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
-      <button class="mcam-btn-primary" id="manualCamStartBtn" onclick="manualCamStartRecording()" aria-label="Record set video">
-        <span class="mcam-rec-dot" aria-hidden="true"></span>
-      </button>
-      ${demoBtn}`;
+
+  if (promptEl) promptEl.textContent = t('cam.recordHint');
+
+  let html = `
+    <button class="mcam-record-btn" onclick="manualCamPickVideo()" aria-label="${t('cam.recordSet')}">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      <span>${t('cam.recordSet')}</span>
+    </button>`;
+  if (demoUrl) {
+    html += `<button class="mcam-link-btn" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName))}')">${t('cam.watchDemo')}</button>`;
   }
+  html += `<button class="mcam-link-btn" onclick="manualCamLogWithoutVideo()">${t('cam.logWithoutVideo')}</button>`;
+  if (btnsEl) btnsEl.innerHTML = html;
 }
 
-async function manualCamStartCamera() {
-  const video = document.getElementById('manualCamVideo');
-  if (!video) return;
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { facingMode: 'environment' }, 
-      audio: true 
-    });
-    _manualCamStream = stream;
-    video.srcObject = stream;
-    await video.play();
-    // Mirror the preview ONLY for a front/user-facing camera (selfie view: moving
-    // right reads as right). A back camera (phone filming the hand) stays raw.
-    // Laptop webcams often report no facingMode — treat those as front.
-    const facing = stream.getVideoTracks()[0]?.getSettings().facingMode;
-    video.style.transform = (facing === 'environment') ? 'scaleX(1)' : 'scaleX(-1)';
-  } catch(e) {
-    console.error('[Motus] Manual camera error:', e);
-    Sentry.captureException(e, { tags: { flow: 'camera-manual' } });
-    // Don't strand the user on a black screen — offer retry or log-without-video.
-    const overlay = document.getElementById('manualCamError');
-    const msg = document.getElementById('manualCamErrorMsg');
-    if (msg) {
-      msg.textContent = (e && e.name === 'NotAllowedError')
-        ? 'Camera permission is blocked. You can enable it in your browser settings and retry, or log this set without a video.'
-        : "We couldn't start your camera. You can retry, or log this set without a video.";
-    }
-    if (overlay) overlay.style.display = 'flex';
-  }
+// Opens the device's native camera (or file picker on desktop). The chosen video
+// returns via manualCamOnFileSelected().
+function manualCamPickVideo() {
+  const input = document.getElementById('manualCamFileInput');
+  if (!input) return;
+  input.value = '';   // allow re-picking after a redo
+  input.click();
 }
 
-function manualCamRetryCamera() {
-  const overlay = document.getElementById('manualCamError');
-  if (overlay) overlay.style.display = 'none';
-  manualCamStartCamera();
+// Called when the native camera returns a recording — stash it and open the
+// reps/pain entry for this set (the same modal every set uses).
+function manualCamOnFileSelected(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  _manualCamCurrentBlob = file;
+  _manualCamNoVideo = false;
+  logAnalyticsEvent('set_video_captured');
+  openSetInputModal();
 }
 
-// Enter no-video mode and open the reps/pain entry for the current set.
-// Used both from the camera-error overlay and the per-set "Log this set" button.
+// Pick a storage file extension from the captured video's MIME type. Native
+// cameras vary: iOS records QuickTime (.mov), Android records .mp4.
+function videoExt(blob) {
+  const type = (blob && blob.type || '').toLowerCase();
+  if (type.includes('quicktime') || type.includes('mov')) return 'mov';
+  if (type.includes('webm')) return 'webm';
+  if (type.includes('mp4') || type.includes('mpeg')) return 'mp4';
+  return 'mp4';
+}
+
+// Skip the video for this set and go straight to logging reps/pain.
 function manualCamLogWithoutVideo() {
-  const overlay = document.getElementById('manualCamError');
-  if (overlay) overlay.style.display = 'none';
   _manualCamNoVideo = true;
   _manualCamCurrentBlob = null;
   openSetInputModal();
 }
 
-function manualCamStartRecording() {
-  if (!_manualCamStream) return;
-  
-  const video = document.getElementById('manualCamVideo');
-  const promptEl = document.getElementById('manualCamPrompt');
-  const btnsEl = document.getElementById('manualCamBtns');
-  const recEl = document.getElementById('manualCamRecording');
-
-  _manualCamChunks = [];
-  const mimeType = getRecordingMimeType();
-  _manualCamRecorder = new MediaRecorder(_manualCamStream, { mimeType, videoBitsPerSecond: 400000 });
-  
-  _manualCamRecorder.ondataavailable = e => { 
-    if (e.data && e.data.size > 0) _manualCamChunks.push(e.data); 
-  };
-  
-  _manualCamRecorder.start(1000);
-  
-  if (promptEl) promptEl.textContent = `Recording set ${_manualCamCurrentSet} of ${_manualCamTotalSets} \u00B7 tap stop when finished`;
-  const demoUrlR = _manualCamProtocol?.demoVideoUrl || null;
-  const demoBtnR = demoUrlR
-    ? `<button class="mcam-btn-side" onclick="playProtocolDemo('${escJsAttr(demoUrlR)}', '')">${t('cam.demo')}</button>`
-    : `<button class="mcam-btn-side" disabled style="opacity:0.3">${t('cam.demo')}</button>`;
-  if (btnsEl) btnsEl.innerHTML = `
-    <button class="mcam-btn-side flip" onclick="flipCamera()">${t('cam.flip')}</button>
-    <button class="mcam-btn-stop" onclick="manualCamEndSet()">
-      <div style="width:24px;height:24px;background:#CC2936;border-radius:4px"></div>
-    </button>
-    ${demoBtnR}
-  `;
-  if (recEl) recEl.style.display = 'flex';
-
-  // Start timer
-  let _recSeconds = 0;
-  const timerEl = document.getElementById('manualCamTimer');
-  if (timerEl) timerEl.textContent = '0:00';
-  if (_manualCamTimerInterval) clearInterval(_manualCamTimerInterval);
-  _manualCamTimerInterval = setInterval(() => {
-    _recSeconds++;
-    const m = Math.floor(_recSeconds / 60);
-    const s = String(_recSeconds % 60).padStart(2, '0');
-    if (timerEl) timerEl.textContent = `${m}:${s}`;
-  }, 1000);
-}
-
-function manualCamEndSet() {
-  if (!_manualCamRecorder || _manualCamRecorder.state === 'inactive') return;
-  
-  const recEl = document.getElementById('manualCamRecording');
-  if (recEl) recEl.style.display = 'none';
-  if (_manualCamTimerInterval) { clearInterval(_manualCamTimerInterval); _manualCamTimerInterval = null; }
-
-  const mimeType = _manualCamRecorder.mimeType;
-  
-  _manualCamRecorder.onstop = async () => {
-    _manualCamRecorder = null;
-    _manualCamCurrentBlob = new Blob(_manualCamChunks, { type: mimeType });
-    _manualCamChunks = [];
-    openSetInputModal();
-  };
-
-  _manualCamRecorder.stop();
-}
 
 // Populates and shows the reps/pain/notes entry for the current set. Works the
 // same whether a video was recorded (blob set) or not (no-video mode).
@@ -2582,7 +2517,7 @@ async function manualCamSaveSet() {
   _manualCamCurrentBlob = null;
 
   if (blob && blob.size > 0) {
-    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.webm`);
+    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.${videoExt(blob)}`);
     if (up) videoStoragePath = up.storagePath;
   }
 
@@ -2669,20 +2604,6 @@ async function finishManualCamSession() {
 }
 
 function manualCamExit() {
-  if (_manualCamTimerInterval) { clearInterval(_manualCamTimerInterval); _manualCamTimerInterval = null; }
-  // If recording in progress, stop and save
-  if (_manualCamRecorder && _manualCamRecorder.state !== 'inactive') {
-    _manualCamRecorder.onstop = async () => {
-      _manualCamRecorder = null;
-      if (_manualCamCurrentBlob) {
-        await saveCurrentSetAndExit();
-      }
-      finishAndExit();
-    };
-    _manualCamRecorder.stop();
-    return;
-  }
-
   // Handle potential unsaved data and then exit
   if (_manualCamCurrentBlob) {
     saveCurrentSetAndExit().then(() => finishAndExit());
@@ -2722,7 +2643,7 @@ async function saveCurrentSetAndExit() {
   
   let videoStoragePath = null;
   if (blob && blob.size > 0) {
-    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.webm`);
+    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.${videoExt(blob)}`);
     if (up) videoStoragePath = up.storagePath;
   }
 
@@ -8217,8 +8138,8 @@ Object.assign(window, {
   closeDemoAndStart, skipDemoVideo, replayDemoInSession, exitDemoNoSave,
 
   // Manual camera session
-  openManualCameraSession, manualCamExit, manualCamStartRecording, manualCamEndSet, manualCamCancelSet, manualCamSaveSet, finishManualCamSession,
-  manualCamRetryCamera, manualCamLogWithoutVideo,
+  openManualCameraSession, manualCamExit, manualCamPickVideo, manualCamOnFileSelected, manualCamCancelSet, manualCamSaveSet, finishManualCamSession,
+  manualCamLogWithoutVideo,
   updatePainBar, siAdjustReps, siSelectPain, siToggleChip,
 
   // Progress screen
