@@ -11,7 +11,6 @@ import 'firebase/compat/app-check';
 import 'firebase/compat/analytics';
 import 'firebase/compat/storage';
 import 'firebase/compat/functions';
-import * as Sentry from '@sentry/browser';
 
 // ── Chart.js: loaded on demand (progress screen only) ──
 let _chartPromise;
@@ -32,14 +31,32 @@ function stripPHI(event) {
   }
 }
 
-Sentry.init({
-  dsn: import.meta.env.VITE_SENTRY_DSN || '',
-  environment: import.meta.env.MODE,
-  enabled: import.meta.env.PROD && !!import.meta.env.VITE_SENTRY_DSN,
-  beforeSend(event) {
-    return stripPHI(event);
+// ── Sentry: deferred to post-paint. A stub queues any early exceptions
+//    so the existing Sentry.captureException(...) call sites work unchanged. ──
+const _sentryQueue = [];
+let _sentry = null;
+const Sentry = {
+  captureException(err, ctx) {
+    if (_sentry) _sentry.captureException(err, ctx);
+    else _sentryQueue.push([err, ctx]);
   },
-});
+};
+(function initSentryDeferred() {
+  if (!(import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN)) return;
+  const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1));
+  idle(() => {
+    import('@sentry/browser').then((S) => {
+      S.init({
+        dsn: import.meta.env.VITE_SENTRY_DSN,
+        environment: import.meta.env.MODE,
+        beforeSend(event) { return stripPHI(event); },
+      });
+      _sentry = S;
+      for (const [err, ctx] of _sentryQueue) S.captureException(err, ctx);
+      _sentryQueue.length = 0;
+    }).catch(() => {});
+  });
+})();
 
 // ── Service worker (PWA) ──
 if ('serviceWorker' in navigator) {
