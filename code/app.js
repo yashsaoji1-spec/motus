@@ -11,8 +11,14 @@ import 'firebase/compat/app-check';
 import 'firebase/compat/analytics';
 import 'firebase/compat/storage';
 import 'firebase/compat/functions';
-import Chart from 'chart.js/auto';
 import * as Sentry from '@sentry/browser';
+
+// ── Chart.js: loaded on demand (progress screen only) ──
+let _chartPromise;
+function getChart() {
+  if (!_chartPromise) _chartPromise = import('chart.js/auto').then(m => m.default);
+  return _chartPromise;
+}
 
 // ── Sentry error monitoring — prod/staging only, no dev noise ──
 // PHI scrubbing: strip email addresses from all captured event data before sending.
@@ -5977,7 +5983,7 @@ function downloadSessionVideo(url, date, patientName) {
    ══════════════════════════════════════════════════════════════════════════ */
 
 const _painChartInstances = {};
-function renderPainChart(sessions, days, canvasId) {
+async function renderPainChart(sessions, days, canvasId) {
   canvasId = canvasId || 'painChart';
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
@@ -5989,6 +5995,7 @@ function renderPainChart(sessions, days, canvasId) {
   const painData = chartSessions.map(s => s.pain || 0);
   const labels = buildChartLabels(chartSessions);
   const cfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
+  const Chart = await getChart();
   if (_painChartInstances[canvasId]) _painChartInstances[canvasId].destroy();
   _painChartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
     type: 'line', data: { labels, datasets: [cfg.dataset] }, options: cfg.options
