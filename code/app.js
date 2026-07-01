@@ -8,7 +8,6 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
-import 'firebase/compat/functions';
 
 // ── Chart.js: loaded on demand (progress screen only) ──
 let _chartPromise;
@@ -668,6 +667,15 @@ function getStorage() {
     _storagePromise = import('firebase/compat/storage').then(() => firebase.storage());
   }
   return _storagePromise;
+}
+
+// ── Cloud Functions: loaded on first callable invocation ──
+let _functionsPromise;
+function getFunctions() {
+  if (!_functionsPromise) {
+    _functionsPromise = import('firebase/compat/functions').then(() => firebase.functions());
+  }
+  return _functionsPromise;
 }
 
 db.enablePersistence({ synchronizeTabs: true }).catch(err => {
@@ -5962,7 +5970,7 @@ async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session
 // then play it. Session videos no longer store a permanent URL — every view is
 // access-checked server-side and the link expires.
 async function getSignedVideoUrlFor(storagePath) {
-  const res = await firebase.functions().httpsCallable('getSignedVideoUrl')({ path: storagePath });
+  const res = await (await getFunctions()).httpsCallable('getSignedVideoUrl')({ path: storagePath });
   return res.data.url;
 }
 async function openSessionVideo(storagePath, sessionDate, patientName) {
@@ -6538,7 +6546,7 @@ async function deleteMyAccount() {
     // Server-side cascade (Cloud Function) removes ALL of the user's data across
     // every collection + Storage and deletes the auth user — far more complete than
     // a client batch, and it works without a recent re-login.
-    await firebase.functions().httpsCallable('deleteMyAccount')();
+    await (await getFunctions()).httpsCallable('deleteMyAccount')();
     try { await auth.signOut(); } catch (_) {}
     sessionStorage.clear();
     showScreen('loginScreen');
