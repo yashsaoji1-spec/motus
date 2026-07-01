@@ -8,7 +8,6 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
-import 'firebase/compat/storage';
 import 'firebase/compat/functions';
 
 // ── Chart.js: loaded on demand (progress screen only) ──
@@ -570,7 +569,7 @@ let _manualCamNoVideo = false;    // true when camera unavailable / user opted t
 async function uploadVideoToStorage(blob, storagePath, onProgress) {
   if (!blob || blob.size === 0 || !storagePath) return null;
   try {
-    const ref = storage.ref(storagePath);
+    const ref = (await getStorage()).ref(storagePath);
     const task = ref.put(blob, { contentType: blob.type || 'video/webm' });
     if (onProgress) {
       task.on('state_changed', snap => {
@@ -661,7 +660,15 @@ if (APPCHECK_ENABLED && !import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_S
 
 const db      = firebase.firestore();
 const auth    = firebase.auth();
-const storage = firebase.storage();
+
+// ── Storage: loaded on first upload (not needed for first paint) ──
+let _storagePromise;
+function getStorage() {
+  if (!_storagePromise) {
+    _storagePromise = import('firebase/compat/storage').then(() => firebase.storage());
+  }
+  return _storagePromise;
+}
 
 db.enablePersistence({ synchronizeTabs: true }).catch(err => {
   if (err.code === 'failed-precondition') console.warn('Persistence failed: multiple tabs open');
