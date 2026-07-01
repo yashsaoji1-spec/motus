@@ -8,7 +8,6 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
-import 'firebase/compat/analytics';
 import 'firebase/compat/storage';
 import 'firebase/compat/functions';
 
@@ -631,10 +630,18 @@ if (import.meta.env.VITE_USE_EMULATORS === 'true') {
   console.info('[motus] Connected to Firebase emulators (audit)');
 }
 
-// ── Analytics — production only, no PHI in event parameters ──
-const analytics = import.meta.env.PROD ? firebase.analytics() : null;
+// ── Analytics — production only, loaded post-idle, no PHI in event params ──
+let analytics = null;
 function logAnalyticsEvent(name, params = {}) {
   if (analytics) analytics.logEvent(name, params);
+}
+if (import.meta.env.PROD) {
+  const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1));
+  idle(() => {
+    import('firebase/compat/analytics')
+      .then(() => { analytics = firebase.analytics(); })
+      .catch(() => {});
+  });
 }
 
 // App Check — dev uses a debug token printed to console; prod uses reCAPTCHA v3.
