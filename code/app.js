@@ -30,16 +30,17 @@ function stripPHI(event) {
 
 // ── Sentry: deferred to post-paint. A stub queues any early exceptions
 //    so the existing Sentry.captureException(...) call sites work unchanged. ──
+const _sentryWillLoad = !!(import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN);
 const _sentryQueue = [];
 let _sentry = null;
 const Sentry = {
   captureException(err, ctx) {
     if (_sentry) _sentry.captureException(err, ctx);
-    else _sentryQueue.push([err, ctx]);
+    else if (_sentryWillLoad) _sentryQueue.push([err, ctx]);
   },
 };
 (function initSentryDeferred() {
-  if (!(import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN)) return;
+  if (!_sentryWillLoad) return;
   const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1));
   idle(() => {
     import('@sentry/browser').then((S) => {
