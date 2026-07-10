@@ -8,11 +8,13 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 import 'firebase/compat/app-check';
-import 'firebase/compat/analytics';
-import 'firebase/compat/storage';
-import 'firebase/compat/functions';
-import Chart from 'chart.js/auto';
-import * as Sentry from '@sentry/browser';
+
+// ── Chart.js: loaded on demand (progress screen only) ──
+let _chartPromise;
+function getChart() {
+  if (!_chartPromise) _chartPromise = import('chart.js/auto').then(m => m.default);
+  return _chartPromise;
+}
 
 // ── Sentry error monitoring — prod/staging only, no dev noise ──
 // PHI scrubbing: strip email addresses from all captured event data before sending.
@@ -26,14 +28,33 @@ function stripPHI(event) {
   }
 }
 
-Sentry.init({
-  dsn: import.meta.env.VITE_SENTRY_DSN || '',
-  environment: import.meta.env.MODE,
-  enabled: import.meta.env.PROD && !!import.meta.env.VITE_SENTRY_DSN,
-  beforeSend(event) {
-    return stripPHI(event);
+// ── Sentry: deferred to post-paint. A stub queues any early exceptions
+//    so the existing Sentry.captureException(...) call sites work unchanged. ──
+const _sentryWillLoad = !!(import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN);
+const _sentryQueue = [];
+let _sentry = null;
+const Sentry = {
+  captureException(err, ctx) {
+    if (_sentry) _sentry.captureException(err, ctx);
+    else if (_sentryWillLoad) _sentryQueue.push([err, ctx]);
   },
-});
+};
+(function initSentryDeferred() {
+  if (!_sentryWillLoad) return;
+  const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1));
+  idle(() => {
+    import('@sentry/browser').then((S) => {
+      S.init({
+        dsn: import.meta.env.VITE_SENTRY_DSN,
+        environment: import.meta.env.MODE,
+        beforeSend(event) { return stripPHI(event); },
+      });
+      _sentry = S;
+      for (const [err, ctx] of _sentryQueue) S.captureException(err, ctx);
+      _sentryQueue.length = 0;
+    }).catch(() => {});
+  });
+})();
 
 // ── Service worker (PWA) ──
 if ('serviceWorker' in navigator) {
@@ -562,7 +583,7 @@ let _manualCamNoVideo = false;    // true when camera unavailable / user opted t
 async function uploadVideoToStorage(blob, storagePath, onProgress) {
   if (!blob || blob.size === 0 || !storagePath) return null;
   try {
-    const ref = storage.ref(storagePath);
+    const ref = (await getStorage()).ref(storagePath);
     const task = ref.put(blob, { contentType: blob.type || 'video/webm' });
     if (onProgress) {
       task.on('state_changed', snap => {
@@ -622,10 +643,18 @@ if (import.meta.env.VITE_USE_EMULATORS === 'true') {
   console.info('[motus] Connected to Firebase emulators (audit)');
 }
 
-// ── Analytics — production only, no PHI in event parameters ──
-const analytics = import.meta.env.PROD ? firebase.analytics() : null;
+// ── Analytics — production only, loaded post-idle, no PHI in event params ──
+let analytics = null;
 function logAnalyticsEvent(name, params = {}) {
   if (analytics) analytics.logEvent(name, params);
+}
+if (import.meta.env.PROD) {
+  const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1));
+  idle(() => {
+    import('firebase/compat/analytics')
+      .then(() => { analytics = firebase.analytics(); })
+      .catch(() => {});
+  });
 }
 
 // App Check — dev uses a debug token printed to console; prod uses reCAPTCHA v3.
@@ -645,7 +674,24 @@ if (APPCHECK_ENABLED && !import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_S
 
 const db      = firebase.firestore();
 const auth    = firebase.auth();
-const storage = firebase.storage();
+
+// ── Storage: loaded on first upload (not needed for first paint) ──
+let _storagePromise;
+function getStorage() {
+  if (!_storagePromise) {
+    _storagePromise = import('firebase/compat/storage').then(() => firebase.storage());
+  }
+  return _storagePromise;
+}
+
+// ── Cloud Functions: loaded on first callable invocation ──
+let _functionsPromise;
+function getFunctions() {
+  if (!_functionsPromise) {
+    _functionsPromise = import('firebase/compat/functions').then(() => firebase.functions());
+  }
+  return _functionsPromise;
+}
 
 db.enablePersistence({ synchronizeTabs: true }).catch(err => {
   if (err.code === 'failed-precondition') console.warn('Persistence failed: multiple tabs open');
@@ -5850,7 +5896,7 @@ async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session
 // then play it. Session videos no longer store a permanent URL — every view is
 // access-checked server-side and the link expires.
 async function getSignedVideoUrlFor(storagePath) {
-  const res = await firebase.functions().httpsCallable('getSignedVideoUrl')({ path: storagePath });
+  const res = await (await getFunctions()).httpsCallable('getSignedVideoUrl')({ path: storagePath });
   return res.data.url;
 }
 async function openSessionVideo(storagePath, sessionDate, patientName) {
@@ -5902,7 +5948,7 @@ function downloadSessionVideo(url, date, patientName) {
    ══════════════════════════════════════════════════════════════════════════ */
 
 const _painChartInstances = {};
-function renderPainChart(sessions, days, canvasId) {
+async function renderPainChart(sessions, days, canvasId) {
   canvasId = canvasId || 'painChart';
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
@@ -5914,6 +5960,7 @@ function renderPainChart(sessions, days, canvasId) {
   const painData = chartSessions.map(s => s.pain || 0);
   const labels = buildChartLabels(chartSessions);
   const cfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
+  const Chart = await getChart();
   if (_painChartInstances[canvasId]) _painChartInstances[canvasId].destroy();
   _painChartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
     type: 'line', data: { labels, datasets: [cfg.dataset] }, options: cfg.options
@@ -6423,7 +6470,7 @@ async function deleteMyAccount() {
       // Server-side cascade (Cloud Function) removes ALL of the user's data across
       // every collection + Storage and deletes the auth user — far more complete than
       // a client batch, and it works without a recent re-login.
-      await firebase.functions().httpsCallable('deleteMyAccount')();
+      await (await getFunctions()).httpsCallable('deleteMyAccount')();
       try { await auth.signOut(); } catch (_) {}
       sessionStorage.clear();
       showScreen('loginScreen');
