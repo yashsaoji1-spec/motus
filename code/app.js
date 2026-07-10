@@ -13,6 +13,7 @@ import 'firebase/compat/storage';
 import 'firebase/compat/functions';
 import Chart from 'chart.js/auto';
 import * as Sentry from '@sentry/browser';
+import { calcCompliance } from './compliance.js';
 
 // ── Sentry error monitoring — prod/staging only, no dev noise ──
 // PHI scrubbing: strip email addresses from all captured event data before sending.
@@ -2458,7 +2459,7 @@ async function updatePatientHomeScreen() {
   // Stats row
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
   const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
-  const adhResult = calcCompliance(sessions, protocols, 0);
+  const adhResult = calcCompliance(sessions, protocols, 0, { nameFn: exName });
   const adherencePct = adhResult.overall;
   const avgPain7d = recent7.length > 0
     ? (recent7.reduce((sum, s) => {
@@ -2467,7 +2468,7 @@ async function updatePatientHomeScreen() {
       }, 0) / recent7.length).toFixed(1)
     : null;
   // Compute prior week stats for delta
-  const priorAdhResult = calcCompliance(sessions, protocols, 1);
+  const priorAdhResult = calcCompliance(sessions, protocols, 1, { nameFn: exName });
   const priorAdh = priorAdhResult.overall;
   const adhDelta = adherencePct - priorAdh;
   const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
@@ -4276,54 +4277,9 @@ async function getPatientSessions(patientEmail) {
   return stored.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-function getIntervalDays(frequency) {
-  const intervals = { daily: 1, twice_daily: 0.5, every_other: 2, three_week: 7 / 3 };
-  if (frequency && frequency.startsWith('custom_')) return parseInt(frequency.split('_')[1]) || 1;
-  return intervals[frequency] || 1;
-}
-
-function getExpectedSessions(frequency, days) {
-  return Math.round(days / getIntervalDays(frequency));
-}
-
-function getCalendarWeekStart(weeksAgo) {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1) - (weeksAgo * 7));
-  return d;
-}
-
-function calcCompliance(sessions, protocols, weeksAgo) {
-  if (weeksAgo === undefined) weeksAgo = 0;
-  if (!protocols || protocols.length === 0) return { overall: 0, exercises: [] };
-  var weekStart = getCalendarWeekStart(weeksAgo);
-  var weekEnd = weeksAgo === 0 ? new Date() : new Date(weekStart.getTime() + 7 * 86400000);
-  var daysElapsed = Math.max(1, Math.ceil((weekEnd - weekStart) / 86400000));
-  var recent = sessions.filter(function(s) {
-    var d = new Date(s.date);
-    return d >= weekStart && d < weekEnd;
-  });
-  var exercises = protocols.map(function(p) {
-    var expected = getExpectedSessions(p.frequency, daysElapsed);
-    var actual = recent.filter(function(s) { return s.exerciseType === p.exerciseType; }).length;
-    var capped = Math.min(actual, Math.max(expected, 1));
-    var pct = expected > 0 ? Math.round((capped / expected) * 100) : (actual > 0 ? 100 : 0);
-    var missed = Math.max(0, expected - actual);
-    return {
-      name: exName(p.exerciseType, p.exerciseName),
-      type: p.exerciseType,
-      expected: expected,
-      actual: actual,
-      missed: missed,
-      pct: pct
-    };
-  });
-  var overall = exercises.length > 0
-    ? Math.round(exercises.reduce(function(sum, e) { return sum + e.pct; }, 0) / exercises.length)
-    : 0;
-  return { overall: overall, exercises: exercises };
-}
+// calcCompliance, getExpectedSessions, getCalendarWeekStart and getIntervalDays
+// now live in ./compliance.js (pure, unit-tested). calcCompliance takes an opts
+// arg; app call sites pass { nameFn: exName } to preserve exercise display names.
 
 function makeCollapsible(id, title, bodyHTML, open) {
   return `
@@ -4372,7 +4328,7 @@ async function showRealPatient(patient) {
         return sum + (s.pain || 0);
       }, 0) / recent7.length).toFixed(1)
     : '-';
-  const adhResultT = calcCompliance(sessions, protocols, 0);
+  const adhResultT = calcCompliance(sessions, protocols, 0, { nameFn: exName });
   const adherence = adhResultT.overall;
   const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
   const daysSinceLast = lastSess
@@ -4399,7 +4355,7 @@ async function showRealPatient(patient) {
   // Prior week for deltas
   const fourteenAgo = new Date(Date.now() - 14 * 86400000);
   const priorW = sessions.filter(s => { const d = new Date(s.date); return d > fourteenAgo && d <= sevenDaysAgo; });
-  const priorAdhResultT = calcCompliance(sessions, protocols, 1);
+  const priorAdhResultT = calcCompliance(sessions, protocols, 1, { nameFn: exName });
   const priorAdhT = priorAdhResultT.overall;
   const adhDeltaT = adherence - priorAdhT;
   const priorPainT = priorW.length > 0
@@ -6720,7 +6676,7 @@ async function renderProgressScreen() {
     return age > 7 * msPerDay && age <= 14 * msPerDay;
   });
 
-  const adhResultProg = calcCompliance(sessions, protocols, 0);
+  const adhResultProg = calcCompliance(sessions, protocols, 0, { nameFn: exName });
   const adherenceThisWeek = adhResultProg.overall;
 
   var painTrendValue = null;
