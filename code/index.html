@@ -7,6 +7,9 @@
   <meta name="description" content="Motus — physical rehabilitation app connecting patients with therapists for guided exercise sessions and progress tracking." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230B6CB0'/><path d='M50 20c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V23.5C53.5 21.5 52 20 50 20zM36 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C39.5 29.5 38 28 36 28zM64 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C67.5 29.5 66 28 64 28zM25 40c-2 0-3.5 1.5-3.5 3.5V60c0 8 6.5 20 28.5 20s28.5-12 28.5-20V43.5c0-2-1.5-3.5-3.5-3.5s-3.5 1.5-3.5 3.5V55c0 2-1.5 3.5-3.5 3.5' fill='white' opacity='0.9'/></svg>">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <!-- Redesign 2026-07: Atkinson Hyperlegible (accessibility font) — replaces the brand fonts screen by screen -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="styles.css"/>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0B6CB0">
@@ -21,31 +24,36 @@
      LOGIN
 ═══════════════════════════════════════════════════════ -->
 <div id="loginScreen" class="screen active patient-scope">
-  <div class="auth-gradient-header">
-    <div class="auth-logo-icon">
-      <svg width="28" height="28" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
-    </div>
-    <div class="auth-header-welcome" data-i18n="auth.welcomeBack">Welcome back</div>
-    <div class="auth-header-sub" data-i18n="auth.signInSub">Sign in to continue your recovery.</div>
-    <svg class="auth-wave" viewBox="0 0 390 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0,28 C80,56 160,8 260,32 C320,46 360,20 390,28 L390,70 L0,70 Z" fill="#F0F9FF"/></svg>
-  </div>
-  <div class="auth-form-area">
-    <div id="loginError" class="auth-error" style="display:none" aria-live="polite"></div>
-    <div class="auth-field">
-      <label for="loginEmail" data-i18n="auth.email">Email</label>
-      <input type="email" id="loginEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" autocomplete="email" onkeydown="if(event.key==='Enter') handleLogin()" />
-    </div>
-    <div class="auth-field">
-      <label for="loginPassword" data-i18n="auth.password">Password</label>
-      <input type="password" id="loginPassword" placeholder="Password" data-i18n-ph="auth.passwordPlaceholder" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleLogin()" />
-    </div>
-    <p class="auth-forgot-row"><span onclick="showScreen('forgotScreen')" data-i18n="auth.forgotPassword">Forgot password?</span></p>
-    <button class="pt-btn-hero" id="loginBtn" onclick="handleLogin()" data-i18n="auth.signIn">Sign In</button>
-    <p class="auth-link-row"><span data-i18n="auth.newToMotus">New to Motus?</span> <span onclick="showScreen('signupScreen')" data-i18n="auth.createAccount">Create account</span></p>
-    <div class="auth-lang-toggle">
-      <button type="button" class="auth-lang-btn" onclick="setLanguage('en')">English</button>
-      <span class="auth-lang-sep">·</span>
-      <button type="button" class="auth-lang-btn" onclick="setLanguage('es')">Español</button>
+  <div class="rd-auth">
+    <div class="rd-auth-inner">
+      <div class="rd-logo-lozenge">
+        <svg width="30" height="30" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
+      </div>
+      <h1 class="rd-auth-title" data-i18n="auth.welcomeBack">Welcome back</h1>
+      <p class="rd-auth-sub" data-i18n="auth.signInSub">Sign in to continue your recovery.</p>
+      <div id="loginError" class="rd-auth-error" style="display:none" aria-live="polite"></div>
+      <div class="rd-field">
+        <div class="rd-field-labelrow">
+          <label class="rd-label" for="loginEmail" data-i18n="auth.email">Email</label>
+        </div>
+        <input class="rd-input" type="email" id="loginEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" autocomplete="email" onkeydown="if(event.key==='Enter') handleLogin()" />
+      </div>
+      <div class="rd-field">
+        <div class="rd-field-labelrow">
+          <label class="rd-label" for="loginPassword" data-i18n="auth.password">Password</label>
+          <button type="button" class="rd-show-btn" onclick="rdTogglePassword('loginPassword', this)" data-i18n="auth.show">Show</button>
+        </div>
+        <input class="rd-input" type="password" id="loginPassword" placeholder="Password" data-i18n-ph="auth.passwordPlaceholder" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleLogin()" />
+      </div>
+      <button class="rd-btn-primary" id="loginBtn" onclick="handleLogin()" data-i18n="auth.signIn" style="margin-top:6px">Sign In</button>
+      <button class="rd-link-btn" onclick="showScreen('forgotScreen')" data-i18n="auth.forgotPassword">I forgot my password</button>
+      <div class="rd-auth-divider" data-i18n="auth.newToMotus">New to Motus?</div>
+      <button class="rd-btn-outline" onclick="showScreen('signupScreen')" data-i18n="auth.createAccount">Create an Account</button>
+      <div class="rd-lang-toggle">
+        <button type="button" class="rd-lang-btn" data-lang="en" aria-pressed="true" onclick="setLanguage('en')">English</button>
+        <span class="rd-lang-sep">·</span>
+        <button type="button" class="rd-lang-btn" data-lang="es" aria-pressed="false" onclick="setLanguage('es')">Español</button>
+      </div>
     </div>
   </div>
 </div>
@@ -54,47 +62,51 @@
      SIGN UP
 ═══════════════════════════════════════════════════════ -->
 <div id="signupScreen" class="screen patient-scope">
-  <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title" data-i18n="signup.title">Create Account</div>
-    <div class="auth-header-sub" data-i18n="signup.sub">Join Motus to start your recovery</div>
-    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
-  </div>
-  <div class="auth-form-area">
+  <div class="rd-auth rd-auth--scroll">
+    <div class="rd-auth-inner">
     <!-- Step 0: credentials -->
     <div class="signup-step" id="signupStep0">
-      <div id="signupError" class="auth-error" style="display:none" aria-live="polite"></div>
-      <div class="role-segmented">
-        <button id="rolePatientBtn" class="role-seg-btn active" onclick="selectRole('patient')" data-i18n="signup.patient">Patient</button>
-        <button id="roleTherapistBtn" class="role-seg-btn" onclick="selectRole('therapist')" data-i18n="signup.therapist">Therapist</button>
+      <div class="rd-progress"><div class="rd-progress-seg active"></div><div class="rd-progress-seg"></div></div>
+      <h1 class="rd-auth-title" data-i18n="signup.title">Create Account</h1>
+      <p class="rd-auth-sub" data-i18n="signup.sub">Join Motus to start your recovery</p>
+      <div id="signupError" class="rd-auth-error" style="display:none" aria-live="polite"></div>
+      <div class="rd-role-cards">
+        <button id="rolePatientBtn" class="rd-role-card active" onclick="selectRole('patient')" data-i18n="signup.patient">Patient</button>
+        <button id="roleTherapistBtn" class="rd-role-card" onclick="selectRole('therapist')" data-i18n="signup.therapist">Therapist</button>
       </div>
-      <div class="auth-field">
-        <label for="signupName" data-i18n="signup.fullName">Full Name</label>
-        <input type="text" id="signupName" placeholder="Your name" data-i18n-ph="signup.namePlaceholder" maxlength="80" onkeydown="if(event.key==='Enter') signupNextStep()" />
+      <div class="rd-field">
+        <div class="rd-field-labelrow"><label class="rd-label" for="signupName" data-i18n="signup.fullName">Full Name</label></div>
+        <input class="rd-input" type="text" id="signupName" placeholder="Your name" data-i18n-ph="signup.namePlaceholder" maxlength="80" onkeydown="if(event.key==='Enter') signupNextStep()" />
       </div>
-      <div class="auth-field">
-        <label for="signupEmail" data-i18n="auth.email">Email</label>
-        <input type="email" id="signupEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" onkeydown="if(event.key==='Enter') signupNextStep()" />
+      <div class="rd-field">
+        <div class="rd-field-labelrow"><label class="rd-label" for="signupEmail" data-i18n="auth.email">Email</label></div>
+        <input class="rd-input" type="email" id="signupEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" onkeydown="if(event.key==='Enter') signupNextStep()" />
       </div>
-      <div class="auth-field">
-        <label for="signupPassword" data-i18n="auth.password">Password</label>
-        <input type="password" id="signupPassword" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" onkeydown="if(event.key==='Enter') signupNextStep()" />
+      <div class="rd-field">
+        <div class="rd-field-labelrow">
+          <label class="rd-label" for="signupPassword" data-i18n="auth.password">Password</label>
+          <button type="button" class="rd-show-btn" onclick="rdTogglePassword('signupPassword', this)" data-i18n="auth.show">Show</button>
+        </div>
+        <input class="rd-input" type="password" id="signupPassword" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" onkeydown="if(event.key==='Enter') signupNextStep()" />
       </div>
-      <button class="pt-btn-hero" onclick="signupNextStep()" data-i18n="signup.continue">Continue</button>
-      <p class="auth-link-row"><span data-i18n="signup.haveAccount">Already have an account?</span> <span onclick="showScreen('loginScreen')" data-i18n="signup.signIn">Sign in</span></p>
-      <p class="auth-legal"><span data-i18n="signup.legalPre">By creating an account you agree to our</span> <a href="/tos" target="_blank" data-legal="tos" data-i18n="signup.tos">Terms of Service</a> <span data-i18n="signup.and">and</span> <a href="/privacy" target="_blank" data-legal="privacy" data-i18n="signup.privacy">Privacy Policy</a>.</p>
+      <button class="rd-btn-primary rd-mt" onclick="signupNextStep()" data-i18n="signup.continue">Continue</button>
+      <button class="rd-link-btn" onclick="showScreen('loginScreen')"><span data-i18n="signup.haveAccount">Already have an account?</span> <span data-i18n="signup.signIn">Sign in</span></button>
+      <p class="rd-auth-legal"><span data-i18n="signup.legalPre">By creating an account you agree to our</span> <a href="/tos" target="_blank" data-legal="tos" data-i18n="signup.tos">Terms of Service</a> <span data-i18n="signup.and">and</span> <a href="/privacy" target="_blank" data-legal="privacy" data-i18n="signup.privacy">Privacy Policy</a>.</p>
     </div>
     <!-- Step 2: data questions -->
     <div class="signup-step" id="signupStep2" hidden>
-      <button class="signup-back-btn" onclick="signupGoToStep(0)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      <button class="rd-back-btn" onclick="signupGoToStep(0)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         <span data-i18n="common.back">Back</span>
       </button>
-      <div class="signup-step-heading" data-i18n="signup.quickQuestions">A few quick questions</div>
+      <div class="rd-progress"><div class="rd-progress-seg active"></div><div class="rd-progress-seg active"></div></div>
+      <h1 class="rd-auth-title" style="text-align:left" data-i18n="signup.quickQuestions">A few quick questions</h1>
+      <p class="rd-auth-sub" style="text-align:left; margin-bottom:20px" data-i18n="signup.step2">Step 2 of 2</p>
       <!-- Patient fields -->
       <div id="signupPatientFields">
-        <div class="auth-field">
-          <label for="signupAgeRange" data-i18n="signup.ageRange">Age range</label>
-          <select id="signupAgeRange" class="auth-select">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="signupAgeRange" data-i18n="signup.ageRange">Age range</label></div>
+          <select id="signupAgeRange" class="rd-select">
             <option value="" data-i18n="opt.select">Select...</option>
             <option value="18-24">18-24</option>
             <option value="25-34">25-34</option>
@@ -104,9 +116,9 @@
             <option value="65+">65+</option>
           </select>
         </div>
-        <div class="auth-field">
-          <label for="signupInjuryArea" data-i18n="signup.injuryArea">Primary injury area</label>
-          <select id="signupInjuryArea" class="auth-select">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="signupInjuryArea" data-i18n="signup.injuryArea">Primary injury area</label></div>
+          <select id="signupInjuryArea" class="rd-select">
             <option value="" data-i18n="opt.select">Select...</option>
             <option value="hand-wrist" data-i18n="opt.handWrist">Hand / Wrist</option>
             <option value="elbow" data-i18n="opt.elbow">Elbow</option>
@@ -117,9 +129,9 @@
             <option value="other" data-i18n="opt.other">Other</option>
           </select>
         </div>
-        <div class="auth-field">
-          <label for="signupRehabDuration" data-i18n="signup.timeInRehab">Time in rehab</label>
-          <select id="signupRehabDuration" class="auth-select">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="signupRehabDuration" data-i18n="signup.timeInRehab">Time in rehab</label></div>
+          <select id="signupRehabDuration" class="rd-select">
             <option value="" data-i18n="opt.select">Select...</option>
             <option value="<1mo" data-i18n="opt.lt1mo">Less than 1 month</option>
             <option value="1-3mo" data-i18n="opt.1to3mo">1 to 3 months</option>
@@ -128,9 +140,9 @@
             <option value="1y+" data-i18n="opt.1yplus">More than 1 year</option>
           </select>
         </div>
-        <div class="auth-field">
-          <label for="signupReferral" data-i18n="signup.referral">How did you hear about Motus?</label>
-          <select id="signupReferral" class="auth-select">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="signupReferral" data-i18n="signup.referral">How did you hear about Motus?</label></div>
+          <select id="signupReferral" class="rd-select">
             <option value="" data-i18n="opt.select">Select...</option>
             <option value="therapist" data-i18n="opt.refTherapist">My therapist</option>
             <option value="clinic" data-i18n="opt.refClinic">My clinic</option>
@@ -143,9 +155,9 @@
       </div>
       <!-- Therapist fields -->
       <div id="signupTherapistFields" hidden>
-        <div class="auth-field">
-          <label for="signupPracticeArea">Practice area</label>
-          <select id="signupPracticeArea" class="auth-select">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="signupPracticeArea" data-i18n="signup.practiceArea">Practice area</label></div>
+          <select id="signupPracticeArea" class="rd-select">
             <option value="">Select...</option>
             <option value="orthopedic">Orthopedic</option>
             <option value="sports-medicine">Sports Medicine</option>
@@ -155,9 +167,9 @@
             <option value="general">General / Other</option>
           </select>
         </div>
-        <div class="auth-field">
-          <label for="signupYearsExp">Years of experience</label>
-          <select id="signupYearsExp" class="auth-select">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="signupYearsExp" data-i18n="signup.yearsExp">Years of experience</label></div>
+          <select id="signupYearsExp" class="rd-select">
             <option value="">Select...</option>
             <option value="<1yr">Less than 1 year</option>
             <option value="1-3yr">1 to 3 years</option>
@@ -167,8 +179,9 @@
           </select>
         </div>
       </div>
-      <button class="pt-btn-hero" id="signupCreateBtn" onclick="finalizeSignup()" data-i18n="signup.createAccountBtn">Create Account</button>
-      <button class="pt-btn-outline signup-skip-btn" onclick="signupSkipData()" data-i18n="signup.skip">Skip for now</button>
+      <button class="rd-btn-primary rd-mt" id="signupCreateBtn" onclick="finalizeSignup()" data-i18n="signup.createAccountBtn">Create Account</button>
+      <button class="rd-btn-outline rd-mt" onclick="signupSkipData()" data-i18n="signup.skip">Skip for now</button>
+    </div>
     </div>
   </div>
 </div>
@@ -177,24 +190,26 @@
      FORGOT PASSWORD
 ═══════════════════════════════════════════════════════ -->
 <div id="forgotScreen" class="screen patient-scope">
-  <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title" data-i18n="forgot.title">Reset Password</div>
-    <div class="auth-header-sub" data-i18n="forgot.sub">We'll send you a reset link</div>
-    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
-  </div>
-  <div class="auth-form-area">
-    <div id="forgotError" class="auth-error" style="display:none" aria-live="polite"></div>
-    <div id="forgotSuccess" class="auth-success" style="display:none"></div>
-    <div class="auth-field">
-      <label for="forgotEmail" data-i18n="forgot.emailAddress">Email address</label>
-      <input type="email" id="forgotEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" />
+  <div class="rd-auth">
+    <div class="rd-auth-inner">
+      <div class="rd-logo-lozenge">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h1 class="rd-auth-title" data-i18n="forgot.title">Reset Password</h1>
+      <p class="rd-auth-sub" data-i18n="forgot.sub">We'll send you a reset link</p>
+      <div id="forgotError" class="rd-auth-error" style="display:none" aria-live="polite"></div>
+      <div id="forgotSuccess" class="rd-auth-success" style="display:none"></div>
+      <div class="rd-field">
+        <div class="rd-field-labelrow"><label class="rd-label" for="forgotEmail" data-i18n="forgot.emailAddress">Email address</label></div>
+        <input class="rd-input" type="email" id="forgotEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" />
+      </div>
+      <div class="rd-field" id="newPasswordField" style="display:none">
+        <div class="rd-field-labelrow"><label class="rd-label" for="forgotNewPassword" data-i18n="forgot.newPassword">New Password</label></div>
+        <input class="rd-input" type="password" id="forgotNewPassword" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" />
+      </div>
+      <button class="rd-btn-primary rd-mt" id="forgotBtn" onclick="handleForgot()" data-i18n="forgot.findAccount">Find Account</button>
+      <button class="rd-link-btn" onclick="showScreen('loginScreen')" data-i18n="forgot.backToSignIn">Back to sign in</button>
     </div>
-    <div class="auth-field" id="newPasswordField" style="display:none">
-      <label for="forgotNewPassword" data-i18n="forgot.newPassword">New Password</label>
-      <input type="password" id="forgotNewPassword" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" />
-    </div>
-    <button class="pt-btn-hero" id="forgotBtn" onclick="handleForgot()" data-i18n="forgot.findAccount">Find Account</button>
-    <p class="auth-link-row"><span onclick="showScreen('loginScreen')" data-i18n="forgot.backToSignIn">Back to sign in</span></p>
   </div>
 </div>
 
@@ -202,32 +217,31 @@
      CONSENT
 ═══════════════════════════════════════════════════════ -->
 <div id="consentScreen" class="screen patient-scope">
-  <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title" data-i18n="consent.title">Before we begin</div>
-    <div class="auth-header-sub" data-i18n="consent.sub">Please review and accept to continue</div>
-    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
-  </div>
-  <div class="auth-form-area">
-    <div class="consent-card">
-      <div class="consent-section-title" data-i18n="consent.privacyHeading">Privacy &amp; Data Use</div>
-      <ul class="consent-list">
-        <li data-i18n="consent.bullet1">Movement data captured via your device camera</li>
-        <li data-i18n="consent.bullet2">Exercise performance shared with your assigned therapist</li>
-        <li data-i18n="consent.bullet3">Session videos stored securely, removed after 30 days</li>
-        <li data-i18n="consent.bullet4">All data encrypted in transit and at rest</li>
-      </ul>
+  <div class="rd-auth rd-auth--scroll">
+    <div class="rd-auth-inner">
+      <h1 class="rd-auth-title" data-i18n="consent.title">Before we begin</h1>
+      <p class="rd-auth-sub" data-i18n="consent.sub">Please review and accept to continue</p>
+      <div class="rd-consent-card">
+        <h3 data-i18n="consent.privacyHeading">Privacy &amp; Data Use</h3>
+        <ul class="rd-consent-list">
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="consent.bullet1">Movement data captured via your device camera</span></li>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="consent.bullet2">Exercise performance shared with your assigned therapist</span></li>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="consent.bullet3">Session videos stored securely, removed after 30 days</span></li>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="consent.bullet4">All data encrypted in transit and at rest</span></li>
+        </ul>
+      </div>
+      <label class="rd-check-row">
+        <input type="checkbox" id="consentCheckbox" onchange="rdConsentGate()" />
+        <span data-i18n="consent.agree">I understand how my health data will be used and consent to participate in Motus rehabilitation.</span>
+      </label>
+      <label class="rd-check-row">
+        <input type="checkbox" id="nppCheckbox" onchange="rdConsentGate()" />
+        <span><span data-i18n="consent.npp">I have received the</span> <a href="/hipaa-npp" target="_blank" data-legal="hipaa-npp" data-i18n="consent.nppLink">HIPAA Notice of Privacy Practices</a>.</span>
+      </label>
+      <div id="consentError" class="rd-auth-error" style="display:none" aria-live="polite" data-i18n="consent.error">Please check both boxes before continuing.</div>
+      <button class="rd-btn-primary rd-mt" id="consentContinueBtn" disabled onclick="acceptConsent()" data-i18n="consent.continue">I Agree — Continue</button>
+      <p class="rd-auth-legal"><span data-i18n="consent.questions">Questions? Email</span> <a href="mailto:yashsaoji1@gmail.com">yashsaoji1@gmail.com</a></p>
     </div>
-    <label class="consent-checkbox-row">
-      <input type="checkbox" id="consentCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
-      <span data-i18n="consent.agree">I understand how my health data will be used and consent to participate in Motus rehabilitation.</span>
-    </label>
-    <label class="consent-checkbox-row">
-      <input type="checkbox" id="nppCheckbox" style="accent-color:var(--pt-primary);width:18px;height:18px;flex-shrink:0;" />
-      <span><span data-i18n="consent.npp">I have received the</span> <a href="/hipaa-npp" target="_blank" data-legal="hipaa-npp" data-i18n="consent.nppLink">HIPAA Notice of Privacy Practices</a>.</span>
-    </label>
-    <div id="consentError" class="auth-error" style="display:none" aria-live="polite" data-i18n="consent.error">Please check both boxes before continuing.</div>
-    <button class="pt-btn-hero" onclick="acceptConsent()" data-i18n="consent.continue">I Agree — Continue</button>
-    <p class="auth-legal"><span data-i18n="consent.questions">Questions? Email</span> <a href="mailto:yashsaoji1@gmail.com">yashsaoji1@gmail.com</a></p>
   </div>
 </div>
 
@@ -235,14 +249,16 @@
      PENDING APPROVAL
 ═══════════════════════════════════════════════════════ -->
 <div id="pendingScreen" class="screen patient-scope">
-  <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title" data-i18n="pending.title">Account Pending</div>
-    <div class="auth-header-sub" data-i18n="pending.sub">Your therapist account is awaiting approval</div>
-    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
-  </div>
-  <div class="auth-form-area">
-    <p data-i18n="pending.body">A clinic admin will review and approve your account. Check back soon.</p>
-    <button class="pt-btn-outline" onclick="logout()" data-i18n="pending.signOut">Sign Out</button>
+  <div class="rd-auth">
+    <div class="rd-auth-inner">
+      <div class="rd-badge-circle rd-badge-warn">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <h1 class="rd-auth-title" data-i18n="pending.title">Account Pending</h1>
+      <p class="rd-auth-sub" data-i18n="pending.sub">Your therapist account is awaiting approval</p>
+      <p class="rd-body-text" data-i18n="pending.body">A clinic admin will review and approve your account. Check back soon.</p>
+      <button class="rd-btn-outline" onclick="logout()" data-i18n="pending.signOut">Sign Out</button>
+    </div>
   </div>
 </div>
 
@@ -269,22 +285,25 @@
      CONNECT TO THERAPIST
 ═══════════════════════════════════════════════════════ -->
 <div id="connectScreen" class="screen patient-scope">
-  <div class="auth-gradient-header auth-gradient-header--short">
-    <div class="auth-header-title" data-i18n="connect.title">Connect to a Therapist</div>
-    <div class="auth-header-sub" data-i18n="connect.sub">Enter your clinic code to get started</div>
-    <svg class="auth-wave" viewBox="0 0 390 24" preserveAspectRatio="none"><path d="M0,12 Q97,0 195,12 Q293,24 390,12 L390,24 L0,24 Z" fill="#F0F9FF"/></svg>
-  </div>
-  <div class="auth-form-area">
-    <div class="auth-field">
-      <label for="connectCode" data-i18n="connect.clinicCode">Clinic Code</label>
-      <input type="text" id="connectCode" class="clinic-code-input" placeholder="------" maxlength="6"
-             oninput="this.value=this.value.toUpperCase()"
-             onkeydown="if(event.key==='Enter') handleConnect()" />
+  <div class="rd-auth">
+    <div class="rd-auth-inner">
+      <div class="rd-logo-lozenge">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <h1 class="rd-auth-title" data-i18n="connect.title">Connect to a Therapist</h1>
+      <p class="rd-auth-sub" data-i18n="connect.sub">Enter your clinic code to get started</p>
+      <div class="rd-field">
+        <div class="rd-field-labelrow"><label class="rd-label" for="connectCode" data-i18n="connect.clinicCode">Clinic Code</label></div>
+        <input type="text" id="connectCode" class="rd-code-input" placeholder="------" maxlength="6"
+               oninput="this.value=this.value.toUpperCase()"
+               onkeydown="if(event.key==='Enter') handleConnect()" />
+      </div>
+      <div id="connectError" class="rd-auth-error" style="display:none" aria-live="polite"></div>
+      <div id="connectSuccess" class="rd-auth-success" style="display:none" aria-live="polite"></div>
+      <div class="rd-info-card" data-i18n="connect.help">Your therapist or clinic gives you this 6-character code. Don't have one yet? You can skip and add it later.</div>
+      <button class="rd-btn-primary rd-mt" onclick="handleConnect()" data-i18n="connect.connect">Connect</button>
+      <button class="rd-btn-outline rd-mt" onclick="skipConnect()" data-i18n="connect.skip">Skip for now</button>
     </div>
-    <div id="connectError" class="auth-error" style="display:none" aria-live="polite"></div>
-    <div id="connectSuccess" class="auth-success" style="display:none" aria-live="polite"></div>
-    <button class="pt-btn-hero" onclick="handleConnect()" data-i18n="connect.connect">Connect</button>
-    <button class="pt-btn-outline" onclick="skipConnect()" data-i18n="connect.skip">Skip for now</button>
   </div>
 </div>
 
@@ -292,80 +311,63 @@
      PATIENT HOME
 ═══════════════════════════════════════════════════════ -->
 <div id="patientScreen" class="screen patient-scope">
-  <!-- Header -->
-  <div class="pt-home-header">
-    <div class="pt-home-header-inner">
+  <div class="rd-home">
+    <div class="rd-home-header">
       <div>
-        <div class="pt-greeting-label" id="patientGreeting">Good morning</div>
-        <div class="pt-greeting-name" id="patientDisplayName">Welcome back</div>
+        <div class="rd-home-date" id="ptHomeDate"></div>
+        <div class="rd-home-greeting"><span id="patientGreeting">Good morning</span>, <span id="patientDisplayName">Welcome</span></div>
       </div>
-      <div class="pt-streak-badge" id="streakBadge" style="display:none;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" aria-hidden="true"><path d="M12 2c0 0-7 8-7 13a7 7 0 0 0 14 0c0-5-7-13-7-13z"/></svg>
-        <span class="pt-streak-count" id="streakCount">0</span>
-        <span class="pt-streak-label" id="streakLabel" data-i18n="home.dayStreak">day streak</span>
-        <span class="pt-streak-best" id="streakBest" hidden></span>
+      <div class="rd-streak-pill" id="streakBadge" style="display:none;">
+        <span class="rd-streak-flame"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 23c-3.6 0-8-2.4-8-8.5C4 9.8 9 4.3 11.4 2c.4-.3.9 0 .9.5-.2 3 1.6 5.2 3.2 6.8 1.5 1.5 3.5 3 3.5 5.2 0 4.5-3 8.5-7 8.5z"/></svg></span>
+        <span class="rd-streak-num" id="streakCount">0</span>
+        <span class="rd-streak-lbl" id="streakLabel" data-i18n="home.days">days</span>
+        <span id="streakBest" hidden></span>
       </div>
     </div>
-    <svg class="pt-home-wave" viewBox="0 0 390 20" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,10 Q97,0 195,10 Q293,20 390,10 L390,20 L0,20 Z" fill="#F0F9FF"/>
-    </svg>
-  </div>
 
-  <!-- Protocol card + stats + therapist -->
-  <div class="pt-home-grid-zone">
-    <!-- F-001: Session-saved success banner (shown briefly after returning from recording) -->
-    <div id="ptSessionSavedBanner" class="pt-session-saved-banner" style="display:none;" aria-live="polite"
-         data-i18n="cam.sessionSaved">Session saved!</div>
+    <div id="ptSessionSavedBanner" class="rd-auth-success" style="display:none;" aria-live="polite" data-i18n="cam.sessionSaved">Session saved!</div>
+    <div id="ptHomeLoadError" class="rd-auth-error" style="display:none;" aria-live="polite"></div>
 
-    <!-- F-008/F-009: home-screen load state -->
-    <div id="ptHomeLoadError" class="pt-home-load-error" style="display:none;" aria-live="polite"></div>
-
-    <section class="pt-protocol-card">
-      <div class="pt-protocol-kicker-row">
-        <span class="pt-protocol-kicker" id="ptProtocolKicker">YOUR PROTOCOL</span>
-        <span class="pt-protocol-freq" id="ptProtocolFreq"></span>
+    <section class="rd-card rd-plan-card">
+      <div class="rd-plan-head">
+        <span class="rd-plan-title" id="ptProtocolTitle" data-i18n="home.todaysPlan">Today's plan</span>
+        <span class="rd-plan-done" id="ptPlanDone"></span>
       </div>
-      <h2 class="pt-protocol-title" id="ptProtocolTitle">Your Protocol</h2>
-      <div class="pt-protocol-subtitle" id="ptProtocolSubtitle"></div>
-      <div class="pt-protocol-divider"></div>
-      <ul class="pt-protocol-list" id="todaysPlanList">
-        <li class="pt-protocol-empty" data-i18n="home.noExercisesYet">No exercises assigned yet</li>
+      <div class="rd-plan-item-sub" id="ptProtocolSubtitle" style="margin-bottom:6px"></div>
+      <ul class="rd-plan-list" id="todaysPlanList">
+        <li class="rd-plan-empty" data-i18n="home.noExercisesYet">No exercises assigned yet</li>
       </ul>
-      <button class="pt-protocol-start" id="ptStartSessionBtn" onclick="startScanSession()">
+      <button class="rd-btn-cta" id="ptStartSessionBtn" onclick="startScanSession()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-        <span data-i18n="home.startSession">Start Session</span>
+        <span data-i18n="home.continueSession">Continue Session</span>
       </button>
-      <button class="pt-protocol-start" id="ptConnectTherapistBtn" style="display:none" onclick="goToConnect()">Connect to a therapist</button>
-      <button class="pt-protocol-start" id="ptMessageTherapistBtn" style="display:none" onclick="openPatientMessaging()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span>Message your therapist</span>
-      </button>
+      <button class="rd-btn-cta" id="ptConnectTherapistBtn" style="display:none" onclick="goToConnect()" data-i18n="home.connectTherapist">Connect to a therapist</button>
+      <button class="rd-btn-cta" id="ptMessageTherapistBtn" style="display:none" onclick="openPatientMessaging()"><span data-i18n="home.messageTherapist">Message your therapist</span></button>
+      <span id="ptProtocolKicker" hidden></span><span id="ptProtocolFreq" hidden></span>
     </section>
 
-    <section class="pt-stats-row">
-      <div class="pt-stat">
-        <span class="pt-stat-label" data-i18n="home.adherence">CONSISTENCY</span>
-        <span class="pt-stat-value" id="ptStatAdherence">—</span>
-        <span class="pt-stat-delta" id="ptStatAdherenceDelta"></span>
+    <section class="rd-stats-row">
+      <div class="rd-stat-tile">
+        <div class="rd-stat-eyebrow" data-i18n="home.thisWeek">This week</div>
+        <div class="rd-stat-big" id="ptStatAdherence">—</div>
+        <span id="ptStatAdherenceDelta" hidden></span>
       </div>
-      <div class="pt-stat">
-        <span class="pt-stat-label" data-i18n="home.avgPain">AVG PAIN</span>
-        <span class="pt-stat-value" id="ptStatAvgPain">—</span>
-        <span class="pt-stat-delta" id="ptStatAvgPainDelta"></span>
+      <div class="rd-stat-tile">
+        <div class="rd-stat-eyebrow" data-i18n="home.painIs">Pain is</div>
+        <div class="rd-stat-big teal" id="ptStatAvgPain">—</div>
+        <span id="ptStatAvgPainDelta" hidden></span>
       </div>
     </section>
 
     <div class="pt-therapist-section">
-      <div class="pt-therapist-heading" id="ptTherapistHeading" style="display:none" data-i18n="home.yourTherapist">Your Therapist</div>
-      <div class="pt-therapist-card" id="ptTherapistCard" style="display:none">
-        <div class="pt-therapist-avatar" id="ptTherapistAvatar"></div>
-        <div class="pt-therapist-info">
-          <div class="pt-therapist-name" id="therapistContactName">Your therapist</div>
-          <div class="pt-therapist-response" id="ptTherapistResponse"></div>
+      <div id="ptTherapistHeading" style="display:none" data-i18n="home.yourTherapist"></div>
+      <div class="rd-th-card" id="ptTherapistCard" style="display:none">
+        <div class="rd-th-avatar" id="ptTherapistAvatar"></div>
+        <div class="rd-th-info">
+          <div class="rd-th-name" id="therapistContactName">Your therapist</div>
+          <div class="rd-th-sub" id="ptTherapistResponse"></div>
         </div>
-        <button class="pt-therapist-msg-btn" onclick="openPatientMessaging()" aria-label="Message therapist">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </button>
+        <button class="rd-th-msg" onclick="openPatientMessaging()" data-i18n="home.message">Message</button>
       </div>
     </div>
   </div>
@@ -389,13 +391,17 @@
      MY EXERCISES SCREEN
 ═══════════════════════════════════════════════════════ -->
 <div id="exercisesScreen" class="screen patient-scope">
-  <div class="pt-subscreen">
-    <div class="pt-subscreen-header">
-      <h2 class="pt-subscreen-title" data-i18n="ex.myExercises">My Exercises</h2>
-      <p class="pt-subscreen-sub" id="exSubtitle"></p>
-      <svg class="pt-home-wave" viewBox="0 0 390 20" preserveAspectRatio="none" aria-hidden="true"><path d="M0,10 Q97,0 195,10 Q293,20 390,10 L390,20 L0,20 Z" fill="#F0F9FF"/></svg>
+  <div class="rd-screen">
+    <div class="rd-screen-header">
+      <button class="rd-back-sq" aria-label="Back" onclick="showScreen('patientScreen')">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div>
+        <h1 class="rd-screen-title" data-i18n="ex.myExercises">My Exercises</h1>
+        <p class="rd-screen-sub" id="exSubtitle"></p>
+      </div>
     </div>
-    <div id="exercisesScreenInner" class="ex-list pt-subscreen-content"></div>
+    <div id="exercisesScreenInner"></div>
   </div>
 </div>
 
@@ -485,29 +491,27 @@
 
 <!-- Manual Camera Screen (patient session without tracking) -->
 <div id="manualCamScreen" class="screen patient-scope mcam-screen">
-  <!-- Header -->
-  <header class="mcam-header">
-    <button class="mcam-back-btn" onclick="manualCamExit()" aria-label="Exit">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-    </button>
-    <span class="mcam-header-title" data-i18n="cam.recordTitle">Record your set</span>
-  </header>
+  <div class="rd-rec">
+    <header class="rd-rec-header">
+      <button class="rd-back-sq" onclick="manualCamExit()" aria-label="Exit">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div>
+        <div class="rd-rec-exname" id="manualCamExName" data-i18n="cam.exercise">Exercise</div>
+        <div class="rd-rec-setlabel" id="manualCamSetInfo">Set 1 of 3</div>
+      </div>
+    </header>
+    <div class="rd-rec-progress" id="manualCamProgress"></div>
 
-  <!-- Main card -->
-  <div class="mcam-body">
-    <div class="mcam-card">
-      <span class="mcam-set-pill" id="manualCamSetInfo">SET 1 / 3</span>
-      <h2 class="mcam-exname" id="manualCamExName" data-i18n="cam.exercise">Exercise</h2>
-      <span class="mcam-target" id="manualCamTarget"></span>
-      <p class="mcam-prompt" id="manualCamPrompt" data-i18n="cam.recordHint">Tap record to open your camera. Film your set, then come back to log it.</p>
-      <div class="mcam-actions" id="manualCamBtns"></div>
+    <div class="rd-rec-card">
+      <div class="rd-rec-reps" id="manualCamTarget">10 reps</div>
+      <p class="rd-rec-prompt" id="manualCamPrompt" data-i18n="cam.recordHint">Tap record to open your camera. Film your set, then come back to log it.</p>
+      <div class="rd-rec-actions" id="manualCamBtns"></div>
     </div>
-  </div>
 
-  <!-- Footer: finish the whole session early -->
-  <div class="mcam-footer">
-    <button class="mcam-done-btn" id="manualCamDoneBtn" onclick="finishManualCamSession()"
-            data-i18n="cam.done">Done</button>
+    <p class="rd-rec-hint" data-i18n="cam.cameraWillOpen">Your camera will open. Film your set, then come back here to log it.</p>
+
+    <button class="rd-btn-outline rd-rec-done" id="manualCamDoneBtn" onclick="finishManualCamSession()" data-i18n="cam.done">Done</button>
   </div>
 
   <!-- Native-camera capture input (opens the phone's own camera app) -->
@@ -530,68 +534,47 @@
   <input type="hidden" id="setInputReps" value="10" />
   <input type="hidden" id="setInputPain" value="1" />
 
-  <!-- Floating badge -->
-  <div class="si-badge" id="setInputBadge">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-    <span id="setInputBadgeText">Set 1 of 3 complete</span>
-  </div>
-
-  <div class="pt-bottom-sheet" onclick="event.stopPropagation()">
+  <div class="pt-bottom-sheet rd-sheet" onclick="event.stopPropagation()">
     <div class="pt-bottom-sheet-handle"></div>
 
-    <!-- Header -->
-    <div class="si-header">
+    <div class="rd-sheet-head">
+      <div class="rd-sheet-check"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
       <div>
-        <div class="si-title">Nice set.</div>
-        <div class="si-sub">How did it go?</div>
+        <div class="rd-sheet-eyebrow" id="setInputBadge" data-i18n="si.videoSaved">Video saved</div>
+        <div class="rd-sheet-title" id="setInputBadgeText">How did it go?</div>
       </div>
-      <div class="si-ex-name" id="setInputExName"></div>
+      <span id="setInputExName" hidden></span>
     </div>
 
-    <!-- Reps stepper -->
-    <div class="si-section">
-      <div class="pt-field-label">Reps completed</div>
-      <div class="si-stepper">
-        <button class="si-step-btn" onclick="siAdjustReps(-1)" aria-label="Decrease reps">−</button>
-        <div class="si-step-display">
-          <div class="si-step-num" id="siRepsDisplay">10</div>
-          <div class="si-step-target" id="siRepsTarget">TARGET 10</div>
+    <div class="rd-sheet-card">
+      <div class="rd-sheet-label" data-i18n="si.repsCompleted">Reps you completed</div>
+      <div class="rd-stepper">
+        <button class="rd-step-btn" onclick="siAdjustReps(-1)" aria-label="Decrease reps">−</button>
+        <div class="rd-step-mid">
+          <div class="rd-step-num" id="siRepsDisplay">10</div>
+          <div class="rd-step-goal" id="siRepsTarget">Goal was 10</div>
         </div>
-        <button class="si-step-btn" onclick="siAdjustReps(1)" aria-label="Increase reps">+</button>
+        <button class="rd-step-btn" onclick="siAdjustReps(1)" aria-label="Increase reps">+</button>
       </div>
     </div>
 
-    <!-- Pain squares -->
-    <div class="si-section">
-      <div class="si-row-header">
-        <div class="pt-field-label">Pain during set</div>
-        <div class="si-pain-val" id="setInputPainVal">1 <span>/ 10</span></div>
-      </div>
-      <div class="si-pain-grid" id="siPainGrid"></div>
-      <div class="si-pain-labels">
-        <span>NONE</span><span id="siPainSeverity" style="font-weight:700">BARELY NOTICED</span><span>SEVERE</span>
-      </div>
+    <div class="rd-sheet-card">
+      <div class="rd-sheet-label" data-i18n="si.howMuchHurt">How much did it hurt?</div>
+      <div id="siPainButtons" class="rd-pain-btns"></div>
+      <span id="setInputPainVal" hidden></span><span id="siPainSeverity" hidden></span>
     </div>
 
-    <!-- Quick note chips -->
-    <div class="si-section">
-      <div class="pt-field-label">Quick note</div>
-      <div class="si-chips">
-        <button class="si-chip" onclick="siToggleChip(this)">Felt strong</button>
-        <button class="si-chip" onclick="siToggleChip(this)">A bit stiff</button>
-        <button class="si-chip" onclick="siToggleChip(this)">Better than last time</button>
-        <button class="si-chip" onclick="siToggleChip(this)">Sharp pain</button>
-      </div>
+    <div class="rd-sheet-chips-label"><span data-i18n="si.anythingToAdd">Anything to add?</span> <span class="rd-optional" data-i18n="si.optional">(optional)</span></div>
+    <div class="rd-chips">
+      <button class="rd-chip" onclick="siToggleChip(this)" data-i18n="si.chipStrong">Felt strong</button>
+      <button class="rd-chip" onclick="siToggleChip(this)" data-i18n="si.chipStiff">A bit stiff</button>
+      <button class="rd-chip" onclick="siToggleChip(this)" data-i18n="si.chipSharp">Sharp pain</button>
+      <button class="rd-chip" onclick="siRevealNote(this)" data-i18n="si.chipNote">Type a note…</button>
     </div>
+    <textarea id="setInputNotes" class="rd-sheet-textarea" placeholder="Anything your therapist should know?" maxlength="1000" style="display:none"></textarea>
 
-    <!-- Notes textarea -->
-    <textarea id="setInputNotes" class="set-input-textarea" placeholder="Anything your therapist should know?" maxlength="1000"></textarea>
-
-    <!-- Actions -->
-    <div class="set-input-actions">
-      <button class="si-discard-btn" onclick="manualCamCancelSet()">Discard</button>
-      <button class="pt-btn-hero si-save-btn" onclick="manualCamSaveSet()">Save · next set →</button>
-    </div>
+    <button class="rd-btn-cta si-save-btn" onclick="manualCamSaveSet()" style="margin-top:10px">Save</button>
+    <button class="rd-link-btn si-discard-btn" onclick="manualCamCancelSet()" data-i18n="si.discardSet">Discard this set</button>
   </div>
 </div>
 
@@ -625,53 +608,57 @@
 </div>
 
 <div id="therapistScreen" class="screen therapist-scope">
-  <!-- Icon sidebar -->
-  <div class="th-sidebar">
-    <div class="th-sidebar-logo">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg>
+  <!-- Dark nav rail (labeled) -->
+  <div class="rd-rail">
+    <div class="rd-rail-brand">
+      <span class="rd-rail-logo"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1C9.4 1 9 1.5 9 2v7c0 .5.4 1 1 1s1-.5 1-1V2c0-.5-.4-1-1-1ZM7 3C6.4 3 6 3.5 6 4v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM13 3c-.6 0-1 .5-1 1v6c0 .5.4 1 1 1s1-.5 1-1V4c0-.5-.4-1-1-1ZM4.5 6c-.6 0-1 .5-1 1v4c0 3 2.5 7 6.5 7s6.5-4 6.5-7V7c0-.5-.4-1-1-1s-1 .5-1 1v3c0 .5-.4 1-1 1" fill="white" opacity="0.95"/></svg></span>
+      <span class="rd-rail-wordmark">Motus</span>
     </div>
-    <button class="th-sidebar-icon" title="Patients" aria-label="Patients" onclick="backToPatientList()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <nav class="rd-rail-nav">
+      <button class="rd-rail-item active" data-nav="patients" onclick="backToPatientList()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Patients</span>
+      </button>
+      <button class="rd-rail-item" id="thNavMessages" data-nav="messages" onclick="openTherapistMessages()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Messages</span><span class="rd-rail-badge" id="thMsgBadge" hidden></span>
+      </button>
+      <button class="rd-rail-item" id="thNavLibrary" onclick="openProtocolLibrary()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>Exercise Library</span>
+      </button>
+      <button class="rd-rail-item" data-nav="clinic" onclick="showMyClinicOrJoin()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>My Clinic</span><span class="clinic-invite-badge" id="clinicInviteBadge" style="display:none">0</span>
+      </button>
+    </nav>
+    <div class="rd-rail-spacer"></div>
+    <button class="rd-rail-item" data-nav="settings" onclick="showSettingsScreen()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Settings</span>
     </button>
-    <button class="th-sidebar-icon" id="thNavMessages" title="Messages" aria-label="Messages" onclick="openTherapistMessages()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    </button>
-    <button class="th-sidebar-icon" id="thNavLibrary" title="Protocol Library" aria-label="Library" onclick="openProtocolLibrary()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-    </button>
-    <button class="th-sidebar-icon" title="Clinic" aria-label="Clinic" onclick="showMyClinicOrJoin()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <span class="clinic-invite-badge" id="clinicInviteBadge" style="display:none">0</span>
-    </button>
-    <div class="th-sidebar-spacer"></div>
-    <button class="th-sidebar-icon" title="Settings" aria-label="Settings" onclick="showSettingsScreen()" style="margin-bottom:4px">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </button>
-    <button class="th-sidebar-icon" title="Sign Out" aria-label="Sign Out" onclick="requestLogout()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    <button class="rd-rail-profile" onclick="requestLogout()" aria-label="Sign out">
+      <span class="rd-rail-avatar" id="thRailAvatar">DR</span>
+      <span class="rd-rail-profile-info"><span class="rd-rail-name" id="thRailName">Therapist</span><span class="rd-rail-signout" data-i18n="pending.signOut">Sign out</span></span>
     </button>
   </div>
 
   <!-- Patient list column -->
-  <div class="sidebar th-patient-list">
-    <div class="sidebar-top">
-      <div class="th-list-header">
-        <span class="th-section-label">Patients</span>
-        <button class="th-add-btn" onclick="openBulkAssign()" title="Bulk Assign">Bulk Assign</button>
-      </div>
-      <div class="clinic-badge" onclick="copyClinicCode()" title="Click to copy">
-        <span>Invite code:</span>
-        <span class="clinic-badge-code" id="therapistCode">------</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-      </div>
-      <div class="sidebar-search-wrap">
-        <svg class="sidebar-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="patientSearch" class="sidebar-search" placeholder="Search patients..."
-               oninput="filterPatients(this.value)" />
-      </div>
-      <div id="patientRows" class="patient-rows"></div>
+  <div class="rd-plist">
+    <div class="rd-plist-header">
+      <span class="rd-plist-title" data-i18n="th.patients">Patients</span>
+      <button class="rd-plist-bulk" onclick="openBulkAssign()">Bulk Assign</button>
     </div>
-    <div class="sidebar-footer"></div>
+    <div class="rd-plist-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="patientSearch" aria-label="Search patients" placeholder="Search patients" oninput="filterPatients(this.value)" />
+    </div>
+    <button class="rd-plist-invite" onclick="copyClinicCode()" aria-label="Copy invite code">
+      <span class="rd-plist-invite-lbl">Invite code:</span>
+      <span class="rd-plist-invite-code" id="therapistCode">------</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    </button>
+    <div id="patientRows" class="rd-plist-rows"></div>
   </div>
 
   <!-- F-010: Protocol saved success banner -->
@@ -692,12 +679,9 @@
      PROGRESS SCREEN
 ═══════════════════════════════════════════════════════ -->
 <div id="progressScreen" class="screen patient-scope">
-  <div class="pt-subscreen">
-    <div class="pt-subscreen-header">
-      <h2 class="pt-subscreen-title">My Progress</h2>
-      <svg class="pt-home-wave" viewBox="0 0 390 20" preserveAspectRatio="none" aria-hidden="true"><path d="M0,10 Q97,0 195,10 Q293,20 390,10 L390,20 L0,20 Z" fill="#F0F9FF"/></svg>
-    </div>
-    <div id="progressContent" class="pt-subscreen-content"></div>
+  <div class="rd-screen">
+    <h1 class="rd-screen-title" style="margin-bottom:18px" data-i18n="prog.title">My Progress</h1>
+    <div id="progressContent"></div>
   </div>
 </div>
 
@@ -718,21 +702,24 @@
      MESSAGING SCREEN  (patient ↔ therapist)
 ═══════════════════════════════════════════════════════ -->
 <div id="messagingScreen" class="screen patient-scope">
-  <div class="pt-msg-screen">
-    <div class="pt-msg-header">
-      <span class="pt-msg-title" id="msgHeaderTitle">Therapist</span>
+  <div class="rd-msg">
+    <div class="rd-msg-header">
+      <button class="rd-back-sq" onclick="showScreen('patientScreen')" aria-label="Back">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="rd-msg-avatar" id="msgHeaderAvatar" aria-hidden="true"></span>
+      <span class="rd-msg-title" id="msgHeaderTitle">Therapist</span>
     </div>
-    <div class="msg-thread" id="msgThread"></div>
+    <div class="rd-msg-thread msg-thread" id="msgThread"></div>
     <div id="msgSendError" class="pt-msg-error" style="display:none;" aria-live="polite"></div>
-    <div class="pt-msg-input-row">
-      <input type="text" id="msgInput" class="pt-msg-input" placeholder="Type a message..."
+    <div class="rd-msg-composer">
+      <input type="text" id="msgInput" class="rd-msg-input" placeholder="Type a message..."
              maxlength="2000"
              onkeydown="if(event.key==='Enter'&&!document.getElementById('msgSendBtn').disabled)sendMessageFromPatient()"
              oninput="toggleMsgSend()" />
-      <button class="pt-msg-send-btn" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled
-              data-i18n-aria="msg.send">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
-        <span class="pt-msg-send-label" data-i18n="msg.send">Send</span>
+      <button class="rd-msg-send" id="msgSendBtn" onclick="sendMessageFromPatient()" disabled
+              data-i18n-aria="msg.send" aria-label="Send">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
       </button>
     </div>
   </div>
@@ -987,36 +974,28 @@
 <!-- ═══════════════════════════════════════════════════════
      SESSION SUMMARY OVERLAY
 ═══════════════════════════════════════════════════════ -->
-<div id="sessionSummaryOverlay" class="session-summary-overlay" style="display:none;">
-  <div class="summary-top">
-    <div class="summary-trophy"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
-    <h2 class="summary-title">Session Complete!</h2>
-    <p class="summary-subtitle">Great work today. Here's how you did:</p>
-  </div>
-  <div class="summary-stats-grid">
-    <div class="summary-stat-card">
-      <div id="summaryTotalReps" class="summary-stat-value summary-val-reps">0</div>
-      <div class="summary-stat-label">Total Reps</div>
+<div id="sessionSummaryOverlay" class="rd-done" style="display:none;">
+  <div class="rd-done-inner">
+    <div class="rd-done-medal"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <h2 class="rd-done-title" data-i18n="done.greatWork">Great work!</h2>
+    <p class="rd-done-sub" id="summaryMessage" data-i18n="done.sub">You finished today's session.</p>
+    <div class="rd-done-stats">
+      <div class="rd-done-stat">
+        <div class="rd-done-stat-val" id="summaryTotalReps">0</div>
+        <div class="rd-done-stat-lbl" data-i18n="done.totalReps">Total reps</div>
+      </div>
+      <div class="rd-done-stat">
+        <div class="rd-done-stat-val" id="summarySets">0</div>
+        <div class="rd-done-stat-lbl" data-i18n="done.setsDone">Sets done</div>
+      </div>
+      <div class="rd-done-stat">
+        <div class="rd-done-stat-val" id="summaryAvgPain">0</div>
+        <div class="rd-done-stat-lbl" data-i18n="done.avgPain">Avg pain</div>
+      </div>
     </div>
-    <div class="summary-stat-card">
-      <div id="summarySets" class="summary-stat-value summary-val-sets">0</div>
-      <div class="summary-stat-label">Sets Done</div>
-    </div>
-    <div class="summary-stat-card">
-      <div id="summaryMaxROM" class="summary-stat-value summary-val-rom">0°</div>
-      <div class="summary-stat-label">Max ROM</div>
-    </div>
-    <div class="summary-stat-card">
-      <div id="summaryAvgPain" class="summary-stat-value summary-val-pain">0</div>
-      <div class="summary-stat-label">Avg Pain</div>
-    </div>
-  </div>
-  <div class="summary-message-card">
-    <div id="summaryMessage" class="summary-message-text"></div>
-  </div>
-  <div class="summary-actions">
-    <button class="reset-btn summary-home-btn" onclick="dismissSummary()">Back to Home</button>
-    <button class="reset-btn summary-progress-btn" onclick="dismissSummaryToProgress()">View Progress</button>
+    <span id="summaryMaxROM" hidden></span>
+    <button class="rd-done-primary" onclick="dismissSummary()" data-i18n="done.backHome">Back to Home</button>
+    <button class="rd-done-secondary" onclick="dismissSummaryToProgress()" data-i18n="done.seeProgress">See My Progress</button>
   </div>
 </div>
 
@@ -1339,11 +1318,11 @@
      SETTINGS SCREEN
 ═══════════════════════════════════════════════════════ -->
 <div id="settingsScreen" class="screen patient-scope settings-screen">
-  <div class="settings-header">
-    <button class="settings-back-btn" onclick="showSettingsBack()" aria-label="Back">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  <div class="rd-settings-header">
+    <button class="rd-back-sq" onclick="showSettingsBack()" aria-label="Back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
-    <span class="settings-title" data-i18n="set.title">Settings</span>
+    <h1 class="rd-screen-title" data-i18n="set.title">Settings</h1>
   </div>
   <div class="settings-body">
     <div id="settingsSavedModal" class="settings-saved-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="settingsSavedModalTitle">
@@ -1362,18 +1341,26 @@
       <div class="settings-section-title" data-i18n="set.profile">Profile</div>
       <div class="settings-field">
         <label for="settingsName" data-i18n="set.name">Name</label>
-        <input type="text" id="settingsName" class="auth-input" maxlength="80" />
+        <input type="text" id="settingsName" class="rd-input" maxlength="80" />
       </div>
       <div class="settings-field">
         <label data-i18n="auth.email">Email</label>
-        <input type="email" id="settingsEmail" class="auth-input" disabled />
+        <input type="email" id="settingsEmail" class="rd-input" disabled />
       </div>
       <div class="settings-field">
         <label for="settingsLanguage" data-i18n="set.language">Language</label>
-        <select id="settingsLanguage" class="auth-select" onchange="setLanguage(this.value)">
+        <select id="settingsLanguage" class="rd-select" onchange="setLanguage(this.value)">
           <option value="en">English</option>
           <option value="es">Español</option>
         </select>
+      </div>
+      <div class="settings-field">
+        <label data-i18n="set.textSize">Text size</label>
+        <div class="rd-seg" id="settingsTextSize" role="group" aria-label="Text size">
+          <button type="button" class="rd-seg-btn" data-size="standard" onclick="setTextSize('standard')" data-i18n="set.textStandard">Standard</button>
+          <button type="button" class="rd-seg-btn" data-size="large" onclick="setTextSize('large')" data-i18n="set.textLarge">Large</button>
+          <button type="button" class="rd-seg-btn" data-size="largest" onclick="setTextSize('largest')" data-i18n="set.textLargest">Largest</button>
+        </div>
       </div>
     </div>
 

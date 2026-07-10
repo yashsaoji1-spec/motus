@@ -151,13 +151,16 @@ service cloud.firestore {
       ) && (!('notes' in request.resource.data) || request.resource.data.notes.size() <= 1000);
       // Only videoUrl and videoExpireAt may be updated (async video upload after session is saved).
       // Prevents retroactive modification of reps, pain, date, or other clinical fields.
+      // Patients may only update video keys (async upload after save).
+      // Therapists connected to the patient may additionally set review/flag
+      // fields (D-2) — but never clinical data (reps, pain, date).
       allow update: if isAuth() && (
-        myEmail() == resource.data.patientEmail ||
-        (isTherapist() && connectedToPatient(resource.data.patientEmail)) ||
-        isAdmin()
-      ) && (
         isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['videoUrl', 'videoExpireAt'])
+        (myEmail() == resource.data.patientEmail &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['videoUrl', 'videoExpireAt'])) ||
+        (isTherapist() && connectedToPatient(resource.data.patientEmail) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ['videoUrl', 'videoExpireAt', 'reviewed', 'reviewedBy', 'reviewedAt', 'flagged', 'flaggedAt']))
       );
       allow delete: if isAuth() && isAdmin();
     }

@@ -65,12 +65,14 @@ const I18N = {
     'auth.signInSub': 'Sign in to continue your recovery.',
     'auth.email': 'Email',
     'auth.password': 'Password',
-    'auth.forgotPassword': 'Forgot password?',
+    'auth.forgotPassword': 'I forgot my password',
     'auth.signIn': 'Sign In',
+    'auth.show': 'Show',
+    'auth.hide': 'Hide',
     'auth.signingIn': 'Signing in…',
     'auth.creatingAccount': 'Creating account…',
     'auth.newToMotus': 'New to Motus?',
-    'auth.createAccount': 'Create account',
+    'auth.createAccount': 'Create an Account',
     'auth.emailPlaceholder': 'you@example.com',
     'auth.passwordPlaceholder': 'Password',
     // Auth — signup
@@ -89,6 +91,9 @@ const I18N = {
     'signup.and': 'and',
     'signup.privacy': 'Privacy Policy',
     'signup.quickQuestions': 'A few quick questions',
+    'signup.step2': 'Step 2 of 2',
+    'signup.practiceArea': 'Practice area',
+    'signup.yearsExp': 'Years of experience',
     'signup.ageRange': 'Age range',
     'signup.injuryArea': 'Primary injury area',
     'signup.timeInRehab': 'Time in rehab',
@@ -147,10 +152,27 @@ const I18N = {
     'connect.clinicCode': 'Clinic Code',
     'connect.connect': 'Connect',
     'connect.skip': 'Skip for now',
+    'connect.help': "Your therapist or clinic gives you this 6-character code. Don't have one yet? You can skip and add it later.",
     // Patient home
     'home.loading': 'Loading…',
     'home.loadError': "Couldn't load your exercises — check your connection.",
     'home.goodMorning': 'Good morning',
+    'home.todaysPlan': "Today's plan",
+    'home.continueSession': 'Continue Session',
+    'home.days': 'days',
+    'home.thisWeek': 'Days exercised',
+    'home.painIs': 'Pain is',
+    'home.connectTherapist': 'Connect to a therapist',
+    'home.messageTherapist': 'Message your therapist',
+    'home.message': 'Message',
+    'home.doneToday': 'Done today',
+    'home.repsSetsShort': '{reps} reps · {sets} sets',
+    'home.setsProgress': '{done} of {total} sets done',
+    'home.nOfMDone': '{done} of {total} done',
+    'home.daysOfWeek': '{n} of 7',
+    'home.painDown': 'Going down',
+    'home.painUp': 'Going up',
+    'home.painSteady': 'Steady',
     'home.goodAfternoon': 'Good afternoon',
     'home.goodEvening': 'Good evening',
     'home.dayStreak': 'day streak',
@@ -168,15 +190,69 @@ const I18N = {
     'home.weekOf': 'Week of {date}',
     // Exercises
     'ex.myExercises': 'My Exercises',
+    'ex.assignedByTherapist': 'Assigned by your therapist',
+    'ex.demo': 'Demo',
+    'ex.noDemo': 'no demo video yet',
+    'ex.emptyTitle': 'No exercises yet',
+    'ex.emptySub': 'Your therapist will assign your plan.',
     'ex.repsSets': '{reps} reps × {sets} sets · {freq}',
     'ex.showAll': 'Show all {n} exercises',
     'ex.showLess': 'Show less',
     'ex.done': 'Done',
+    'prog.title': 'My Progress',
+    'prog.emptyTitle': 'No progress yet',
+    'prog.emptySub': 'Complete your first session to start tracking progress.',
+    'prog.startToday': "Start today's session",
+    'prog.today': 'Today',
+    'prog.4wks': '4 wks',
+    'prog.3wks': '3 wks',
+    'prog.2wks': '2 wks',
+    'prog.lastWk': 'Last wk',
+    'prog.now': 'Now',
+    'prog.doingWell': "You're doing well",
+    'prog.bannerMsg': "Pain is down and you've kept your routine {n} of the last 7 days.",
+    'prog.encGreat': "You're doing great",
+    'prog.encKeep': "Keep it going",
+    'prog.encBack': "Let's get back to it",
+    'prog.bpPainDown': "Your pain is trending down.",
+    'prog.bpPainUp': "Your pain has crept up a little.",
+    'prog.bpPainSteady': "Your pain has held steady.",
+    'prog.bpRoutine': "You've done your exercises {n} of the last 7 days.",
+    'prog.thisWeek': 'This week',
+    'prog.painAfter': 'Pain after exercise',
+    'prog.downFrom': 'down from',
+    'prog.upFrom': 'up from',
+    'prog.summaryChange': 'You report <b>{now}</b> now, {dir} <b>{prev}</b> a month ago.',
+    'prog.summarySteady': 'You report <b>{now}</b> now.',
     // Session / camera
     'cam.exercise': 'Exercise',
     'cam.readyForSet': 'Ready for set {cur} of {total} · tap record to start',
     'cam.recordTitle': 'Record your set',
-    'cam.recordHint': 'Tap record to open your camera. Film your set, then come back to log it.',
+    'cam.recordHint': 'Squeeze slowly, then release. Count out loud if it helps.',
+    'cam.setNofM': 'Set {n} of {m}',
+    'cam.nReps': '{n} reps',
+    'cam.cameraWillOpen': 'Your camera will open. Film your set, then come back here to log it.',
+    'cam.watchHowTo': 'Watch how to do it',
+    'cam.recordThisSet': 'Record This Set',
+    'pain.notAtAll': 'Not at all',
+    'pain.aLittle': 'A little',
+    'pain.quiteABit': 'Quite a bit',
+    'pain.aLot': 'A lot',
+    'si.videoSaved': 'Video saved',
+    'si.repsCompleted': 'Reps you completed',
+    'si.howMuchHurt': 'How much did it hurt?',
+    'si.anythingToAdd': 'Anything to add?',
+    'si.optional': '(optional)',
+    'si.chipStrong': 'Felt strong',
+    'si.chipStiff': 'A bit stiff',
+    'si.chipSharp': 'Sharp pain',
+    'si.chipNote': 'Type a note…',
+    'si.discardSet': 'Discard this set',
+    'si.howDidSetGo': 'How did set {n} go?',
+    'si.goalWas': 'Goal was {n}',
+    'si.saveNLeft': 'Save · {n} sets left',
+    'si.saveOneLeft': 'Save · 1 set left',
+    'si.saveFinish': 'Save · finish',
     'cam.recordSet': 'Record set',
     'cam.watchDemo': 'Watch demo',
     'cam.logWithoutVideo': 'Log without video',
@@ -188,12 +264,41 @@ const I18N = {
     'cam.saving': 'Saving session…',
     // Messaging
     'msg.send': 'Send',
+    'done.greatWork': 'Great work!',
+    'done.sub': "You finished today's session.",
+    'done.painHigh': "You finished — but your pain was high. Let your therapist know.",
+    'done.totalReps': 'Total reps',
+    'done.setsDone': 'Sets done',
+    'done.avgPain': 'Avg pain',
+    'done.backHome': 'Back to Home',
+    'done.seeProgress': 'See My Progress',
     'msg.sendError': 'Message not sent — try again',
     // Admin
     'admin.therapistApproved': 'Therapist approved',
     'admin.approving': 'Approving…',
     'admin.approveError': 'Could not approve therapist — try again.',
     // Therapist protocol modal
+    'th.patients': 'Patients',
+    'th.needsReview': 'Needs review',
+    'th.allPatients': 'All patients',
+    'th.selectPatient': 'Select a patient',
+    'th.selectPatientHint': 'Pick someone from the list to see their sessions, pain trend, and assigned protocols.',
+    'th.onTrack': 'On track',
+    'th.dayStreak': '{n} day streak',
+    'th.highPain': 'Reported high pain',
+    'th.noSessionDays': 'No session in {n} days',
+    'th.lastActive': 'Active {ago}',
+    'th.avgPain': 'avg pain {v}',
+    'th.flaggedFollowUp': 'Flagged for follow-up',
+    'th.noSessionsYet': 'No sessions yet',
+    'th.reviewN': 'Review {n}',
+    'th.painReported': 'Pain reported: {level}',
+    'th.flag': 'Flag',
+    'th.flagged': 'Flagged',
+    'th.markReviewed': 'Mark reviewed',
+    'th.reviewTitle': 'Sessions to review',
+    'th.reviewAllDone': 'All caught up — nothing to review.',
+    'th.markAllReviewed': 'Mark all reviewed',
     'th.assignSaving': 'Saving…',
     'th.protocolSaved': 'Protocol saved',
     'th.assignError': 'Could not save protocol — check your connection.',
@@ -222,6 +327,10 @@ const I18N = {
     'set.name': 'Name',
     'set.aboutYou': 'About You',
     'set.language': 'Language',
+    'set.textSize': 'Text size',
+    'set.textStandard': 'Standard',
+    'set.textLarge': 'Large',
+    'set.textLargest': 'Largest',
     'set.help': 'Help',
     'set.replayTutorial': 'Replay tutorial',
     'set.account': 'Account',
@@ -241,18 +350,21 @@ const I18N = {
     'confirm.rejectTherapist.ok': 'Reject Account',
     'confirm.deleteAccount.body': 'This will permanently delete your account, all session history, and all videos. This can\'t be undone.',
     'confirm.deleteAccount.ok': 'Delete Account',
+    'confirm.typeToConfirm': 'Type {word} to confirm',
   },
   es: {
     'auth.welcomeBack': 'Bienvenido de nuevo',
     'auth.signInSub': 'Inicia sesión para continuar tu recuperación.',
     'auth.email': 'Correo electrónico',
     'auth.password': 'Contraseña',
-    'auth.forgotPassword': '¿Olvidaste tu contraseña?',
+    'auth.forgotPassword': 'Olvidé mi contraseña',
     'auth.signIn': 'Iniciar sesión',
+    'auth.show': 'Mostrar',
+    'auth.hide': 'Ocultar',
     'auth.signingIn': 'Iniciando sesión…',
     'auth.creatingAccount': 'Creando cuenta…',
     'auth.newToMotus': '¿Nuevo en Motus?',
-    'auth.createAccount': 'Crear cuenta',
+    'auth.createAccount': 'Crear una cuenta',
     'auth.emailPlaceholder': 'tu@ejemplo.com',
     'auth.passwordPlaceholder': 'Contraseña',
     'signup.title': 'Crear cuenta',
@@ -270,6 +382,9 @@ const I18N = {
     'signup.and': 'y',
     'signup.privacy': 'Política de privacidad',
     'signup.quickQuestions': 'Unas preguntas rápidas',
+    'signup.step2': 'Paso 2 de 2',
+    'signup.practiceArea': 'Área de práctica',
+    'signup.yearsExp': 'Años de experiencia',
     'signup.ageRange': 'Rango de edad',
     'signup.injuryArea': 'Zona principal de lesión',
     'signup.timeInRehab': 'Tiempo en rehabilitación',
@@ -324,9 +439,26 @@ const I18N = {
     'connect.clinicCode': 'Código de la clínica',
     'connect.connect': 'Conectar',
     'connect.skip': 'Omitir por ahora',
+    'connect.help': 'Tu terapeuta o clínica te da este código de 6 caracteres. ¿Aún no tienes uno? Puedes omitir y agregarlo más tarde.',
     'home.loading': 'Cargando…',
     'home.loadError': 'No pudimos cargar tus ejercicios — verifica tu conexión.',
     'home.goodMorning': 'Buenos días',
+    'home.todaysPlan': 'Plan de hoy',
+    'home.continueSession': 'Continuar sesión',
+    'home.days': 'días',
+    'home.thisWeek': 'Días con ejercicio',
+    'home.painIs': 'El dolor está',
+    'home.connectTherapist': 'Conéctate con un terapeuta',
+    'home.messageTherapist': 'Envía un mensaje a tu terapeuta',
+    'home.message': 'Mensaje',
+    'home.doneToday': 'Hecho hoy',
+    'home.repsSetsShort': '{reps} reps · {sets} series',
+    'home.setsProgress': '{done} de {total} series hechas',
+    'home.nOfMDone': '{done} de {total} hecho',
+    'home.daysOfWeek': '{n} de 7',
+    'home.painDown': 'Bajando',
+    'home.painUp': 'Subiendo',
+    'home.painSteady': 'Estable',
     'home.goodAfternoon': 'Buenas tardes',
     'home.goodEvening': 'Buenas noches',
     'home.dayStreak': 'días seguidos',
@@ -343,12 +475,66 @@ const I18N = {
     'home.yourTherapist': 'Tu terapeuta',
     'home.weekOf': 'Semana del {date}',
     'ex.myExercises': 'Mis ejercicios',
+    'ex.assignedByTherapist': 'Asignado por tu terapeuta',
+    'ex.demo': 'Demo',
+    'ex.noDemo': 'aún sin video',
+    'ex.emptyTitle': 'Aún no hay ejercicios',
+    'ex.emptySub': 'Tu terapeuta asignará tu plan.',
     'ex.repsSets': '{reps} reps × {sets} series · {freq}',
     'ex.showAll': 'Ver los {n} ejercicios',
     'ex.showLess': 'Ver menos',
     'ex.done': 'Hecho',
+    'prog.title': 'Mi progreso',
+    'prog.emptyTitle': 'Aún no hay progreso',
+    'prog.emptySub': 'Completa tu primera sesión para empezar a ver tu progreso.',
+    'prog.startToday': 'Comienza la sesión de hoy',
+    'prog.today': 'Hoy',
+    'prog.4wks': '4 sem',
+    'prog.3wks': '3 sem',
+    'prog.2wks': '2 sem',
+    'prog.lastWk': 'Sem pas.',
+    'prog.now': 'Ahora',
+    'prog.doingWell': 'Vas muy bien',
+    'prog.bannerMsg': 'El dolor bajó y mantuviste tu rutina {n} de los últimos 7 días.',
+    'prog.encGreat': 'Vas muy bien',
+    'prog.encKeep': 'Sigue así',
+    'prog.encBack': 'Retomemos el ritmo',
+    'prog.bpPainDown': 'Tu dolor va bajando.',
+    'prog.bpPainUp': 'Tu dolor subió un poco.',
+    'prog.bpPainSteady': 'Tu dolor se ha mantenido estable.',
+    'prog.bpRoutine': 'Hiciste tus ejercicios {n} de los últimos 7 días.',
+    'prog.thisWeek': 'Esta semana',
+    'prog.painAfter': 'Dolor después del ejercicio',
+    'prog.downFrom': 'menos que',
+    'prog.upFrom': 'más que',
+    'prog.summaryChange': 'Reportas <b>{now}</b> ahora, {dir} <b>{prev}</b> hace un mes.',
+    'prog.summarySteady': 'Reportas <b>{now}</b> ahora.',
     'cam.exercise': 'Ejercicio',
     'cam.readyForSet': 'Listo para la serie {cur} de {total} · toca grabar para empezar',
+    'cam.setNofM': 'Serie {n} de {m}',
+    'cam.nReps': '{n} reps',
+    'cam.cameraWillOpen': 'Se abrirá tu cámara. Graba tu serie y vuelve aquí para registrarla.',
+    'cam.watchHowTo': 'Mira cómo hacerlo',
+    'cam.recordThisSet': 'Grabar esta serie',
+    'pain.notAtAll': 'Nada',
+    'pain.aLittle': 'Un poco',
+    'pain.quiteABit': 'Bastante',
+    'pain.aLot': 'Mucho',
+    'si.videoSaved': 'Video guardado',
+    'si.repsCompleted': 'Repeticiones que hiciste',
+    'si.howMuchHurt': '¿Cuánto te dolió?',
+    'si.anythingToAdd': '¿Algo que agregar?',
+    'si.optional': '(opcional)',
+    'si.chipStrong': 'Me sentí fuerte',
+    'si.chipStiff': 'Un poco rígido',
+    'si.chipSharp': 'Dolor agudo',
+    'si.chipNote': 'Escribe una nota…',
+    'si.discardSet': 'Descartar esta serie',
+    'si.howDidSetGo': '¿Cómo fue la serie {n}?',
+    'si.goalWas': 'La meta era {n}',
+    'si.saveNLeft': 'Guardar · quedan {n} series',
+    'si.saveOneLeft': 'Guardar · queda 1 serie',
+    'si.saveFinish': 'Guardar · terminar',
     'cam.recordTitle': 'Graba tu serie',
     'cam.recordHint': 'Toca grabar para abrir tu cámara. Graba tu serie y vuelve para registrarla.',
     'cam.recordSet': 'Grabar serie',
@@ -361,10 +547,39 @@ const I18N = {
     'cam.sessionSaved': '¡Sesión guardada!',
     'cam.saving': 'Guardando sesión…',
     'msg.send': 'Enviar',
+    'done.greatWork': '¡Buen trabajo!',
+    'done.sub': 'Terminaste la sesión de hoy.',
+    'done.painHigh': 'Terminaste, pero tu dolor fue alto. Avísale a tu terapeuta.',
+    'done.totalReps': 'Reps totales',
+    'done.setsDone': 'Series hechas',
+    'done.avgPain': 'Dolor prom.',
+    'done.backHome': 'Volver al inicio',
+    'done.seeProgress': 'Ver mi progreso',
     'msg.sendError': 'Mensaje no enviado — inténtalo de nuevo',
     'admin.therapistApproved': 'Terapeuta aprobado',
     'admin.approving': 'Aprobando…',
     'admin.approveError': 'No se pudo aprobar al terapeuta — inténtalo de nuevo.',
+    'th.patients': 'Pacientes',
+    'th.needsReview': 'Requiere revisión',
+    'th.allPatients': 'Todos los pacientes',
+    'th.selectPatient': 'Selecciona un paciente',
+    'th.selectPatientHint': 'Elige a alguien de la lista para ver sus sesiones, tendencia de dolor y protocolos asignados.',
+    'th.onTrack': 'En buen camino',
+    'th.dayStreak': 'racha de {n} días',
+    'th.highPain': 'Reportó dolor alto',
+    'th.noSessionDays': 'Sin sesión en {n} días',
+    'th.lastActive': 'Activo {ago}',
+    'th.avgPain': 'dolor prom. {v}',
+    'th.flaggedFollowUp': 'Marcado para seguimiento',
+    'th.noSessionsYet': 'Sin sesiones aún',
+    'th.reviewN': 'Revisar {n}',
+    'th.painReported': 'Dolor reportado: {level}',
+    'th.flag': 'Marcar',
+    'th.flagged': 'Marcado',
+    'th.markReviewed': 'Marcar revisado',
+    'th.reviewTitle': 'Sesiones por revisar',
+    'th.reviewAllDone': 'Todo al día — nada por revisar.',
+    'th.markAllReviewed': 'Marcar todo como revisado',
     'th.assignSaving': 'Guardando…',
     'th.protocolSaved': 'Protocolo guardado',
     'th.assignError': 'No se pudo guardar el protocolo — verifica tu conexión.',
@@ -389,6 +604,10 @@ const I18N = {
     'set.name': 'Nombre',
     'set.aboutYou': 'Sobre ti',
     'set.language': 'Idioma',
+    'set.textSize': 'Tamaño del texto',
+    'set.textStandard': 'Normal',
+    'set.textLarge': 'Grande',
+    'set.textLargest': 'Máximo',
     'set.help': 'Ayuda',
     'set.replayTutorial': 'Ver el tutorial de nuevo',
     'set.account': 'Cuenta',
@@ -408,6 +627,7 @@ const I18N = {
     'confirm.rejectTherapist.ok': 'Rechazar cuenta',
     'confirm.deleteAccount.body': 'Esto eliminará permanentemente tu cuenta, todo tu historial de sesiones y todos los videos. Esta acción no se puede deshacer.',
     'confirm.deleteAccount.ok': 'Eliminar cuenta',
+    'confirm.typeToConfirm': 'Escribe {word} para confirmar',
   },
 };
 
@@ -448,6 +668,41 @@ function applyTranslations(root) {
 
 // Set the active language: update memory, <html lang>, localStorage, repaint
 // static strings, and re-render the visible patient screen if it's data-driven.
+// Redesign (2p): accessibility text-size setting. Scales the whole rd type ramp
+// via the --font-scale CSS var. Persisted to localStorage; applied on load.
+const RD_TEXT_SIZES = ['standard', 'large', 'largest'];
+function setTextSize(size) {
+  if (!RD_TEXT_SIZES.includes(size)) size = 'standard';
+  document.documentElement.setAttribute('data-text-size', size);
+  try { localStorage.setItem('motus_text_size', size); } catch (_) {}
+  document.querySelectorAll('#settingsTextSize .rd-seg-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.size === size);
+    b.setAttribute('aria-pressed', String(b.dataset.size === size));
+  });
+}
+function initTextSize() {
+  let saved = 'standard';
+  try { saved = localStorage.getItem('motus_text_size') || 'standard'; } catch (_) {}
+  setTextSize(saved);
+}
+
+// Redesign: consent (2e) primary button stays disabled until both boxes checked
+function rdConsentGate() {
+  const a = document.getElementById('consentCheckbox');
+  const b = document.getElementById('nppCheckbox');
+  const btn = document.getElementById('consentContinueBtn');
+  if (btn) btn.disabled = !(a && a.checked && b && b.checked);
+}
+
+// Redesign: show/hide password toggle (auth screens 2a/2b/3b)
+function rdTogglePassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  if (btn) btn.textContent = show ? (t('auth.hide') || 'Hide') : (t('auth.show') || 'Show');
+}
+
 function setLanguage(code, opts) {
   const o = opts || {};
   if (!SUPPORTED_LANGS.includes(code)) code = 'en';
@@ -1137,6 +1392,9 @@ function showSettingsScreen() {
   setVal('settingsPracticeArea', u.therapistProfile?.practiceArea || '');
   setVal('settingsYearsExp',     u.therapistProfile?.yearsExperience || '');
   const isPatient = currentRole === 'patient';
+  // Only patients have the fixed bottom nav — lift the Save footer above it for
+  // them, but keep it flush at the bottom for therapists (no nav, no gap).
+  document.getElementById('settingsScreen').classList.toggle('settings-with-nav', isPatient);
   const patSec = document.getElementById('settingsPatientSection');
   const thSec  = document.getElementById('settingsTherapistSection');
   const dlBtn  = document.getElementById('settingsDownloadBtn');
@@ -1419,14 +1677,41 @@ let _confirmCallback = null;
 
 let _confirmEscHandler = null;
 
-function _openConfirmModal(bodyKey, okKey, callback) {
+function _openConfirmModal(bodyKey, okKey, callback, requireType) {
   _confirmCallback = callback;
   const el = document.getElementById('confirmModal');
   if (!el) { console.error('[Motus] confirmModal missing'); return; }
   document.getElementById('confirmModalTitle').textContent = t('confirm.title');
   document.getElementById('confirmModalBody').textContent  = t(bodyKey);
-  document.getElementById('confirmModalOk').textContent    = t(okKey);
+  const okBtn = document.getElementById('confirmModalOk');
+  okBtn.textContent = t(okKey);
   document.getElementById('confirmModalCancel').textContent = t('confirm.cancel');
+
+  // Type-to-confirm gate (3i) — for destructive, irreversible actions the OK
+  // button stays disabled until the user types the exact confirmation word.
+  const oldGate = document.getElementById('confirmTypeGate');
+  if (oldGate) oldGate.remove();
+  if (requireType) {
+    const gate = document.createElement('div');
+    gate.id = 'confirmTypeGate';
+    gate.className = 'confirm-type-gate';
+    gate.innerHTML = `<label class="confirm-type-label" for="confirmTypeInput">${t('confirm.typeToConfirm', { word: requireType })}</label>
+      <input type="text" id="confirmTypeInput" class="confirm-type-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />`;
+    document.getElementById('confirmModalBody').insertAdjacentElement('afterend', gate);
+    okBtn.disabled = true;
+    okBtn.classList.add('is-disabled');
+    const input = document.getElementById('confirmTypeInput');
+    input.addEventListener('input', () => {
+      const match = input.value.trim() === requireType;
+      okBtn.disabled = !match;
+      okBtn.classList.toggle('is-disabled', !match);
+    });
+    requestAnimationFrame(() => input.focus());
+  } else {
+    okBtn.disabled = false;
+    okBtn.classList.remove('is-disabled');
+  }
+
   el.style.display = 'flex';
   const cancelBtn = document.getElementById('confirmModalCancel');
   if (cancelBtn) cancelBtn.focus();
@@ -1438,6 +1723,10 @@ function _closeConfirmModal() {
   const el = document.getElementById('confirmModal');
   if (el) el.style.display = 'none';
   _confirmCallback = null;
+  const gate = document.getElementById('confirmTypeGate');
+  if (gate) gate.remove();
+  const okBtn = document.getElementById('confirmModalOk');
+  if (okBtn) { okBtn.disabled = false; okBtn.classList.remove('is-disabled'); }
   if (_confirmEscHandler) {
     document.removeEventListener('keydown', _confirmEscHandler);
     _confirmEscHandler = null;
@@ -1445,6 +1734,8 @@ function _closeConfirmModal() {
 }
 
 function _doConfirm() {
+  const okBtn = document.getElementById('confirmModalOk');
+  if (okBtn && okBtn.disabled) return; // type-to-confirm gate not satisfied
   const cb = _confirmCallback;
   _closeConfirmModal();
   if (cb) {
@@ -2050,6 +2341,8 @@ async function updatePatientHomeScreen() {
   const greeting = hour < 12 ? t('home.goodMorning') : hour < 17 ? t('home.goodAfternoon') : t('home.goodEvening');
   document.getElementById('patientGreeting').textContent    = greeting;
   document.getElementById('patientDisplayName').textContent = currentUser.name;
+  const _homeDateEl = document.getElementById('ptHomeDate');
+  if (_homeDateEl) _homeDateEl.textContent = new Date().toLocaleDateString(dateLocale(), { weekday: 'long', month: 'long', day: 'numeric' });
 
   // F-008: show loading placeholder while queries run
   const loadErrorEl = document.getElementById('ptHomeLoadError');
@@ -2104,20 +2397,27 @@ async function updatePatientHomeScreen() {
     weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
     if (kickerEl) kickerEl.textContent = t('home.weekOf', { date: weekStart.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' }) });
     if (freqEl) freqEl.textContent = getFrequencyLabel(p0.frequency);
-    if (titleEl) titleEl.textContent = protocolName;
+    if (titleEl) titleEl.textContent = t('home.todaysPlan');
     if (subtitleEl) subtitleEl.textContent = t(protocols.length === 1 ? 'home.exercisesOne' : 'home.exercisesMany', { n: protocols.length, action: t('home.recordEachSet') });
   } else {
-    if (kickerEl) kickerEl.textContent = t('home.yourProtocol').toUpperCase();
+    if (kickerEl) kickerEl.textContent = t('home.todaysPlan').toUpperCase();
     if (freqEl) freqEl.textContent = '';
-    if (titleEl) titleEl.textContent = t('home.noProtocol');
+    if (titleEl) titleEl.textContent = t('home.todaysPlan');
     if (subtitleEl) subtitleEl.textContent = t('home.askTherapist');
   }
 
-  // Protocol card exercise list with checkmarks
-  const completedTypes = new Set(sessions.filter(s => {
-    const d = new Date(s.date);
-    return d.toDateString() === new Date().toDateString();
-  }).map(s => s.exerciseType));
+  // Protocol card exercise list with checkmarks.
+  // An exercise is "done today" only when the prescribed number of SETS has been
+  // logged today — not merely because one set exists. Match sessions to a
+  // protocol by protocolId, falling back to exerciseType for older docs.
+  const _todayStr = new Date().toDateString();
+  const _todaySessions = sessions.filter(s => new Date(s.date).toDateString() === _todayStr);
+  const setsDoneFor = (p) => _todaySessions.reduce((n, s) => {
+    const match = (s.protocolId && p.id && s.protocolId === p.id) ||
+                  (!s.protocolId && s.exerciseType === p.exerciseType);
+    if (!match) return n;
+    return n + ((s.setData && s.setData.length) ? s.setData.length : 1);
+  }, 0);
 
   const planList = document.getElementById('todaysPlanList');
   if (planList) {
@@ -2127,13 +2427,25 @@ async function updatePatientHomeScreen() {
       _exercisesProtocols = protocols;
       planList.innerHTML = protocols.map((p, i) => {
         const name = exName(p.exerciseType, p.exerciseName);
-        const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
-        const done = completedTypes.has(p.exerciseType);
-        const checkSvg = done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
-        return `<li class="pt-protocol-item${done ? ' done' : ''}" tabindex="0" style="cursor:pointer" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="pt-protocol-check${done ? ' done' : ''}">${checkSvg}</div><span class="pt-protocol-item-name">${escapeHtml(name)}</span><span class="pt-protocol-item-dose">${dose}</span><svg class="pt-protocol-item-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></li>`;
+        const target = p.sets || 3;
+        const setsDone = setsDoneFor(p);
+        const done = setsDone >= target;
+        const sub = done
+          ? t('home.doneToday')
+          : setsDone > 0
+            ? t('home.setsProgress', { done: setsDone, total: target })
+            : t('home.repsSetsShort', { reps: p.reps || 10, sets: target });
+        const check = done ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
+        const chevron = done ? '' : '<svg class="rd-plan-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+        return `<li class="rd-plan-item${done ? ' done' : ''}" tabindex="0" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="rd-plan-check${done ? ' done' : ''}">${check}</div><div class="rd-plan-item-body"><div class="rd-plan-item-name">${escapeHtml(name)}</div><div class="rd-plan-item-sub">${sub}</div></div>${chevron}</li>`;
       }).join('');
+      const _doneCount = protocols.filter(p => setsDoneFor(p) >= (p.sets || 3)).length;
+      const _planDoneEl = document.getElementById('ptPlanDone');
+      if (_planDoneEl) _planDoneEl.textContent = t('home.nOfMDone', { done: _doneCount, total: protocols.length });
     } else {
-      planList.innerHTML = `<li class="pt-protocol-empty">${t('home.noExercisesYet')}</li>`;
+      planList.innerHTML = `<li class="rd-plan-empty">${t('home.noExercisesYet')}</li>`;
+      const _planDoneEl = document.getElementById('ptPlanDone');
+      if (_planDoneEl) _planDoneEl.textContent = '';
     }
   }
 
@@ -2166,11 +2478,18 @@ async function updatePatientHomeScreen() {
   const avgPainEl = document.getElementById('ptStatAvgPain');
   const adhDeltaEl = document.getElementById('ptStatAdherenceDelta');
   const painDeltaEl = document.getElementById('ptStatAvgPainDelta');
-  const adhColor = adherencePct >= 80 ? '#059669' : adherencePct >= 50 ? '#D97706' : '#DC2626';
-  if (adherenceEl) adherenceEl.innerHTML = `<span style="color:${adhColor}">${adherencePct}</span><span class="pt-stat-unit">%</span>`;
-  if (avgPainEl) avgPainEl.innerHTML = avgPain7d !== null ? `${avgPain7d}<span class="pt-stat-unit">/10</span>` : '\u2014';
-  if (adhDeltaEl) adhDeltaEl.textContent = adhDelta !== 0 ? `${adhDelta > 0 ? '+' : ''}${adhDelta}% vs last week` : '';
-  if (painDeltaEl && painDelta !== null) painDeltaEl.textContent = parseFloat(painDelta) !== 0 ? `${parseFloat(painDelta) > 0 ? '+' : ''}${painDelta} vs last week` : '';
+  // "This week" = distinct active days in the last 7 (design 2h: "5 of 7 days")
+  const daysThisWeek = new Set(recent7.map(s => new Date(s.date).toDateString())).size;
+  if (adherenceEl) adherenceEl.textContent = sessions.length ? t('home.daysOfWeek', { n: daysThisWeek }) : '\u2014';
+  // Worded pain trend (redesign D-1): direction, never a bare number
+  let painWord = '\u2014', painClass = '';
+  if (avgPain7d !== null && painDelta !== null) {
+    const d = parseFloat(painDelta);
+    if (d <= -0.3)      { painWord = t('home.painDown');   painClass = 'teal'; }
+    else if (d >= 0.3)  { painWord = t('home.painUp'); }
+    else                { painWord = t('home.painSteady'); painClass = 'teal'; }
+  } else if (avgPain7d !== null) { painWord = t('home.painSteady'); painClass = 'teal'; }
+  if (avgPainEl) { avgPainEl.textContent = painWord; avgPainEl.className = 'rd-stat-big ' + painClass; }
 
   // Hidden stub (completionStatus preserved for legacy code paths)
   const planCard = document.getElementById('todaysPlanCard');
@@ -2219,8 +2538,8 @@ async function updatePatientHomeScreen() {
   const labelEl = document.getElementById('streakLabel');
   const bestEl  = document.getElementById('streakBest');
   if (badgeEl && streak.current > 0) {
-    badgeEl.style.display = 'flex';
-    if (!badgeEl.querySelector('.streak-flame')) badgeEl.insertAdjacentHTML('afterbegin', '<span class="streak-flame"><svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><path d="M12 23c-3.6 0-8-2.4-8-8.5C4 9.8 9 4.3 11.4 2c.4-.3.9 0 .9.5-.2 3 1.6 5.2 3.2 6.8 1.5 1.5 3.5 3 3.5 5.2 0 4.5-3 8.5-7 8.5z"/></svg></span>');
+    badgeEl.style.display = 'inline-flex';
+    // (flame icon is already in the markup as .rd-streak-flame — no JS insert)
     countEl.textContent   = streak.current;
     labelEl.textContent   = t('home.dayStreak');
     if (streak.best > 1) bestEl.textContent = `Best: ${streak.best} days`;
@@ -2388,11 +2707,10 @@ async function openManualCameraSession(protocol) {
   const btnsEl = document.getElementById('manualCamBtns');
 
   if (nameEl) nameEl.textContent = exName(protocol.exerciseType, protocol.exerciseName) || t('cam.exercise');
-  const exIdx = (_manualCamExerciseIndex || 0) + 1;
-  const exTotal = _manualCamTotalExercises || 1;
-  if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
+  if (setInfoEl) setInfoEl.textContent = t('cam.setNofM', { n: _manualCamCurrentSet, m: _manualCamTotalSets });
   const targetEl = document.getElementById('manualCamTarget');
-  if (targetEl) targetEl.textContent = `Target ${_manualCamTotalSets}\u00D7${protocol.reps || 10}`;
+  if (targetEl) targetEl.textContent = t('cam.nReps', { n: protocol.reps || 10 });
+  rdRenderCamProgress();
   manualCamSetReadyState();
 
   showScreen('manualCamScreen');
@@ -2412,16 +2730,27 @@ function manualCamSetReadyState() {
 
   if (promptEl) promptEl.textContent = t('cam.recordHint');
 
-  let html = `
-    <button class="mcam-record-btn" onclick="manualCamPickVideo()" aria-label="${t('cam.recordSet')}">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-      <span>${t('cam.recordSet')}</span>
-    </button>`;
+  let html = '';
   if (demoUrl) {
-    html += `<button class="mcam-link-btn" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName))}')">${t('cam.watchDemo')}</button>`;
+    html += `<button class="rd-rec-demo" onclick="playProtocolDemo('${escJsAttr(demoUrl)}', '${escJsAttr(exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName))}')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>${t('cam.watchHowTo')}</span></button>`;
   }
-  html += `<button class="mcam-link-btn" onclick="manualCamLogWithoutVideo()">${t('cam.logWithoutVideo')}</button>`;
+  html += `<button class="rd-rec-record" onclick="manualCamPickVideo()" aria-label="${t('cam.recordThisSet')}"><span class="rd-rec-dot"></span><span>${t('cam.recordThisSet')}</span></button>`;
+  html += `<button class="rd-rec-logwithout" onclick="manualCamLogWithoutVideo()">${t('cam.logWithoutVideo')}</button>`;
   if (btnsEl) btnsEl.innerHTML = html;
+}
+
+// Redesign: 3-segment set-progress bar on the record screen (2k)
+function rdRenderCamProgress() {
+  const el = document.getElementById('manualCamProgress');
+  if (!el) return;
+  const total = _manualCamTotalSets || 1;
+  const cur = _manualCamCurrentSet || 1;
+  let segs = '';
+  for (let i = 1; i <= total; i++) {
+    const cls = i < cur ? 'done' : i === cur ? 'current' : '';
+    segs += `<div class="rd-rec-seg ${cls}"></div>`;
+  }
+  el.innerHTML = segs;
 }
 
 // Opens the device's native camera (or file picker on desktop). The chosen video
@@ -2472,27 +2801,27 @@ function openSetInputModal() {
 
   const defaultReps = _manualCamProtocol?.reps || 10;
   if (repsInput) repsInput.value = defaultReps;
-  if (painInput) painInput.value = 1;
-  if (notesInput) notesInput.value = '';
+  if (painInput) painInput.value = 0;
+  if (notesInput) { notesInput.value = ''; notesInput.style.display = 'none'; }
 
   const badge = document.getElementById('setInputBadgeText');
-  if (badge) badge.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets} complete`;
-
-  const exNameEl = document.getElementById('setInputExName');
-  if (exNameEl) exNameEl.textContent = exName(_manualCamProtocol?.exerciseType, _manualCamProtocol?.exerciseName).toUpperCase();
+  if (badge) badge.textContent = t('si.howDidSetGo', { n: _manualCamCurrentSet });
 
   const repsDisp = document.getElementById('siRepsDisplay');
   const repsTgt = document.getElementById('siRepsTarget');
   if (repsDisp) repsDisp.textContent = defaultReps;
-  if (repsTgt) repsTgt.textContent = `TARGET ${defaultReps}`;
+  if (repsTgt) repsTgt.textContent = t('si.goalWas', { n: defaultReps });
 
   siInitPainGrid();
-  siSelectPain(1);
+  siSelectPain(0);
 
-  document.querySelectorAll('.si-chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#setInputModal .rd-chip').forEach(c => c.classList.remove('active'));
 
+  const setsLeft = _manualCamTotalSets - _manualCamCurrentSet;
   const saveBtn = document.querySelector('.si-save-btn');
-  if (saveBtn) saveBtn.textContent = _manualCamCurrentSet >= _manualCamTotalSets ? 'Save · finish →' : 'Save · next set →';
+  if (saveBtn) saveBtn.textContent = setsLeft > 0
+    ? (setsLeft === 1 ? t('si.saveOneLeft') : t('si.saveNLeft', { n: setsLeft }))
+    : t('si.saveFinish');
 
   if (setInput) setInput.style.display = 'flex';
 }
@@ -2504,7 +2833,8 @@ function manualCamCancelSet() {
 
 async function manualCamSaveSet() {
   const reps = Math.max(0, Math.min(100, parseInt(document.getElementById('setInputReps').value) || 0));
-  const pain = Math.max(1, Math.min(10, parseInt(document.getElementById('setInputPain').value) || 1));
+  const _rawPain = parseInt(document.getElementById('setInputPain').value);
+  const pain = Math.max(0, Math.min(10, isNaN(_rawPain) ? 0 : _rawPain));
   const chips = [...document.querySelectorAll('.si-chip.active')].map(c => c.textContent).join(', ');
   const noteText = (document.getElementById('setInputNotes').value || '').trim();
   const notes = [chips, noteText].filter(Boolean).join(' · ');
@@ -2591,15 +2921,25 @@ async function finishManualCamSession() {
   }
 
   _manualCamProtocol = null;
+  const _setCount = _manualCamSetData.length;
   _manualCamSetData = [];
   await updatePatientHomeScreen();
   showScreen('patientScreen');
   if (saveOk) {
-    const banner = document.getElementById('ptSessionSavedBanner');
-    if (banner) {
-      banner.style.display = 'block';
-      setTimeout(() => { banner.style.display = 'none'; }, 3000);
-    }
+    // Show the "Great work!" celebration (design 3l) — populated from this
+    // session. Replaces the old 3-second banner with the built completion screen.
+    const _rep = document.getElementById('summaryTotalReps');
+    const _set = document.getElementById('summarySets');
+    const _pain = document.getElementById('summaryAvgPain');
+    const _msg = document.getElementById('summaryMessage');
+    if (_rep) _rep.textContent = totalReps;
+    if (_set) _set.textContent = _setCount;
+    if (_pain) _pain.textContent = painBucketLabel(avgPain); // D-1: worded, not a number
+    if (_msg) _msg.textContent = avgPain >= 7
+      ? t('done.painHigh')
+      : t('done.sub');
+    const overlay = document.getElementById('sessionSummaryOverlay');
+    if (overlay) overlay.style.display = 'flex';
   }
 }
 
@@ -2951,7 +3291,7 @@ async function editProtocol(patientEmail, protocolId) {
 
   const modal = document.getElementById('addProtocolModal');
   if (!modal) return;
-  const panelHeader = document.querySelector('.patient-panel-hdr h3');
+  const panelHeader = document.querySelector('.patient-detail .pd-name') || document.querySelector('.patient-panel-hdr h3');
   document.getElementById('apmPatientName').textContent = panelHeader ? panelHeader.textContent : patientEmail;
   document.getElementById('apmTitle').textContent = 'Edit Exercise';
   document.getElementById('apmSubmitBtn').textContent = 'Save Changes';
@@ -3571,11 +3911,12 @@ async function showExercisesScreen() {
 
   if (protocols.length === 0) {
     inner.innerHTML = `
-      <div class="exs-empty">
-        <div class="exs-empty-icon"></div>
-        <p class="exs-empty-title">No protocol yet</p>
-        <p class="exs-empty-sub">Your therapist has not assigned any exercises for you.</p>
+      <div class="rd-empty">
+        <p class="rd-empty-title">${t('ex.emptyTitle')}</p>
+        <p class="rd-empty-sub">${t('ex.emptySub')}</p>
       </div>`;
+    const _exSub = document.getElementById('exSubtitle');
+    if (_exSub) _exSub.textContent = '';
     showScreen('exercisesScreen');
     return;
   }
@@ -3596,53 +3937,194 @@ async function showExercisesScreen() {
   _exercisesProtocols = protocols;
   _exercisesDoneById = doneById;
 
+  const _exSub = document.getElementById('exSubtitle');
+  if (_exSub) _exSub.textContent = t('ex.assignedByTherapist');
+
   const EXS_COLLAPSED_MAX = 3;
+  const chevron = '<svg class="rd-ex-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   const cards = protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
     const totalSetsNeeded = p.sets || 3;
     const isDone = doneSets >= totalSetsNeeded;
-    const statusCls = isDone ? 'exs-status-done' : doneSets > 0 ? 'exs-status-partial' : '';
-    const badge = isDone ? `<span class="exs-row-badge done">${t('ex.done')}</span>`
-      : `<span class="exs-row-badge partial">${doneSets}/${totalSetsNeeded}</span>`;
-    return `<div class="exs-row ${statusCls}" onclick="startSessionByIndex(${i})">
-      <div class="exs-row-left">
-        <span class="exs-row-name">${escapeHtml(exName(p.exerciseType, p.exerciseName))}</span>
-        <span class="exs-row-meta">${t('ex.repsSets', { reps: p.reps, sets: p.sets, freq: getFrequencyLabel(p.frequency) })}</span>
-        ${p.notes ? `<span class="exs-row-note">${escapeHtml(p.notes)}</span>` : ''}
-      </div>
-      <div class="exs-row-right">
-        ${badge}
-        <svg class="exs-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-      </div>
+    const badge = isDone ? `<span class="rd-ex-badge done">${t('ex.done')}</span>`
+      : doneSets > 0 ? `<span class="rd-ex-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
+    const meta = t('ex.repsSets', { reps: p.reps, sets: p.sets, freq: getFrequencyLabel(p.frequency) });
+    const nameHtml = `<div class="rd-ex-name">${escapeHtml(exName(p.exerciseType, p.exerciseName))}${badge}</div>`;
+    if (p.demoVideoUrl) {
+      return `<div class="rd-ex-card" onclick="startSessionByIndex(${i})">
+        <div class="rd-ex-thumb"><div class="rd-ex-play"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></div><span class="rd-ex-duration">${t('ex.demo')}</span></div>
+        <div class="rd-ex-row"><div class="rd-ex-body">${nameHtml}<div class="rd-ex-meta">${meta}</div></div>${chevron}</div>
+      </div>`;
+    }
+    return `<div class="rd-ex-card" onclick="startSessionByIndex(${i})">
+      <div class="rd-ex-row"><div class="rd-ex-noicon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M10 5H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg></div><div class="rd-ex-body">${nameHtml}<div class="rd-ex-meta">${meta} · ${t('ex.noDemo')}</div></div>${chevron}</div>
     </div>`;
   });
-  // Only collapse when it hides 2+ exercises — a toggle hiding a single row is pointless
   const showToggle = protocols.length > EXS_COLLAPSED_MAX + 1;
-  inner.innerHTML = `<div class="exs-list" id="exsList">
-    ${cards.map((c, i) => showToggle && i >= EXS_COLLAPSED_MAX ? c.replace('class="exs-row', 'class="exs-row exs-hidden') : c).join('')}
+  inner.innerHTML = `<div id="exsList">
+    ${cards.map((c, i) => showToggle && i >= EXS_COLLAPSED_MAX ? c.replace('class="rd-ex-card', 'class="rd-ex-card rd-ex-hidden') : c).join('')}
   </div>
-  ${showToggle ? `<button class="exs-toggle-btn" onclick="toggleExerciseList()">${t('ex.showAll', { n: protocols.length })}</button>` : ''}`;
+  ${showToggle ? `<button class="rd-toggle-btn" onclick="toggleExerciseList()">${t('ex.showAll', { n: protocols.length })}</button>` : ''}`;
 
   showScreen('exercisesScreen');
 }
 
 function toggleExerciseList() {
   const list = document.getElementById('exsList');
-  const btn = document.querySelector('.exs-toggle-btn');
+  const btn = document.querySelector('.rd-toggle-btn');
   if (!list || !btn) return;
-  const hidden = list.querySelectorAll('.exs-hidden');
+  const hidden = list.querySelectorAll('.rd-ex-hidden');
   if (hidden.length) {
-    hidden.forEach(el => el.classList.remove('exs-hidden'));
+    hidden.forEach(el => el.classList.remove('rd-ex-hidden'));
     btn.textContent = t('ex.showLess');
   } else {
-    list.querySelectorAll('.exs-row').forEach((el, i) => { if (i >= 3) el.classList.add('exs-hidden'); });
-    btn.textContent = t('ex.showAll', { n: list.querySelectorAll('.exs-row').length });
+    list.querySelectorAll('.rd-ex-card').forEach((el, i) => { if (i >= 3) el.classList.add('rd-ex-hidden'); });
+    btn.textContent = t('ex.showAll', { n: list.querySelectorAll('.rd-ex-card').length });
   }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION 8: THERAPIST PANEL
    ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── D-2: session review / flag ─────────────────────────────────────────────
+   A session "needs review" when the patient reported high pain (the "a lot"
+   bucket, 7–10) or the therapist flagged it, and it hasn't been reviewed yet.
+   reviewed/flagged persist as session fields; _reviewedLocal/_flaggedLocal are
+   an optimistic fallback so the UI updates instantly even if the write is
+   pending or (pre-rules-deploy) denied. */
+const _reviewedLocal = new Set();
+const _flaggedLocal = new Set();
+
+function sessionPainValue(s) {
+  if (s.setData && s.setData.length > 0) {
+    return s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
+  }
+  return s.pain || 0;
+}
+
+function sessionIsFlagged(s) { return !!s.flagged || _flaggedLocal.has(s.id); }
+function sessionIsReviewed(s) { return !!s.reviewed || _reviewedLocal.has(s.id); }
+
+function sessionNeedsReview(s) {
+  if (sessionIsReviewed(s)) return false;
+  const highPain = normalizePain(sessionPainValue(s)) === 8; // "a lot" (7–10)
+  return highPain || sessionIsFlagged(s);
+}
+
+// Returns { needsReview, level: 'flag'|'stale'|'ok', count, text } for a patient.
+function computePatientStatus(sessions) {
+  const now = Date.now();
+  const recent14 = sessions.filter(s => (now - new Date(s.date).getTime()) < 14 * 86400000);
+  const toReview = recent14.filter(sessionNeedsReview);
+  const last = sessions.length ? sessions[sessions.length - 1] : null;
+  const daysSince = last ? Math.floor((now - new Date(last.date).getTime()) / 86400000) : null;
+  if (toReview.length > 0) {
+    const anyFlag = toReview.some(sessionIsFlagged);
+    return { needsReview: true, level: 'flag', count: toReview.length,
+      text: anyFlag ? t('th.flaggedFollowUp') : t('th.highPain') };
+  }
+  if (daysSince === null) return { needsReview: false, level: 'stale', text: t('th.noSessionsYet') };
+  if (daysSince >= 4) return { needsReview: false, level: 'stale', text: t('th.noSessionDays', { n: daysSince }) };
+  return { needsReview: false, level: 'ok', text: t('th.onTrack') };
+}
+
+async function markSessionReviewed(sessionId) {
+  _reviewedLocal.add(sessionId);
+  try {
+    await db.collection('sessions').doc(sessionId).update({
+      reviewed: true,
+      reviewedBy: currentUser.email,
+      reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    writeAuditLog('session_reviewed', sessionId);
+  } catch (e) {
+    // permission-denied until firestore.rules is deployed; local fallback keeps UI correct
+    if (e.code !== 'permission-denied') console.error('[Motus] markSessionReviewed failed:', e);
+  }
+}
+
+async function flagSession(sessionId, on) {
+  if (on) _flaggedLocal.add(sessionId); else _flaggedLocal.delete(sessionId);
+  try {
+    await db.collection('sessions').doc(sessionId).update({
+      flagged: !!on,
+      flaggedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e) {
+    if (e.code !== 'permission-denied') console.error('[Motus] flagSession failed:', e);
+  }
+}
+
+// Review dialog (3m) — lists a patient's unreviewed high-pain / flagged sessions.
+async function openReviewDialog(patientEmail) {
+  const sessions = await getPatientSessions(patientEmail);
+  const toReview = sessions.filter(sessionNeedsReview).sort((a, b) => new Date(b.date) - new Date(a.date));
+  let overlay = document.getElementById('reviewDialogOverlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'reviewDialogOverlay';
+  overlay.className = 'rd-review-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) closeReviewDialog(); };
+  const items = toReview.map(s => {
+    const bucket = painBucketLabel(sessionPainValue(s));
+    const when = new Date(s.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const flagged = sessionIsFlagged(s);
+    const sid = escapeHtml(s.id);
+    return `<div class="rd-review-item" data-sid="${sid}">
+      <div class="rd-review-item-main">
+        <div class="rd-review-item-when">${escapeHtml(when)}</div>
+        <div class="rd-review-item-pain">${t('th.painReported', { level: escapeHtml(bucket) })}</div>
+      </div>
+      <div class="rd-review-item-actions">
+        <button class="rd-review-flag${flagged ? ' active' : ''}" onclick="reviewToggleFlag(this, '${sid}')">${flagged ? t('th.flagged') : t('th.flag')}</button>
+        <button class="rd-review-done" onclick="reviewMarkDone(this, '${sid}')">${t('th.markReviewed')}</button>
+      </div>
+    </div>`;
+  }).join('');
+  overlay.innerHTML = `<div class="rd-review-box" role="dialog" aria-modal="true">
+    <div class="rd-review-header">
+      <div class="rd-review-title">${t('th.reviewTitle')}</div>
+      <button class="rd-review-close" onclick="closeReviewDialog()" aria-label="Close">×</button>
+    </div>
+    <div class="rd-review-list">${items || `<div class="rd-review-empty">${t('th.reviewAllDone')}</div>`}</div>
+    <div class="rd-review-footer">
+      <button class="rd-review-alldone" onclick="reviewMarkAll()">${t('th.markAllReviewed')}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+function closeReviewDialog() {
+  const o = document.getElementById('reviewDialogOverlay');
+  if (o) o.remove();
+  // Refresh list grouping + detail header now that review state changed
+  loadConnectedPatients();
+  if (window._reviewPatient) showRealPatient(window._reviewPatient);
+}
+
+function reviewToggleFlag(btn, sid) {
+  const on = !btn.classList.contains('active');
+  btn.classList.toggle('active', on);
+  btn.textContent = on ? t('th.flagged') : t('th.flag');
+  flagSession(sid, on);
+}
+
+async function reviewMarkDone(btn, sid) {
+  await markSessionReviewed(sid);
+  const item = btn.closest('.rd-review-item');
+  if (item) item.remove();
+  const list = document.querySelector('#reviewDialogOverlay .rd-review-list');
+  if (list && !list.querySelector('.rd-review-item')) {
+    list.innerHTML = `<div class="rd-review-empty">${t('th.reviewAllDone')}</div>`;
+  }
+}
+
+async function reviewMarkAll() {
+  const items = [...document.querySelectorAll('#reviewDialogOverlay .rd-review-item')];
+  for (const it of items) { await markSessionReviewed(it.dataset.sid); }
+  closeReviewDialog();
+}
 
 function openSidebar() {
   document.getElementById('therapistSidebar').classList.add('open');
@@ -3657,6 +4139,12 @@ function closeSidebar() {
 }
 
 async function loadConnectedPatients() {
+  // Redesign: fill the nav-rail identity (name + initials)
+  const _rn = document.getElementById('thRailName');
+  const _ra = document.getElementById('thRailAvatar');
+  if (_rn && currentUser) _rn.textContent = currentUser.name || 'Therapist';
+  if (_ra && currentUser) _ra.textContent = (currentUser.name || 'T').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
   const container = document.getElementById('patientRows');
   if (!container) return;
   container.innerHTML = '';
@@ -3671,43 +4159,57 @@ async function loadConnectedPatients() {
     container.appendChild(msg);
     return;
   }
+  // Gather each patient's sessions + review status, then group (D-2)
+  const rows = [];
   for (const patient of patients) {
-    const btn = document.createElement('button');
-    btn.className = 'patient-row';
-    btn.dataset.patientEmail = patient.email;
-    const initials = patient.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
     const [sessions, unread] = await Promise.all([
       getPatientSessions(patient.email),
       unreadCount(currentUser.email, patient.email).catch(() => 0),
     ]);
-    const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
-    const lastPainVal = lastSess
-      ? (lastSess.setData?.length > 0
-          ? (lastSess.setData.reduce((a, s) => a + (s.pain || 0), 0) / lastSess.setData.length).toFixed(1)
-          : (lastSess.pain || 0).toFixed(1))
-      : null;
-    const daysSinceLast = lastSess
-      ? Math.floor((Date.now() - new Date(lastSess.date).getTime()) / 86400000)
-      : null;
-    const subText = lastSess
-      ? `${daysSinceLast === 0 ? 'Today' : daysSinceLast === 1 ? 'Yesterday' : daysSinceLast + ' days ago'} · avg pain ${lastPainVal}`
-      : 'No sessions yet';
-    btn.innerHTML = `
-      <div class="patient-row-avatar">${escapeHtml(initials)}</div>
-      <div class="patient-row-meta">
-        <div class="patient-row-name">${escapeHtml(patient.name)}</div>
-        <div class="patient-row-sub">${subText}</div>
-      </div>
-      <span class="patient-row-dot" ${unread > 0 ? '' : 'hidden'}></span>`;
-    btn.onclick = () => {
-      document.querySelectorAll('.patient-row').forEach(r => r.classList.remove('patient-row--active'));
-      btn.classList.add('patient-row--active');
-      closeSidebar();
-      showRealPatient(patient);
-    };
-    container.appendChild(btn);
+    rows.push({ patient, sessions, unread, status: computePatientStatus(sessions) });
   }
+  const needs = rows.filter(r => r.status.needsReview);
+  const rest = rows.filter(r => !r.status.needsReview);
+
+  const addGroupHeader = (label, n) => {
+    const h = document.createElement('div');
+    h.className = 'rd-plist-group';
+    h.textContent = `${label} · ${n}`;
+    container.appendChild(h);
+  };
+  if (needs.length) {
+    addGroupHeader(t('th.needsReview'), needs.length);
+    needs.forEach(r => container.appendChild(buildPatientRow(r)));
+  }
+  addGroupHeader(t('th.allPatients'), rows.length);
+  rest.forEach(r => container.appendChild(buildPatientRow(r)));
+
   subscribeTherapistBadges(currentUser.email);
+}
+
+// Builds one patient-list row from a { patient, sessions, unread, status } record.
+function buildPatientRow(r) {
+  const { patient, unread, status } = r;
+  const btn = document.createElement('button');
+  btn.className = 'patient-row' + (status.needsReview ? ' patient-row--review' : '');
+  btn.dataset.patientEmail = patient.email;
+  const initials = (patient.name || '').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const subClass = status.level === 'flag' ? 'pr-danger' : status.level === 'stale' ? 'pr-stale' : 'pr-ok';
+  btn.innerHTML = `
+    <div class="patient-row-avatar">${escapeHtml(initials)}</div>
+    <div class="patient-row-meta">
+      <div class="patient-row-name">${escapeHtml(patient.name)}</div>
+      <div class="patient-row-sub ${subClass}">${escapeHtml(status.text)}</div>
+    </div>
+    ${status.needsReview ? '<span class="patient-row-review-dot" title="Needs review"></span>' : ''}
+    <span class="patient-row-dot" ${unread > 0 ? '' : 'hidden'}></span>`;
+  btn.onclick = () => {
+    document.querySelectorAll('.patient-row').forEach(x => x.classList.remove('patient-row--active'));
+    btn.classList.add('patient-row--active');
+    closeSidebar();
+    showRealPatient(patient);
+  };
+  return btn;
 }
 
 function subscribeTherapistBadges(therapistEmail) {
@@ -3762,7 +4264,7 @@ async function getPatientSessions(patientEmail) {
   const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
   const snap = await db.collection('sessions')
     .where('patientEmail', '==', patientEmail).get();
-  const stored = snap.docs.map(d => d.data()).filter(s => s.date >= cutoff);
+  const stored = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.date >= cutoff);
   if (currentRole === 'therapist') writeAuditLog('session_viewed', patientEmail);
   return stored.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
@@ -3847,6 +4349,11 @@ async function showRealPatient(patient) {
     getProtocols(patient.email)
   ]);
   const panel = document.getElementById('mainPanel');
+  const _status = computePatientStatus(sessions); // D-2
+  window._reviewPatient = patient;
+  const reviewBtnHtml = _status.needsReview
+    ? `<button class="tp-btn tp-btn-review" onclick="openReviewDialog('${escJsAttr(patient.email)}')">${t('th.reviewN', { n: _status.count })}</button>`
+    : '';
 
   // Vitals
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
@@ -3868,7 +4375,7 @@ async function showRealPatient(patient) {
   const lastSessUnit = daysSinceLast === null ? '' : daysSinceLast === 0 ? '' : daysSinceLast === 1 ? ' day ago' : ' days ago';
 
   // Avatar initials
-  const initials = patient.name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = (patient.name || '').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   const safeEmail = escJsAttr(patient.email);
   const safeName = escJsAttr(patient.name);
 
@@ -3909,12 +4416,17 @@ async function showRealPatient(patient) {
         const exLabel = exName(p.exerciseType, p.exerciseName);
         const dose = `${p.sets || 3} \xD7 ${p.reps || 10}`;
         const note = p.notes || '';
+        const pid = escJsAttr(p.id || '');
         return `<li class="pd-protocol-row">
           <div class="pd-protocol-meta">
             <div class="pd-protocol-name">${escapeHtml(exLabel)}</div>
             ${note ? `<div class="pd-protocol-params">${escapeHtml(note)}</div>` : ''}
           </div>
-          <span class="pd-protocol-params" style="font-family:var(--font-mono);white-space:nowrap">${dose}</span>
+          <span class="pd-protocol-dose">${dose}</span>
+          <div class="pd-protocol-actions">
+            <button class="pd-row-btn" onclick="editProtocol('${safeEmail}','${pid}')" aria-label="Edit exercise">Edit</button>
+            <button class="pd-row-btn pd-row-btn-danger" onclick="deleteProtocol('${safeEmail}','${pid}')" aria-label="Remove exercise">Remove</button>
+          </div>
         </li>`;
       }).join('');
 
@@ -3926,7 +4438,7 @@ async function showRealPatient(patient) {
   panel.innerHTML = `
     <div class="patient-detail">
       <header class="pd-header">
-        <div class="pd-avatar" style="width:48px;height:48px;border-radius:8px;background:#EFF6FF;color:#2563EB;font-family:'DM Mono',monospace;font-size:14px;font-weight:500" aria-hidden="true">${escapeHtml(initials)}</div>
+        <div class="pd-avatar" aria-hidden="true">${escapeHtml(initials)}</div>
         <div class="pd-header-meta">
           <h1 class="pd-name">${escapeHtml(patient.name)}</h1>
           <div class="pd-sub">
@@ -3937,8 +4449,9 @@ async function showRealPatient(patient) {
           ${demographicsHtml}
         </div>
         <div class="pd-header-actions">
+          ${reviewBtnHtml}
           <button class="tp-btn" onclick="messagePatient('${safeEmail}')">Message</button>
-          <button class="tp-btn tp-btn-primary" onclick="assignExercisesTo('${safeEmail}')">Edit Protocol</button>
+          <button class="tp-btn tp-btn-primary" onclick="assignExercisesTo('${safeEmail}')">+ Add Exercise</button>
         </div>
       </header>
 
@@ -4027,7 +4540,7 @@ async function showRealPatient(patient) {
       input.value = '';
     };
   }
-  subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${patient.name.split(' ')[0]}`);
+  subscribeThread('therapistMsgThread', currentUser.email, patient.email, `Send a message to ${(patient.name || '').split(' ')[0] || 'your patient'}`);
   enableMobilePatientDetail(panel);
   updateExerciseParamsUI(null, null);
 }
@@ -5303,6 +5816,7 @@ async function saveSession() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initLanguage();
+  initTextSize();
   const painCongrats = document.getElementById('painSliderCongrats');
   if (painCongrats) {
     painCongrats.addEventListener('input', function() {
@@ -5438,7 +5952,8 @@ function showSessionSummary(partialReps = 0) {
   document.getElementById('summaryTotalReps').textContent = totalRepsCompleted;
   document.getElementById('summarySets').textContent      = setsComplete;
   document.getElementById('summaryMaxROM').textContent    = maxROM + '°';
-  document.getElementById('summaryAvgPain').textContent   = avgPain;
+  // D-1: patients see a worded pain level, never a bare 0-10 number
+  document.getElementById('summaryAvgPain').textContent   = avgPain === '—' ? '—' : painBucketLabel(parseFloat(avgPain));
   let message = '';
   if (avgPain !== '—' && parseFloat(avgPain) >= 7) {
     message = 'Pain was high today. Consider mentioning this to your therapist.';
@@ -6157,9 +6672,10 @@ async function renderProgressScreen() {
   const content = document.getElementById('progressContent');
 
   if (!sessions.length) {
-    content.innerHTML = '<div class="prog-empty">' +
-      '<div class="prog-empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>' +
-      '<p>Complete your first session to start tracking progress.</p>' +
+    content.innerHTML = '<div class="rd-empty">' +
+      '<p class="rd-empty-title">' + escapeHtml(t('prog.emptyTitle')) + '</p>' +
+      '<p class="rd-empty-sub">' + escapeHtml(t('prog.emptySub')) + '</p>' +
+      (protocols.length ? '<button class="rd-btn-primary" style="margin-top:16px;max-width:260px;padding:0 24px" onclick="startScanSession()">' + escapeHtml(t('prog.startToday')) + '</button>' : '') +
       '</div>';
     return;
   }
@@ -6218,38 +6734,75 @@ async function renderProgressScreen() {
     }
   }
 
-  var adhColorProg = adherenceThisWeek >= 80 ? '#059669' : adherenceThisWeek >= 50 ? '#D97706' : '#DC2626';
-  content.innerHTML =
-    '<div class="prog-stats-row">' +
-      '<div class="prog-stat-card"><div class="prog-stat-value" style="color:' + adhColorProg + '">' + adherenceThisWeek + '%</div><div class="prog-stat-label">Consistency</div></div>' +
-      '<div class="prog-stat-card"><div class="prog-stat-value ' + painTrendClass + '">' + painTrendDisplay + '</div><div class="prog-stat-label">Pain trend</div></div>' +
-    '</div>' +
-    (sessions.length ?
-      '<div class="prog-chart-card">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2)">' +
-          '<h3 style="font-size:0.95rem;font-weight:700;color:var(--text);margin:0">Pain Index</h3>' +
-          '<div class="pain-range-toggle">' +
-            '<button class="pain-range-btn" data-range="7">7D</button>' +
-            '<button class="pain-range-btn active" data-range="30">30D</button>' +
-            '<button class="pain-range-btn" data-range="90">90D</button>' +
-          '</div>' +
-        '</div>' +
-        '<canvas id="patientPainChart"></canvas>' +
-      '</div>'
-    : '') +
-    buildProgressByDay(sessions);
-
-  if (sessions.length > 0) {
-    renderPainChart(sessions, 30, 'patientPainChart');
-    const scope = document.getElementById('progressContent');
-    scope.querySelectorAll('.pain-range-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        scope.querySelectorAll('.pain-range-btn').forEach(function(b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        renderPainChart(sessions, parseInt(btn.dataset.range), 'patientPainChart');
-      });
-    });
+  // This week: 7 dots (done / today)
+  const doneDays = new Set(sessions.map(s => new Date(s.date).toDateString()));
+  let dots = '', doneCount = 0;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now - i * msPerDay);
+    const isToday = i === 0;
+    const done = doneDays.has(d.toDateString());
+    if (done) doneCount++;
+    const lbl = isToday ? t('prog.today') : d.toLocaleDateString(dateLocale(), { weekday: 'short' });
+    dots += '<div class="rd-prog-dot-col"><div class="rd-prog-dot' + (done ? ' done' : (isToday ? ' today' : '')) + '">' +
+      (done ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '') +
+      '</div><div class="rd-prog-dot-lbl' + (isToday ? ' today' : '') + '">' + escapeHtml(lbl) + '</div></div>';
   }
+
+  // Pain after exercise: 5 weekly bars (4 wks ago → now), normalized to buckets
+  const RAMP = ['#D8A48F', '#DBB29E', '#B9CCC2', '#7FB3A6', '#0F766E'];
+  const wkLabels = [t('prog.4wks'), t('prog.3wks'), t('prog.2wks'), t('prog.lastWk'), t('prog.now')];
+  const wkAvg = [];
+  for (let w = 4; w >= 0; w--) {
+    // Use whole sessions (not expanded per-set rows) + sessionPainValue, so the
+    // chart's pain matches the D-2 review-status logic (one avg value per session).
+    const inWk = sessions.filter(function(s){ var ts = sessionTime(s); if(!ts) return false; var age=(now-ts.getTime())/msPerDay; return age >= w*7 && age < (w+1)*7; });
+    const vals = inWk.map(function(s){ return normalizePain(sessionPainValue(s)); }).filter(function(v){ return v !== null; });
+    wkAvg.push(vals.length ? vals.reduce(function(a,b){return a+b;},0)/vals.length : null);
+  }
+  const MAXH = 64;
+  let bars = '';
+  wkAvg.forEach(function(v, i){
+    const h = v === null ? 6 : Math.max(8, Math.round((v/10)*MAXH));
+    const col = v === null ? 'var(--rd-divider)' : RAMP[i];
+    bars += '<div class="rd-prog-bar-col"><div class="rd-prog-bar-track"><div class="rd-prog-bar" style="height:' + h + 'px;background:' + col + '"></div></div><div class="rd-prog-bar-lbl' + (i===4?' now':'') + '">' + escapeHtml(wkLabels[i]) + '</div></div>';
+  });
+
+  const nowV = wkAvg[4], monthV = wkAvg[0];
+  let trendWord = '', trendClass = '';
+  if (nowV !== null && monthV !== null) {
+    if (nowV < monthV - 0.3) { trendWord = t('home.painDown'); trendClass = 'teal'; }
+    else if (nowV > monthV + 0.3) { trendWord = t('home.painUp'); }
+    else { trendWord = t('home.painSteady'); trendClass = 'teal'; }
+  }
+  let summary = '';
+  if (nowV !== null) {
+    const nowStr = painBucketLabel(nowV).toLowerCase() + ' (' + normalizePain(nowV) + ')';
+    if (monthV !== null && Math.abs(nowV - monthV) >= 0.3) {
+      const dir = nowV < monthV ? t('prog.downFrom') : t('prog.upFrom');
+      summary = t('prog.summaryChange', { now: nowStr, dir: dir, prev: painBucketLabel(monthV).toLowerCase() + ' (' + normalizePain(monthV) + ')' });
+    } else {
+      summary = t('prog.summarySteady', { now: nowStr });
+    }
+  }
+
+  // Honest, data-driven banner — reflect the patient's ACTUAL adherence and pain
+  // trend instead of always claiming "you're doing well / pain is down". Only
+  // mention the pain direction when there's enough data (both weeks present).
+  const _eyebrow = doneCount >= 5 ? t('prog.encGreat')
+                 : doneCount >= 2 ? t('prog.encKeep')
+                 : t('prog.encBack');
+  let _painPhrase = '';
+  if (nowV !== null && monthV !== null) {
+    if (nowV < monthV - 0.3) _painPhrase = t('prog.bpPainDown');
+    else if (nowV > monthV + 0.3) _painPhrase = t('prog.bpPainUp');
+    else _painPhrase = t('prog.bpPainSteady');
+  }
+  const _bannerMsg = (_painPhrase ? _painPhrase + ' ' : '') + t('prog.bpRoutine', { n: doneCount });
+
+  content.innerHTML =
+    '<div class="rd-prog-banner"><div class="rd-prog-banner-eyebrow">' + escapeHtml(_eyebrow) + '</div><div class="rd-prog-banner-msg">' + escapeHtml(_bannerMsg) + '</div></div>' +
+    '<div class="rd-card rd-prog-card"><div class="rd-prog-card-title">' + escapeHtml(t('prog.thisWeek')) + '</div><div class="rd-prog-dots">' + dots + '</div></div>' +
+    '<div class="rd-card rd-prog-card"><div class="rd-prog-card-head"><span class="rd-prog-card-title">' + escapeHtml(t('prog.painAfter')) + '</span>' + (trendWord ? '<span class="rd-prog-trend ' + trendClass + '">' + escapeHtml(trendWord) + '</span>' : '') + '</div><div class="rd-prog-bars">' + bars + '</div>' + (summary ? '<div class="rd-prog-summary">' + summary + '</div>' : '') + '</div>';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -6432,7 +6985,7 @@ async function deleteMyAccount() {
       alert('Deletion failed. Please try again or contact support.');
       if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
-  });
+  }, 'DELETE');
 }
 
 async function downloadMyData() {
@@ -6569,7 +7122,10 @@ async function openPatientMessaging() {
   if (!tEmail) { alert('You are not connected to a therapist yet.'); return; }
   await markRead(currentUser.email, tEmail);
   const tSnap = await db.collection('users').doc(tEmail).get();
-  document.getElementById('msgHeaderTitle').textContent = tSnap.exists ? tSnap.data().name : 'Your Therapist';
+  const _mhName = tSnap.exists ? tSnap.data().name : 'Your Therapist';
+  document.getElementById('msgHeaderTitle').textContent = _mhName;
+  const _mhAv = document.getElementById('msgHeaderAvatar');
+  if (_mhAv) _mhAv.textContent = _mhName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const archived = await isThreadArchived(currentUser.email, tEmail);
   const input = document.getElementById('msgInput');
   const sendBtn = document.getElementById('msgSendBtn');
@@ -7774,44 +8330,56 @@ function mlTrainerBack() {
 
 function updatePainBar(val) { siSelectPain(val); }
 
+// Redesign (D-1): pain is captured as four plain-language buckets, each storing
+// one representative 0-10 value. PAIN_BUCKETS is the single source of truth.
+const PAIN_BUCKETS = [
+  { key: 'notAtAll',  val: 0, range: '0'    },
+  { key: 'aLittle',   val: 2, range: '1–3'  },
+  { key: 'quiteABit', val: 5, range: '4–6'  },
+  { key: 'aLot',      val: 8, range: '7–10', danger: true },
+];
+
+// D-1 normalize-on-read: map any stored pain (old continuous 0-10 OR a new bucket
+// value) to the nearest bucket value, so charts/averages/labels stay consistent
+// across the migration. Used wherever old sessions are read for display.
+function normalizePain(v) {
+  const n = Number(v);
+  if (isNaN(n)) return null;
+  if (n <= 0.5) return 0;
+  if (n <= 3.5) return 2;
+  if (n <= 6.5) return 5;
+  return 8;
+}
+function painBucketLabel(v) {
+  const nv = normalizePain(v);
+  const b = PAIN_BUCKETS.find(x => x.val === nv) || PAIN_BUCKETS[0];
+  return t('pain.' + b.key);
+}
+
 function siInitPainGrid() {
-  const grid = document.getElementById('siPainGrid');
-  if (!grid) return;
-  if (grid.children.length === 10) return;
-  grid.innerHTML = '';
-  for (let i = 1; i <= 10; i++) {
-    const sq = document.createElement('button');
-    sq.className = 'si-pain-sq';
-    sq.setAttribute('aria-label', `Pain ${i}`);
-    sq.onclick = () => siSelectPain(i);
-    grid.appendChild(sq);
-  }
+  const wrap = document.getElementById('siPainButtons');
+  if (!wrap) return;
+  wrap.innerHTML = PAIN_BUCKETS.map(b =>
+    `<button type="button" class="rd-pain-btn" data-pval="${b.val}" onclick="siSelectPain(${b.val})">
+       <span class="rd-pain-name">${t('pain.' + b.key)}</span>
+       <span class="rd-pain-range${b.danger ? ' danger' : ''}">${b.range}</span>
+     </button>`).join('');
 }
 
 function siSelectPain(val) {
   const v = parseInt(val);
   const hidden = document.getElementById('setInputPain');
-  const display = document.getElementById('setInputPainVal');
-  const painColor = v <= 3 ? '#059669' : v <= 6 ? '#F59E0B' : '#DC2626';
-  const painLabel = v <= 2 ? 'BARELY NOTICED' : v <= 4 ? 'MILD' : v <= 6 ? 'MODERATE' : v <= 8 ? 'STRONG' : 'SEVERE';
   if (hidden) hidden.value = v;
-  if (display) display.innerHTML = `<span style="font-size:1.35rem;font-weight:700;color:${painColor}">${v}</span> <span>/ 10</span>`;
-  const severityEl = document.getElementById('siPainSeverity');
-  if (severityEl) { severityEl.textContent = painLabel; severityEl.style.color = painColor; }
-  document.querySelectorAll('.si-pain-sq').forEach((sq, i) => {
-    const n = i + 1;
-    sq.className = 'si-pain-sq';
-    if (n <= v) {
-      sq.style.background = n <= 3 ? '#059669' : n <= 6 ? '#F59E0B' : '#DC2626';
-      sq.style.border = 'none';
-      if (n === v) sq.style.outline = '2px solid #0C4A6E';
-      else sq.style.outline = 'none';
-    } else {
-      sq.style.background = '#F1F5F9';
-      sq.style.border = 'none';
-      sq.style.outline = 'none';
-    }
+  document.querySelectorAll('#siPainButtons .rd-pain-btn').forEach(btn => {
+    btn.classList.toggle('selected', parseInt(btn.dataset.pval) === v);
   });
+}
+
+// Redesign: reveal the free-text note when the "Type a note…" chip is tapped
+function siRevealNote(btn) {
+  const ta = document.getElementById('setInputNotes');
+  if (ta) { ta.style.display = 'block'; ta.focus(); }
+  if (btn) btn.classList.add('active');
 }
 
 function siAdjustReps(delta) {
@@ -7843,12 +8411,12 @@ let _tutAutoStartAttempted = false;
 const TUTORIAL_STEPS = {
   patient: [
     { type: 'welcome' },
-    { target: '.pt-protocol-card', title: 'Your protocol',
+    { target: '.rd-plan-card', title: 'Your protocol',
       text: 'Exercises your therapist assigns appear here, along with today’s plan and how often to do them.',
       before: async () => { await showPatientHome(); } },
-    { target: '.pt-protocol-start', title: 'Start a session',
+    { target: '#ptStartSessionBtn', title: 'Start a session',
       text: 'When you’re ready to exercise, tap Start Session. Motus walks you through each exercise, set by set.' },
-    { target: '.pt-stats-row', title: 'Your stats at a glance',
+    { target: '.rd-stats-row', title: 'Your stats at a glance',
       text: 'Consistency shows how often you complete your sessions, and Avg Pain tracks how you’ve been feeling.' },
     { target: '#patientBottomNav .pt-bottom-nav-item:nth-child(2)', title: 'Track your progress',
       text: 'The Progress tab keeps a log of every session — reps, pain, and notes — so you can see your improvement over time.',
@@ -7862,13 +8430,13 @@ const TUTORIAL_STEPS = {
   ],
   therapist: [
     { type: 'welcome' },
-    { target: '.th-patient-list', title: 'Your patients',
+    { target: '.rd-plist', title: 'Your patients',
       text: 'Everyone connected to you appears in this list. Tap a patient to open their detail view.' },
-    { target: '.clinic-badge', title: 'Your clinic code',
+    { target: '.rd-plist-invite', title: 'Your clinic code',
       text: 'Share this 6-character code with patients — they enter it when signing up to connect with you.' },
     { target: '#mainPanel', title: 'Patient detail',
       text: 'Selecting a patient shows their sessions, pain trend, clinical notes, and assigned protocols — and lets you assign new ones.' },
-    { target: '.th-add-btn', title: 'Bulk assign',
+    { target: '.rd-plist-bulk', title: 'Bulk assign',
       text: 'Assign a protocol to several patients at once with Bulk Assign.' },
     { target: '#thNavMessages', title: 'Messages',
       text: 'Chat with any of your patients from the Messages section.' },
@@ -8073,6 +8641,7 @@ window.addEventListener('resize', () => {
 if (import.meta.env.DEV) window.Sentry = Sentry;
 
 Object.assign(window, {
+  rdTogglePassword, rdConsentGate, siRevealNote, setTextSize,
   // i18n
   setLanguage, applyTranslations,
   // Auth
@@ -8113,6 +8682,7 @@ Object.assign(window, {
   // Therapist panel
   copyClinicCode, openTherapistMessages,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
+  openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,
 
   // ML Trainer
   startMLTrainer, mlTrainerBack, mlFlipCamera, mlOnJointChange, mlOnSlider, mlUseSuggested, mlToggleModels, mlToggleStats, mlToggleSamples, mlSaveNotes,
