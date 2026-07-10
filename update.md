@@ -4,6 +4,38 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-07-10 -- Claude (for Oliver)
+
+**Page-load speed pass: merged the `perf/load-speed` branch into current work + two head-of-page wins.**
+
+- **Merged `perf/load-speed` → working branch** (it was sitting unmerged, based on a pre-recording-rebuild
+  commit). One conflict in `deleteMyAccount`: kept the app-styled confirm modal (Yash's 06-25 fix) AND the
+  lazy `getFunctions()` call from the perf branch. What the merge brings in:
+  - Firebase **storage / functions / analytics** load on demand (first upload / first callable / post-idle)
+    instead of eagerly; **Chart.js** loads only when a progress chart renders; **Sentry** initializes
+    post-paint with an early-error queue.
+  - Eager Firebase core split into its own long-cacheable vendor chunk (`firebase-core`).
+  - Hosting cache headers: hashed `/assets/**` immutable for 1 year; `/`, `index.html`, `sw.js` no-cache.
+  - DOMPurify CDN script deferred; preconnect to both Google Fonts origins.
+- **New: Google Fonts CSS no longer blocks first paint** — loaded with the `media="print"
+  onload="this.media='all'"` swap (+`<noscript>` fallback). `display=swap` was already set, so text
+  renders instantly in the fallback font and upgrades when the webfont arrives.
+- **New: preconnect/dns-prefetch to the origins the app hits right after JS boot** —
+  `firestore.googleapis.com`, `securetoken.googleapis.com` (preconnect); `identitytoolkit`,
+  `www.google.com`, `www.gstatic.com` for reCAPTCHA/App Check (dns-prefetch). Warms TLS in parallel
+  with the JS download instead of paying those round-trips serially after boot.
+- **Checked but intentionally NOT changed:** the MediaPipe/TensorFlow CDN scripts are already commented
+  out in `index.html` (disabled with `ANGLE_TRACKING_ENABLED = false`) — confirmed the comment survives
+  the build, so they don't load in prod. App Check/reCAPTCHA must stay eager (Firestore enforcement).
+  Service worker left as-is (network-first; HTTP cache handles the immutable assets).
+- **Verified:** production build clean; Playwright smoke test on `vite preview` — login screen renders,
+  font media-swap mechanism flips to `all` on load, and if the fonts CDN is unreachable the page simply
+  stays on fallback fonts (no render blocking either way).
+- Eager first-load payload is now ~250 kB gzipped (HTML 19 + CSS 27 + app 56 + firebase-core 150);
+  Chart.js (~69 kB gz) and the Firebase storage/functions/analytics chunks are off the critical path.
+
+---
+
 ## 2026-06-26 -- Yash
 
 **Fixed a prod horizontal-scroll bug + rebuilt the recording area to use the native camera.** (Both deployed to prod.)

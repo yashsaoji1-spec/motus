@@ -8,7 +8,17 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230B6CB0'/><path d='M50 20c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V23.5C53.5 21.5 52 20 50 20zM36 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C39.5 29.5 38 28 36 28zM64 28c-2 0-3.5 1.5-3.5 3.5V55c0 2 1.5 3.5 3.5 3.5s3.5-1.5 3.5-3.5V31.5C67.5 29.5 66 28 64 28zM25 40c-2 0-3.5 1.5-3.5 3.5V60c0 8 6.5 20 28.5 20s28.5-12 28.5-20V43.5c0-2-1.5-3.5-3.5-3.5s-3.5 1.5-3.5 3.5V55c0 2-1.5 3.5-3.5 3.5' fill='white' opacity='0.9'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <!-- Origins the app contacts as soon as the JS boots (auth token refresh,
+       Firestore, reCAPTCHA/App Check) — warm TLS in parallel with the JS download -->
+  <link rel="preconnect" href="https://firestore.googleapis.com">
+  <link rel="preconnect" href="https://securetoken.googleapis.com">
+  <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
+  <link rel="dns-prefetch" href="https://www.google.com">
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <!-- Fonts load async (media swap trick) so this cross-origin CSS never blocks
+       first paint; display=swap shows fallback text immediately -->
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/></noscript>
   <link rel="stylesheet" href="styles.css"/>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0B6CB0">
