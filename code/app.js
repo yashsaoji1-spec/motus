@@ -874,6 +874,10 @@ const FIREBASE_CONFIG = {
   storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  // GA4: supplying measurementId lets Analytics send events directly instead of
+  // relying on a dynamic-config fetch (extra round-trip that ad blockers / App
+  // Check can break). Value (G-XXXXXXXXXX) lives in .env.production.
+  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
