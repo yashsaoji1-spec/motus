@@ -279,6 +279,9 @@ const I18N = {
     'admin.approveError': 'Could not approve therapist — try again.',
     // Therapist protocol modal
     'th.patients': 'Patients',
+    'th.loadingConvos': 'Loading conversations…',
+    'th.noPatientsYet': 'No patients connected yet.',
+    'th.noMessagesYet': 'No messages yet',
     'th.needsReview': 'Needs review',
     'th.allPatients': 'All patients',
     'th.selectPatient': 'Select a patient',
@@ -560,6 +563,9 @@ const I18N = {
     'admin.approving': 'Aprobando…',
     'admin.approveError': 'No se pudo aprobar al terapeuta — inténtalo de nuevo.',
     'th.patients': 'Pacientes',
+    'th.loadingConvos': 'Cargando conversaciones…',
+    'th.noPatientsYet': 'Aún no hay pacientes conectados.',
+    'th.noMessagesYet': 'Sin mensajes aún',
     'th.needsReview': 'Requiere revisión',
     'th.allPatients': 'Todos los pacientes',
     'th.selectPatient': 'Selecciona un paciente',
@@ -4206,6 +4212,7 @@ function buildPatientRow(r) {
   btn.onclick = () => {
     document.querySelectorAll('.patient-row').forEach(x => x.classList.remove('patient-row--active'));
     btn.classList.add('patient-row--active');
+    setThRailActive('patients');
     closeSidebar();
     showRealPatient(patient);
   };
@@ -7179,18 +7186,91 @@ function buildMessagePanel(patientEmail) {
   </div>`;
 }
 
-function openTherapistMessages() {
-  const msgSection = document.getElementById('tps-messages');
-  if (msgSection) {
-    // Patient is selected — expand messages section and scroll to it
-    if (msgSection.classList.contains('collapsed')) {
-      toggleTpSection('tps-messages');
-    }
-    msgSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } else {
-    const btn = document.querySelector('.th-sidebar-icon[title="Messages"]');
-    if (btn) showSidebarTooltip(btn, 'Please select a patient first');
-  }
+// Highlight one rail nav item by its data-nav value ("patients"/"messages"/…), clearing the others.
+function setThRailActive(nav) {
+  document.querySelectorAll('#therapistScreen .rd-rail-nav .rd-rail-item').forEach(i =>
+    i.classList.toggle('active', i.getAttribute('data-nav') === nav));
+}
+
+// Therapist Messages tab → a real conversations inbox in the main panel.
+async function openTherapistMessages() {
+  const panel = document.getElementById('mainPanel');
+  if (!panel) return;
+  const me = currentUser.email;
+  setThRailActive('messages');
+  document.querySelectorAll('.patient-row').forEach(r => r.classList.remove('patient-row--active'));
+
+  panel.innerHTML = `<div class="th-inbox">
+      <header class="th-inbox-header"><h1 class="th-inbox-title">Messages</h1></header>
+      <div class="th-inbox-list" id="thInboxList"><div class="th-inbox-empty">${escapeHtml(t('th.loadingConvos'))}</div></div>
+    </div>`;
+
+  const patients = await getConnectedPatients(me).catch(() => []);
+  let msgs = [];
+  try {
+    // array-contains only (no orderBy) so no composite index is required; sort client-side.
+    const snap = await db.collection('messages').where('participants', 'array-contains', me).get();
+    msgs = snap.docs.map(d => d.data()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  } catch (e) { console.warn('[Motus] inbox message load failed:', e); }
+
+  const byPatient = {};
+  msgs.forEach(m => {
+    const other = m.from === me ? m.to : m.from;
+    if (!byPatient[other]) byPatient[other] = { last: m, unread: 0 }; // desc sort → first seen is newest
+    if (m.to === me && !m.read) byPatient[other].unread++;
+  });
+
+  const rows = patients.map(p => {
+    const info = byPatient[p.email];
+    return { p, last: info ? info.last : null, unread: info ? info.unread : 0,
+             ts: info && info.last ? new Date(info.last.timestamp).getTime() : 0 };
+  }).sort((a, b) => (b.unread > 0) - (a.unread > 0) || b.ts - a.ts);
+
+  const list = document.getElementById('thInboxList');
+  if (!list) return;
+  if (!rows.length) { list.innerHTML = `<div class="th-inbox-empty">${escapeHtml(t('th.noPatientsYet'))}</div>`; return; }
+
+  list.innerHTML = rows.map(r => {
+    const initials = (r.p.name || '').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    const preview = r.last ? (r.last.from === me ? 'You: ' : '') + r.last.text : t('th.noMessagesYet');
+    const time = r.last ? timeAgo(r.last.timestamp) : '';
+    return `<button class="th-inbox-row${r.unread ? ' unread' : ''}" onclick="openTherapistThread('${escJsAttr(r.p.email)}','${escJsAttr(r.p.name || '')}')">
+        <div class="th-inbox-avatar">${escapeHtml(initials)}</div>
+        <div class="th-inbox-meta">
+          <div class="th-inbox-row-top"><span class="th-inbox-name">${escapeHtml(r.p.name || r.p.email)}</span><span class="th-inbox-time">${escapeHtml(time)}</span></div>
+          <div class="th-inbox-preview">${escapeHtml(preview)}</div>
+        </div>
+        ${r.unread ? `<span class="th-inbox-badge">${r.unread}</span>` : ''}
+      </button>`;
+  }).join('');
+}
+
+// Open a single conversation (from the inbox) as a focused thread in the main panel.
+function openTherapistThread(patientEmail, patientName) {
+  const panel = document.getElementById('mainPanel');
+  if (!panel) return;
+  const me = currentUser.email;
+  const first = (patientName || '').split(' ')[0] || 'your patient';
+  const initials = (patientName || '').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  panel.innerHTML = `<div class="th-thread">
+      <header class="th-thread-header">
+        <button class="th-thread-back" onclick="openTherapistMessages()" aria-label="Back to messages"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="th-thread-avatar">${escapeHtml(initials)}</div>
+        <div class="th-thread-name">${escapeHtml(patientName || patientEmail)}</div>
+        <button class="th-thread-open" onclick="selectPatient('${escJsAttr(patientEmail)}')">Open chart</button>
+      </header>
+      <div class="th-thread-body msg-thread" id="thInboxThread"></div>
+      <div class="th-thread-composer">
+        <input type="text" id="thInboxInput" class="th-thread-input" placeholder="Message ${escapeHtml(first)}…" autocomplete="off" />
+        <button class="th-thread-send" id="thInboxSend" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+      </div>
+    </div>`;
+  subscribeThread('thInboxThread', me, patientEmail, `Send a message to ${first}`);
+  const input = document.getElementById('thInboxInput');
+  const send = document.getElementById('thInboxSend');
+  const doSend = async () => { const v = input.value; if (!v.trim()) return; input.value = ''; await sendMessage(me, patientEmail, v); };
+  if (send) send.onclick = doSend;
+  if (input) { input.onkeydown = (e) => { if (e.key === 'Enter') doSend(); }; input.focus(); }
 }
 
 function showSidebarTooltip(anchor, text) {
@@ -8680,7 +8760,7 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  copyClinicCode, openTherapistMessages,
+  copyClinicCode, openTherapistMessages, openTherapistThread,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,
 

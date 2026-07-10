@@ -7698,6 +7698,38 @@ body:has(#manualCamScreen.active) {
 
 /* Patient detail panel (clinical) */
 #therapistScreen .main-panel { flex: 1; background: var(--rd-canvas); overflow-y: auto; height: 100vh; box-sizing: border-box; }
+
+/* ═══ THERAPIST MESSAGES INBOX + THREAD (main panel) ═══ */
+.th-inbox { height: 100vh; display: flex; flex-direction: column; font-family: var(--rd-font); }
+.th-inbox-header { flex-shrink: 0; padding: 28px 32px 16px; border-bottom: 1px solid var(--rd-divider); }
+.th-inbox-title { font-size: 24px; font-weight: 700; color: var(--rd-ink); margin: 0; }
+.th-inbox-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 24px; }
+.th-inbox-empty { padding: 40px 20px; text-align: center; color: var(--rd-text2); font-size: 15px; }
+.th-inbox-row { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: none; border: none; border-radius: 12px; padding: 14px 16px; cursor: pointer; font-family: var(--rd-font); min-height: auto; }
+.th-inbox-row:hover { background: var(--rd-paper); }
+.th-inbox-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+.th-inbox-meta { flex: 1; min-width: 0; }
+.th-inbox-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.th-inbox-name { font-size: 16px; font-weight: 700; color: var(--rd-ink); }
+.th-inbox-time { font-size: 13px; color: var(--rd-muted); flex-shrink: 0; }
+.th-inbox-preview { font-size: 14px; color: var(--rd-text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-inbox-row.unread .th-inbox-name, .th-inbox-row.unread .th-inbox-preview { color: var(--rd-ink); font-weight: 700; }
+.th-inbox-badge { flex-shrink: 0; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--rd-teal); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+/* Thread view */
+.th-thread { height: 100vh; display: flex; flex-direction: column; font-family: var(--rd-font); --accent: var(--rd-teal); }
+.th-thread-header { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--rd-card-border); background: var(--rd-card); }
+.th-thread-back { background: none; border: none; color: var(--rd-ink); cursor: pointer; display: flex; padding: 4px; min-height: auto; }
+.th-thread-back:hover { color: var(--rd-teal); }
+.th-thread-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.th-thread-name { font-size: 18px; font-weight: 700; color: var(--rd-ink); flex: 1; }
+.th-thread-open { background: #fff; border: 1px solid var(--rd-card-border); color: var(--rd-ink); font-family: var(--rd-font); font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 10px; cursor: pointer; min-height: auto; }
+.th-thread-open:hover { background: var(--rd-paper); }
+.th-thread-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 24px; display: flex; flex-direction: column; gap: 6px; background: var(--rd-canvas); }
+.th-thread-composer { flex-shrink: 0; display: flex; gap: 10px; align-items: center; padding: 14px 24px; border-top: 1px solid var(--rd-card-border); background: var(--rd-card); }
+.th-thread-input { flex: 1; min-height: 46px; padding: 0 16px; background: var(--rd-paper); border: 1px solid var(--rd-input-border); border-radius: var(--rd-r-pill); font-family: var(--rd-font); font-size: 15px; color: var(--rd-ink); outline: none; }
+.th-thread-input:focus { border-color: var(--rd-teal); }
+.th-thread-send { width: 46px; height: 46px; border-radius: 50%; background: var(--rd-teal); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.th-thread-send:hover { background: var(--rd-teal-hover); }
 .patient-detail {
   font-family: var(--rd-font); padding: 28px 32px; max-width: 1000px;
   /* Remap legacy therapist tokens so nested collapsibles, message bubbles,
