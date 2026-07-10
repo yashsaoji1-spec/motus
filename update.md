@@ -4,6 +4,30 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-07-10 (later) -- Claude (for Oliver)
+
+**Staging smoke test passed + show/hide password toggle + an infrastructure finding for Yash.**
+
+- **Perf branch validated on a real deploy** (`motus-staging1.web.app` hosting): fast first paint with
+  the fallback-font swap, near-instant repeat loads from the immutable asset cache. PR #19 is ready.
+- **New feature (rider on PR #19): password visibility toggle** — eye icon inside the login, signup, and
+  reset-password fields flips between hidden/shown. Localized en/es aria-labels via `data-i18n-aria`,
+  `aria-pressed` state, keyboard focus ring. Verified in-browser at phone size.
+- **FINDING (Yash, please read): there is no separate staging backend.** `phalanX/.env.local.staging`
+  is byte-identical to `phalanX/.env.local` — both point `VITE_FIREBASE_PROJECT_ID` at
+  `phalanx-firebase-database`. So the site hosted on `motus-staging1.web.app` reads/writes the
+  PRODUCTION auth + Firestore. The `motus-staging1` Firebase project itself only contains stale seed
+  users (nothing else appears wired to it). Suggest: create a real staging web-app config (or repurpose
+  `motus-staging1`) so staging tests stop touching prod data.
+- **Cleanup notes:** (1) there is a stray unverified `oliverhuelsbeck@gmail.com` patient account in
+  `phalanx-firebase-database` from signup testing — its Firebase verification email never arrived
+  (checked spam; possibly template/deliverability config); delete or verify it. (2) The demo accounts in
+  `motus-staging1` had passwords set to a test value today — irrelevant unless that project is revived.
+  (3) Oliver's Google account currently has Firebase access ONLY to `motus-staging1` — add him to
+  `phalanx-firebase-database` (and `motus-prod`) so he can deploy/administer without borrowing accounts.
+
+---
+
 ## 2026-07-10 -- Claude (for Oliver)
 
 **Page-load speed pass: merged the `perf/load-speed` branch into current work + two head-of-page wins.**
