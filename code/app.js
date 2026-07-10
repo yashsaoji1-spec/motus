@@ -94,6 +94,8 @@ const I18N = {
     'auth.createAccount': 'Create account',
     'auth.emailPlaceholder': 'you@example.com',
     'auth.passwordPlaceholder': 'Password',
+    'auth.showPassword': 'Show password',
+    'auth.hidePassword': 'Hide password',
     // Auth — signup
     'signup.title': 'Create Account',
     'signup.sub': 'Join Motus to start your recovery',
@@ -276,6 +278,8 @@ const I18N = {
     'auth.createAccount': 'Crear cuenta',
     'auth.emailPlaceholder': 'tu@ejemplo.com',
     'auth.passwordPlaceholder': 'Contraseña',
+    'auth.showPassword': 'Mostrar contraseña',
+    'auth.hidePassword': 'Ocultar contraseña',
     'signup.title': 'Crear cuenta',
     'signup.sub': 'Únete a Motus para comenzar tu recuperación',
     'signup.patient': 'Paciente',
@@ -1010,6 +1014,20 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutes
 let _loginAttempts  = 0;
 let _loginLockedUntil = 0;
+
+// ── Password visibility toggle (login / signup / reset fields) ──────────────
+function togglePassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input || !btn) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  const key = show ? 'auth.hidePassword' : 'auth.showPassword';
+  btn.setAttribute('data-i18n-aria', key);
+  btn.setAttribute('aria-label', t(key));
+  btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+  btn.classList.toggle('pw-visible', show);
+  input.focus({ preventScroll: true });
+}
 
 async function handleLogin() {
   hideError('loginError');
@@ -8123,7 +8141,7 @@ Object.assign(window, {
   // i18n
   setLanguage, applyTranslations,
   // Auth
-  handleLogin, handleForgot, selectRole,
+  handleLogin, handleForgot, selectRole, togglePassword,
   signupNextStep, signupGoToStep, signupSelectLanguage, signupFinishLanguage, signupSkipData, finalizeSignup,
   showSettingsScreen, showSettingsBack, saveSettings, settingsSavedGoHome, settingsSavedStay,
   handleConnect, skipConnect, goToConnect,

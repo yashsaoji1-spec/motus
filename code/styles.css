@@ -349,6 +349,35 @@ body {
 .auth-field input:focus { border-color: var(--pt-primary); }
 .auth-field input::placeholder { color: var(--pt-muted); opacity: 0.6; }
 
+/* ── Password visibility toggle ── */
+.pw-wrap { position: relative; }
+/* extra specificity: must beat the later `.patient-scope .auth-field input` padding rule */
+.pw-wrap input,
+.patient-scope .auth-field .pw-wrap input { width: 100%; padding-right: 46px; }
+.pw-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--pt-muted);
+  cursor: pointer;
+  transition: color var(--ease-default);
+}
+.pw-toggle:hover { color: var(--pt-text); }
+.pw-toggle:focus-visible { outline: 2px solid var(--pt-primary); outline-offset: 2px; }
+.pw-toggle .pw-eye-off { display: none; }
+.pw-toggle.pw-visible .pw-eye { display: none; }
+.pw-toggle.pw-visible .pw-eye-off { display: block; }
+
 /* Patient hero button */
 .pt-btn-hero {
   width: 100%;
