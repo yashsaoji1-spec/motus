@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Motus — Merged Script
+   Motus Medicine — Merged Script
    Combines: dashboard.html inline JS + script.js (calibration tracker)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1176,21 +1176,21 @@ async function writeAuditLog(action, resourceId = '') {
    ══════════════════════════════════════════════════════════════════════════ */
 
 const screenTitles = {
-  loginScreen:         'Motus — Sign In',
-  signupScreen:        'Motus — Create Account',
-  forgotScreen:        'Motus — Reset Password',
-  connectScreen:       'Motus — Connect to Therapist',
-  patientScreen:       'Motus — Home',
-  cameraScreen:        'Motus — Session',
-  therapistScreen:     'Motus — Therapist Dashboard',
-  exercisesScreen:     'Motus — My Exercises',
-  progressScreen:      'Motus — My Progress',
-  pendingScreen:       'Motus — Pending Approval',
-  adminScreen:         'Motus — Admin Panel',
-  clinicScreen:        'Motus — My Clinic',
-  createClinicScreen:  'Motus — Create Clinic',
-  joinClinicScreen:    'Motus — Join Clinic',
-  clinicLibraryScreen: 'Motus — Clinic Library',
+  loginScreen:         'Motus Medicine — Sign In',
+  signupScreen:        'Motus Medicine — Create Account',
+  forgotScreen:        'Motus Medicine — Reset Password',
+  connectScreen:       'Motus Medicine — Connect to Therapist',
+  patientScreen:       'Motus Medicine — Home',
+  cameraScreen:        'Motus Medicine — Session',
+  therapistScreen:     'Motus Medicine — Therapist Dashboard',
+  exercisesScreen:     'Motus Medicine — My Exercises',
+  progressScreen:      'Motus Medicine — My Progress',
+  pendingScreen:       'Motus Medicine — Pending Approval',
+  adminScreen:         'Motus Medicine — Admin Panel',
+  clinicScreen:        'Motus Medicine — My Clinic',
+  createClinicScreen:  'Motus Medicine — Create Clinic',
+  joinClinicScreen:    'Motus Medicine — Join Clinic',
+  clinicLibraryScreen: 'Motus Medicine — Clinic Library',
 };
 
 const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'roleScreen', 'connectScreen', 'pendingScreen', 'consentScreen']);
