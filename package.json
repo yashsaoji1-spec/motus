@@ -11,7 +11,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:unit": "vitest run tests/compliance",
     "test:rules": "firebase emulators:exec --only firestore,auth 'vitest run tests/rules'",
-    "test:e2e": "firebase emulators:exec --only firestore,auth 'playwright test'"
+    "test:e2e": "firebase emulators:exec --project demo-motus --only firestore,auth 'node tests/seed.mjs && playwright test'"
   },
   "keywords": [],
   "author": "Yash Saoji & Oliver Huelsbeck",

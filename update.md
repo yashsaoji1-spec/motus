@@ -4,6 +4,52 @@ Check here to see what changed since your last session. Most recent first.
 
 ---
 
+## 2026-07-11 -- Oliver (Claude session)
+
+**Pitch-video prep: demo script, richer demo seed, and a demo-readiness pass that
+fixed the broken e2e suite + real a11y/copy bugs.** (Nothing deployed; all local/branch.)
+
+- **`docs/demo-script.md` (new):** full shot list + voiceover script for the recorded
+  business pitch (4-5 min, 3 acts: therapist triage → patient session on phone →
+  the review loop closing). Includes recording-tool picks (Screen Studio / Loom /
+  native iOS capture — NOT a Zoom screen share), a pre-flight checklist, and what
+  deliberately stays out of frame (ML trainer is feature-flagged off).
+- **`seed.js` rewritten:** now seeds a believable 4-patient caseload for Sarah Chen —
+  James Park (hero patient, logs in on the phone, pain 6→2 over 10 days, clinical
+  notes, message thread), Maria Alvarez (**Needs review**: pain spike yesterday w/ set
+  note + unread message — the demo's money moment), Robert Kim (stale 6 days),
+  Emily Torres (new + crushing it). Demographics tags, per-set notes, varied
+  protocols. Re-runs are exact resets (deletes prior seeded sessions/messages).
+  Verified against a fake Firestore: every patient lands in the intended dashboard group.
+- **`npm run test:e2e` was broken two ways and now passes 22/22:**
+  1. it never ran `tests/seed.mjs`, so the emulator had no users;
+  2. the emulators ran under the `.firebaserc` default project (`motus-prod`) while
+     the seed + audit app use `demo-motus` — auth lookups landed in the wrong
+     namespace. Pinned `--project demo-motus` in the script.
+- **Real bug — home CTA label:** the patient home button was hard-labeled
+  "Continue Session" even before anything was logged today (the tutorial tells
+  patients to tap "Start Session", which didn't exist). Now dynamic:
+  Start Session until a set is logged today, Continue Session after (en+es keys already existed).
+- **Real bug — WCAG AA contrast:** `--rd-muted` `#8A8578` was 3.3:1 on the redesign
+  background (login/signup/consent/clinic/admin secondary text, patient-list group
+  headers). Darkened to `#6F6A5D` (4.9:1 worst case). Axe now clean on all 17 screens.
+- **a11y:** therapist `#mainPanel` is scrollable at phone/tablet widths but wasn't
+  keyboard-focusable — added `tabindex="0" role="region"`.
+- **Test hygiene:** journey specs updated to the post-redesign UI ("+ Share from My
+  Library", native-camera "Record This Set", scoped "Great work!" assertion — the
+  string exists twice in the DOM); `tests/seed.mjs` personas get `tutorialCompleted`
+  (axe samples colors mid-entrance-animation and reports phantom contrast failures)
+  and modern exercise ids (`grip_squeeze`, not the stale `fistMake`).
+- **`playwright.config.ts`:** optional `PLAYWRIGHT_CHROMIUM_PATH` env override so
+  sandboxes/CI with a system Chromium can run the suite without downloading browsers.
+- **Verified:** e2e 22/22, unit 9/9, rules suite green, i18n parity clean, vite build clean.
+- **Before recording the demo:** run the new seeder against staging
+  (`PROJECT=motus-staging1 node seed.js`), make sure the two auth accounts exist
+  (sarah.chen@mayoclinic.org / james.park@gmail.com), and re-run the seeder after
+  every rehearsal so Maria's unread dot + Needs-review state come back.
+
+---
+
 ## 2026-06-26 -- Yash
 
 **Fixed a prod horizontal-scroll bug + rebuilt the recording area to use the native camera.** (Both deployed to prod.)

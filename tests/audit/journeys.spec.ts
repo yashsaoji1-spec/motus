@@ -2,15 +2,15 @@ import { test, expect } from '@playwright/test';
 import { loginAs } from './harness';
 
 // ─── J1: patient logs in and starts today's first exercise ───────────────────
-// "Start Session" is the visible CTA on the patient home screen.
-// BROADENED (b): original /record|set|reps/i matched a hidden element first
-// (the "Reset Password" screen's text). The manualCamScreen shows "Ready for
-// set N of N · tap record to start" — a more specific phrase that only
-// appears on the exercise recording screen. That makes the assertion reliable.
+// UPDATED (2026-07-11): the home CTA reads "Start Session" before anything is
+// logged today and "Continue Session" after (seeded patient1 has a session
+// dated today), so match either label. The rebuilt native-camera recording
+// screen (2026-06-26) may swap its generic prompt for per-exercise coaching
+// copy, so assert on the stable "Record set" button instead of prompt text.
 test('J1 patient logs in and starts today\'s first exercise', async ({ page }) => {
   await loginAs(page, 'patient1@demo.test');
-  await page.getByRole('button', { name: /start/i }).first().click();
-  await expect(page.getByText(/ready for set|tap record to start/i).first()).toBeVisible();
+  await page.getByRole('button', { name: /start|continue/i }).first().click();
+  await expect(page.getByRole('button', { name: /record this set/i }).first()).toBeVisible();
 });
 
 // ─── J2: patient records a set and saves it ──────────────────────────────────
@@ -20,12 +20,16 @@ test('J1 patient logs in and starts today\'s first exercise', async ({ page }) =
 // no visible text), performs the exercise, and stops recording. A first-timer
 // scanning the screen for a way to log a set finds no obvious affordance — the
 // path to saving requires discovering and using an icon-only record control.
+// UPDATED (2026-07-11): finishing a session now shows the "Great work!"
+// celebration overlay (#sessionSummaryOverlay). "Great work!" also exists in
+// the dormant #congratsOverlay inside cameraScreen (old ML flow), so scope the
+// assertion to the live overlay or .first() matches the hidden copy.
 test('J2 patient records a set and saves it', async ({ page }) => {
   await loginAs(page, 'patient1@demo.test');
-  await page.getByRole('button', { name: /start/i }).first().click();
+  await page.getByRole('button', { name: /start|continue/i }).first().click();
   // a first-timer must find Save without knowing the modal id
   await page.getByRole('button', { name: /done|finish|save/i }).first().click();
-  await expect(page.getByText(/saved|great|done/i).first()).toBeVisible({ timeout: 8000 });
+  await expect(page.locator('#sessionSummaryOverlay').getByText(/great work/i)).toBeVisible({ timeout: 8000 });
 });
 
 // ─── J3: patient sends their therapist a message ─────────────────────────────
@@ -51,10 +55,12 @@ test('J3 patient sends their therapist a message', async ({ page }) => {
 // The modal that opens is the exercise assignment dialog; checking for its
 // "Add to Protocol" submit button (or the dialog role) avoids the strict-mode
 // collision between the tutorial dialog and generic /exercise/ text.
+// UPDATED (2026-07-11): the redesign renamed the per-patient assign action to
+// "+ Share from My Library" (opens the "Add Exercise" modal).
 test('J4 therapist assigns a protocol to a patient', async ({ page }) => {
   await loginAs(page, 'therapist@demo.test');
   await page.getByText(/pat one/i).first().click();
-  await page.getByRole('button', { name: /add protocol|edit protocol/i }).first().click();
+  await page.getByRole('button', { name: /share from my library/i }).first().click();
   await expect(
     page.getByRole('button', { name: /add to protocol|assign to selected/i }).first()
   ).toBeVisible();

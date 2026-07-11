@@ -32,6 +32,9 @@ async function run() {
       consentTimestamp: admin.firestore.FieldValue.serverTimestamp(),
       nppAcknowledgedAt: new Date().toISOString(),
       nppVersionAccepted: '2026-06-21',
+      // Keep the tutorial overlay out of a11y snapshots: axe samples colors
+      // mid-entrance-animation and reports phantom contrast failures.
+      tutorialCompleted: true,
     });
   }
 
@@ -45,23 +48,23 @@ async function run() {
 
   // patient1: one protocol item → single-protocol home
   await db.doc('protocols/patient1@demo.test').set({
-    items: [{ id: 'p1a', exerciseType: 'fistMake', reps: 10, sets: 3,
+    items: [{ id: 'p1a', exerciseType: 'grip_squeeze', reps: 10, sets: 3,
       frequency: 'daily', assignedBy: 'therapist@demo.test', notes: 'Slow and steady.' }],
     demoWatched: [],
   });
   // patient2: two protocol items → exercisesScreen
   await db.doc('protocols/patient2@demo.test').set({
     items: [
-      { id: 'p2a', exerciseType: 'fistMake', reps: 10, sets: 3, frequency: 'daily', assignedBy: 'therapist@demo.test' },
-      { id: 'p2b', exerciseType: 'wristFlex', reps: 12, sets: 2, frequency: 'twice daily', assignedBy: 'therapist@demo.test' },
+      { id: 'p2a', exerciseType: 'grip_squeeze', reps: 10, sets: 3, frequency: 'daily', assignedBy: 'therapist@demo.test' },
+      { id: 'p2b', exerciseType: 'wrist_flexion', reps: 12, sets: 2, frequency: 'twice daily', assignedBy: 'therapist@demo.test' },
     ],
     demoWatched: [],
   });
 
   // a couple of sessions so progress + history screens have data
   for (const s of [
-    { patientEmail: 'patient1@demo.test', reps: 30, pain: 2, exerciseType: 'fistMake', protocolId: 'p1a' },
-    { patientEmail: 'patient2@demo.test', reps: 24, pain: 4, exerciseType: 'wristFlex', protocolId: 'p2a' },
+    { patientEmail: 'patient1@demo.test', reps: 30, pain: 2, exerciseType: 'grip_squeeze', protocolId: 'p1a' },
+    { patientEmail: 'patient2@demo.test', reps: 24, pain: 4, exerciseType: 'wrist_flexion', protocolId: 'p2a' },
   ]) {
     await db.collection('sessions').add({
       ...s, date: new Date().toISOString(),

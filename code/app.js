@@ -2487,6 +2487,15 @@ async function updatePatientHomeScreen() {
   // protocol by protocolId, falling back to exerciseType for older docs.
   const _todayStr = new Date().toDateString();
   const _todaySessions = sessions.filter(s => new Date(s.date).toDateString() === _todayStr);
+
+  // CTA label matches the tutorial copy: "Start Session" until something has
+  // been logged today, "Continue Session" after.
+  const _ctaLabel = startBtn?.querySelector('span');
+  if (_ctaLabel) {
+    const key = _todaySessions.length > 0 ? 'home.continueSession' : 'home.startSession';
+    _ctaLabel.setAttribute('data-i18n', key);
+    _ctaLabel.textContent = t(key);
+  }
   const setsDoneFor = (p) => _todaySessions.reduce((n, s) => {
     const match = (s.protocolId && p.id && s.protocolId === p.id) ||
                   (!s.protocolId && s.exerciseType === p.exerciseType);

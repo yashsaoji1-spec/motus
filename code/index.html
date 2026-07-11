@@ -680,7 +680,8 @@
        data-i18n="th.protocolSaved">Protocol saved</div>
 
   <!-- Main detail panel -->
-  <div class="main-panel" id="mainPanel">
+  <!-- tabindex=0: the panel scrolls on phone/tablet widths; keyboard users need focus to scroll it (axe scrollable-region-focusable) -->
+  <div class="main-panel" id="mainPanel" tabindex="0" role="region" aria-label="Patient details">
     <div class="tp-main-empty">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
       <h2>Select a patient</h2>

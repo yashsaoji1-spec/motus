@@ -7072,7 +7072,7 @@ body:has(#manualCamScreen.active) {
   --rd-teal-tint:  #E6F2F0;
   --rd-ink:    #1F2933;
   --rd-text2:  #5B6770;
-  --rd-muted:  #8A8578;
+  --rd-muted:  #6F6A5D; /* AA: 4.9:1 on --rd-bg #F6F4EF (was #8A8578 @ 3.35:1) */
   /* Status */
   --rd-warn-text: #B45309;  --rd-warn-fill: #FDF3E3;  --rd-warn-border: #F2E2C4;
   --rd-danger:    #B4470C;  --rd-danger-fill: #FBEDE4; --rd-danger-border: #E3C1AE;
