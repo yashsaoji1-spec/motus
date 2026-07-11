@@ -7,6 +7,7 @@
       "**/node_modules/**"
     ],
     "rewrites": [
+      { "source": "/auth/action", "destination": "/index.html" },
       { "source": "/privacy", "destination": "/privacy.html" },
       { "source": "/tos", "destination": "/tos.html" },
       { "source": "/hipaa-npp", "destination": "/hipaa-npp.html" },

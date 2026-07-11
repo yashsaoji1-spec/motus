@@ -99,6 +99,32 @@ const I18N = {
     'auth.passwordPlaceholder': 'Password',
     'auth.showPassword': 'Show password',
     'auth.hidePassword': 'Hide password',
+    'auth.resendVerify': 'Resend verification email',
+    'auth.resending': 'Sending…',
+    'auth.verifySent': 'Verification email sent. Check your inbox (and spam).',
+    'auth.resendNeedCreds': 'Enter your email and password, then tap Resend.',
+    'auth.resendFailed': 'Could not resend. Check your email and password.',
+    'auth.alreadyVerified': 'Your email is already verified — just sign in.',
+    // Email action handler (verify / reset)
+    'action.loadingTitle': 'Just a moment…',
+    'action.loadingSub': 'Confirming your request.',
+    'action.verifiedTitle': 'Email verified',
+    'action.verifiedSub': 'Your email is confirmed. You can now sign in to Motus.',
+    'action.resetTitle': 'Choose a new password',
+    'action.resetSub': 'For %email%',
+    'action.confirmPassword': 'Confirm Password',
+    'action.reenter': 'Re-enter password',
+    'action.updatePassword': 'Update Password',
+    'action.updating': 'Updating…',
+    'action.pwUpdatedTitle': 'Password updated',
+    'action.pwUpdatedSub': 'Your password has been changed. You can now sign in.',
+    'action.pwTooShort': 'Password must be at least 8 characters.',
+    'action.pwMismatch': 'Passwords do not match.',
+    'action.errorTitle': 'Link expired or invalid',
+    'action.errorVerifySub': 'This verification link is no longer valid. Sign in and request a new one.',
+    'action.errorResetSub': 'This reset link is no longer valid. Request a new password reset.',
+    'action.backToSignIn': 'Back to sign in',
+    'action.openMotus': 'Open Motus',
     // Auth — signup
     'signup.title': 'Create Account',
     'signup.sub': 'Join Motus to start your recovery',
@@ -396,6 +422,32 @@ const I18N = {
     'auth.passwordPlaceholder': 'Contraseña',
     'auth.showPassword': 'Mostrar contraseña',
     'auth.hidePassword': 'Ocultar contraseña',
+    'auth.resendVerify': 'Reenviar correo de verificación',
+    'auth.resending': 'Enviando…',
+    'auth.verifySent': 'Correo de verificación enviado. Revisa tu bandeja (y spam).',
+    'auth.resendNeedCreds': 'Ingresa tu correo y contraseña, luego toca Reenviar.',
+    'auth.resendFailed': 'No se pudo reenviar. Verifica tu correo y contraseña.',
+    'auth.alreadyVerified': 'Tu correo ya está verificado: inicia sesión.',
+    // Email action handler (verify / reset)
+    'action.loadingTitle': 'Un momento…',
+    'action.loadingSub': 'Confirmando tu solicitud.',
+    'action.verifiedTitle': 'Correo verificado',
+    'action.verifiedSub': 'Tu correo está confirmado. Ya puedes iniciar sesión en Motus.',
+    'action.resetTitle': 'Elige una nueva contraseña',
+    'action.resetSub': 'Para %email%',
+    'action.confirmPassword': 'Confirmar contraseña',
+    'action.reenter': 'Reingresa la contraseña',
+    'action.updatePassword': 'Actualizar contraseña',
+    'action.updating': 'Actualizando…',
+    'action.pwUpdatedTitle': 'Contraseña actualizada',
+    'action.pwUpdatedSub': 'Tu contraseña ha sido cambiada. Ya puedes iniciar sesión.',
+    'action.pwTooShort': 'La contraseña debe tener al menos 8 caracteres.',
+    'action.pwMismatch': 'Las contraseñas no coinciden.',
+    'action.errorTitle': 'Enlace caducado o inválido',
+    'action.errorVerifySub': 'Este enlace de verificación ya no es válido. Inicia sesión y solicita uno nuevo.',
+    'action.errorResetSub': 'Este enlace de restablecimiento ya no es válido. Solicita uno nuevo.',
+    'action.backToSignIn': 'Volver a iniciar sesión',
+    'action.openMotus': 'Abrir Motus',
     'signup.title': 'Crear cuenta',
     'signup.sub': 'Únete a Motus para comenzar tu recuperación',
     'signup.patient': 'Paciente',
@@ -945,6 +997,28 @@ if (APPCHECK_ENABLED && !import.meta.env.DEV && import.meta.env.VITE_RECAPTCHA_S
 const db      = firebase.firestore();
 const auth    = firebase.auth();
 
+// ── Email action-link handler ──────────────────────────────────────────────
+// Firebase's default email-action page (…firebaseapp.com/__/auth/action) is
+// unstyled and off-brand. Setting a custom action URL (Console → Auth → Templates
+// → Customize action URL → https://motusmedicine.com/auth/action) makes verify-
+// email and password-reset links load this SPA instead; runAuthAction() then
+// renders a branded screen. AUTH_ACTION is truthy only when we arrived via such a
+// link, in which case it OWNS the screen (onAuthStateChanged stands down).
+const AUTH_ACTION = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    const mode = p.get('mode');
+    const oobCode = p.get('oobCode');
+    if (oobCode && ['verifyEmail', 'resetPassword', 'recoverEmail', 'verifyAndChangeEmail'].includes(mode)) {
+      return { mode, oobCode, lang: p.get('lang') || null };
+    }
+  } catch (_) { /* malformed query — fall through to normal boot */ }
+  return null;
+})();
+// True while resendVerification() drives its own sign-in/out, so the verification
+// gate in onAuthStateChanged doesn't race it.
+let _resendingVerification = false;
+
 // ── Storage: loaded on first upload (not needed for first paint) ──
 let _storagePromise;
 function getStorage() {
@@ -970,6 +1044,8 @@ db.enablePersistence({ synchronizeTabs: true }).catch(err => {
 
 // Restore session on page reload and route on sign-in / sign-out
 auth.onAuthStateChanged(async (firebaseUser) => {
+  if (AUTH_ACTION) return;              // branded email-action handler owns the screen
+  if (_resendingVerification) return;  // resendVerification() manages its own session
   if (!firebaseUser) {
     currentUser = null;
     currentRole = null;
@@ -989,6 +1065,8 @@ auth.onAuthStateChanged(async (firebaseUser) => {
       await auth.signOut();
       showScreen('loginScreen');
       showError('loginError', 'Please verify your email before signing in. Check your inbox for the verification link.');
+      const rb = document.getElementById('resendVerifyBtn');
+      if (rb) rb.style.display = 'block';
       return;
     }
     await loginSuccess();
@@ -1193,7 +1271,7 @@ const screenTitles = {
   clinicLibraryScreen: 'Motus Medicine — Clinic Library',
 };
 
-const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'roleScreen', 'connectScreen', 'pendingScreen', 'consentScreen']);
+const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'authActionScreen', 'roleScreen', 'connectScreen', 'pendingScreen', 'consentScreen']);
 
 function showScreen(screenId) {
   closeSidebar();
@@ -1234,6 +1312,10 @@ function showScreen(screenId) {
     currentFacingMode = 'user';
   }
 
+
+  // Resend-verification link is only relevant on a fresh unverified-login error
+  const _rb = document.getElementById('resendVerifyBtn');
+  if (_rb) _rb.style.display = 'none';
 
   // Reset forgot-password form if navigating away mid-flow
   if (screenId !== 'forgotScreen') {
@@ -1447,6 +1529,96 @@ async function finalizeSignup(skipData = false) {
     signupGoToStep(0);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+}
+
+// ── Branded email action handler (verify email / reset password) ───────────
+async function runAuthAction() {
+  if (!AUTH_ACTION) return;
+  if (AUTH_ACTION.lang && SUPPORTED_LANGS.includes(AUTH_ACTION.lang)) setLanguage(AUTH_ACTION.lang);
+  showScreen('authActionScreen');
+  const setText = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+  const { mode, oobCode } = AUTH_ACTION;
+  try {
+    if (mode === 'resetPassword') {
+      const email = await auth.verifyPasswordResetCode(oobCode);
+      document.getElementById('authActionTitle').textContent = t('action.resetTitle');
+      document.getElementById('authActionSub').textContent   = t('action.resetSub').replace('%email%', email);
+      document.getElementById('authActionResetForm').style.display = 'block';
+      const pw = document.getElementById('authActionNewPw'); if (pw) pw.focus();
+      return;
+    }
+    // verifyEmail / recoverEmail / verifyAndChangeEmail all confirm via applyActionCode
+    await auth.applyActionCode(oobCode);
+    setText('authActionTitle', 'action.verifiedTitle');
+    setText('authActionSub',   'action.verifiedSub');
+    const btn = document.getElementById('authActionContinueBtn');
+    if (btn) { btn.style.display = 'block'; btn.focus(); }
+  } catch (e) {
+    document.getElementById('authActionTitle').textContent = t('action.errorTitle');
+    document.getElementById('authActionSub').textContent =
+      mode === 'resetPassword' ? t('action.errorResetSub') : t('action.errorVerifySub');
+    const rf = document.getElementById('authActionResetForm'); if (rf) rf.style.display = 'none';
+    const btn = document.getElementById('authActionContinueBtn');
+    if (btn) { btn.textContent = t('action.backToSignIn'); btn.style.display = 'block'; }
+  }
+}
+
+async function submitAuthActionReset() {
+  hideError('authActionError');
+  const pw1 = document.getElementById('authActionNewPw').value;
+  const pw2 = document.getElementById('authActionNewPw2').value;
+  if (pw1.length < 8) { showError('authActionError', t('action.pwTooShort')); return; }
+  if (pw1 !== pw2)    { showError('authActionError', t('action.pwMismatch')); return; }
+  const btn = document.getElementById('authActionResetBtn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('action.updating'); }
+  try {
+    await auth.confirmPasswordReset(AUTH_ACTION.oobCode, pw1);
+    document.getElementById('authActionResetForm').style.display = 'none';
+    document.getElementById('authActionTitle').textContent = t('action.pwUpdatedTitle');
+    document.getElementById('authActionSub').textContent   = t('action.pwUpdatedSub');
+    const cbtn = document.getElementById('authActionContinueBtn');
+    if (cbtn) { cbtn.style.display = 'block'; cbtn.focus(); }
+  } catch (e) {
+    showError('authActionError',
+      e.code === 'auth/weak-password' ? t('action.pwTooShort') : t('action.errorResetSub'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+  }
+}
+
+function finishAuthAction() {
+  // Drop the action query params and reload cleanly into the normal app (login).
+  window.location.replace(window.location.origin + '/');
+}
+
+// Re-send the verification email using the credentials already typed on the login
+// form. sendEmailVerification needs a signed-in user, so we sign in, send, sign out.
+async function resendVerification() {
+  const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+  if (!email || !password) { showError('loginError', t('auth.resendNeedCreds')); return; }
+  const btn = document.getElementById('resendVerifyBtn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('auth.resending'); }
+  _resendingVerification = true;
+  try {
+    const cred = await auth.signInWithEmailAndPassword(email, password);
+    if (cred.user.emailVerified) {
+      await auth.signOut();
+      showError('loginError', t('auth.alreadyVerified'));
+      if (btn) btn.style.display = 'none';
+      return;
+    }
+    await cred.user.sendEmailVerification();
+    await auth.signOut();
+    showError('loginError', t('auth.verifySent'));
+  } catch (e) {
+    showError('loginError', t('auth.resendFailed'));
+  } finally {
+    _resendingVerification = false;
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
   }
 }
 
@@ -5848,6 +6020,7 @@ async function saveSession() {
 document.addEventListener('DOMContentLoaded', () => {
   initLanguage();
   initTextSize();
+  if (AUTH_ACTION) { runAuthAction(); return; }  // branded verify/reset handler
   const painCongrats = document.getElementById('painSliderCongrats');
   if (painCongrats) {
     painCongrats.addEventListener('input', function() {
@@ -8751,6 +8924,7 @@ Object.assign(window, {
   setLanguage, applyTranslations,
   // Auth
   handleLogin, handleForgot, selectRole, togglePassword,
+  resendVerification, submitAuthActionReset, finishAuthAction,
   signupNextStep, signupGoToStep, signupSelectLanguage, signupFinishLanguage, signupSkipData, finalizeSignup,
   showSettingsScreen, showSettingsBack, saveSettings, settingsSavedGoHome, settingsSavedStay,
   handleConnect, skipConnect, goToConnect,

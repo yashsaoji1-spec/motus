@@ -61,6 +61,7 @@
       </div>
       <button class="rd-btn-primary" id="loginBtn" onclick="handleLogin()" data-i18n="auth.signIn" style="margin-top:6px">Sign In</button>
       <button class="rd-link-btn" onclick="showScreen('forgotScreen')" data-i18n="auth.forgotPassword">I forgot my password</button>
+      <button class="rd-link-btn" id="resendVerifyBtn" style="display:none;margin-top:0" onclick="resendVerification()" data-i18n="auth.resendVerify">Resend verification email</button>
       <div class="rd-auth-divider" data-i18n="auth.newToMotus">New to Motus?</div>
       <button class="rd-btn-outline" onclick="showScreen('signupScreen')" data-i18n="auth.createAccount">Create an Account</button>
       <div class="rd-lang-toggle">
@@ -223,6 +224,36 @@
       </div>
       <button class="rd-btn-primary rd-mt" id="forgotBtn" onclick="handleForgot()" data-i18n="forgot.findAccount">Find Account</button>
       <button class="rd-link-btn" onclick="showScreen('loginScreen')" data-i18n="forgot.backToSignIn">Back to sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     EMAIL ACTION HANDLER  (verify email / reset password)
+═══════════════════════════════════════════════════════ -->
+<div id="authActionScreen" class="screen patient-scope">
+  <div class="rd-auth">
+    <div class="rd-auth-inner">
+      <div class="rd-logo-lozenge">
+        <img src="/motus-mark-white.svg" alt="Motus" style="width:42px;height:auto;display:block" />
+      </div>
+      <h1 class="rd-auth-title" id="authActionTitle" data-i18n="action.loadingTitle">Just a moment…</h1>
+      <p class="rd-auth-sub" id="authActionSub" data-i18n="action.loadingSub">Confirming your request.</p>
+      <div id="authActionError" class="rd-auth-error" style="display:none" aria-live="polite"></div>
+      <!-- reset-password form (revealed only for resetPassword links) -->
+      <div id="authActionResetForm" style="display:none">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="authActionNewPw" data-i18n="forgot.newPassword">New Password</label><button type="button" class="rd-show-btn" onclick="rdTogglePassword('authActionNewPw', this)" data-i18n="auth.show">Show</button></div>
+          <input class="rd-input" type="password" id="authActionNewPw" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" autocomplete="new-password" />
+        </div>
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="authActionNewPw2" data-i18n="action.confirmPassword">Confirm Password</label></div>
+          <input class="rd-input" type="password" id="authActionNewPw2" placeholder="Re-enter password" data-i18n-ph="action.reenter" autocomplete="new-password" onkeydown="if(event.key==='Enter') submitAuthActionReset()" />
+        </div>
+        <button class="rd-btn-primary rd-mt" id="authActionResetBtn" onclick="submitAuthActionReset()" data-i18n="action.updatePassword">Update Password</button>
+      </div>
+      <!-- continue button (revealed at a terminal state) -->
+      <button class="rd-btn-primary rd-mt" id="authActionContinueBtn" style="display:none" onclick="finishAuthAction()" data-i18n="action.openMotus">Open Motus</button>
     </div>
   </div>
 </div>
