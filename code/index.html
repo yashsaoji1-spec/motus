@@ -218,7 +218,7 @@
         <input class="rd-input" type="email" id="forgotEmail" placeholder="you@example.com" data-i18n-ph="auth.emailPlaceholder" />
       </div>
       <div class="rd-field" id="newPasswordField" style="display:none">
-        <div class="rd-field-labelrow"><label class="rd-label" for="forgotNewPassword" data-i18n="forgot.newPassword">New Password</label></div>
+        <div class="rd-field-labelrow"><label class="rd-label" for="forgotNewPassword" data-i18n="forgot.newPassword">New Password</label><button type="button" class="rd-show-btn" onclick="rdTogglePassword('forgotNewPassword', this)" data-i18n="auth.show">Show</button></div>
         <input class="rd-input" type="password" id="forgotNewPassword" placeholder="Min. 8 characters" data-i18n-ph="signup.min8" />
       </div>
       <button class="rd-btn-primary rd-mt" id="forgotBtn" onclick="handleForgot()" data-i18n="forgot.findAccount">Find Account</button>
