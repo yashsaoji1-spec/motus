@@ -1,68 +1,28 @@
-# Motus — Services & Infrastructure
+# Motus — Services We Use
 
-An inventory of the external services Motus depends on, what each does, and where its
-configuration lives.
+Every outside service Motus depends on, in plain terms — what it does and why it's here.
 
-> **No secrets are stored in this file or the repo.** All API keys, DSNs, and passwords
-> live in the service consoles and in gitignored `.env.*` files. This document lists
-> *what* we use and *where* to configure it — not credential values.
+> No passwords or keys live in this file or the repo. Those stay in each service's
+> dashboard and in local `.env` files (which are not committed).
 
-## Platform — Firebase / Google Cloud (project: `motus-prod`)
-- **Hosting** — serves the app at `motusmedicine.com` and `motus-prod.web.app`
-- **Authentication** — email/password with email verification
-- **Firestore** — application database
-- **Storage** — session video, access-controlled with short-lived signed URLs
-- **Cloud Functions** — data retention + cascade account deletion
-- **App Check** — reCAPTCHA v3, enforced on Firestore
-- **Google Auth Platform (Branding)** — sets the app name used in auth emails
-- **Custom email sending domain** — sends `noreply@motusmedicine.com` (verification/reset)
-- Staging project: `motus-staging1`
+| Service | What it does |
+|---|---|
+| **Firebase / Google Cloud** | Runs the whole app — hosts the website, handles logins + email verification, stores the database, keeps session videos secure, and runs background jobs (data cleanup, account deletion). |
+| **Namecheap** | Owns the domain `motusmedicine.com` and its DNS settings. |
+| **Zoho Mail** | The email inboxes: `yash@`, `support@`, `privacy@` `motusmedicine.com`. |
+| **Google Analytics (GA4)** | Tracks how people use the app — visits and activity. |
+| **reCAPTCHA** | Blocks bots (powers Firebase's App Check security). |
+| **Sentry** | Tracks errors/crashes so we know when something breaks. |
+| **UptimeRobot** | Tracks whether the site is up; emails an alert if it goes down. |
+| **GitHub** | Stores the code (`github.com/yashsaoji1-spec/motus`). |
 
-## Domain & DNS — Namecheap
-- `motusmedicine.com` — registrar + DNS. Points to Firebase Hosting and holds the
-  email DNS records (MX / SPF / DKIM).
+**Email specifics:** verification/reset emails send from `noreply@motusmedicine.com`
+(via Firebase); everything else (`support@`, etc.) is Zoho. Both share one SPF DNS
+record so neither breaks the other.
 
-## Email
-- **Zoho Mail** (free plan) — team inbox: `yash@`, `support@`, `privacy@` `motusmedicine.com`
-- **Firebase custom-domain sending** — `noreply@motusmedicine.com` for transactional auth emails
-- SPF is shared between both senders:
-  `v=spf1 include:_spf.firebasemail.com include:zoho.com ~all`
-- _Resend was evaluated for SMTP but is disabled — it conflicts with Firebase's
-  custom-domain sending._
+**Not in use:** Resend (email — evaluated, turned off, it conflicted with the above),
+Higgsfield (tried for a promo video), IONOS (considered for the domain, went Namecheap).
 
-## Analytics — Google Analytics 4
-- GA4 via Google Tag Manager. Measurement ID in `.env.production`
-  (`VITE_FIREBASE_MEASUREMENT_ID`).
-
-## Security — reCAPTCHA v3
-- Backs Firebase App Check. Site key in `.env.*` (`VITE_RECAPTCHA_SITE_KEY`).
-
-## Error monitoring — Sentry
-- Client-side error tracking. DSN in `.env.*` (`VITE_SENTRY_DSN`), loaded lazily in production.
-
-## Uptime — UptimeRobot
-- HTTP monitor on `https://motusmedicine.com` (5-minute interval, email alerts).
-
-## Source control & deploy — GitHub
-- Repo: `github.com/yashsaoji1-spec/motus`. Working branch `yash`, released via `main`.
-- Production deploy: `npm run build` then `firebase deploy --only hosting` (serves `dist/`).
-
-## Client dependencies (CSP allowlist, not accounts)
-- `cdn.jsdelivr.net` (TensorFlow.js, DOMPurify), `tfhub.dev` (ML models), Google Fonts.
-
-## Configuration
-Environment variables live in gitignored files: `.env.production`, `.env.staging`,
-`.env.development`, `.env.audit`. Variable names (values are secret):
-
-```
-VITE_FIREBASE_API_KEY
-VITE_FIREBASE_AUTH_DOMAIN
-VITE_FIREBASE_PROJECT_ID
-VITE_FIREBASE_STORAGE_BUCKET
-VITE_FIREBASE_MESSAGING_SENDER_ID
-VITE_FIREBASE_APP_ID
-VITE_FIREBASE_MEASUREMENT_ID
-VITE_RECAPTCHA_SITE_KEY
-VITE_SENTRY_DSN
-VITE_USE_EMULATORS
-```
+**Configuration:** app settings live in gitignored `.env` files (`.env.production`,
+`.env.staging`, etc.) — Firebase keys, the reCAPTCHA key, the Sentry address, and the
+GA4 ID. Values are secret; the repo only references their names.
