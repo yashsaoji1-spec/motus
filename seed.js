@@ -17,7 +17,10 @@
 // Idempotent: safe to re-run. Existing demo sessions/messages/notes for these
 // demo emails are deleted first, so every run produces the exact same state.
 
-const admin = require('firebase-admin');
+let admin = require('firebase-admin');
+// Node >=23 require(ESM) interop can hand back the module namespace, with the
+// real exports under .default (admin.credential is undefined otherwise).
+if (!admin.credential && admin.default) admin = admin.default;
 const serviceAccount = require('./serviceAccountKey.json');
 
 const PROJECT = process.env.PROJECT || 'motus-staging1'; // default to staging for safety
