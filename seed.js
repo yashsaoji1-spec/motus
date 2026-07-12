@@ -17,10 +17,10 @@
 // Idempotent: safe to re-run. Existing demo sessions/messages/notes for these
 // demo emails are deleted first, so every run produces the exact same state.
 
-let admin = require('firebase-admin');
-// Node >=23 require(ESM) interop can hand back the module namespace, with the
-// real exports under .default (admin.credential is undefined otherwise).
-if (!admin.credential && admin.default) admin = admin.default;
+// Modular imports: the old `admin.credential.cert(...)` namespace API was
+// removed in firebase-admin v14; these subpaths work on every version >= v10.
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const serviceAccount = require('./serviceAccountKey.json');
 
 const PROJECT = process.env.PROJECT || 'motus-staging1'; // default to staging for safety
@@ -29,8 +29,8 @@ if (serviceAccount.project_id !== PROJECT) {
   process.exit(1);
 }
 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
+initializeApp({ credential: cert(serviceAccount) });
+const db = getFirestore();
 
 const NPP_VERSION = '2026-06-21'; // keep in sync with app.js so the demo patient skips the consent screen
 
@@ -233,7 +233,7 @@ async function run() {
 
     // Connection.
     await db.collection('connections').doc(THERAPIST.email).set(
-      { patients: admin.firestore.FieldValue.arrayUnion(p.email) }, { merge: true });
+      { patients: FieldValue.arrayUnion(p.email) }, { merge: true });
 
     // Protocol (full overwrite — the seed owns this doc).
     await db.collection('protocols').doc(p.email).set({ items: p.protocol });
@@ -248,7 +248,7 @@ async function run() {
     if (p.clinicalNotes) {
       await db.collection('clinicalNotes').doc(p.email).set({
         html: p.clinicalNotes, updatedBy: THERAPIST.email,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
 
