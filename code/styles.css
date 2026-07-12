@@ -7097,7 +7097,11 @@ body:has(#manualCamScreen.active) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* `safe center` + scroll: vertically centered when it fits, but falls back to
+     top-aligned + scrollable when content (e.g. an error box) overflows the
+     viewport — otherwise the logo/buttons get clipped with no way to reach them. */
+  justify-content: safe center;
+  overflow-y: auto;
   padding: max(env(safe-area-inset-top), 32px) 24px max(env(safe-area-inset-bottom), 32px);
   font-family: var(--rd-font);
   color: var(--rd-ink);
