@@ -4641,7 +4641,7 @@ async function showRealPatient(patient) {
 
   // Pain chart data
   const chartSessions = sessions.slice(-8);
-  const painData = chartSessions.map(s => s.pain || 0);
+  const painData = chartSessions.map(s => sessionPainValue(s));
   const labels = buildChartLabels(chartSessions);
 
   panel.innerHTML = `
@@ -4887,7 +4887,7 @@ function buildSessionHistory(sessions, patientName) {
     const totalSets = daySessions.length;
     const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
     const avgPain = totalSets > 0
-      ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
+      ? (daySessions.reduce((sum, s) => sum + sessionPainValue(s), 0) / totalSets).toFixed(1)
       : '-';
     const dtimes = daySessions.map(s => {
       if (s.date) return new Date(s.date).getTime();
@@ -6636,7 +6636,7 @@ async function renderPainChart(sessions, days, canvasId) {
   cutoff.setHours(0, 0, 0, 0);
   const filtered = sessions.filter(s => new Date(s.date) >= cutoff);
   const chartSessions = filtered.length > 0 ? filtered : sessions.slice(-1);
-  const painData = chartSessions.map(s => s.pain || 0);
+  const painData = chartSessions.map(s => sessionPainValue(s));
   const labels = buildChartLabels(chartSessions);
   const cfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
   const Chart = await getChart();
@@ -6762,7 +6762,7 @@ function buildProgressByDay(sessions) {
     const totalSets = daySessions.length;
     const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
     const avgPain = totalSets > 0
-      ? (daySessions.reduce((sum, s) => sum + (s.pain || 0), 0) / totalSets).toFixed(1)
+      ? (daySessions.reduce((sum, s) => sum + sessionPainValue(s), 0) / totalSets).toFixed(1)
       : '-';
     const dateTimes = daySessions.map(s => {
       if (s.timestamp && s.timestamp.toDate) return s.timestamp.toDate().getTime();
@@ -6931,8 +6931,8 @@ async function renderProgressScreen() {
   var painTrendClass = '';
   var painTrendDisplay = '\u2014';
   if (last7.length && prior7.length) {
-    const avgLast = last7.reduce(function(s, x) { return s + (x.pain || 0); }, 0) / last7.length;
-    const avgPrior = prior7.reduce(function(s, x) { return s + (x.pain || 0); }, 0) / prior7.length;
+    const avgLast = last7.reduce(function(s, x) { return s + sessionPainValue(x); }, 0) / last7.length;
+    const avgPrior = prior7.reduce(function(s, x) { return s + sessionPainValue(x); }, 0) / prior7.length;
     const diff = avgLast - avgPrior;
     if (diff < 0) {
       painTrendDisplay = '\u2193 ' + Math.abs(diff).toFixed(1);
