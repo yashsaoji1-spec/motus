@@ -289,6 +289,7 @@ const I18N = {
     'pain.quiteABit': 'Quite a bit',
     'pain.aLot': 'A lot',
     'si.videoSaved': 'Video saved',
+    'si.noVideo': 'No video',
     'si.repsCompleted': 'Reps you completed',
     'si.howMuchHurt': 'How much did it hurt?',
     'si.anythingToAdd': 'Anything to add?',
@@ -602,6 +603,7 @@ const I18N = {
     'pain.quiteABit': 'Bastante',
     'pain.aLot': 'Mucho',
     'si.videoSaved': 'Video guardado',
+    'si.noVideo': 'Sin video',
     'si.repsCompleted': 'Repeticiones que hiciste',
     'si.howMuchHurt': '¿Cuánto te dolió?',
     'si.anythingToAdd': '¿Algo que agregar?',
@@ -3053,6 +3055,10 @@ function openSetInputModal() {
 
   const badge = document.getElementById('setInputBadgeText');
   if (badge) badge.textContent = t('si.howDidSetGo', { n: _manualCamCurrentSet });
+  // Eyebrow must reflect whether a video was actually captured — otherwise the
+  // "Log without video" recovery path still (wrongly) reads "Video saved".
+  const eyebrow = document.getElementById('setInputBadge');
+  if (eyebrow) eyebrow.textContent = _manualCamNoVideo ? t('si.noVideo') : t('si.videoSaved');
 
   const repsDisp = document.getElementById('siRepsDisplay');
   const repsTgt = document.getElementById('siRepsTarget');
