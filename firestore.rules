@@ -412,8 +412,11 @@ service cloud.firestore {
 
     // -- therapistCodes/{code} -- maps clinic codes to therapist emails
     // Therapists create/read their own code; patients read any code (for connect-by-code).
+    // get (direct read by known code) only — NOT list. The connect-by-code flow
+    // reads a single doc by its exact code; allowing list would let any patient
+    // enumerate the whole collection and harvest every therapist's email.
     match /therapistCodes/{code} {
-      allow read: if isAuth();
+      allow get: if isAuth();
       // keys().hasOnly(['email']): the code doc is readable by every signed-in
       // user, so no other data may ride along in it.
       allow create: if isAuth() && isTherapist() &&

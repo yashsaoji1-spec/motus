@@ -86,6 +86,13 @@ issues discovered while red-teaming the round-2 changes themselves.
   flow failed with permission-denied. The branch now allows add-self OR
   remove-self, with `affectedKeys().hasOnly(['patients'])` so nothing else can
   ride along.
+- **therapistCodes enumeration / therapist-email harvest (moderate, found on
+  final pass)** — `therapistCodes` used `allow read: if isAuth()`, which covers
+  both get-by-id and list. Connect-by-code only ever reads a single doc by its
+  exact code (`getTherapistForCode` / `getOrCreateTherapistCode` — no list query
+  anywhere in the client), but the rule also let any patient enumerate the whole
+  collection and scrape every therapist's email — partially undoing the
+  therapist-doc read restriction above. Split into `allow get` only (no `list`).
 - **Type/shape hardening (minor)** — participants must be a 2-element list on
   messages/messageThreads create; `to`/`text`/`notes`/`patientEmail` typed;
   `clinicalNotes.html` bounded at 50k chars (delete split out so it still

@@ -10,7 +10,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  setDoc, doc, addDoc, collection, getDoc,
+  setDoc, doc, addDoc, collection, getDoc, getDocs,
 } from 'firebase/firestore';
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
 
@@ -239,6 +239,20 @@ describe('therapistCodes — shape', () => {
     await assertFails(setDoc(doc(db, 'therapistCodes', '123456'), {
       email: 'ther@x.com', note: 'smuggled',
     }));
+  });
+
+  it('allows a patient to GET a code doc by its exact id (connect-by-code)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('therapistCodes', '123456', { email: 'ther@x.com' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(getDoc(doc(db, 'therapistCodes', '123456')));
+  });
+
+  it('blocks a patient from LISTING therapistCodes (email harvesting)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('therapistCodes', '123456', { email: 'ther@x.com' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(getDocs(collection(db, 'therapistCodes')));
   });
 });
 
