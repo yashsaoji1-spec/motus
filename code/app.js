@@ -932,6 +932,11 @@ const VIDEO_TIERS = {
 
 // ── Feature flags — set to false to disable without deleting code ──
 const ANGLE_TRACKING_ENABLED = false;
+// Clinic (multi-therapist org) feature — HIDDEN for the initial pilot. The core
+// therapist↔patient loop doesn't need it, and org-level therapist vetting is a
+// post-pilot scale concern. This only hides the entry points + no-ops the entry
+// screens; the clinic code stays intact. Flip to true to bring it back.
+const CLINICS_ENABLED = false;
 
 // ── Consent / Notice of Privacy Practices version ──
 // Bump this date string whenever the consent language or the NPP materially
@@ -2100,6 +2105,7 @@ function _updateClinicBadge() {
 }
 
 function showMyClinicOrJoin() {
+  if (!CLINICS_ENABLED) return;   // clinic feature hidden for the pilot
   if (_myClinicId) {
     showClinicScreen();
   } else {
@@ -2242,6 +2248,7 @@ async function declineInvite(inviteId) {
 }
 
 async function showClinicScreen() {
+  if (!CLINICS_ENABLED) return;   // clinic feature hidden for the pilot
   // F-017: show loading placeholder before async fetch
   const content = document.getElementById('clinicScreenContent');
   if (content) {
@@ -2449,6 +2456,7 @@ async function loadClinicLibrary() {
 }
 
 async function showClinicLibraryScreen() {
+  if (!CLINICS_ENABLED) return;   // clinic feature hidden for the pilot
   if (!_myClinicId) return;
   await loadClinicLibrary();
   _renderClinicLibrary();
@@ -6026,6 +6034,8 @@ async function saveSession() {
 document.addEventListener('DOMContentLoaded', () => {
   initLanguage();
   initTextSize();
+  // Clinic feature hidden for the pilot — remove its entry buttons from the DOM view.
+  if (!CLINICS_ENABLED) document.querySelectorAll('[data-clinic-entry]').forEach(el => { el.style.display = 'none'; });
   if (AUTH_ACTION) { runAuthAction(); return; }  // branded verify/reset handler
   const painCongrats = document.getElementById('painSliderCongrats');
   if (painCongrats) {
