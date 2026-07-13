@@ -1182,16 +1182,12 @@ async function getConnectedTherapist() {
 }
 
 async function getTherapistForCode(code) {
+  // The code doc alone proves the code is real: rules only let a therapist
+  // create a code doc naming themselves. Patients can no longer read therapist
+  // user docs before connecting (or scan users by role), so the therapist's
+  // name is fetched by the caller AFTER the connection is saved.
   const codeDoc = await db.collection('therapistCodes').doc(code).get();
-  if (codeDoc.exists) {
-    const tDoc = await db.collection('users').doc(codeDoc.data().email).get();
-    if (tDoc.exists) return { email: tDoc.id, ...tDoc.data() };
-  }
-  const snap = await db.collection('users').where('role', '==', 'therapist').get();
-  for (const doc of snap.docs) {
-    if (generateCodeForEmail(doc.id) === code) return { email: doc.id, ...doc.data() };
-  }
-  return null;
+  return codeDoc.exists ? { email: codeDoc.data().email } : null;
 }
 
 // ── Audit logging (HIPAA §164.312(b)) ────────────────────────────────────────
@@ -1785,8 +1781,15 @@ async function handleConnect() {
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   await saveConnection(therapist.email, currentUser.email);
   currentUser.therapistEmail = therapist.email;  // keep in-memory user in sync so the home screen sees the connection without a refresh
+  // Rules allow reading the therapist doc only once connected, so the name
+  // lookup must come after saveConnection.
+  let therapistName = 'your therapist';
+  try {
+    const tSnap = await db.collection('users').doc(therapist.email).get();
+    if (tSnap.exists && tSnap.data().name) therapistName = tSnap.data().name;
+  } catch (_) {}
   const successEl = document.getElementById('connectSuccess');
-  successEl.textContent = `Connected to ${therapist.name}! Loading your exercises...`;
+  successEl.textContent = `Connected to ${therapistName}! Loading your exercises...`;
   successEl.style.display = 'block';
   setTimeout(async () => {
     showScreen('patientScreen');
