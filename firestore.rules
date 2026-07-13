@@ -298,7 +298,11 @@ service cloud.firestore {
       allow update: if isAuth() && (
         isAdmin() ||
         isClinicOwner(clinicId) ||
-        (isTherapist() && (
+        // Non-owner therapists may only join/leave: the ONLY field they may touch is
+        // `therapists`. Without this diff() guard a member could set ownerEmail=self in
+        // the same write and escalate to clinic owner (privilege escalation).
+        (isTherapist() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapists']) && (
           // joining: add own email
           (request.resource.data.therapists.hasAll(resource.data.therapists) &&
            request.resource.data.therapists.hasOnly(resource.data.therapists.concat([myEmail()]))) ||
@@ -352,7 +356,14 @@ service cloud.firestore {
     // Therapists create/read their own code; patients read any code (for connect-by-code).
     match /therapistCodes/{code} {
       allow read: if isAuth();
-      allow write: if isAuth() && isTherapist() && request.resource.data.email == myEmail();
+      allow create: if isAuth() && isTherapist() && request.resource.data.email == myEmail();
+      // A therapist may only overwrite/delete a code doc that already points to
+      // themselves. The blanket `write` previously let any therapist overwrite an
+      // EXISTING code owned by another therapist, hijacking their connect-by-code
+      // mapping so patients connect to the attacker instead (connection hijack).
+      allow update: if isAuth() && isTherapist() &&
+        resource.data.email == myEmail() && request.resource.data.email == myEmail();
+      allow delete: if isAuth() && isTherapist() && resource.data.email == myEmail();
     }
 
 
