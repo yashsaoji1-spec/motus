@@ -2713,8 +2713,7 @@ async function updatePatientHomeScreen() {
   const adherencePct = adhResult.overall;
   const avgPain7d = recent7.length > 0
     ? (recent7.reduce((sum, s) => {
-        if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
-        return sum + (s.pain || 0);
+        return sum + sessionPainValue(s);
       }, 0) / recent7.length).toFixed(1)
     : null;
   // Compute prior week stats for delta
@@ -2725,8 +2724,7 @@ async function updatePatientHomeScreen() {
   const priorWeek = sessions.filter(s => { const d = new Date(s.date); return d > fourteenDaysAgo && d <= sevenDaysAgo; });
   const priorPain = priorWeek.length > 0
     ? (priorWeek.reduce((sum, s) => {
-        if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
-        return sum + (s.pain || 0);
+        return sum + sessionPainValue(s);
       }, 0) / priorWeek.length).toFixed(1)
     : null;
   const painDelta = (avgPain7d !== null && priorPain !== null) ? (parseFloat(avgPain7d) - parseFloat(priorPain)).toFixed(1) : null;
@@ -4578,8 +4576,7 @@ async function showRealPatient(patient) {
   const sessions7d = recent7.length;
   const avgPain7d = recent7.length > 0
     ? (recent7.reduce((sum, s) => {
-        if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
-        return sum + (s.pain || 0);
+        return sum + sessionPainValue(s);
       }, 0) / recent7.length).toFixed(1)
     : '-';
   const adhResultT = calcCompliance(sessions, protocols, 0, { nameFn: exName });
