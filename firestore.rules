@@ -99,8 +99,15 @@ service cloud.firestore {
       );
       // Self-update: role is immutable for non-admins — blocks self-promotion to therapist/admin
       // (legitimate self-writes — name, language, demographics, consent, clinicId — never touch role).
+      // therapistEmail is also authoritative: it is written only by the connectByCode
+      // Cloud Function (admin). A self-write may keep it unchanged or CLEAR it (patient
+      // disconnect), but never set/change it — otherwise a patient could point it at any
+      // therapist and read that therapist's user doc (isMyTherapist) without a real connection.
       allow update: if isAuth() && (
-        (myEmail() == email && request.resource.data.role == resource.data.role) ||
+        (myEmail() == email && request.resource.data.role == resource.data.role &&
+          (!('therapistEmail' in request.resource.data) ||
+            (('therapistEmail' in resource.data) &&
+             request.resource.data.therapistEmail == resource.data.therapistEmail))) ||
         isAdmin()
       );
       allow delete: if isAuth() && (myEmail() == email || isAdmin());
@@ -113,39 +120,31 @@ service cloud.firestore {
 
 
     // -- connections/{therapistEmail} --
-    // Therapist manages their own connection list.
-    // Patients can update (but not create/delete/read) to add or remove themselves.
+    // Therapist manages their own connection list. The connectByCode Cloud
+    // Function (admin) adds a patient on connect, so there is no patient CREATE
+    // or add-self branch here — a patient can only REMOVE themselves (disconnect).
     // No patient reads: the doc is the therapist's full patient roster, and exposing
     // it would leak every co-patient's email (PHI-adjacent — it reveals who is in
     // therapy). A patient's own connection status lives on their users doc.
     match /connections/{therapistEmail} {
       allow read: if isAuth() && (myEmail() == therapistEmail || isAdmin());
-      allow create: if isAuth() && (
-        myEmail() == therapistEmail ||
-        isAdmin() ||
-        // Patient bootstraps the doc when connecting to their first therapist.
-        // Restrict to only the patients field so no other keys can be injected.
-        (isPatient() &&
-          request.resource.data.keys().hasOnly(['patients']) &&
-          request.resource.data.patients.hasOnly([myEmail()]))
-      );
+      allow create: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       allow delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
-      // Patients may only add or remove their OWN email in the patients array —
-      // no other keys, no touching other patients' entries. The remove branch is
-      // required by patient-initiated disconnect (disconnectFromTherapist), which
-      // arrayRemoves the caller from their therapist's roster.
+      // Patient-initiated disconnect (disconnectFromTherapist) arrayRemoves the
+      // caller from their therapist's roster: a patient may touch only the patients
+      // key and only to remove their OWN email — never add anyone or remove others.
+      // The three clauses together force new == old \ {me}:
+      //   - me must be absent from the new list (self actually removed)
+      //   - old ⊇ new (nothing added)
+      //   - old ⊆ new ∪ {me} (nothing other than me removed)
       allow update: if isAuth() && (
         myEmail() == therapistEmail ||
         isAdmin() ||
         (isPatient() &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patients']) && (
-          // connecting: append own email
-          (request.resource.data.patients.hasAll(resource.data.patients) &&
-           request.resource.data.patients.hasOnly(resource.data.patients.concat([myEmail()]))) ||
-          // disconnecting: remove own email
-          (resource.data.patients.hasAll(request.resource.data.patients) &&
-           resource.data.patients.hasOnly(request.resource.data.patients.concat([myEmail()])))
-        ))
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patients']) &&
+          !(myEmail() in request.resource.data.patients) &&
+          resource.data.patients.hasAll(request.resource.data.patients) &&
+          resource.data.patients.hasOnly(request.resource.data.patients.concat([myEmail()])))
       );
     }
 

@@ -3,23 +3,19 @@
 Generated with the `firebase-security-rules-auditor` skill
 (firebase/agent-skills). Scope: `firestore.rules`, `storage.rules`.
 
-Two audit rounds have been run. Round 1 fixed two authenticated-therapist
-privilege bypasses. Round 2 fixed the remaining moderate findings plus three
-issues discovered while red-teaming the round-2 changes themselves.
+Three audit rounds have been run. Round 1 fixed two authenticated-therapist
+privilege bypasses. Round 2 fixed the moderate findings plus three issues
+discovered while red-teaming the round-2 changes. Round 3 (final pass) closed
+therapistCodes enumeration and made the patient→therapist connection
+server-authoritative, which also eliminated the last cross-user read vector.
 
-## Assessment (JSON) — round 2, current rules
+## Assessment (JSON) — round 3, current rules
 
 ```json
 {
-  "score": 4,
-  "summary": "All critical/major/moderate findings from both rounds are fixed: no privilege escalation, no cross-user data leaks, no validation bypasses found against the current rules. Reads are ownership- or connection-scoped per collection, roles are DB-sourced and immutable to non-admins, and field-level diff() guards are paired with identity checks. Remaining items are minor: the patient→therapist connection is client-asserted (by design, pending a server-side code check), trusted-role collections lack size ceilings, and type coverage is partial.",
+  "score": 5,
+  "summary": "All critical/major/moderate findings across three rounds are fixed and no cross-user read/write or privilege-escalation vector remains: roles and the patient→therapist connection are both authoritative (DB-sourced role, connectByCode Cloud Function the sole writer of therapistEmail and roster membership), reads are ownership/connection-scoped per collection, and field-level diff() guards are paired with identity checks. Remaining items are minor and require no rule change to be safe: trusted-role (connected therapist/admin) collections lack document-size ceilings, global ML collections are writable by any approved therapist, and type coverage beyond security-relevant fields is partial.",
   "findings": [
-    {
-      "check": "Authority Source",
-      "severity": "minor",
-      "issue": "The patient→therapist connection itself is client-asserted: rules let any patient append themselves to any therapist's connections doc and set their own therapistEmail, because the connect-code check happens client-side. A patient who knows a therapist's email can connect without the code, which also grants read access to that one therapist's user doc.",
-      "recommendation": "Verify the connect code server-side (Cloud Function writes the connection), then drop the patient-append branch from connections update/create."
-    },
     {
       "check": "Storage Abuse / Resource Exhaustion",
       "severity": "minor",
@@ -41,8 +37,8 @@ issues discovered while red-teaming the round-2 changes themselves.
     {
       "check": "Storage rules review",
       "severity": "minor",
-      "issue": "storage.rules locks session videos to the owner with a 200MB/video-content-type ceiling; therapist access rides on the tokenized download URL in the Firestore session doc, and contentType.matches trusts the client-declared MIME type.",
-      "recommendation": "Proceed with the planned getSignedVideoUrl Cloud Function so direct reads can be denied entirely; treat declared contentType as advisory only."
+      "issue": "storage.rules locks session videos to the owner with a 200MB/video-content-type ceiling. Therapist access is served by the getSignedVideoUrl Cloud Function (already deployed), which authorizes the caller and returns a 15-minute signed URL, so direct-path reads stay owner-only. contentType.matches still trusts the client-declared MIME type.",
+      "recommendation": "No rule change needed. Treat declared contentType as advisory only; optionally verify magic bytes server-side if untrusted uploads become a concern."
     }
   ]
 }
@@ -89,10 +85,29 @@ issues discovered while red-teaming the round-2 changes themselves.
 - **therapistCodes enumeration / therapist-email harvest (moderate, found on
   final pass)** — `therapistCodes` used `allow read: if isAuth()`, which covers
   both get-by-id and list. Connect-by-code only ever reads a single doc by its
-  exact code (`getTherapistForCode` / `getOrCreateTherapistCode` — no list query
-  anywhere in the client), but the rule also let any patient enumerate the whole
-  collection and scrape every therapist's email — partially undoing the
-  therapist-doc read restriction above. Split into `allow get` only (no `list`).
+  exact code (`getOrCreateTherapistCode` — no list query anywhere in the client),
+  but the rule also let any patient enumerate the whole collection and scrape
+  every therapist's email — partially undoing the therapist-doc read restriction
+  above. Split into `allow get` only (no `list`).
+- **Client-asserted patient→therapist connection (round 3)** — the rules let any
+  patient append themselves to any therapist's `connections` roster and self-set
+  their own `therapistEmail`, because the connect-code check ran only client-side.
+  A patient who knew a therapist's email could connect without the code, and —
+  because `isMyTherapist` keys off the patient's own `therapistEmail` — could read
+  any therapist's user doc by pointing `therapistEmail` at it (one at a time),
+  partly undoing the round-2 therapist-doc restriction. Now server-authoritative:
+  a new `connectByCode` Cloud Function verifies the caller is a patient and the
+  code maps to a real therapist, then writes the roster entry and `therapistEmail`
+  with admin privileges. Rules were tightened so `connections` has no patient
+  create/add-self path (patients may only *remove* themselves on disconnect) and a
+  patient self-write can keep or clear `therapistEmail` but never set/change it.
+  `therapistEmail` is now genuinely authoritative, so `isMyTherapist` means a real
+  connection. `getTherapistForCode`/`saveConnection` client helpers removed.
+- **Roster griefing via disconnect (round 3, found red-teaming the above)** — the
+  patient disconnect branch allowed any patients-only change that left the caller
+  a subset, which also let a patient *remove other patients* from a shared roster
+  as long as they left themselves in. Tightened to force `new == old \ {me}`
+  (self must be absent from the new list; nothing added; nothing but self removed).
 - **Type/shape hardening (minor)** — participants must be a 2-element list on
   messages/messageThreads create; `to`/`text`/`notes`/`patientEmail` typed;
   `clinicalNotes.html` bounded at 50k chars (delete split out so it still

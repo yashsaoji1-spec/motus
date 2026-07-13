@@ -1167,27 +1167,9 @@ async function getConnectedPatients(therapistEmail) {
   return snaps.filter(d => d.exists).map(d => ({ email: d.id, ...d.data() }));
 }
 
-async function saveConnection(therapistEmail, patientEmail) {
-  await Promise.all([
-    db.collection('connections').doc(therapistEmail)
-      .set({ patients: firebase.firestore.FieldValue.arrayUnion(patientEmail) }, { merge: true }),
-    db.collection('users').doc(patientEmail)
-      .update({ therapistEmail }),
-  ]);
-}
-
 async function getConnectedTherapist() {
   if (!currentUser) return null;
   return currentUser.therapistEmail || null;
-}
-
-async function getTherapistForCode(code) {
-  // The code doc alone proves the code is real: rules only let a therapist
-  // create a code doc naming themselves. Patients can no longer read therapist
-  // user docs before connecting (or scan users by role), so the therapist's
-  // name is fetched by the caller AFTER the connection is saved.
-  const codeDoc = await db.collection('therapistCodes').doc(code).get();
-  return codeDoc.exists ? { email: codeDoc.data().email } : null;
 }
 
 // ── Audit logging (HIPAA §164.312(b)) ────────────────────────────────────────
@@ -1777,19 +1759,21 @@ async function handleConnect() {
   hideError('connectError');
   const code = document.getElementById('connectCode').value.trim();
   if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character clinic code.'); return; }
-  const therapist = await getTherapistForCode(code);
-  if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
-  await saveConnection(therapist.email, currentUser.email);
-  currentUser.therapistEmail = therapist.email;  // keep in-memory user in sync so the home screen sees the connection without a refresh
-  // Rules allow reading the therapist doc only once connected, so the name
-  // lookup must come after saveConnection.
-  let therapistName = 'your therapist';
+  // Server-authoritative connect: the connectByCode function verifies the code
+  // maps to a real therapist and writes the connection + therapistEmail with
+  // admin privileges. The client can no longer self-assert a connection.
+  let result;
   try {
-    const tSnap = await db.collection('users').doc(therapist.email).get();
-    if (tSnap.exists && tSnap.data().name) therapistName = tSnap.data().name;
-  } catch (_) {}
+    const res = await (await getFunctions()).httpsCallable('connectByCode')({ code });
+    result = res.data;
+  } catch (e) {
+    console.warn('[Motus] connectByCode failed:', e);
+    showError('connectError', 'No therapist found with that code. Double-check with your therapist.');
+    return;
+  }
+  currentUser.therapistEmail = result.therapistEmail;  // keep in-memory user in sync so the home screen sees the connection without a refresh
   const successEl = document.getElementById('connectSuccess');
-  successEl.textContent = `Connected to ${therapistName}! Loading your exercises...`;
+  successEl.textContent = `Connected to ${result.therapistName}! Loading your exercises...`;
   successEl.style.display = 'block';
   setTimeout(async () => {
     showScreen('patientScreen');

@@ -184,6 +184,46 @@ exports.getSignedVideoUrl = onCall(async (request) => {
   }
 });
 
+// ── callable: connect a patient to a therapist by clinic code ────────────────
+// Server-authoritative connection. Verifies the caller is a patient and that the
+// code maps to a real therapist, then writes the connection with admin
+// privileges. This is the ONLY writer of a patient's therapistEmail and of the
+// patient's entry in a therapist's connections roster, so security rules treat
+// both as authoritative — a patient can no longer self-assert a connection
+// client-side (which previously also let them read any therapist's user doc by
+// pointing their own therapistEmail at it).
+exports.connectByCode = onCall(async (request) => {
+  const email = request.auth && request.auth.token && request.auth.token.email;
+  const uid = request.auth && request.auth.uid;
+  if (!email || !uid) throw new HttpsError('unauthenticated', 'You must be signed in.');
+
+  const code = request.data && request.data.code;
+  if (!code || typeof code !== 'string') throw new HttpsError('invalid-argument', 'Missing clinic code.');
+
+  // Caller must be a patient.
+  const meSnap = await db.collection('users').doc(email).get();
+  if (!meSnap.exists || meSnap.data().role !== 'patient') {
+    throw new HttpsError('permission-denied', 'Only patients can connect to a therapist.');
+  }
+
+  // Resolve code → therapist email and confirm they are a real therapist.
+  const codeSnap = await db.collection('therapistCodes').doc(code).get();
+  if (!codeSnap.exists) throw new HttpsError('not-found', 'No therapist found with that code.');
+  const therapistEmail = codeSnap.data().email;
+  const tSnap = await db.collection('users').doc(therapistEmail).get();
+  if (!tSnap.exists || tSnap.data().role !== 'therapist') {
+    throw new HttpsError('not-found', 'No therapist found with that code.');
+  }
+
+  const batch = db.batch();
+  batch.set(db.collection('connections').doc(therapistEmail),
+    { patients: FieldValue.arrayUnion(email) }, { merge: true });
+  batch.update(db.collection('users').doc(email), { therapistEmail });
+  await batch.commit();
+
+  return { therapistEmail, therapistName: tSnap.data().name || 'your therapist' };
+});
+
 // ── scheduled: expire old session videos ─────────────────────────────────────
 exports.expireVideos = onSchedule('every 24 hours', async () => {
   const cutoff = new Date(Date.now() - SESSION_RETENTION_DAYS * 86400000).toISOString();
