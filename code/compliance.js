@@ -75,9 +75,14 @@ export function calcCompliance(sessions, protocols, weeksAgo, opts) {
     if (start && start >= weekEnd) return null;
     // C-1: clamp the expected-session window start to when the protocol began.
     const effStart = (start && start > weekStart) ? start : weekStart;
-    const daysElapsed = Math.max(1, Math.ceil((weekEnd - effStart) / 86400000));
+    // Day-one grace: count only FULLY ELAPSED days. The in-progress day isn't over,
+    // so a plan assigned today expects nothing yet — otherwise a patient who got
+    // their plan an hour ago instantly reads as "1 missed" and a red 0%.
+    const daysElapsed = Math.floor((weekEnd - effStart) / 86400000);
     const expected = getExpectedSessions(p.frequency, daysElapsed);
     const actual = recent.filter(function(s) { return s.exerciseType === p.exerciseType; }).length;
+    // Nothing due yet and nothing logged -> neutral "just started", not 0%.
+    const justStarted = expected === 0 && actual === 0;
     const capped = Math.min(actual, Math.max(expected, 1));
     const pct = expected > 0 ? Math.round((capped / expected) * 100) : (actual > 0 ? 100 : 0);
     const missed = Math.max(0, expected - actual);
@@ -87,12 +92,18 @@ export function calcCompliance(sessions, protocols, weeksAgo, opts) {
       expected: expected,
       actual: actual,
       missed: missed,
-      pct: pct
+      pct: pct,
+      justStarted: justStarted
     };
   }).filter(Boolean);
 
-  const overall = exercises.length > 0
-    ? Math.round(exercises.reduce(function(sum, e) { return sum + e.pct; }, 0) / exercises.length)
+  // Brand-new plans aren't scoreable yet, so they don't drag the average down.
+  const scored = exercises.filter(function(e) { return !e.justStarted; });
+  const overall = scored.length > 0
+    ? Math.round(scored.reduce(function(sum, e) { return sum + e.pct; }, 0) / scored.length)
     : 0;
-  return { overall: overall, exercises: exercises };
+  // Nothing scoreable yet (every plan is brand-new) -> callers show a neutral state
+  // instead of a misleading 0%.
+  const justStarted = exercises.length > 0 && scored.length === 0;
+  return { overall: overall, exercises: exercises, justStarted: justStarted };
 }

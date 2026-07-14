@@ -4615,11 +4615,18 @@ async function showRealPatient(patient) {
     : null;
   const painDeltaT = (avgPain7d !== '-' && priorPainT !== null) ? (parseFloat(avgPain7d) - parseFloat(priorPainT)).toFixed(1) : null;
 
-  const adhColor = adherence >= 80 ? '#059669' : adherence >= 50 ? '#D97706' : '#DC2626';
-  const adhDeltaHtml = adhDeltaT !== 0 ? `<span class="pd-vital-delta" style="color:${adhDeltaT > 0 ? '#059669' : '#64748B'}">${adhDeltaT > 0 ? '+' : ''}${adhDeltaT}% vs last week</span>` : '';
+  // Day-one grace: a brand-new plan isn't scoreable yet — show neutral, not a red 0%.
+  const adhJustStarted = adhResultT.justStarted;
+  const adhColor = adhJustStarted
+    ? '#64748B'
+    : (adherence >= 80 ? '#059669' : adherence >= 50 ? '#D97706' : '#DC2626');
+  const adhDeltaHtml = (!adhJustStarted && adhDeltaT !== 0) ? `<span class="pd-vital-delta" style="color:${adhDeltaT > 0 ? '#059669' : '#64748B'}">${adhDeltaT > 0 ? '+' : ''}${adhDeltaT}% vs last week</span>` : '';
   const adhBreakdownHtml = adhResultT.exercises.length > 0
     ? '<div class="pd-adh-breakdown">' + adhResultT.exercises.map(function(e) {
-        return '<div class="pd-adh-row"><span class="pd-adh-name">' + escapeHtml(e.name) + '</span><span class="pd-adh-detail">' + e.actual + '/' + e.expected + (e.missed > 0 ? ' (' + e.missed + ' missed)' : '') + '</span></div>';
+        const detail = e.justStarted
+          ? 'Just started'
+          : (e.actual + '/' + e.expected + (e.missed > 0 ? ' (' + e.missed + ' missed)' : ''));
+        return '<div class="pd-adh-row"><span class="pd-adh-name">' + escapeHtml(e.name) + '</span><span class="pd-adh-detail">' + detail + '</span></div>';
       }).join('') + '</div>'
     : '';
   const painDeltaHtml = painDeltaT !== null && parseFloat(painDeltaT) !== 0 ? `<span class="pd-vital-delta" style="color:${parseFloat(painDeltaT) < 0 ? '#059669' : '#64748B'}">${parseFloat(painDeltaT) > 0 ? '+' : ''}${painDeltaT} vs last week</span>` : '';
@@ -4673,7 +4680,7 @@ async function showRealPatient(patient) {
       <section class="pd-vitals">
         <div class="pd-vital">
           <span class="pd-vital-label">ADHERENCE</span>
-          <span class="pd-vital-value" style="color:${adhColor}">${adherence}<span class="pd-vital-unit">%</span></span>
+          <span class="pd-vital-value" style="color:${adhColor}">${adhJustStarted ? '—' : `${adherence}<span class="pd-vital-unit">%</span>`}</span>
           ${adhDeltaHtml}
           ${adhBreakdownHtml}
         </div>
