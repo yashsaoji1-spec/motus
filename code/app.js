@@ -2071,6 +2071,7 @@ function generateClinicCode() {
 async function loadMyClinic() {
   _myClinic = null;
   _myClinicId = null;
+  if (!CLINICS_ENABLED) return;   // clinic feature hidden for the pilot
   if (!currentUser) return;
   const userDoc = await db.collection('users').doc(currentUser.email).get();
   const clinicId = userDoc.exists ? userDoc.data().clinicId : null;
