@@ -25,8 +25,12 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 // ── Demo identities (match the existing demo auth accounts) ──────────────────
-const THERAPIST = { email: 'sarah.chen@mayoclinic.org', name: 'Sarah Chen' };
-const PATIENT    = { email: 'james.park@gmail.com',     name: 'James Park' };
+// Neutral, self-describing demo identities. Do NOT use a real clinic's domain
+// (e.g. mayoclinic.org) — the demo is shown to prospective partners and a real
+// org's domain implies an affiliation/endorsement that doesn't exist.
+// These demo accounts are deleted before launch (see the M1 pre-launch cleanup).
+const THERAPIST = { email: 'therapist@gmail.com', name: 'Sarah Chen' };
+const PATIENT    = { email: 'patient@gmail.com',   name: 'James Park' };
 const NPP_VERSION = '2026-06-21'; // keep in sync with app.js so the demo patient skips the consent screen
 
 const threadId = (a, b) => [a, b].sort().join(':');
@@ -34,19 +38,22 @@ const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); retur
 
 // Protocol: three believable hand-rehab exercises.
 const PROTOCOL_ITEMS = [
-  { id: 'seed_grip',  exerciseType: 'grip_squeeze',  exerciseName: 'Grip Squeeze',   reps: 10, sets: 3, frequency: 'daily', restSeconds: 30, notes: 'Squeeze slowly, hold 2s at the top.', assignedBy: THERAPIST.name, assignedAt: daysAgo(28).toISOString() },
-  { id: 'seed_flex',  exerciseType: 'finger_flexion', exerciseName: 'Finger Flexion', reps: 12, sets: 3, frequency: 'daily', restSeconds: 30, notes: 'Full range, stop if sharp pain.',     assignedBy: THERAPIST.name, assignedAt: daysAgo(28).toISOString() },
-  { id: 'seed_wrist', exerciseType: 'wrist_flexion',  exerciseName: 'Wrist Flexion',  reps: 10, sets: 2, frequency: 'daily', restSeconds: 45, notes: 'Keep forearm supported on the table.', assignedBy: THERAPIST.name, assignedAt: daysAgo(28).toISOString() },
+  { id: 'seed_grip',  exerciseType: 'grip_squeeze',  exerciseName: 'Grip Squeeze',   reps: 10, sets: 3, frequency: 'daily', restSeconds: 30, notes: 'Squeeze slowly, hold 2s at the top.', assignedBy: THERAPIST.name, assignedAt: daysAgo(44).toISOString() },
+  { id: 'seed_flex',  exerciseType: 'finger_flexion', exerciseName: 'Finger Flexion', reps: 12, sets: 3, frequency: 'daily', restSeconds: 30, notes: 'Full range, stop if sharp pain.',     assignedBy: THERAPIST.name, assignedAt: daysAgo(44).toISOString() },
+  { id: 'seed_wrist', exerciseType: 'wrist_flexion',  exerciseName: 'Wrist Flexion',  reps: 10, sets: 2, frequency: 'daily', restSeconds: 45, notes: 'Keep forearm supported on the table.', assignedBy: THERAPIST.name, assignedAt: daysAgo(44).toISOString() },
 ];
 
-// Daily sessions for all 3 exercises over the last DAYS days (including today),
-// pain trending 7 -> 2. Daily coverage in the current calendar week keeps the
-// adherence widget healthy regardless of which day the demo is recorded.
-const DAYS = 10;
+// Daily sessions for all 3 exercises over the last DAYS days, pain trending 7 -> 2.
+// 6 weeks (not 10 days) because "My Progress" plots FIVE weekly pain bars — a short
+// history leaves most of them empty and kills the month-over-month trend, which is
+// the whole story the demo is meant to tell.
+// NOTE: today (off = 0) is deliberately NOT seeded, so today's plan is still open
+// and the demo can record a live session on camera.
+const DAYS = 42;
 function buildSessions() {
   const sessions = [];
-  for (let off = DAYS - 1; off >= 0; off--) {
-    // more recent (smaller off) => lower pain: off=9 -> 7, off=0 -> 2
+  for (let off = DAYS - 1; off >= 1; off--) {
+    // more recent (smaller off) => lower pain: off=41 -> 7, off=1 -> 2
     const pain = Math.max(2, Math.round(2 + (off / (DAYS - 1)) * 5));
     PROTOCOL_ITEMS.forEach((ex) => {
       const setData = Array.from({ length: ex.sets }, (_, s) => ({ set: s + 1, reps: ex.reps, pain }));
@@ -67,9 +74,9 @@ function buildSessions() {
 }
 
 const MESSAGES = [
-  { from: THERAPIST.email, to: PATIENT.email, text: 'Hi James — I just assigned your home program. Start with the grip squeezes today.', day: 28 },
-  { from: PATIENT.email, to: THERAPIST.email, text: 'Got it, thanks! The first few felt tight but doable.', day: 27 },
-  { from: THERAPIST.email, to: PATIENT.email, text: 'That tightness is normal early on. Keep the reps slow and let me know your pain levels.', day: 26 },
+  { from: THERAPIST.email, to: PATIENT.email, text: 'Hi James — I just assigned your home program. Start with the grip squeezes today.', day: 43 },
+  { from: PATIENT.email, to: THERAPIST.email, text: 'Got it, thanks! The first few felt tight but doable.', day: 42 },
+  { from: THERAPIST.email, to: PATIENT.email, text: 'That tightness is normal early on. Keep the reps slow and let me know your pain levels.', day: 41 },
   { from: PATIENT.email, to: THERAPIST.email, text: 'Pain is down to about a 3 this week, feeling a lot better.', day: 7 },
   { from: THERAPIST.email, to: PATIENT.email, text: 'Great progress — the trend looks excellent. Let’s add the wrist work going forward.', day: 6 },
 ];

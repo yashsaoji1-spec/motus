@@ -1067,7 +1067,10 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     // Apply the user's saved language preference (falls back to current/browser).
     if (currentUser.language && SUPPORTED_LANGS.includes(currentUser.language)) setLanguage(currentUser.language);
     // Require email verification for non-admin accounts (demo accounts exempt)
-    const DEMO_EMAILS = new Set(['sarah.chen@mayoclinic.org', 'james.park@gmail.com', 'mike.torres@mayoclinic.org', 'test.patient@motus.com']);
+    // Demo accounts skip the verification gate. Keep these on neutral domains — the
+    // demo is shown to prospective partners, and a real clinic's domain would imply
+    // an affiliation that doesn't exist.
+    const DEMO_EMAILS = new Set(['therapist@gmail.com', 'patient@gmail.com', 'test.patient@motus.com']);
     if (!import.meta.env.DEV && !firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
       await auth.signOut();
       showScreen('loginScreen');
@@ -6982,7 +6985,9 @@ async function renderProgressScreen() {
     // Use whole sessions (not expanded per-set rows) + sessionPainValue, so the
     // chart's pain matches the D-2 review-status logic (one avg value per session).
     const inWk = sessions.filter(function(s){ var ts = sessionTime(s); if(!ts) return false; var age=(now-ts.getTime())/msPerDay; return age >= w*7 && age < (w+1)*7; });
-    const vals = inWk.map(function(s){ return normalizePain(sessionPainValue(s)); }).filter(function(v){ return v !== null; });
+    // Average the REAL per-session values. Snapping each session to a bucket first
+    // and then averaging distorts the mean (avg-of-buckets != bucket-of-avg).
+    const vals = inWk.map(function(s){ return sessionPainValue(s); }).filter(function(v){ return typeof v === 'number' && !isNaN(v); });
     wkAvg.push(vals.length ? vals.reduce(function(a,b){return a+b;},0)/vals.length : null);
   }
   const MAXH = 64;
@@ -7002,10 +7007,13 @@ async function renderProgressScreen() {
   }
   let summary = '';
   if (nowV !== null) {
-    const nowStr = painBucketLabel(nowV).toLowerCase() + ' (' + normalizePain(nowV) + ')';
+    // Show the patient's ACTUAL average, not the bucket's representative value —
+    // otherwise someone averaging 3.7 is told they report "quite a bit (5)", which
+    // overstates their pain and contradicts the "going down" message on Home.
+    const nowStr = painBucketLabel(nowV).toLowerCase() + ' (' + Math.round(nowV) + ')';
     if (monthV !== null && Math.abs(nowV - monthV) >= 0.3) {
       const dir = nowV < monthV ? t('prog.downFrom') : t('prog.upFrom');
-      summary = t('prog.summaryChange', { now: nowStr, dir: dir, prev: painBucketLabel(monthV).toLowerCase() + ' (' + normalizePain(monthV) + ')' });
+      summary = t('prog.summaryChange', { now: nowStr, dir: dir, prev: painBucketLabel(monthV).toLowerCase() + ' (' + Math.round(monthV) + ')' });
     } else {
       summary = t('prog.summarySteady', { now: nowStr });
     }
