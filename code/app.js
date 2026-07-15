@@ -209,6 +209,7 @@ const I18N = {
     'home.goodMorning': 'Good morning',
     'home.todaysPlan': "Today's plan",
     'home.continueSession': 'Continue Session',
+    'home.startSession': 'Start Session',
     'home.days': 'days',
     'home.thisWeek': 'Days exercised',
     'home.painIs': 'Pain is',
@@ -527,6 +528,7 @@ const I18N = {
     'home.goodMorning': 'Buenos días',
     'home.todaysPlan': 'Plan de hoy',
     'home.continueSession': 'Continuar sesión',
+    'home.startSession': 'Comenzar sesión',
     'home.days': 'días',
     'home.thisWeek': 'Días con ejercicio',
     'home.painIs': 'El dolor está',
@@ -2703,6 +2705,14 @@ async function updatePatientHomeScreen() {
       const _doneCount = protocols.filter(p => setsDoneFor(p) >= (p.sets || 3)).length;
       const _planDoneEl = document.getElementById('ptPlanDone');
       if (_planDoneEl) _planDoneEl.textContent = t('home.nOfMDone', { done: _doneCount, total: protocols.length });
+      // The CTA was hardcoded to "Continue Session" and read that way even at 0 of 3.
+      // Set data-i18n too, so a later applyTranslations() doesn't revert the label.
+      const _ctaSpan = document.querySelector('#ptStartSessionBtn span[data-i18n]');
+      if (_ctaSpan) {
+        const _ctaKey = _doneCount > 0 ? 'home.continueSession' : 'home.startSession';
+        _ctaSpan.setAttribute('data-i18n', _ctaKey);
+        _ctaSpan.textContent = t(_ctaKey);
+      }
     } else {
       planList.innerHTML = `<li class="rd-plan-empty">${t('home.noExercisesYet')}</li>`;
       const _planDoneEl = document.getElementById('ptPlanDone');
