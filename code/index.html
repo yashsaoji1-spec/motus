@@ -64,7 +64,7 @@
       <button class="rd-link-btn" id="resendVerifyBtn" style="display:none;margin-top:0" onclick="resendVerification()" data-i18n="auth.resendVerify">Resend verification email</button>
       <div class="rd-auth-divider" data-i18n="auth.newToMotus">New to Motus?</div>
       <button class="rd-btn-outline" onclick="showScreen('signupScreen')" data-i18n="auth.createAccount">Create an Account</button>
-      <div class="rd-lang-toggle">
+      <div class="rd-lang-toggle" data-lang-toggle>
         <button type="button" class="rd-lang-btn" data-lang="en" aria-pressed="true" onclick="setLanguage('en')">English</button>
         <span class="rd-lang-sep">·</span>
         <button type="button" class="rd-lang-btn" data-lang="es" aria-pressed="false" onclick="setLanguage('es')">Español</button>
@@ -1392,7 +1392,7 @@
         <label data-i18n="auth.email">Email</label>
         <input type="email" id="settingsEmail" class="rd-input" disabled />
       </div>
-      <div class="settings-field">
+      <div class="settings-field" data-lang-toggle>
         <label for="settingsLanguage" data-i18n="set.language">Language</label>
         <select id="settingsLanguage" class="rd-select" onchange="setLanguage(this.value)">
           <option value="en">English</option>

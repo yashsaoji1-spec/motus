@@ -78,7 +78,14 @@ if ('serviceWorker' in navigator) {
    shipping any exercise/consent content.
    ══════════════════════════════════════════════════════════════════════════ */
 
-const SUPPORTED_LANGS = ['en', 'es'];
+// Spanish is BUILT but NOT OFFERED. The clinical + legal copy was never reviewed by
+// a PT or an attorney, and shipping unreviewed medical/legal Spanish is a real
+// liability. The `es` dictionary and the -es legal pages stay in the codebase; flip
+// this to true (and restore the -es rewrites in firebase.json) once a qualified
+// review happens. Because setLanguage() coerces anything outside SUPPORTED_LANGS to
+// 'en', this also forces English for anyone who previously saved a Spanish pref.
+const SPANISH_ENABLED = false;
+const SUPPORTED_LANGS = SPANISH_ENABLED ? ['en', 'es'] : ['en'];
 
 const I18N = {
   en: {
@@ -6054,6 +6061,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initTextSize();
   // Clinic feature hidden for the pilot — remove its entry buttons from the DOM view.
   if (!CLINICS_ENABLED) document.querySelectorAll('[data-clinic-entry]').forEach(el => { el.style.display = 'none'; });
+  // Spanish not offered — remove the language pickers (see SPANISH_ENABLED).
+  if (!SPANISH_ENABLED) document.querySelectorAll('[data-lang-toggle]').forEach(el => { el.style.display = 'none'; });
   if (AUTH_ACTION) { runAuthAction(); return; }  // branded verify/reset handler
   const painCongrats = document.getElementById('painSliderCongrats');
   if (painCongrats) {

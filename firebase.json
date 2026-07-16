@@ -10,10 +10,7 @@
       { "source": "/auth/action", "destination": "/index.html" },
       { "source": "/privacy", "destination": "/privacy.html" },
       { "source": "/tos", "destination": "/tos.html" },
-      { "source": "/hipaa-npp", "destination": "/hipaa-npp.html" },
-      { "source": "/privacy-es", "destination": "/privacy-es.html" },
-      { "source": "/tos-es", "destination": "/tos-es.html" },
-      { "source": "/hipaa-npp-es", "destination": "/hipaa-npp-es.html" }
+      { "source": "/hipaa-npp", "destination": "/hipaa-npp.html" }
     ],
     "headers": [
       {
