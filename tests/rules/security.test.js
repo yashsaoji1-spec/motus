@@ -10,7 +10,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  setDoc, doc, addDoc, collection, getDoc,
+  setDoc, doc, addDoc, collection, getDoc, getDocs,
 } from 'firebase/firestore';
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
 
@@ -89,6 +89,214 @@ describe('auditLog — append-only, no forgery', () => {
     await seed('auditLog', 'entry1', { actorId: 'uid-pat', action: 'login' });
     const db = as('uid-pat', 'pat@x.com');
     await assertFails(getDoc(doc(db, 'auditLog', 'entry1')));
+  });
+});
+
+describe('users — therapist doc privacy', () => {
+  it('allows a patient to read their OWN connected therapist\'s doc', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient', therapistEmail: 'ther@x.com' });
+    await seed('users', 'ther@x.com', { role: 'therapist', name: 'Dr. T' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(getDoc(doc(db, 'users', 'ther@x.com')));
+  });
+
+  it('blocks a patient reading a therapist they are NOT connected to', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('users', 'ther@x.com', { role: 'therapist', name: 'Dr. T' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(getDoc(doc(db, 'users', 'ther@x.com')));
+  });
+
+  it('blocks reading another PATIENT via self-assigned therapistEmail', async () => {
+    // Even if therapistEmail somehow named a non-therapist, the role check blocks it.
+    await seed('users', 'pat@x.com', { role: 'patient', therapistEmail: 'victim@x.com' });
+    await seed('users', 'victim@x.com', { role: 'patient', name: 'Victim' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(getDoc(doc(db, 'users', 'victim@x.com')));
+  });
+
+  it('blocks a patient from self-setting therapistEmail (connect is server-only)', async () => {
+    // therapistEmail is authoritative — only connectByCode (admin) writes it.
+    // Self-asserting it would let a patient read that therapist's doc without a
+    // real connection.
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(setDoc(doc(db, 'users', 'pat@x.com'), {
+      role: 'patient', therapistEmail: 'ther@x.com',
+    }));
+  });
+
+  it('blocks a patient from repointing therapistEmail at a different therapist', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient', therapistEmail: 'ther@x.com' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(setDoc(doc(db, 'users', 'pat@x.com'), {
+      role: 'patient', therapistEmail: 'attacker@x.com',
+    }));
+  });
+
+  it('allows a patient to clear their own therapistEmail (disconnect)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient', name: 'P', therapistEmail: 'ther@x.com' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(setDoc(doc(db, 'users', 'pat@x.com'), {
+      role: 'patient', name: 'P',
+    }));
+  });
+
+  it('allows a connected patient to edit their profile (therapistEmail unchanged)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient', name: 'Old', therapistEmail: 'ther@x.com' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(setDoc(doc(db, 'users', 'pat@x.com'), {
+      role: 'patient', name: 'New', therapistEmail: 'ther@x.com',
+    }));
+  });
+});
+
+describe('messageThreads + messages — thread integrity', () => {
+  it('allows a participant to create the canonical thread doc', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(setDoc(doc(db, 'messageThreads', 'pat@x.com:ther@x.com'), {
+      participants: ['pat@x.com', 'ther@x.com'], archived: true,
+    }));
+  });
+
+  it('blocks creating a thread doc whose id names two OTHER users', async () => {
+    await seed('users', 'evil@x.com', { role: 'patient' });
+    const db = as('uid-evil', 'evil@x.com');
+    await assertFails(setDoc(doc(db, 'messageThreads', 'pat@x.com:ther@x.com'), {
+      participants: ['evil@x.com', 'ther@x.com'], archived: true,
+    }));
+  });
+
+  it('blocks sending without a threadId (archived-check dodge)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(addDoc(collection(db, 'messages'), {
+      from: 'pat@x.com', to: 'ther@x.com',
+      participants: ['pat@x.com', 'ther@x.com'], text: 'no thread', read: false,
+    }));
+  });
+
+  it('blocks sending into an archived thread', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('messageThreads', 'pat@x.com:ther@x.com', {
+      participants: ['pat@x.com', 'ther@x.com'], archived: true,
+    });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(addDoc(collection(db, 'messages'), {
+      from: 'pat@x.com', to: 'ther@x.com',
+      participants: ['pat@x.com', 'ther@x.com'],
+      threadId: 'pat@x.com:ther@x.com', text: 'hi', read: false,
+    }));
+  });
+});
+
+describe('connections — roster privacy + self add/remove', () => {
+  it('blocks a patient from reading their therapist\'s roster (co-patient PII)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient', therapistEmail: 'ther@x.com' });
+    await seed('connections', 'ther@x.com', { patients: ['pat@x.com', 'other@x.com'] });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(getDoc(doc(db, 'connections', 'ther@x.com')));
+  });
+
+  it('blocks a patient from adding themselves (connect is server-only now)', async () => {
+    // Connect goes through the connectByCode Cloud Function (admin); a patient
+    // may no longer self-assert a connection by writing the roster directly.
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('connections', 'ther@x.com', { patients: ['other@x.com'] });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(setDoc(doc(db, 'connections', 'ther@x.com'), {
+      patients: ['other@x.com', 'pat@x.com'],
+    }));
+  });
+
+  it('blocks a patient from creating a therapist roster doc', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(setDoc(doc(db, 'connections', 'ther@x.com'), {
+      patients: ['pat@x.com'],
+    }));
+  });
+
+  it('allows a patient to remove themselves (patient-initiated disconnect)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('connections', 'ther@x.com', { patients: ['other@x.com', 'pat@x.com'] });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(setDoc(doc(db, 'connections', 'ther@x.com'), {
+      patients: ['other@x.com'],
+    }));
+  });
+
+  it('blocks a patient from removing a different patient', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('connections', 'ther@x.com', { patients: ['other@x.com', 'pat@x.com'] });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(setDoc(doc(db, 'connections', 'ther@x.com'), {
+      patients: ['pat@x.com'],
+    }));
+  });
+
+  it('blocks a patient update that injects keys beyond patients', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('connections', 'ther@x.com', { patients: ['other@x.com'] });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(setDoc(doc(db, 'connections', 'ther@x.com'), {
+      patients: ['other@x.com', 'pat@x.com'], hijacked: true,
+    }));
+  });
+});
+
+describe('messages — sender pinning', () => {
+  it('allows sending a message as yourself', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(addDoc(collection(db, 'messages'), {
+      from: 'pat@x.com', to: 'ther@x.com',
+      participants: ['pat@x.com', 'ther@x.com'],
+      threadId: 'pat@x.com:ther@x.com', text: 'hello', read: false,
+    }));
+  });
+
+  it('blocks forging a message from the other participant', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(addDoc(collection(db, 'messages'), {
+      from: 'ther@x.com', to: 'pat@x.com',
+      participants: ['pat@x.com', 'ther@x.com'],
+      threadId: 'pat@x.com:ther@x.com', text: 'forged', read: false,
+    }));
+  });
+});
+
+describe('therapistCodes — shape', () => {
+  it('allows a therapist to create their own bare code doc', async () => {
+    await seed('users', 'ther@x.com', { role: 'therapist' });
+    const db = as('uid-ther', 'ther@x.com');
+    await assertSucceeds(setDoc(doc(db, 'therapistCodes', '123456'), {
+      email: 'ther@x.com',
+    }));
+  });
+
+  it('blocks extra keys riding along in the publicly readable code doc', async () => {
+    await seed('users', 'ther@x.com', { role: 'therapist' });
+    const db = as('uid-ther', 'ther@x.com');
+    await assertFails(setDoc(doc(db, 'therapistCodes', '123456'), {
+      email: 'ther@x.com', note: 'smuggled',
+    }));
+  });
+
+  it('allows a patient to GET a code doc by its exact id (connect-by-code)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('therapistCodes', '123456', { email: 'ther@x.com' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(getDoc(doc(db, 'therapistCodes', '123456')));
+  });
+
+  it('blocks a patient from LISTING therapistCodes (email harvesting)', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('therapistCodes', '123456', { email: 'ther@x.com' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(getDocs(collection(db, 'therapistCodes')));
   });
 });
 

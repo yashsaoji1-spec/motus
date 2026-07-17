@@ -52,6 +52,23 @@ service cloud.firestore {
       return isTherapist() && connectedToPatient(patientEmail);
     }
 
+    // True if the caller's own users doc names this therapist as their connected
+    // therapist. Lets a patient read exactly one therapist profile (their own).
+    // Callers must ALSO check resource.data.role == 'therapist': therapistEmail
+    // is self-writable, so without the role check a patient could point it at
+    // any user's email and read that doc.
+    function isMyTherapist(therapistEmail) {
+      return get(/databases/$(database)/documents/users/$(myEmail())).data.therapistEmail == therapistEmail;
+    }
+
+    // Canonical thread id for a 2-element participants list: emails sorted
+    // ascending, joined with ':'. Matches getThreadId() in the client.
+    function canonicalThreadId(participants) {
+      return participants[0] < participants[1]
+        ? participants[0] + ':' + participants[1]
+        : participants[1] + ':' + participants[0];
+    }
+
     function isClinicOwner(clinicId) {
       return get(/databases/$(database)/documents/clinics/$(clinicId)).data.ownerEmail == myEmail();
     }
@@ -61,17 +78,18 @@ service cloud.firestore {
 
 
     // -- users/{email} --
-    // Scoped reads: own doc, admin, connected parties, or therapist-profile discovery.
-    // Patients can read any therapist doc (needed for connect-by-code and name display).
-    // Patients cannot read other patients' docs.
+    // Scoped reads: own doc, admin, or connected parties only.
+    // Patients cannot read other patients' docs, and can read exactly ONE
+    // therapist doc: their own connected therapist (for name display).
+    // Connect-by-code no longer reads therapist docs — the therapistCodes doc
+    // (creatable only by the therapist it names) proves the code is real, and
+    // the client fetches the name after the connection is saved.
     match /users/{email} {
       allow read: if isAuth() && (
         myEmail() == email ||
         isAdmin() ||
         (isTherapist() && connectedToPatient(email)) ||
-        // Patients read therapist profiles for connect-by-code discovery and name display.
-        // query .where('role','==','therapist') satisfies the rule validator.
-        (isPatient() && resource.data.role == 'therapist')
+        (isPatient() && resource.data.role == 'therapist' && isMyTherapist(email))
       );
       // Self-signup: role must be 'patient' or 'therapist_pending' — admin can create any role.
       // Prevents a user from granting themselves 'therapist' or 'admin' at account creation.
@@ -81,8 +99,15 @@ service cloud.firestore {
       );
       // Self-update: role is immutable for non-admins — blocks self-promotion to therapist/admin
       // (legitimate self-writes — name, language, demographics, consent, clinicId — never touch role).
+      // therapistEmail is also authoritative: it is written only by the connectByCode
+      // Cloud Function (admin). A self-write may keep it unchanged or CLEAR it (patient
+      // disconnect), but never set/change it — otherwise a patient could point it at any
+      // therapist and read that therapist's user doc (isMyTherapist) without a real connection.
       allow update: if isAuth() && (
-        (myEmail() == email && request.resource.data.role == resource.data.role) ||
+        (myEmail() == email && request.resource.data.role == resource.data.role &&
+          (!('therapistEmail' in request.resource.data) ||
+            (('therapistEmail' in resource.data) &&
+             request.resource.data.therapistEmail == resource.data.therapistEmail))) ||
         isAdmin()
       );
       allow delete: if isAuth() && (myEmail() == email || isAdmin());
@@ -95,27 +120,31 @@ service cloud.firestore {
 
 
     // -- connections/{therapistEmail} --
-    // Therapist manages their own connection list.
-    // Patients can update (but not create/delete) to add themselves via connect code.
+    // Therapist manages their own connection list. The connectByCode Cloud
+    // Function (admin) adds a patient on connect, so there is no patient CREATE
+    // or add-self branch here — a patient can only REMOVE themselves (disconnect).
+    // No patient reads: the doc is the therapist's full patient roster, and exposing
+    // it would leak every co-patient's email (PHI-adjacent — it reveals who is in
+    // therapy). A patient's own connection status lives on their users doc.
     match /connections/{therapistEmail} {
-      allow read: if isAuth() && (myEmail() == therapistEmail || isAdmin() || myEmail() in resource.data.patients);
-      allow create: if isAuth() && (
-        myEmail() == therapistEmail ||
-        isAdmin() ||
-        // Patient bootstraps the doc when connecting to their first therapist.
-        // Restrict to only the patients field so no other keys can be injected.
-        (isPatient() &&
-          request.resource.data.keys().hasOnly(['patients']) &&
-          request.resource.data.patients.hasOnly([myEmail()]))
-      );
+      allow read: if isAuth() && (myEmail() == therapistEmail || isAdmin());
+      allow create: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       allow delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
-      // Patients may only append their own email to the patients array — no other mutations.
+      // Patient-initiated disconnect (disconnectFromTherapist) arrayRemoves the
+      // caller from their therapist's roster: a patient may touch only the patients
+      // key and only to remove their OWN email — never add anyone or remove others.
+      // The three clauses together force new == old \ {me}:
+      //   - me must be absent from the new list (self actually removed)
+      //   - old ⊇ new (nothing added)
+      //   - old ⊆ new ∪ {me} (nothing other than me removed)
       allow update: if isAuth() && (
         myEmail() == therapistEmail ||
         isAdmin() ||
         (isPatient() &&
-          request.resource.data.patients.hasAll(resource.data.patients) &&
-          request.resource.data.patients.hasOnly(resource.data.patients.concat([myEmail()])))
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patients']) &&
+          !(myEmail() in request.resource.data.patients) &&
+          resource.data.patients.hasAll(request.resource.data.patients) &&
+          resource.data.patients.hasOnly(request.resource.data.patients.concat([myEmail()])))
       );
     }
 
@@ -148,7 +177,9 @@ service cloud.firestore {
       allow create: if isAuth() && (
         (myEmail() == request.resource.data.patientEmail && hasConsented()) ||
         isAdmin()
-      ) && (!('notes' in request.resource.data) || request.resource.data.notes.size() <= 1000);
+      ) && request.resource.data.patientEmail is string
+        && (!('notes' in request.resource.data) ||
+            (request.resource.data.notes is string && request.resource.data.notes.size() <= 1000));
       // Only videoUrl and videoExpireAt may be updated (async video upload after session is saved).
       // Prevents retroactive modification of reps, pain, date, or other clinical fields.
       // Patients may only update video keys (async upload after save).
@@ -183,12 +214,20 @@ service cloud.firestore {
 
     // -- clinicalNotes/{patientEmail} --
     // Therapist-only notes about a patient. Patients cannot read.
+    // html is bounded (well above the UI's practical size) to cap storage abuse
+    // from a compromised therapist account. Delete stays separate — delete has
+    // no request.resource, so shape checks on `write` would break it.
     match /clinicalNotes/{patientEmail} {
       allow read: if isAuth() && (
         therapistCanAccessPatient(patientEmail) ||
         isAdmin()
       );
-      allow write: if isAuth() && (
+      allow create, update: if isAuth() && (
+        therapistCanAccessPatient(patientEmail) ||
+        isAdmin()
+      ) && (!('html' in request.resource.data) ||
+            (request.resource.data.html is string && request.resource.data.html.size() <= 50000));
+      allow delete: if isAuth() && (
         therapistCanAccessPatient(patientEmail) ||
         isAdmin()
       );
@@ -199,7 +238,14 @@ service cloud.firestore {
     // threadId = sorted(email1, email2).join(':')
     match /messageThreads/{threadId} {
       allow read: if isAuth() && myEmail() in resource.data.participants;
-      allow create: if isAuth() && myEmail() in request.resource.data.participants;
+      // The doc id must be the canonical id OF ITS OWN participants (which must
+      // include the caller). Otherwise anyone could squat messageThreads/{a:b}
+      // for two OTHER users — with archived:true — and block their messaging.
+      allow create: if isAuth() &&
+        request.resource.data.participants is list &&
+        request.resource.data.participants.size() == 2 &&
+        myEmail() in request.resource.data.participants &&
+        threadId == canonicalThreadId(request.resource.data.participants);
       // Only the disconnect flow writes here — restrict to archived + disconnectedAt so
       // participants can't modify each other's email addresses or hijack the thread.
       // diff() only lists keys whose values actually changed, so the disconnect flow's
@@ -220,10 +266,21 @@ service cloud.firestore {
         myEmail() == resource.data.from ||
         isAdmin()
       );
-      allow create: if isAuth() && myEmail() in request.resource.data.participants
-        && (!('text' in request.resource.data) || request.resource.data.text.size() <= 2000)
+      // from must be the caller: without this pin, any participant could forge a
+      // message that renders as sent BY the other party (sender spoofing).
+      allow create: if isAuth()
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && myEmail() in request.resource.data.participants
+        && request.resource.data.from == myEmail()
+        && request.resource.data.to is string
+        && (!('text' in request.resource.data) ||
+            (request.resource.data.text is string && request.resource.data.text.size() <= 2000))
+        // threadId is REQUIRED and must be the canonical id for the participants —
+        // an optional or free-form threadId would let a sender dodge the
+        // archived-thread block below by omitting it or pointing elsewhere.
+        && request.resource.data.threadId == canonicalThreadId(request.resource.data.participants)
         && (
-          !('threadId' in request.resource.data) ||
           !exists(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)) ||
           get(/databases/$(database)/documents/messageThreads/$(request.resource.data.threadId)).data.archived != true
         );
@@ -298,7 +355,11 @@ service cloud.firestore {
       allow update: if isAuth() && (
         isAdmin() ||
         isClinicOwner(clinicId) ||
-        (isTherapist() && (
+        // Non-owner therapists may only join/leave: the ONLY field they may touch is
+        // `therapists`. Without this diff() guard a member could set ownerEmail=self in
+        // the same write and escalate to clinic owner (privilege escalation).
+        (isTherapist() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapists']) && (
           // joining: add own email
           (request.resource.data.therapists.hasAll(resource.data.therapists) &&
            request.resource.data.therapists.hasOnly(resource.data.therapists.concat([myEmail()]))) ||
@@ -350,9 +411,25 @@ service cloud.firestore {
 
     // -- therapistCodes/{code} -- maps clinic codes to therapist emails
     // Therapists create/read their own code; patients read any code (for connect-by-code).
+    // get (direct read by known code) only — NOT list. The connect-by-code flow
+    // reads a single doc by its exact code; allowing list would let any patient
+    // enumerate the whole collection and harvest every therapist's email.
     match /therapistCodes/{code} {
-      allow read: if isAuth();
-      allow write: if isAuth() && isTherapist() && request.resource.data.email == myEmail();
+      allow get: if isAuth();
+      // keys().hasOnly(['email']): the code doc is readable by every signed-in
+      // user, so no other data may ride along in it.
+      allow create: if isAuth() && isTherapist() &&
+        request.resource.data.keys().hasOnly(['email']) &&
+        request.resource.data.email == myEmail();
+      // A therapist may only overwrite/delete a code doc that already points to
+      // themselves. The blanket `write` previously let any therapist overwrite an
+      // EXISTING code owned by another therapist, hijacking their connect-by-code
+      // mapping so patients connect to the attacker instead (connection hijack).
+      allow update: if isAuth() && isTherapist() &&
+        resource.data.email == myEmail() &&
+        request.resource.data.keys().hasOnly(['email']) &&
+        request.resource.data.email == myEmail();
+      allow delete: if isAuth() && isTherapist() && resource.data.email == myEmail();
     }
 
 
