@@ -1499,7 +1499,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: rgba(255,255,255,0.15);
   color: #fff;
 }
-.th-sidebar-icon:focus-visible, .th-sidebar-icon:focus { outline: none; }
+/* keep :focus quiet for mouse users, but NEVER strip :focus-visible — that is
+   the keyboard user's only indicator of where they are (WCAG 2.4.7). */
+.th-sidebar-icon:focus { outline: none; }
+.th-sidebar-icon:focus-visible { outline: 2px solid var(--rd-teal, #0F766E); outline-offset: 2px; }
 
 .th-sidebar-tooltip {
   position: fixed;
@@ -3788,6 +3791,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-family: var(--pt-font);
   font-size: 0.85rem;
   color: #fff;
+  /* a long unbroken string (URL, email) otherwise overflows the bubble —
+     the older .msg-thread bubbles guard this, these redesigned ones didn't. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .msg-bubble-out .msg-meta {
@@ -3811,6 +3818,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-family: var(--pt-font);
   font-size: 0.85rem;
   color: var(--pt-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .msg-bubble-in .msg-meta {
@@ -3991,6 +4000,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   z-index: 201;
   transform: translateY(0);
   animation: sheetSlideUp 0.25s ease-out;
+  /* anchored to bottom:0 and grows upward — without these a long therapist note
+     pushes the title and notes off the top of the screen, unreachable. */
+  max-height: 88dvh;
+  overflow-y: auto;
 }
 @keyframes sheetSlideUp {
   from { transform: translateY(100%); } to { transform: translateY(0); }
@@ -7584,8 +7597,13 @@ body:has(#manualCamScreen.active) {
   --th-surface: var(--rd-canvas);
   --th-surface-hover: var(--rd-paper);
 }
-#therapistScreen.screen.active { display: flex; height: 100vh; background: var(--rd-canvas); }
-.rd-rail { width: 210px; flex-shrink: 0; background: var(--rd-th-rail); display: flex; flex-direction: column; padding: 20px 12px; height: 100vh; box-sizing: border-box; }
+/* 100dvh fallback: 100vh alone includes mobile browser chrome, so the bottom of
+   the screen sits below the visible viewport (every other screen pairs these). */
+#therapistScreen.screen.active { display: flex; height: 100vh; height: 100dvh; background: var(--rd-canvas); }
+/* overflow-y: the rail is a locked-height flex column ending in Settings + Sign
+   out (after a flex:1 spacer). On a short viewport the spacer collapses and those
+   two are pushed below the fold with no way to scroll to them. */
+.rd-rail { width: 210px; flex-shrink: 0; background: var(--rd-th-rail); display: flex; flex-direction: column; padding: 20px 12px; height: 100vh; height: 100dvh; overflow-y: auto; box-sizing: border-box; }
 .rd-rail-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 8px; margin-bottom: 16px; }
 .rd-rail-logo { width: 32px; height: 32px; border-radius: 8px; background: var(--rd-teal); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .rd-rail-wordmark { font-size: 18px; font-weight: 700; color: #fff; }
@@ -7619,13 +7637,19 @@ body:has(#manualCamScreen.active) {
 .rd-plist-rows .patient-row:hover { background: var(--rd-paper); }
 .rd-plist-rows .patient-row--active { background: var(--rd-teal-tint); }
 .rd-plist-rows .patient-row-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
-.rd-plist-rows .patient-row-name { font-size: 15px; font-weight: 700; color: var(--rd-ink); }
-.rd-plist-rows .patient-row-sub { font-size: 13px; color: var(--rd-text2); margin-top: 1px; }
-.rd-plist-rows .patient-row-dot { width: 8px; height: 8px; border-radius: 50%; background: #F26D5B; margin-left: auto; flex-shrink: 0; }
+/* meta must flex + min-width:0 or a long patient name pushes the status dots
+   out of the row and the ellipsis below can never trigger. */
+.rd-plist-rows .patient-row-meta { flex: 1; min-width: 0; }
+.rd-plist-rows .patient-row-name { font-size: 15px; font-weight: 700; color: var(--rd-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-plist-rows .patient-row-sub { font-size: 13px; color: var(--rd-text2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* no margin-left:auto — .patient-row-meta{flex:1} already pushes these right.
+   With auto on BOTH dots the free space split between them, so a patient who is
+   both flagged AND unread (e.g. Maria) rendered her two dots far apart. */
+.rd-plist-rows .patient-row-dot { width: 8px; height: 8px; border-radius: 50%; background: #F26D5B; flex-shrink: 0; }
 .rd-plist-rows .pr-stale { color: var(--rd-warn-text); font-weight: 700; }
 .rd-plist-rows .pr-danger { color: var(--rd-danger); font-weight: 700; }
 .rd-plist-rows .pr-ok { color: var(--rd-text2); }
-.rd-plist-rows .patient-row-review-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rd-danger); margin-left: auto; flex-shrink: 0; }
+.rd-plist-rows .patient-row-review-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rd-danger); flex-shrink: 0; }
 .rd-plist-rows .patient-row--review .patient-row-avatar { background: #FBE8DE; color: var(--rd-danger); }
 .rd-plist-rows .no-patients, .rd-plist-rows .no-patients-match { padding: 16px; color: var(--rd-text2); font-size: 14px; text-align: center; }
 /* D-2 review button in detail header */
@@ -7774,9 +7798,11 @@ body:has(#manualCamScreen.active) {
 .patient-detail .pd-vital-unit { font-size: 15px; font-weight: 700; color: var(--rd-muted); }
 .patient-detail .pd-vital-delta { font-size: 12px; font-weight: 700; }
 .patient-detail .pd-adh-breakdown { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--rd-divider); padding-top: 8px; }
-.patient-detail .pd-adh-row { display: flex; justify-content: space-between; font-size: 12px; }
-.patient-detail .pd-adh-name { color: var(--rd-text2); }
-.patient-detail .pd-adh-detail { color: var(--rd-muted); font-weight: 700; }
+/* gap + truncation: without them a long exercise name butts straight against
+   its status ("Just started") because space-between leaves zero separation. */
+.patient-detail .pd-adh-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.patient-detail .pd-adh-name { color: var(--rd-text2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.patient-detail .pd-adh-detail { color: var(--rd-muted); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 .patient-detail .pd-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 .patient-detail .pd-card { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); padding: 18px 20px; }
 .patient-detail .pd-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -7820,3 +7846,57 @@ body:has(#manualCamScreen.active) {
 .apm-overlay .apm-lib-item--active { background: var(--rd-teal-tint); }
 .apm-overlay .pl-save-btn { background: var(--rd-teal); border-radius: 10px; font-family: var(--rd-font); font-weight: 700; }
 .apm-overlay .apm-new-ex-btn { background: var(--rd-teal); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   UI edge-case hardening (2026-07-18)
+   Each rule below fixes a verified defect, not a hypothetical.
+   ───────────────────────────────────────────────────────────────────────────*/
+
+/* [hidden] is only honoured via the UA's display:none, so ANY author `display`
+   rule silently defeats it. #thMsgBadge (.rd-rail-badge, display:inline-flex)
+   rendered as a permanent empty red pill next to "Messages" at zero unread.
+   This guard fixes it and stops the whole class of bug recurring. */
+[hidden] { display: none !important; }
+
+/* Long custom exercise names (therapists can author their own) had no guard on
+   the record-set header or the exercise sheet title, so they overflowed. */
+.rd-rec-exname,
+.rd-rec-setlabel,
+.rd-sheet-title,
+.sheet-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The protocol row already has min-width:0 on its meta, so ellipsis is safe. */
+.patient-detail .pd-protocol-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Global baseline is `button { min-height: 44px }`, but the redesigned rail and
+   patient-list controls override it with min-height:auto (measured 40px).
+   Restore the 44px target on touch devices only, so pointer/desktop layout —
+   including the demo framing — is untouched. */
+@media (pointer: coarse) {
+  .rd-rail-item,
+  .rd-rail-profile,
+  .rd-plist-bulk,
+  .rd-plist-invite,
+  .rd-plist-rows .patient-row {
+    min-height: 44px;
+  }
+}
+
+/* 35 keyframe/transition animations shipped with no reduced-motion support.
+   This app is used by patients in active recovery; motion sensitivity is real
+   and this is a WCAG 2.3.3 requirement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

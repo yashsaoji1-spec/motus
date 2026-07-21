@@ -4473,12 +4473,15 @@ function buildPatientRow(r) {
   const btn = document.createElement('button');
   btn.className = 'patient-row' + (status.needsReview ? ' patient-row--review' : '');
   btn.dataset.patientEmail = patient.email;
-  const initials = (patient.name || '').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  // A patient who hasn't set a name yet would render a blank avatar and a blank
+  // row — fall back to the email so the row is always identifiable.
+  const displayName = patient.name || patient.email || 'Unnamed patient';
+  const initials = displayName.split(/[\s@.]+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
   const subClass = status.level === 'flag' ? 'pr-danger' : status.level === 'stale' ? 'pr-stale' : 'pr-ok';
   btn.innerHTML = `
     <div class="patient-row-avatar">${escapeHtml(initials)}</div>
     <div class="patient-row-meta">
-      <div class="patient-row-name">${escapeHtml(patient.name)}</div>
+      <div class="patient-row-name">${escapeHtml(displayName)}</div>
       <div class="patient-row-sub ${subClass}">${escapeHtml(status.text)}</div>
     </div>
     ${status.needsReview ? '<span class="patient-row-review-dot" title="Needs review"></span>' : ''}
@@ -7012,7 +7015,9 @@ async function renderProgressScreen() {
   const MAXH = 64;
   let bars = '';
   wkAvg.forEach(function(v, i){
-    const h = v === null ? 6 : Math.max(8, Math.round((v/10)*MAXH));
+    // clamp to MAXH: an out-of-range pain value (>10) would otherwise render a
+    // bar taller than its own track and spill over the chart.
+    const h = v === null ? 6 : Math.min(MAXH, Math.max(8, Math.round((v/10)*MAXH)));
     const col = v === null ? 'var(--rd-divider)' : RAMP[i];
     bars += '<div class="rd-prog-bar-col"><div class="rd-prog-bar-track"><div class="rd-prog-bar" style="height:' + h + 'px;background:' + col + '"></div></div><div class="rd-prog-bar-lbl' + (i===4?' now':'') + '">' + escapeHtml(wkLabels[i]) + '</div></div>';
   });
