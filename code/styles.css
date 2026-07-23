@@ -7791,23 +7791,27 @@ body:has(#manualCamScreen.active) {
 .patient-detail .tp-btn:hover { background: var(--rd-paper); }
 .patient-detail .tp-btn-primary { background: var(--rd-teal); border-color: var(--rd-teal); color: #fff; }
 .patient-detail .tp-btn-primary:hover { background: var(--rd-teal-hover); }
-.patient-detail .pd-vitals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
-.patient-detail .pd-vital { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); padding: 16px; display: flex; flex-direction: column; gap: 4px; }
-.patient-detail .pd-vital-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rd-muted); }
-.patient-detail .pd-vital-value { font-size: 28px; font-weight: 700; color: var(--rd-ink); line-height: 1.1; }
+.patient-detail .pd-vitals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; align-items: stretch; }
+/* All four tiles now hold the same content (label + value), so top-aligning keeps
+   every heading on the same line and the boxes hug their content — no dead space. */
+.patient-detail .pd-vital { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); padding: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 8px; }
+.patient-detail .pd-vital-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rd-text2); }
+.patient-detail .pd-vital-value { font-size: 32px; font-weight: 700; color: var(--rd-ink); line-height: 1.05; }
 .patient-detail .pd-vital-unit { font-size: 15px; font-weight: 700; color: var(--rd-muted); }
 .patient-detail .pd-vital-delta { font-size: 12px; font-weight: 700; }
-.patient-detail .pd-adh-breakdown { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--rd-divider); padding-top: 8px; }
+/* Pulled out of the ADHERENCE tile (so the four vitals stay equal height) into a
+   calm, full-width strip below the row — reads as a quiet caption, not a 4th column. */
+.patient-detail .pd-adh-breakdown { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 22px; padding: 12px 16px; background: var(--rd-paper); border-radius: var(--rd-r-card); }
 /* gap + truncation: without them a long exercise name butts straight against
    its status ("Just started") because space-between leaves zero separation. */
-.patient-detail .pd-adh-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
-.patient-detail .pd-adh-name { color: var(--rd-text2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.patient-detail .pd-adh-detail { color: var(--rd-muted); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
-.patient-detail .pd-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.patient-detail .pd-adh-row { display: flex; gap: 6px; font-size: 12px; align-items: baseline; }
+.patient-detail .pd-adh-name { color: var(--rd-text2); }
+.patient-detail .pd-adh-detail { color: var(--rd-muted); font-weight: 700; white-space: nowrap; }
+.patient-detail .pd-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
 .patient-detail .pd-card { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); padding: 18px 20px; }
 .patient-detail .pd-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .patient-detail .pd-card-header h2 { font-size: 16px; font-weight: 700; color: var(--rd-ink); margin: 0; }
-.patient-detail .pd-card-link { background: none; border: none; color: var(--rd-teal); font-family: var(--rd-font); font-weight: 700; font-size: 13px; cursor: pointer; padding: 0; min-height: auto; }
+.patient-detail .pd-card-link { background: none; border: none; color: var(--rd-teal); font-family: var(--rd-font); font-weight: 700; font-size: 15px; cursor: pointer; padding: 0; min-height: auto; }
 .patient-detail .pd-protocol-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .patient-detail .pd-protocol-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--rd-divider); }
 .patient-detail .pd-protocol-row:last-child { border-bottom: none; }

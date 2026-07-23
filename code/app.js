@@ -4597,7 +4597,10 @@ async function showRealPatient(patient) {
   // Vitals
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
   const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
-  const sessions7d = recent7.length;
+  // Count distinct workout DAYS, not raw docs: the app writes one session doc per
+  // exercise, so 3 exercises/day for 6 days would otherwise read as "18 sessions"
+  // instead of the meaningful "6 days worked out this week".
+  const sessions7d = new Set(recent7.map(s => new Date(s.date).toISOString().slice(0, 10))).size;
   const avgPain7d = recent7.length > 0
     ? (recent7.reduce((sum, s) => {
         return sum + sessionPainValue(s);
@@ -4696,7 +4699,6 @@ async function showRealPatient(patient) {
         <div class="pd-header-actions">
           ${reviewBtnHtml}
           <button class="tp-btn" onclick="messagePatient('${safeEmail}')">Message</button>
-          <button class="tp-btn tp-btn-primary" onclick="assignExercisesTo('${safeEmail}')">+ Add Exercise</button>
         </div>
       </header>
 
@@ -4704,13 +4706,10 @@ async function showRealPatient(patient) {
         <div class="pd-vital">
           <span class="pd-vital-label">ADHERENCE</span>
           <span class="pd-vital-value" style="color:${adhColor}">${adhJustStarted ? '—' : `${adherence}<span class="pd-vital-unit">%</span>`}</span>
-          ${adhDeltaHtml}
-          ${adhBreakdownHtml}
         </div>
         <div class="pd-vital">
           <span class="pd-vital-label">AVG PAIN &middot; 7D</span>
           <span class="pd-vital-value">${avgPain7d}${avgPain7d !== '-' ? '<span class="pd-vital-unit">/10</span>' : ''}</span>
-          ${painDeltaHtml}
         </div>
         <div class="pd-vital">
           <span class="pd-vital-label">LAST SESSION</span>
@@ -4726,7 +4725,7 @@ async function showRealPatient(patient) {
         <section class="pd-card">
           <header class="pd-card-header">
             <h2>Prescribed Protocol</h2>
-            <button class="pd-card-link" onclick="openAddProtocol('${safeEmail}', '${safeName}')">+ Share from My Library</button>
+            <button class="pd-card-link" onclick="openAddProtocol('${safeEmail}', '${safeName}')">+ Add Exercise</button>
           </header>
           <ul class="pd-protocol-list">${protocolRowsHtml}</ul>
         </section>
@@ -6678,7 +6677,8 @@ async function renderPainChart(sessions, days, canvasId) {
   const chartSessions = filtered.length > 0 ? filtered : sessions.slice(-1);
   const painData = chartSessions.map(s => sessionPainValue(s));
   const labels = buildChartLabels(chartSessions);
-  const cfg = buildChartConfig(painData, { type: 'pain', color: '#ef4444', fillColor: 'rgba(239,68,68,0.06)' });
+  // Muted clay instead of alarm-red: still reads as pain, far calmer to look at.
+  const cfg = buildChartConfig(painData, { type: 'pain', color: '#C77F6D', fillColor: 'rgba(199,127,109,0.05)' });
   const Chart = await getChart();
   if (_painChartInstances[canvasId]) _painChartInstances[canvasId].destroy();
   _painChartInstances[canvasId] = new Chart(canvas.getContext('2d'), {
