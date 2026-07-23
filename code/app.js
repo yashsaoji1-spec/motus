@@ -4001,8 +4001,34 @@ function replayDemoInSession() {
 async function assignProtocol() {
   const patientEmail = _protoPatientEmail;
   if (!patientEmail) return;
+
+  // Create mode: persist the brand-new exercise to the therapist's library
+  // (customExercises) so it's reusable, then continue as a normal assignment.
+  if (_apmNewExCat) {
+    const nameEl = document.getElementById('apmCreateName');
+    const newName = (nameEl && nameEl.value || '').trim();
+    if (!newName) { alert('Please name the new exercise.'); if (nameEl) nameEl.focus(); return; }
+    const dReps = parseInt(document.getElementById('protocolReps').value) || 10;
+    const dSets = parseInt(document.getElementById('protocolSets').value) || 3;
+    const dFreq = readFrequencyValue('protocolFrequency', 'customFreqDays');
+    const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'exercise';
+    const newId = 'custom_' + slug + '_' + Date.now().toString(36);
+    try {
+      await db.collection('customExercises').add({
+        id: newId, name: newName, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '',
+        createdBy: currentUser.email
+      });
+    } catch (e) { alert('Could not save the new exercise. Check your connection and try again.'); return; }
+    if (!PROTOCOL_CATALOG.find(x => x.id === newId)) {
+      PROTOCOL_CATALOG.push({ id: newId, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '' });
+    }
+    exerciseLabels[newId] = newName;
+    document.getElementById('exerciseType').value = newId;
+    _apmNewExCat = false;
+  }
+
   const exerciseType = document.getElementById('exerciseType').value;
-  if (!exerciseType) { alert('Please select an exercise.'); return; }
+  if (!exerciseType || exerciseType === '__new__') { alert('Please select or name an exercise.'); return; }
   const defaults = EXERCISE_DEFAULTS[exerciseType];
 
   // Collect exerciseParams from the UI
@@ -5290,7 +5316,28 @@ function _apmHighlightSelected(id) {
   if (el) { el.classList.add('apm-lib-item--active'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
 }
 
+// Start the "create a new exercise" flow: reveal the name field, reset the config
+// to defaults, and mark the modal in create mode so assignProtocol saves it.
+function apmStartCreate() {
+  _apmNewExCat = true;
+  const typeEl = document.getElementById('exerciseType');
+  if (typeEl) typeEl.value = '__new__';
+  const cf = document.getElementById('apmCreateFields'); if (cf) cf.style.display = 'block';
+  const info = document.getElementById('apmSelectedExInfo'); if (info) info.style.display = 'none';
+  document.getElementById('protocolReps').value = 10;
+  document.getElementById('protocolSets').value = 3;
+  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', 'daily');
+  const notesEl = document.getElementById('protocolNotes'); if (notesEl) notesEl.value = '';
+  document.querySelectorAll('.apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
+  document.getElementById('apmCreateBtn')?.classList.add('apm-create-btn--active');
+  const nameEl = document.getElementById('apmCreateName'); if (nameEl) { nameEl.value = ''; nameEl.focus(); }
+}
+
 function apmSelectExercise(id) {
+  // Picking a library exercise exits create mode.
+  _apmNewExCat = false;
+  const cf = document.getElementById('apmCreateFields'); if (cf) cf.style.display = 'none';
+  document.getElementById('apmCreateBtn')?.classList.remove('apm-create-btn--active');
   const typeEl = document.getElementById('exerciseType');
   if (typeEl) typeEl.value = id;
   const entry = PROTOCOL_CATALOG.find(e => e.id === id);
@@ -9022,7 +9069,7 @@ Object.assign(window, {
   openSidebar, closeSidebar,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
-  openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
+  openAddProtocol, closeAddProtocol, apmSelectExercise, apmStartCreate, apmFilter,
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
   toggleCustomFreq, toggleCustomFreqPL,

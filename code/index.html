@@ -1112,6 +1112,7 @@
           <div class="apm-lib-search-wrap">
             <input type="text" class="apm-lib-search" id="apmSearch" placeholder="Search exercises..." oninput="apmFilter(this.value)" autocomplete="off">
           </div>
+          <button type="button" id="apmCreateBtn" class="apm-create-btn" onclick="apmStartCreate()">+ Create a new exercise</button>
           <div class="apm-lib-list" id="apmLibList"></div>
         </div>
         <div class="apm-config-col">
@@ -1124,6 +1125,10 @@
             </div>
             <input type="text" id="bapPatientSearch" class="apm-input" placeholder="Search patients…" oninput="bapFilterPatients(this.value)">
             <div class="bap-patients-list" id="bapPatientsList"></div>
+          </div>
+          <div id="apmCreateFields" style="display:none;">
+            <label class="apm-label">New exercise name</label>
+            <input type="text" id="apmCreateName" class="apm-input" placeholder="e.g. Tabletop Finger Lifts" maxlength="60" autocomplete="off">
           </div>
           <div id="apmSelectedExInfo" class="apm-selected-ex-info" style="display:none;">
             <div id="apmSelectedExName" class="apm-selected-ex-name"></div>
