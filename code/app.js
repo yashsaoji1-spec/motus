@@ -5284,15 +5284,21 @@ async function bulkAssignProtocol() {
   }
 }
 
-function _apmRenderLibrary(query) {
+function _apmRenderLibrary(query, mode) {
   const listEl = document.getElementById('apmLibList');
   if (!listEl) return;
-  // Google-style: split into words and require every word to appear somewhere in
-  // the exercise's name, category, or description — so order doesn't matter
-  // ("flexion finger" still finds "Index Finger Flexion").
+  // Two modes:
+  //  - 'name' (the Exercise Name field): autocomplete — each typed word must START
+  //    a word in the exercise NAME. "h" -> Hook Fist; "fist" -> all *Fist.
+  //  - default (the search box): each word appears anywhere in name/category/desc,
+  //    order-independent, so you can also search by description.
   const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const filtered = PROTOCOL_CATALOG.filter(e => {
     if (!terms.length) return true;
+    if (mode === 'name') {
+      const words = exName(e.id).toLowerCase().split(/\s+/);
+      return terms.every(t => words.some(w => w.startsWith(t)));
+    }
     const hay = (exName(e.id) + ' ' + exCat(e.cat) + ' ' + exDesc(e.id, e.desc)).toLowerCase();
     return terms.every(t => hay.includes(t));
   });
@@ -5350,6 +5356,31 @@ function apmSelectExercise(id) {
 }
 
 function apmFilter(query) { _apmRenderLibrary(query); }
+
+// Google-style typeahead dropdown under the Exercise Name field.
+function apmNameSuggest(query) {
+  const box = document.getElementById('apmNameSuggest');
+  if (!box) return;
+  const terms = (query || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!terms.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const matches = PROTOCOL_CATALOG.filter(e => {
+    const words = exName(e.id).toLowerCase().split(/\s+/);
+    return terms.every(t => words.some(w => w.startsWith(t)));
+  }).slice(0, 8);
+  if (!matches.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = matches.map(e =>
+    `<div class="apm-name-suggest-item" onmousedown="apmPickSuggest('${e.id}')">${exName(e.id)}</div>`
+  ).join('');
+  box.style.display = 'block';
+}
+function apmPickSuggest(id) {
+  apmSelectExercise(id);
+  apmHideSuggest(true);
+}
+function apmHideSuggest(now) {
+  const hide = () => { const b = document.getElementById('apmNameSuggest'); if (b) { b.style.display = 'none'; b.innerHTML = ''; } };
+  if (now) hide(); else setTimeout(hide, 150);
+}
 
 async function _apmLoadCustomExercises() {
   try {
@@ -9060,7 +9091,7 @@ Object.assign(window, {
   openSidebar, closeSidebar,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
-  openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
+  openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter, apmNameSuggest, apmPickSuggest, apmHideSuggest,
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
   toggleCustomFreq, toggleCustomFreqPL,

@@ -1127,7 +1127,10 @@
           </div>
           <div class="apm-namewrap">
             <label class="apm-label">Exercise Name</label>
-            <input type="text" id="apmExName" class="apm-input" placeholder="Pick one from the library, or type a new exercise" maxlength="60" autocomplete="off">
+            <div class="apm-name-inputwrap">
+              <input type="text" id="apmExName" class="apm-input" placeholder="Pick one from the library, or type a new exercise" maxlength="60" autocomplete="off" oninput="apmNameSuggest(this.value)" onblur="apmHideSuggest()">
+              <div id="apmNameSuggest" class="apm-name-suggest" style="display:none;"></div>
+            </div>
             <div class="apm-field-hint">New name? It saves to your library automatically.</div>
           </div>
           <div id="apmSelectedExInfo" class="apm-selected-ex-info" style="display:none;">
