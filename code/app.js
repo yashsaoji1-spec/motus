@@ -4544,6 +4544,7 @@ function subscribeTherapistBadges(therapistEmail) {
 // ── Mobile therapist panel helpers ────────────────────────────────────────────
 function backToPatientList() {
   _viewingPatientEmail = null;
+  setThRailActive('patients');
   if (_msgThreadUnsub) { _msgThreadUnsub(); _msgThreadUnsub = null; }
   document.getElementById('therapistScreen').classList.remove('tp-mobile-detail');
   document.querySelectorAll('.patient-row').forEach(r => r.classList.remove('patient-row--active'));
@@ -5286,10 +5287,15 @@ async function bulkAssignProtocol() {
 function _apmRenderLibrary(query) {
   const listEl = document.getElementById('apmLibList');
   if (!listEl) return;
-  const q = query.toLowerCase().trim();
-  const filtered = PROTOCOL_CATALOG.filter(e =>
-    !q || exName(e.id).toLowerCase().includes(q) || exCat(e.cat).toLowerCase().includes(q) || exDesc(e.id, e.desc).toLowerCase().includes(q)
-  );
+  // Google-style: split into words and require every word to appear somewhere in
+  // the exercise's name, category, or description — so order doesn't matter
+  // ("flexion finger" still finds "Index Finger Flexion").
+  const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const filtered = PROTOCOL_CATALOG.filter(e => {
+    if (!terms.length) return true;
+    const hay = (exName(e.id) + ' ' + exCat(e.cat) + ' ' + exDesc(e.id, e.desc)).toLowerCase();
+    return terms.every(t => hay.includes(t));
+  });
   if (!filtered.length) {
     listEl.innerHTML = '<div class="apm-lib-empty">No exercises found</div>';
     return;
