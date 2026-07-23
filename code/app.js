@@ -3583,6 +3583,8 @@ async function editProtocol(patientEmail, protocolId) {
 
   const typeEl = document.getElementById('exerciseType');
   if (typeEl) typeEl.value = p.exerciseType;
+  const exNameEl = document.getElementById('apmExName');
+  if (exNameEl) exNameEl.value = p.exerciseName || exName(p.exerciseType) || '';
   updateExerciseParamsUI(p.exerciseType, p.exerciseParams || null);
   _apmHighlightSelected(p.exerciseType);
 
@@ -4002,33 +4004,31 @@ async function assignProtocol() {
   const patientEmail = _protoPatientEmail;
   if (!patientEmail) return;
 
-  // Create mode: persist the brand-new exercise to the therapist's library
-  // (customExercises) so it's reusable, then continue as a normal assignment.
-  if (_apmNewExCat) {
-    const nameEl = document.getElementById('apmCreateName');
-    const newName = (nameEl && nameEl.value || '').trim();
-    if (!newName) { alert('Please name the new exercise.'); if (nameEl) nameEl.focus(); return; }
+  // Resolve the exercise from the name field: match an existing library exercise
+  // by name (case-insensitive), or create + save a brand-new one to the library.
+  const nameEl = document.getElementById('apmExName');
+  const enteredName = (nameEl && nameEl.value || '').trim();
+  if (!enteredName) { alert('Please enter an exercise name.'); if (nameEl) nameEl.focus(); return; }
+  let exerciseType = PROTOCOL_CATALOG.map(e => e.id).find(id => exName(id).toLowerCase() === enteredName.toLowerCase());
+  if (!exerciseType) {
     const dReps = parseInt(document.getElementById('protocolReps').value) || 10;
     const dSets = parseInt(document.getElementById('protocolSets').value) || 3;
     const dFreq = readFrequencyValue('protocolFrequency', 'customFreqDays');
-    const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'exercise';
+    const slug = enteredName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'exercise';
     const newId = 'custom_' + slug + '_' + Date.now().toString(36);
     try {
       await db.collection('customExercises').add({
-        id: newId, name: newName, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '',
+        id: newId, name: enteredName, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '',
         createdBy: currentUser.email
       });
     } catch (e) { alert('Could not save the new exercise. Check your connection and try again.'); return; }
     if (!PROTOCOL_CATALOG.find(x => x.id === newId)) {
       PROTOCOL_CATALOG.push({ id: newId, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '' });
     }
-    exerciseLabels[newId] = newName;
-    document.getElementById('exerciseType').value = newId;
-    _apmNewExCat = false;
+    exerciseLabels[newId] = enteredName;
+    exerciseType = newId;
   }
-
-  const exerciseType = document.getElementById('exerciseType').value;
-  if (!exerciseType || exerciseType === '__new__') { alert('Please select or name an exercise.'); return; }
+  document.getElementById('exerciseType').value = exerciseType;
   const defaults = EXERCISE_DEFAULTS[exerciseType];
 
   // Collect exerciseParams from the UI
@@ -5085,6 +5085,7 @@ async function openAddProtocol(patientEmail, patientName) {
   setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', 'daily');
   if (notesEl) notesEl.value = '';
   if (typeEl) typeEl.value = '';
+  { const exNameEl = document.getElementById('apmExName'); if (exNameEl) exNameEl.value = ''; }
   const searchEl = document.getElementById('apmSearch');
   if (searchEl) searchEl.value = '';
   const createFields = document.getElementById('apmCreateFields');
@@ -5316,32 +5317,15 @@ function _apmHighlightSelected(id) {
   if (el) { el.classList.add('apm-lib-item--active'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
 }
 
-// Start the "create a new exercise" flow: reveal the name field, reset the config
-// to defaults, and mark the modal in create mode so assignProtocol saves it.
-function apmStartCreate() {
-  _apmNewExCat = true;
-  const typeEl = document.getElementById('exerciseType');
-  if (typeEl) typeEl.value = '__new__';
-  const cf = document.getElementById('apmCreateFields'); if (cf) cf.style.display = 'block';
-  const info = document.getElementById('apmSelectedExInfo'); if (info) info.style.display = 'none';
-  document.getElementById('protocolReps').value = 10;
-  document.getElementById('protocolSets').value = 3;
-  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', 'daily');
-  const notesEl = document.getElementById('protocolNotes'); if (notesEl) notesEl.value = '';
-  document.querySelectorAll('.apm-lib-item').forEach(el => el.classList.remove('apm-lib-item--active'));
-  document.getElementById('apmCreateBtn')?.classList.add('apm-create-btn--active');
-  const nameEl = document.getElementById('apmCreateName'); if (nameEl) { nameEl.value = ''; nameEl.focus(); }
-}
-
+// Picking a library exercise just fills the name field + its default dosage.
+// The therapist can then tweak anything; on assign we resolve by name.
 function apmSelectExercise(id) {
-  // Picking a library exercise exits create mode.
-  _apmNewExCat = false;
-  const cf = document.getElementById('apmCreateFields'); if (cf) cf.style.display = 'none';
-  document.getElementById('apmCreateBtn')?.classList.remove('apm-create-btn--active');
   const typeEl = document.getElementById('exerciseType');
   if (typeEl) typeEl.value = id;
   const entry = PROTOCOL_CATALOG.find(e => e.id === id);
   if (entry) {
+    const nameInput = document.getElementById('apmExName');
+    if (nameInput) nameInput.value = exName(id);
     const repsEl = document.getElementById('protocolReps');
     const setsEl = document.getElementById('protocolSets');
     if (repsEl) repsEl.value = entry.dr;
@@ -5350,9 +5334,10 @@ function apmSelectExercise(id) {
     const infoEl = document.getElementById('apmSelectedExInfo');
     const nameEl = document.getElementById('apmSelectedExName');
     const descEl = document.getElementById('apmSelectedExDesc');
-    if (nameEl) nameEl.textContent = exName(id);
-    if (descEl) descEl.textContent = exDesc(id, entry.desc);
-    if (infoEl) infoEl.style.display = 'block';
+    const desc = exDesc(id, entry.desc);
+    if (nameEl) nameEl.textContent = '';
+    if (descEl) descEl.textContent = desc || '';
+    if (infoEl) infoEl.style.display = desc ? 'block' : 'none';
   }
   updateExerciseParamsUI(id, null);
   _apmHighlightSelected(id);
@@ -9069,7 +9054,7 @@ Object.assign(window, {
   openSidebar, closeSidebar,
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
-  openAddProtocol, closeAddProtocol, apmSelectExercise, apmStartCreate, apmFilter,
+  openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter,
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
   toggleCustomFreq, toggleCustomFreqPL,

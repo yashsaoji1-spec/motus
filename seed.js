@@ -136,6 +136,8 @@ async function deleteQuery(q, label) {
 async function reset() {
   console.log('Resetting prior seeded data...');
   await deleteQuery(db.collection('sessions').where('therapistEmail', '==', THERAPIST.email), 'sessions');
+  // custom exercises the demo therapist created (keeps the exercise library clean)
+  await deleteQuery(db.collection('customExercises').where('createdBy', '==', THERAPIST.email), 'custom exercises');
   const threads = [threadId(THERAPIST.email, JAMES.email), threadId(THERAPIST.email, MARIA.email)];
   for (const tid of threads) {
     await deleteQuery(db.collection('messages').where('threadId', '==', tid), `messages (${tid})`);
