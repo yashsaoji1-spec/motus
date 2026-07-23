@@ -362,7 +362,7 @@ const I18N = {
     'th.reviewAllDone': 'All caught up — nothing to review.',
     'th.markAllReviewed': 'Mark all reviewed',
     'th.assignSaving': 'Saving…',
-    'th.protocolSaved': 'Protocol saved',
+    'th.protocolSaved': 'Exercise saved',
     'th.assignError': 'Could not save protocol — check your connection.',
     'th.bulkAssignFailed': 'Some patients could not be assigned: {emails}',
     'th.bulkAssignPartial': '({ok} of {total} succeeded)',

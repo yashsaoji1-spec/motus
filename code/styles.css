@@ -4244,24 +4244,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    flex-grows to share width inside the dosage row). */
 .apm-namewrap { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
 .apm-field-hint { font-size: 0.72rem; color: var(--th-muted-text, #64748b); margin-top: 2px; }
+/* Labeled "+ New Exercise" button so it's obvious what it does (was a bare "+"). */
 .apm-new-ex-btn {
   flex-shrink: 0;
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  background: none;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  font-size: 1.1rem; line-height: 1;
+  height: 38px; padding: 0 14px;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  background: var(--rd-teal, #0f766e);
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.85rem; font-weight: 700; line-height: 1; white-space: nowrap;
   cursor: pointer;
   font-family: inherit;
   transition: all var(--ease-default);
 }
-.apm-new-ex-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-dim);
-}
+.apm-new-ex-btn:hover { filter: brightness(1.08); }
 .apm-lib-search {
   width: 100%; padding: var(--space-2) var(--space-3);
   border: 1.5px solid var(--border); border-radius: var(--radius-md);

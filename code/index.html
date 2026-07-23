@@ -639,7 +639,7 @@
   </div>
   <button class="nav-drawer-item" onclick="openProtocolLibrary()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-    Protocol Library
+    Exercise Library
   </button>
   <button class="nav-drawer-item" data-clinic-entry onclick="showMyClinicOrJoin()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -707,7 +707,7 @@
 
   <!-- F-010: Protocol saved success banner -->
   <div id="protocolSavedBanner" class="admin-approval-banner" style="display:none;" aria-live="polite"
-       data-i18n="th.protocolSaved">Protocol saved</div>
+       data-i18n="th.protocolSaved">Exercise saved</div>
 
   <!-- Main detail panel -->
   <div class="main-panel" id="mainPanel">
@@ -1222,7 +1222,7 @@
   <div class="apm-panel">
     <div class="apm-hdr">
       <div class="apm-hdr-left">
-        <div class="apm-hdr-title">Protocol Library</div>
+        <div class="apm-hdr-title">Exercise Library</div>
       </div>
       <button class="apm-close-btn" onclick="closeProtocolLibrary()" aria-label="Close">x</button>
     </div>
@@ -1231,7 +1231,7 @@
         <div class="apm-lib-col">
           <div class="apm-lib-search-wrap">
             <input type="text" class="apm-lib-search" id="plSearch" placeholder="Search exercises..." oninput="plFilter(this.value)" autocomplete="off">
-            <button class="apm-new-ex-btn" onclick="plEnterCreateMode()" title="Create new exercise">+</button>
+            <button class="apm-new-ex-btn" onclick="plEnterCreateMode()">+ New Exercise</button>
           </div>
           <div class="apm-lib-list" id="plLibList"></div>
           <div class="pl-hidden-section">
@@ -1243,7 +1243,7 @@
         </div>
         <div class="apm-config-col" id="plNormalConfig">
           <div id="plEmptyState" class="pl-empty-state">
-            <p>Select a protocol to edit, or create a new one.</p>
+            <p>Select an exercise to edit, or create a new one.</p>
           </div>
           <div id="plConfigFields" style="display:none;">
             <div id="plSelectedExInfo" class="apm-selected-ex-info" style="display:none;">
@@ -1321,7 +1321,7 @@
             </div>
           </div>
           <div class="pl-actions">
-            <button class="pl-save-btn" onclick="plSaveNewExercise()">Save New Protocol</button>
+            <button class="pl-save-btn" onclick="plSaveNewExercise()">Save New Exercise</button>
             <button class="pl-cancel-btn" onclick="plExitCreateMode()">Cancel</button>
           </div>
         </div>
