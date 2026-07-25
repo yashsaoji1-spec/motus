@@ -882,11 +882,20 @@ let _demoChunks          = [];     // accumulated chunks for demo
 let _demoBlob            = null;   // final demo blob (recorded or uploaded)
 let _demoThumbnailUrl     = null;   // thumbnail from uploaded video
 let _demoFacingMode      = 'environment'; // rear camera default
-// Front-facing cameras hand us a mirrored feed. We keep the PREVIEW mirrored,
-// because that's what feels natural while you record (the phone selfie
-// convention), but un-mirror the RECORDING so the patient sees the movement as
-// a real person facing them — otherwise a right-hand demo reads as left-hand.
-const DEMO_UNMIRROR_RECORDING = true;
+let _demoNeedsUnmirror   = false;         // set from the real track, see below
+
+// Front-facing cameras give a mirrored image, and nothing in this app should
+// ever show a mirrored video. We can't trust _demoFacingMode: it defaults to
+// 'environment', but a laptop has no rear camera, so getUserMedia quietly hands
+// back the webcam while the flag still says 'environment'. Ask the track what
+// it actually is. Only a camera that reports 'environment' is genuinely
+// rear-facing; anything else (a phone's 'user', or a desktop webcam reporting
+// nothing) is front-facing and needs un-mirroring.
+function _demoIsFrontCamera(stream) {
+  const track = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+  const settings = track && track.getSettings ? track.getSettings() : {};
+  return settings.facingMode !== 'environment';
+}
 let _demoTimerInterval   = null;   // countdown timer interval
 let _demoTimerSec        = 0;      // elapsed seconds
 let _demoAnimFrame       = null;   // requestAnimationFrame handle for canvas draw loop
@@ -3742,7 +3751,11 @@ async function _demoStartCameraAndRecord() {
   }
 
   preview.srcObject = _demoStream;
-  preview.style.transform = 'none'; // show the camera's own (mirrored) self-view
+  // Un-mirror a front camera in the preview, matching every other camera
+  // surface in the app. The recording below uses the same flag, so what you see
+  // is exactly what the patient gets.
+  _demoNeedsUnmirror = _demoIsFrontCamera(_demoStream);
+  preview.style.transform = _demoNeedsUnmirror ? 'scaleX(-1)' : 'none';
   await preview.play().catch(() => {});
 
   // Wait for metadata so we get real dimensions
@@ -3760,9 +3773,8 @@ async function _demoStartCameraAndRecord() {
 
   function drawFrame() {
     if (_demoStream && _demoStream.active) {
-      // Un-mirror the saved video (see DEMO_UNMIRROR_RECORDING). The preview
-      // stays mirrored; only what we record gets flipped back.
-      if (DEMO_UNMIRROR_RECORDING) {
+      // Same flag as the preview, so the saved file matches what was on screen.
+      if (_demoNeedsUnmirror) {
         ctx.save();
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
