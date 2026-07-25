@@ -882,6 +882,7 @@ let _demoChunks          = [];     // accumulated chunks for demo
 let _demoBlob            = null;   // final demo blob (recorded or uploaded)
 let _demoThumbnailUrl     = null;   // thumbnail from uploaded video
 let _demoFacingMode      = 'environment'; // rear camera default
+let _demoMirror          = false;         // flip left-to-right (preview + recording)
 let _demoTimerInterval   = null;   // countdown timer interval
 let _demoTimerSec        = 0;      // elapsed seconds
 let _demoAnimFrame       = null;   // requestAnimationFrame handle for canvas draw loop
@@ -3737,7 +3738,8 @@ async function _demoStartCameraAndRecord() {
   }
 
   preview.srcObject = _demoStream;
-  preview.style.transform = 'none';
+  preview.style.transform = _demoMirror ? 'scaleX(-1)' : 'none';
+  _demoUpdateMirrorBtn();
   await preview.play().catch(() => {});
 
   // Wait for metadata so we get real dimensions
@@ -3755,7 +3757,19 @@ async function _demoStartCameraAndRecord() {
 
   function drawFrame() {
     if (_demoStream && _demoStream.active) {
-      ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+      // Mirror the recording to match the preview, so what the therapist saw
+      // while recording is what the patient gets. Some webcams (and macOS
+      // Continuity Camera) hand us an already-mirrored feed, which would
+      // otherwise ship a demo showing the wrong hand.
+      if (_demoMirror) {
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      } else {
+        ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+      }
       _demoAnimFrame = requestAnimationFrame(drawFrame);
     }
   }
@@ -3852,6 +3866,20 @@ async function demoEndDemo() {
     playback.load();
   }
   _demoSetState('preview');
+}
+
+function _demoUpdateMirrorBtn() {
+  const btn = document.getElementById('demoMirrorBtn');
+  if (btn) btn.classList.toggle('is-on', _demoMirror);
+}
+
+// Live toggle: no need to restart the recorder, the canvas reads the flag each
+// frame, so the therapist can correct a mirrored webcam mid-take.
+function demoToggleMirror() {
+  _demoMirror = !_demoMirror;
+  const preview = document.getElementById('demoCameraPreview');
+  if (preview) preview.style.transform = _demoMirror ? 'scaleX(-1)' : 'none';
+  _demoUpdateMirrorBtn();
 }
 
 async function demoFlipCamera() {
@@ -9102,7 +9130,7 @@ Object.assign(window, {
   plToggleHide, plUnhide, plResetBuiltIn, plToggleHiddenSection, plDeselect,
 
   // Demo recording
-  demoStartDemo, demoEndDemo, demoFlipCamera,
+  demoStartDemo, demoEndDemo, demoFlipCamera, demoToggleMirror,
   demoUseThis, demoReRecord, demoClearVideo,
   demoUploadFile, demoHandleFileSelect,
   playProtocolDemo, removeProtocolDemo,

@@ -4127,7 +4127,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .apm-panel {
   background: var(--surface); border-radius: var(--radius-xl);
-  width: 100%; max-width: 1100px; max-height: 88vh;
+  width: 100%; max-width: 1260px; max-height: 88vh;
   display: flex; flex-direction: column;
   box-shadow: 0 24px 64px rgba(0,0,0,0.22), 0 4px 16px rgba(0,0,0,0.1);
   overflow: hidden;
@@ -4172,7 +4172,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* Demo video column */
 .apm-demo-col {
-  width: 320px; flex-shrink: 0;
+  /* Was 320px, which left the 9:16 preview ~272px wide — narrower than a phone
+     and awkward to frame yourself in while recording a demo. */
+  width: 440px; flex-shrink: 0;
   display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-5);
   background: var(--bg);
@@ -4237,6 +4239,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .apm-demo-btn--secondary {
   background: none; color: var(--accent);
   border: 1.5px solid var(--accent);
+}
+/* Mirror is a toggle, so it has to read as on/off at a glance. */
+.apm-demo-btn--secondary.is-on {
+  background: var(--accent); color: #fff;
 }
 .apm-demo-btn--danger {
   background: none; color: var(--danger);
