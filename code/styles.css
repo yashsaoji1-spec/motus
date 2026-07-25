@@ -124,6 +124,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 button, a, input, select, textarea { transition: all var(--ease-default); }
 button { min-height: 44px; }
+/* Fast repeated taps on any control used to register as double-tap-to-zoom on
+   iOS (worst on the rep steppers mid-set). manipulation keeps panning and
+   pinch-zoom, and only drops the double-tap gesture, so nothing is lost for
+   accessibility. user-select stops a quick double tap selecting button text or
+   popping the iOS selection callout. */
+button, a, [role="button"], label, select,
+input[type="button"], input[type="submit"], input[type="checkbox"], input[type="radio"] {
+  touch-action: manipulation;
+}
+button, [role="button"], input[type="button"], input[type="submit"] {
+  -webkit-user-select: none; user-select: none;
+}
 
 body {
   background: var(--bg);
