@@ -5078,6 +5078,10 @@ body:has(#manualCamScreen.active) {
   font-weight: 300;
   color: var(--pt-primary-text);
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
   display: grid;
   place-items: center;
   transition: background 0.12s;
@@ -7342,6 +7346,8 @@ body:has(#manualCamScreen.active) {
 .rd-stat-eyebrow { font-size: calc(13px * var(--font-scale)); color: var(--rd-text2); margin-bottom: 6px; }
 .rd-stat-big { font-size: calc(22px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); line-height: 1.15; }
 .rd-stat-big.teal { color: var(--rd-teal); }
+/* "Your Therapist" label sat flush against the card below it. */
+#ptTherapistHeading { margin-bottom: 8px; }
 .rd-th-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); }
 .rd-th-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(15px * var(--font-scale)); flex-shrink: 0; }
 .rd-th-info { flex: 1; min-width: 0; }
@@ -7405,9 +7411,13 @@ body:has(#manualCamScreen.active) {
 .rd-sheet-card { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); padding: 16px; margin-bottom: 14px; }
 .rd-sheet-label { font-size: calc(15px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); margin-bottom: 12px; }
 .rd-stepper { display: flex; align-items: center; gap: 14px; }
-.rd-step-btn { width: 60px; height: 60px; flex-shrink: 0; border: none; border-radius: 14px; background: var(--rd-divider); color: var(--rd-ink); font-size: calc(28px * var(--font-scale)); font-weight: 700; cursor: pointer; font-family: var(--rd-font); }
+/* touch-action:manipulation stops iOS reading fast repeated taps as double-tap-
+   to-zoom while the patient is counting reps. Pinch-zoom is untouched, so this
+   doesn't cost accessibility. user-select stops the "−"/"+" glyphs getting
+   text-selected (and popping the callout) on a quick double tap. */
+.rd-step-btn { width: 60px; height: 60px; flex-shrink: 0; border: none; border-radius: 14px; background: var(--rd-divider); color: var(--rd-ink); font-size: calc(28px * var(--font-scale)); font-weight: 700; cursor: pointer; font-family: var(--rd-font); touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .rd-step-btn:active { background: var(--rd-card-border); }
-.rd-step-mid { flex: 1; text-align: center; }
+.rd-step-mid { flex: 1; text-align: center; -webkit-user-select: none; user-select: none; }
 .rd-step-num { font-size: calc(30px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); line-height: 1; font-variant-numeric: tabular-nums; }
 .rd-step-goal { font-size: calc(13px * var(--font-scale)); color: var(--rd-text2); margin-top: 4px; }
 .rd-pain-btns { display: flex; flex-direction: column; gap: 10px; }
