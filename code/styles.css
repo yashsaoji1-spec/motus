@@ -4240,10 +4240,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: none; color: var(--accent);
   border: 1.5px solid var(--accent);
 }
-/* Mirror is a toggle, so it has to read as on/off at a glance. */
-.apm-demo-btn--secondary.is-on {
-  background: var(--accent); color: #fff;
-}
 .apm-demo-btn--danger {
   background: none; color: var(--danger);
   border: 1.5px solid var(--danger);
