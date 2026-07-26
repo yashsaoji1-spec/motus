@@ -1371,6 +1371,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* Congrats overlay styled children */
 .congrats-reps-text { color: rgba(255,255,255,0.55); font-size: 0.9rem; }
 .congrats-all-sets { display: none; font-size: 1rem; font-weight: 700; color: var(--success); }
+/* Rest clock shown on the congrats card while the patient logs their pain. */
+.congrats-rest-line { font-size: 0.95rem; font-weight: 600; color: var(--accent); margin-top: 4px; }
 .congrats-pain-prompt { color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-top: var(--space-2); }
 .congrats-pain-slider { width: 200px; accent-color: var(--accent); }
 .congrats-pain-value { color: rgba(255,255,255,0.7); font-size: 0.9rem; font-weight: 600; }

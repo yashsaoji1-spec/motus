@@ -6131,6 +6131,11 @@ function updateRepUI() {
     const camCtrl = document.querySelector('.cam-controls');
     if (camCtrl) camCtrl.style.display = 'none';
     sessionPaused = true;
+    // Rest begins the moment the set ends, not when the patient finishes
+    // tapping through the pain slider — that's how rest actually works. The
+    // countdown runs on the congrats card while they log pain, then carries
+    // its remaining time into the full-screen rest overlay.
+    if (currentSet < totalSets) beginRestCountdown();
   }
 }
 
@@ -6236,6 +6241,13 @@ async function advanceSet() {
   }
   setsComplete++;
   document.getElementById('congratsOverlay').classList.remove('show');
+  // Reset the inline rest readout for the next set (it may be showing
+  // "Rest complete", which replaced its markup).
+  const restLine = document.getElementById('congratsRestLine');
+  if (restLine) {
+    restLine.style.display = 'none';
+    restLine.innerHTML = 'Resting — <strong id="congratsRestCount">30</strong>s left';
+  }
   const camCtrlRestore = document.querySelector('.cam-controls');
   if (camCtrlRestore) camCtrlRestore.style.display = '';
   document.getElementById('allSetsComplete').style.display = 'none';
@@ -6263,20 +6275,48 @@ async function advanceSet() {
   startRestTimer();
 }
 
-function startRestTimer() {
+// Starts the clock at set completion. One interval drives both the small
+// readout on the congrats card and the full-screen overlay, so the two can
+// never disagree about how much rest is left.
+function beginRestCountdown() {
+  clearInterval(restTimerInterval);
   restTimeRemaining = getRestDuration();
-  sessionPaused = true;
-  const overlay = document.getElementById('restTimerOverlay');
-  overlay.style.display = 'flex';
-  document.getElementById('restTimerCount').textContent = restTimeRemaining;
-  document.getElementById('restTimerFill').style.width = '100%';
+  _renderRestTime();
+  const line = document.getElementById('congratsRestLine');
+  if (line) line.style.display = '';
   restTimerInterval = setInterval(() => {
     restTimeRemaining--;
-    document.getElementById('restTimerCount').textContent = restTimeRemaining;
-    const pct = (restTimeRemaining / getRestDuration()) * 100;
-    document.getElementById('restTimerFill').style.width = pct + '%';
-    if (restTimeRemaining <= 0) skipRest();
+    _renderRestTime();
+    if (restTimeRemaining <= 0) {
+      clearInterval(restTimerInterval);
+      restTimerInterval = null;
+      const overlayVisible = document.getElementById('restTimerOverlay').style.display !== 'none';
+      // Only auto-advance if they're already waiting on the rest screen. If
+      // they're still logging pain, rest is simply done — don't yank the
+      // screen out from under them.
+      if (overlayVisible) skipRest();
+      else if (line) line.textContent = 'Rest complete';
+    }
   }, 1000);
+}
+
+function _renderRestTime() {
+  const secs = Math.max(restTimeRemaining, 0);
+  const count = document.getElementById('restTimerCount');
+  if (count) count.textContent = secs;
+  const small = document.getElementById('congratsRestCount');
+  if (small) small.textContent = secs;
+  const fill = document.getElementById('restTimerFill');
+  if (fill) fill.style.width = (secs / getRestDuration()) * 100 + '%';
+}
+
+// Show the rest screen for whatever time is LEFT, rather than restarting the
+// clock — the patient has already been resting while logging their pain.
+function startRestTimer() {
+  sessionPaused = true;
+  if (restTimeRemaining <= 0) { skipRest(); return; }
+  document.getElementById('restTimerOverlay').style.display = 'flex';
+  _renderRestTime();
 }
 
 function skipRest() {
