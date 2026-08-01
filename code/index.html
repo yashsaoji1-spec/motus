@@ -369,8 +369,6 @@
         <span id="streakBest" hidden></span>
       </div>
     </div>
-
-    <div id="ptSessionSavedBanner" class="rd-auth-success" style="display:none;" aria-live="polite" data-i18n="cam.sessionSaved">Session saved!</div>
     <div id="ptHomeLoadError" class="rd-auth-error" style="display:none;" aria-live="polite"></div>
 
     <section class="rd-card rd-plan-card">
@@ -1354,11 +1352,13 @@
      at top level so it isn't hidden along with whichever screen is inactive. -->
 <div id="savedModal" class="saved-modal-overlay" style="display:none;" role="alertdialog"
      aria-live="polite" onclick="hideSavedModal()">
-  <div class="saved-modal-card">
-    <div class="saved-modal-check" aria-hidden="true">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <div class="saved-modal-card" onclick="event.stopPropagation()">
+    <div class="saved-modal-check" id="savedModalIcon" aria-hidden="true">
+      <svg id="savedModalIconOk" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <svg id="savedModalIconWarn" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
     </div>
     <div class="saved-modal-text" id="savedModalText" data-i18n="th.protocolSaved">Exercise saved</div>
+    <button type="button" class="saved-modal-ok" id="savedModalOk" style="display:none;" onclick="hideSavedModal()">OK</button>
   </div>
 </div>
 

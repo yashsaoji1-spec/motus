@@ -1811,9 +1811,7 @@ async function handleConnect() {
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   await saveConnection(therapist.email, currentUser.email);
   currentUser.therapistEmail = therapist.email;  // keep in-memory user in sync so the home screen sees the connection without a refresh
-  const successEl = document.getElementById('connectSuccess');
-  successEl.textContent = `Connected to ${therapist.name}! Loading your exercises...`;
-  successEl.style.display = 'block';
+  showNotice(`Connected to ${therapist.name}! Loading your exercises...`, 'success');
   setTimeout(async () => {
     showScreen('patientScreen');
     await updatePatientHomeScreen();
@@ -1962,9 +1960,10 @@ function _openConfirmModal(bodyKey, okKey, callback, requireType) {
   const el = document.getElementById('confirmModal');
   if (!el) { console.error('[Motus] confirmModal missing'); return; }
   document.getElementById('confirmModalTitle').textContent = t('confirm.title');
-  document.getElementById('confirmModalBody').textContent  = t(bodyKey);
+  // Keys may be null when called via confirmModal(), which sets raw text itself.
+  if (bodyKey) document.getElementById('confirmModalBody').textContent = t(bodyKey);
   const okBtn = document.getElementById('confirmModalOk');
-  okBtn.textContent = t(okKey);
+  if (okKey) okBtn.textContent = t(okKey);
   document.getElementById('confirmModalCancel').textContent = t('confirm.cancel');
 
   // Type-to-confirm gate (3i) — for destructive, irreversible actions the OK
@@ -1999,6 +1998,24 @@ function _openConfirmModal(bodyKey, okKey, callback, requireType) {
   document.addEventListener('keydown', _confirmEscHandler);
 }
 
+// Same styled modal as _openConfirmModal, but for messages built at runtime
+// (patient names, exercise names) that have no i18n key. Promise-based so it
+// can stand in for native confirm() at call sites that branch on the answer.
+function confirmModal(message, okLabel) {
+  return new Promise(resolve => {
+    let settled = false;
+    const done = v => { if (!settled) { settled = true; resolve(v); } };
+    _openConfirmModal(null, null, () => done(true));
+    document.getElementById('confirmModalBody').textContent = message;
+    document.getElementById('confirmModalOk').textContent = okLabel || 'Confirm';
+    // Cancel / Escape / backdrop all resolve false rather than hanging.
+    const el = document.getElementById('confirmModal');
+    const watch = setInterval(() => {
+      if (el.style.display === 'none') { clearInterval(watch); done(false); }
+    }, 120);
+  });
+}
+
 function _closeConfirmModal() {
   const el = document.getElementById('confirmModal');
   if (el) el.style.display = 'none';
@@ -2021,7 +2038,7 @@ function _doConfirm() {
   if (cb) {
     Promise.resolve(cb()).catch(err => {
       console.error('[Motus] confirm action failed', err);
-      alert(t('confirm.actionFailed'));
+      showNotice(t('confirm.actionFailed'));
     });
   }
 }
@@ -2241,7 +2258,7 @@ async function joinClinicByCode() {
 async function acceptInvite(inviteId) {
   const invite = _clinicInvites.find(i => i.id === inviteId);
   if (!invite) return;
-  if (_myClinicId) { alert('You are already in a clinic. Leave it first.'); return; }
+  if (_myClinicId) { showNotice('You are already in a clinic. Leave it first.'); return; }
 
   const clinicDoc = await db.collection('clinics').doc(invite.clinicId).get();
   if (!clinicDoc.exists) {
@@ -2361,7 +2378,7 @@ function copyClinicJoinCode() {
 
 async function regenerateClinicCode() {
   if (!_myClinicId || !_myClinic || _myClinic.ownerEmail !== currentUser.email) return;
-  if (!confirm('Regenerate join code? The old code will stop working immediately.')) return;
+  if (!await confirmModal('Regenerate join code? The old code will stop working immediately.')) return;
   const newCode = generateClinicCode();
   await db.collection('clinics').doc(_myClinicId).update({ joinCode: newCode });
   _myClinic.joinCode = newCode;
@@ -2422,7 +2439,7 @@ async function sendClinicInvite() {
 
 async function removeClinicMember(email) {
   if (!_myClinicId || !_myClinic || _myClinic.ownerEmail !== currentUser.email) return;
-  if (!confirm(`Remove ${email} from the clinic?`)) return;
+  if (!await confirmModal(`Remove ${email} from the clinic?`)) return;
   await db.collection('clinics').doc(_myClinicId).update({
     therapists: firebase.firestore.FieldValue.arrayRemove(email),
   });
@@ -2437,7 +2454,7 @@ async function confirmLeaveClinic() {
   const members = _myClinic.therapists || [];
 
   if (isOwner && members.length === 1) {
-    if (!confirm('Disband this clinic? The clinic and its shared exercise library will be permanently deleted.')) return;
+    if (!await confirmModal('Disband this clinic? The clinic and its shared exercise library will be permanently deleted.')) return;
     await db.collection('clinicLibrary').doc(_myClinicId).delete();
     await db.collection('clinics').doc(_myClinicId).delete();
     await db.collection('users').doc(currentUser.email).update({ clinicId: firebase.firestore.FieldValue.delete() });
@@ -2449,13 +2466,13 @@ async function confirmLeaveClinic() {
 
   if (isOwner) {
     const newOwner = members.find(e => e !== currentUser.email);
-    if (!confirm(`Leaving will transfer ownership to ${newOwner}. Continue?`)) return;
+    if (!await confirmModal(`Leaving will transfer ownership to ${newOwner}. Continue?`)) return;
     await db.collection('clinics').doc(_myClinicId).update({
       ownerEmail: newOwner,
       therapists: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
     });
   } else {
-    if (!confirm('Leave this clinic?')) return;
+    if (!await confirmModal('Leave this clinic?')) return;
     await db.collection('clinics').doc(_myClinicId).update({
       therapists: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
     });
@@ -2523,11 +2540,11 @@ async function shareExerciseToClinic(exerciseId) {
   if (!_myClinicId) return;
   if (!_plTherapistData) await loadTherapistLibrary();
   const ex = (_plTherapistData.customExercises || []).find(e => e.id === exerciseId);
-  if (!ex) { alert('Exercise not found in your library.'); return; }
+  if (!ex) { showNotice('Exercise not found in your library.'); return; }
 
   const shareId = exerciseId + '_' + currentUser.email.replace(/[^a-z0-9]/gi, '_');
   if (_clinicLibrary.find(e => e.shareId === shareId)) {
-    alert('This exercise is already in the clinic library.'); return;
+    showNotice('This exercise is already in the clinic library.'); return;
   }
 
   const shareEntry = {
@@ -2552,7 +2569,7 @@ async function pullExerciseFromClinic(shareId) {
   if (!_plTherapistData) await loadTherapistLibrary();
 
   const existing = (_plTherapistData.customExercises || []).find(e => e.id === ex.id || e.id === ex.id + '_clinic');
-  if (existing) { alert('You already have this exercise in your library.'); return; }
+  if (existing) { showNotice('You already have this exercise in your library.'); return; }
 
   const copy = { ...ex };
   delete copy.shareId;
@@ -2566,7 +2583,7 @@ async function pullExerciseFromClinic(shareId) {
   await _saveTherapistLibrary();
   logAnalyticsEvent('protocol_pulled_from_clinic');
   buildProtocolLibrary();
-  alert(`"${ex.name}" added to your Protocol Library.`);
+  showNotice(`"${ex.name}" added to your Protocol Library.`, 'success');
 }
 
 async function removeSharedExercise(shareId) {
@@ -2575,7 +2592,7 @@ async function removeSharedExercise(shareId) {
   if (!ex) return;
   const isOwner = _myClinic && _myClinic.ownerEmail === currentUser.email;
   if (!isOwner && ex.sharedBy !== currentUser.email) return;
-  if (!confirm(`Remove "${ex.name}" from the clinic library?`)) return;
+  if (!await confirmModal(`Remove "${ex.name}" from the clinic library?`)) return;
 
   await db.collection('clinicLibrary').doc(_myClinicId).update({
     sharedExercises: firebase.firestore.FieldValue.arrayRemove(ex),
@@ -3209,7 +3226,7 @@ async function finishManualCamSession() {
   // Don't pretend the session saved when it didn't — the therapist would never
   // see the data. Tell the patient and let them retry without losing their sets.
   if (!saveOk) {
-    const retry = confirm('We couldn’t save your session — please check your internet connection.\n\nTap OK to try again, or Cancel to discard this session.');
+    const retry = await confirmModal('We couldn’t save your session — please check your internet connection.\n\nTap OK to try again, or Cancel to discard this session.');
     if (retry) return finishManualCamSession();
     // else: patient chose to discard; fall through to reset and exit
   }
@@ -3746,7 +3763,7 @@ async function _demoStartCameraAndRecord() {
   } catch(e) {
     console.error('[Motus] demo camera:', e);
     Sentry.captureException(e, { tags: { flow: 'camera-demo' } });
-    alert('Could not access camera. Please check permissions.');
+    showNotice('Could not access camera. Please check permissions.');
     return;
   }
 
@@ -3791,7 +3808,7 @@ async function _demoStartCameraAndRecord() {
   const mimeType = getRecordingMimeType();
   if (!mimeType) {
     _demoStopCamera();
-    alert('Video recording is not supported on this browser.');
+    showNotice('Video recording is not supported on this browser.');
     _demoSetState('initial');
     return;
   }
@@ -3927,7 +3944,7 @@ async function demoHandleFileSelect(input) {
     _demoSetState('preview');
   } catch(e) {
     console.error('[Motus] demoHandleFileSelect:', e);
-    alert('Could not process the selected video file.');
+    showNotice('Could not process the selected video file.');
   }
 }
 
@@ -3939,7 +3956,7 @@ function playProtocolDemo(videoUrl, exerciseName) {
 }
 
 async function removeProtocolDemo(patientEmail, protocolId) {
-  if (!confirm('Remove the demo video from this exercise?')) return;
+  if (!await confirmModal('Remove the demo video from this exercise?')) return;
   try {
     const protocols = await getProtocols(patientEmail);
     const updated = protocols.map(p => {
@@ -3959,7 +3976,7 @@ async function removeProtocolDemo(patientEmail, protocolId) {
     }
   } catch(e) {
     console.error('[Motus] removeProtocolDemo:', e);
-    alert('Could not remove the demo video. Please try again.');
+    showNotice('Could not remove the demo video. Please try again.');
   }
 }
 
@@ -4035,7 +4052,7 @@ async function assignProtocol() {
   // by name (case-insensitive), or create + save a brand-new one to the library.
   const nameEl = document.getElementById('apmExName');
   const enteredName = (nameEl && nameEl.value || '').trim();
-  if (!enteredName) { alert('Please enter an exercise name.'); if (nameEl) nameEl.focus(); return; }
+  if (!enteredName) { showNotice('Please enter an exercise name.'); if (nameEl) nameEl.focus(); return; }
   let exerciseType = PROTOCOL_CATALOG.map(e => e.id).find(id => exName(id).toLowerCase() === enteredName.toLowerCase());
   if (!exerciseType) {
     const dReps = parseInt(document.getElementById('protocolReps').value) || 10;
@@ -4048,7 +4065,7 @@ async function assignProtocol() {
         id: newId, name: enteredName, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '',
         createdBy: currentUser.email
       });
-    } catch (e) { alert('Could not save the new exercise. Check your connection and try again.'); return; }
+    } catch (e) { showNotice('Could not save the new exercise. Check your connection and try again.'); return; }
     if (!PROTOCOL_CATALOG.find(x => x.id === newId)) {
       PROTOCOL_CATALOG.push({ id: newId, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '' });
     }
@@ -4063,7 +4080,7 @@ async function assignProtocol() {
   if (ANGLE_TRACKING_ENABLED) {
     if (defaults && defaults.metric === 'angle') {
       const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
-      if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
+      if (conditionRows.length === 0) { showNotice('Please add at least one joint condition.'); return; }
       const conditions = Array.from(conditionRows).map(row => ({
         finger:   row.querySelector('.ep-finger-select').value,
         joint:    row.querySelector('.ep-joint-select').value,
@@ -4080,8 +4097,8 @@ async function assignProtocol() {
 
   const reps = parseInt(document.getElementById('protocolReps').value);
   const sets = parseInt(document.getElementById('protocolSets').value);
-  if (isNaN(reps) || reps < 1) { alert('Please enter a valid rep count.'); return; }
-  if (isNaN(sets) || sets < 1) { alert('Please enter a valid set count.'); return; }
+  if (isNaN(reps) || reps < 1) { showNotice('Please enter a valid rep count.'); return; }
+  if (isNaN(sets) || sets < 1) { showNotice('Please enter a valid set count.'); return; }
 
   // Upload demo video if a new blob was recorded/selected
   const submitBtn = document.getElementById('apmSubmitBtn');
@@ -4173,17 +4190,37 @@ async function assignProtocol() {
 
 let _savedModalTimer = null;
 
-// Confirmation for therapist saves. Sits over the page instead of pushing the
-// layout around, and clears itself so it never blocks the next action.
-function showSavedModal(msg) {
+// App-styled replacement for showNotice() and the old inline banners. Success
+// notices fade themselves after a beat; anything the user needs to read (an
+// error, a validation message) waits for OK instead of vanishing on them.
+function showNotice(message, kind) {
   const modal = document.getElementById('savedModal');
-  if (!modal) return;
+  if (!modal) { if (message) console.warn('[Motus]', message); return; }
+  // Default to "needs acknowledging". These call sites are overwhelmingly
+  // errors and validation, and silently fading an error away is worse than an
+  // extra click. Only an explicit 'success' auto-dismisses.
+  const isError = kind !== 'success';
   const text = document.getElementById('savedModalText');
-  if (text && msg) text.textContent = msg;
+  if (text) text.textContent = message == null ? '' : String(message);
+
+  const iconWrap = document.getElementById('savedModalIcon');
+  const ok   = document.getElementById('savedModalIconOk');
+  const warn = document.getElementById('savedModalIconWarn');
+  if (ok)   ok.style.display   = isError ? 'none' : '';
+  if (warn) warn.style.display = isError ? '' : 'none';
+  if (iconWrap) iconWrap.classList.toggle('is-warn', isError);
+
+  const okBtn = document.getElementById('savedModalOk');
+  if (okBtn) okBtn.style.display = isError ? '' : 'none';
+  modal.classList.toggle('is-error', isError);
+
   modal.style.display = 'flex';
   clearTimeout(_savedModalTimer);
-  _savedModalTimer = setTimeout(hideSavedModal, 1800);
+  _savedModalTimer = isError ? null : setTimeout(hideSavedModal, 1800);
 }
+
+// Kept for the exercise-save path, which has its own default wording.
+function showSavedModal(msg) { showNotice(msg || t('th.protocolSaved') || 'Exercise saved', 'success'); }
 
 function hideSavedModal() {
   clearTimeout(_savedModalTimer);
@@ -5247,15 +5284,15 @@ function _bapUpdateSubmitBtn() {
 
 async function bulkAssignProtocol() {
   const selected = Array.from(document.querySelectorAll('.bap-patient-cb:checked')).map(cb => cb.value);
-  if (!selected.length) { alert('Select at least one patient.'); return; }
+  if (!selected.length) { showNotice('Select at least one patient.'); return; }
   const exerciseType = document.getElementById('exerciseType').value;
-  if (!exerciseType) { alert('Please select an exercise.'); return; }
+  if (!exerciseType) { showNotice('Please select an exercise.'); return; }
   const defaults = EXERCISE_DEFAULTS[exerciseType];
   let exerciseParams = null;
   if (ANGLE_TRACKING_ENABLED) {
     if (defaults && defaults.metric === 'angle') {
       const conditionRows = document.querySelectorAll('#epConditionsList .ep-condition-row');
-      if (conditionRows.length === 0) { alert('Please add at least one joint condition.'); return; }
+      if (conditionRows.length === 0) { showNotice('Please add at least one joint condition.'); return; }
       const conditions = Array.from(conditionRows).map(row => ({
         finger:   row.querySelector('.ep-finger-select').value,
         joint:    row.querySelector('.ep-joint-select').value,
@@ -5270,8 +5307,8 @@ async function bulkAssignProtocol() {
   }
   const reps = parseInt(document.getElementById('protocolReps').value);
   const sets = parseInt(document.getElementById('protocolSets').value);
-  if (isNaN(reps) || reps < 1) { alert('Please enter a valid rep count.'); return; }
-  if (isNaN(sets) || sets < 1) { alert('Please enter a valid set count.'); return; }
+  if (isNaN(reps) || reps < 1) { showNotice('Please enter a valid rep count.'); return; }
+  if (isNaN(sets) || sets < 1) { showNotice('Please enter a valid set count.'); return; }
   const freq  = readFrequencyValue('protocolFrequency', 'customFreqDays');
   const notes = document.getElementById('protocolNotes').value.trim();
   const submitBtn = document.getElementById('apmSubmitBtn');
@@ -5315,13 +5352,13 @@ async function bulkAssignProtocol() {
     }
     // F-012: report failed patients alongside the success count
     if (failedEmails.length > 0) {
-      alert(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + '\n\n' + t('th.bulkAssignPartial', { ok: successCount, total: selected.length }));
+      showNotice(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + '\n\n' + t('th.bulkAssignPartial', { ok: successCount, total: selected.length }));
     } else {
-      alert(t('th.bulkAssignSuccess', { count: successCount }));
+      showNotice(t('th.bulkAssignSuccess', { count: successCount }), 'success');
     }
   } catch (err) {
     console.error('[Motus] bulkAssignProtocol failed', err);
-    alert(t('th.bulkAssignError'));
+    showNotice(t('th.bulkAssignError'));
   } finally {
     if (submitBtn) { submitBtn.disabled = false; if (origSubmitText) submitBtn.textContent = origSubmitText; }
     closeAddProtocol();
@@ -6776,7 +6813,7 @@ async function openSessionVideo(storagePath, sessionDate, patientName) {
     openVideoModal(url, sessionDate, patientName);
   } catch (e) {
     console.error('[Motus] video link failed:', e);
-    alert('Could not load the video. Please try again.');
+    showNotice('Could not load the video. Please try again.');
   }
 }
 
@@ -7393,7 +7430,7 @@ async function deleteMyAccount() {
       showScreen('loginScreen');
     } catch (e) {
       console.error('[Motus] Account deletion failed:', e);
-      alert('Deletion failed. Please try again or contact support.');
+      showNotice('Deletion failed. Please try again or contact support.');
       if (btn) { btn.disabled = false; btn.textContent = 'Delete my account'; }
     }
   }, 'DELETE');
@@ -7464,7 +7501,7 @@ async function downloadMyData() {
     try { await writeAuditLog('data_exported', email); } catch (_) {}
   } catch (e) {
     console.error('[Motus] Data export failed:', e);
-    alert('Export failed. Please try again or contact support.');
+    showNotice('Export failed. Please try again or contact support.');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origText || 'Download my data'; }
   }
@@ -7494,13 +7531,13 @@ async function disconnectFromTherapist() {
       await routePatient();
     } catch (e) {
       console.error('[Motus] Disconnect from therapist failed:', e);
-      alert('Failed to disconnect. Please try again.');
+      showNotice('Failed to disconnect. Please try again.');
     }
   });
 }
 
 async function disconnectPatient(patientEmail) {
-  if (!confirm('Disconnect this patient? They will lose access to their assigned protocols and messaging.')) return;
+  if (!await confirmModal('Disconnect this patient? They will lose access to their assigned protocols and messaging.')) return;
   const threadId = getThreadId(currentUser.email, patientEmail);
   try {
     // Clear therapistEmail on patient doc FIRST — the Firestore rule requires the connection
@@ -7523,14 +7560,14 @@ async function disconnectPatient(patientEmail) {
     await loadPatients();
   } catch (e) {
     console.error('[Motus] Disconnect patient failed:', e);
-    alert('Failed to disconnect patient. Please try again.');
+    showNotice('Failed to disconnect patient. Please try again.');
   }
 }
 
 async function openPatientMessaging() {
   setPatientNav(2);
   const tEmail = await getConnectedTherapist();
-  if (!tEmail) { alert('You are not connected to a therapist yet.'); return; }
+  if (!tEmail) { showNotice('You are not connected to a therapist yet.'); return; }
   await markRead(currentUser.email, tEmail);
   const tSnap = await db.collection('users').doc(tEmail).get();
   const _mhName = tSnap.exists ? tSnap.data().name : 'Your Therapist';
@@ -8302,7 +8339,7 @@ async function mlClearJoint() {
   const clearBtn = document.querySelector('.ml-clear-btn');
   if (!select) return;
 
-  if (!_mlSelectedHand) { alert('Select LEFT or RIGHT before clearing.'); return; }
+  if (!_mlSelectedHand) { showNotice('Select LEFT or RIGHT before clearing.'); return; }
   const hand = _mlSelectedHand;
 
   const joint = `${select.value}-${hand}`;
@@ -9176,7 +9213,7 @@ Object.assign(window, {
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter, apmNameSuggest, apmPickSuggest, apmHideSuggest,
-  showSavedModal, hideSavedModal,
+  showSavedModal, hideSavedModal, showNotice, confirmModal,
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
   toggleCustomFreq, toggleCustomFreqPL,
