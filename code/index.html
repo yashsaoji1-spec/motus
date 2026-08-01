@@ -706,9 +706,6 @@
     <div id="patientRows" class="rd-plist-rows"></div>
   </div>
 
-  <!-- F-010: Protocol saved success banner -->
-  <div id="protocolSavedBanner" class="admin-approval-banner" style="display:none;" aria-live="polite"
-       data-i18n="th.protocolSaved">Exercise saved</div>
 
   <!-- Main detail panel -->
   <div class="main-panel" id="mainPanel">
@@ -1352,6 +1349,19 @@
 
 
 <!-- Demo Video Overlay (patient auto-play) -->
+<!-- F-010: Therapist save confirmation. Centred modal rather than the old inline
+     green bar, which pushed the patient list down and shifted the layout. Lives
+     at top level so it isn't hidden along with whichever screen is inactive. -->
+<div id="savedModal" class="saved-modal-overlay" style="display:none;" role="alertdialog"
+     aria-live="polite" onclick="hideSavedModal()">
+  <div class="saved-modal-card">
+    <div class="saved-modal-check" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="saved-modal-text" id="savedModalText" data-i18n="th.protocolSaved">Exercise saved</div>
+  </div>
+</div>
+
 <div id="demoVideoOverlay" class="demo-video-overlay" style="display:none;">
   <div class="demo-video-card">
     <button class="demo-video-close" onclick="exitDemoNoSave()">←</button>

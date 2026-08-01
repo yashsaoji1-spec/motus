@@ -4168,11 +4168,28 @@ async function assignProtocol() {
   closeAddProtocol();
   const snap = await db.collection('users').doc(patientEmail).get();
   if (snap.exists) showRealPatient({ email: patientEmail, ...snap.data() });
-  const savedBanner = document.getElementById('protocolSavedBanner');
-  if (savedBanner) {
-    savedBanner.style.display = 'block';
-    setTimeout(() => { savedBanner.style.display = 'none'; }, 3000);
-  }
+  showSavedModal();
+}
+
+let _savedModalTimer = null;
+
+// Confirmation for therapist saves. Sits over the page instead of pushing the
+// layout around, and clears itself so it never blocks the next action.
+function showSavedModal(msg) {
+  const modal = document.getElementById('savedModal');
+  if (!modal) return;
+  const text = document.getElementById('savedModalText');
+  if (text && msg) text.textContent = msg;
+  modal.style.display = 'flex';
+  clearTimeout(_savedModalTimer);
+  _savedModalTimer = setTimeout(hideSavedModal, 1800);
+}
+
+function hideSavedModal() {
+  clearTimeout(_savedModalTimer);
+  _savedModalTimer = null;
+  const modal = document.getElementById('savedModal');
+  if (modal) modal.style.display = 'none';
 }
 
 function formatProtocol(p) {
@@ -9159,6 +9176,7 @@ Object.assign(window, {
   backToPatientList, filterPatients, toggleTpSection, showRealPatient,
   deleteProtocol, editProtocol, cancelEditProtocol, assignProtocol,
   openAddProtocol, closeAddProtocol, apmSelectExercise, apmFilter, apmNameSuggest, apmPickSuggest, apmHideSuggest,
+  showSavedModal, hideSavedModal,
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
   toggleCustomFreq, toggleCustomFreqPL,
