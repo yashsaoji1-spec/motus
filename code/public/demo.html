@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo — Motus Medicine</title>
+  <meta name="description" content="A three-minute walkthrough of Motus: home exercise programs, from the therapist's side and the patient's." />
+  <meta name="robots" content="noindex" />
+
+  <!-- Link previews, so the URL unfurls as a video card in email clients. -->
+  <meta property="og:title" content="Motus — 3-minute demo" />
+  <meta property="og:description" content="Home exercise programs, from the therapist's side and the patient's." />
+  <meta property="og:type" content="video.other" />
+  <meta property="og:url" content="https://motusmedicine.com/demo" />
+  <meta property="og:image" content="https://motusmedicine.com/demo/motus-demo-poster.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" href="/favicon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      background: #F6F4EF;
+      color: #1F2933;
+      line-height: 1.6;
+      padding: 40px 20px 72px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; }
+    .logo img { width: 34px; height: 34px; border-radius: 8px; }
+    .logo a { color: #1F2933; text-decoration: none; font-weight: 700; font-size: 1.05rem; }
+    h1 { font-size: 1.9rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.01em; }
+    .sub { color: #5B6770; margin-bottom: 28px; font-size: 1.02rem; }
+    .player {
+      background: #000; border-radius: 14px; overflow: hidden;
+      box-shadow: 0 18px 48px rgba(31,41,51,0.16), 0 2px 8px rgba(31,41,51,0.08);
+      margin-bottom: 32px; line-height: 0;
+    }
+    video { width: 100%; height: auto; display: block; }
+    .cols { display: flex; gap: 40px; flex-wrap: wrap; }
+    .col { flex: 1 1 240px; }
+    h2 {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: #0F766E; margin-bottom: 10px;
+    }
+    p { margin-bottom: 12px; }
+    ul { margin: 0 0 12px 18px; }
+    li { margin-bottom: 5px; }
+    .footer {
+      margin-top: 48px; padding-top: 22px; border-top: 1px solid #E3E0D8;
+      color: #5B6770; font-size: 0.88rem;
+    }
+    a { color: #0F766E; }
+    .footer a { color: #5B6770; }
+    @media (max-width: 640px) {
+      h1 { font-size: 1.5rem; }
+      .cols { gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="/motus-mark.png" alt="" />
+      <a href="/">Motus Medicine</a>
+    </div>
+
+    <h1>A three-minute walkthrough</h1>
+    <p class="sub">Home exercise programs, from the therapist's side and the patient's.</p>
+
+    <div class="player">
+      <video controls playsinline preload="metadata" poster="/demo/motus-demo-poster.jpg">
+        <source src="/demo/motus-demo.mp4" type="video/mp4" />
+        Your browser can't play this video.
+        <a href="/demo/motus-demo.mp4">Download it instead</a>.
+      </video>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <h2>For the therapist</h2>
+        <ul>
+          <li>The whole caseload on one screen, with patients who need attention surfaced automatically</li>
+          <li>Build a program in seconds — reps, sets, frequency, rest, and a note</li>
+          <li>Record a demo video once so the patient sees the movement done right</li>
+          <li>See what happened between visits, per set</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h2>For the patient</h2>
+        <ul>
+          <li>Installs from the browser — nothing to download</li>
+          <li>Today's plan, and a guided session that counts sets and rest</li>
+          <li>Record a set and log reps and pain in two taps</li>
+          <li>Watch their own pain trend over time</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer">
+      Built by Yash Saoji and Oliver in Rochester, Minnesota.
+      Questions: <a href="mailto:yash@motusmedicine.com">yash@motusmedicine.com</a><br />
+      <a href="/privacy">Privacy</a> · <a href="/tos">Terms</a>
+    </div>
+  </div>
+</body>
+</html>
