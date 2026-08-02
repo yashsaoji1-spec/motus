@@ -981,10 +981,8 @@ const FIREBASE_CONFIG = {
   storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
-  // GA4: supplying measurementId lets Analytics send events directly instead of
-  // relying on a dynamic-config fetch (extra round-trip that ad blockers / App
-  // Check can break). Value (G-XXXXXXXXXX) lives in .env.production.
-  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  // measurementId deliberately omitted — supplying it initialises GA4, which is
+  // not covered by the Google Cloud BAA. See the analytics block below.
 };
 
 firebase.initializeApp(FIREBASE_CONFIG);
@@ -995,19 +993,18 @@ if (import.meta.env.VITE_USE_EMULATORS === 'true') {
   console.info('[motus] Connected to Firebase emulators (audit)');
 }
 
-// ── Analytics — production only, loaded post-idle, no PHI in event params ──
-let analytics = null;
-function logAnalyticsEvent(name, params = {}) {
-  if (analytics) analytics.logEvent(name, params);
-}
-if (import.meta.env.PROD) {
-  const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1));
-  idle(() => {
-    import('firebase/compat/analytics')
-      .then(() => { analytics = firebase.analytics(); })
-      .catch(() => {});
-  });
-}
+// ── Analytics — DISABLED (2026-08-02) ────────────────────────────────────────
+// Google Analytics is NOT a covered product under the Google Cloud BAA, and
+// Google's HIPAA guidance requires that non-covered products aren't used when
+// working with PHI. Analytics running on screens that display patient data is
+// the pattern that drew federal enforcement against hospital systems, so GA4 is
+// removed rather than merely gated.
+//
+// The call sites below are left as no-ops on purpose: they mark what we WOULD
+// want to measure, so this can be re-enabled later behind a BAA-covered
+// analytics provider without hunting for the instrumentation points again.
+// Do not re-enable Firebase/Google Analytics.
+function logAnalyticsEvent(_name, _params = {}) { /* intentionally does nothing */ }
 
 // App Check — dev uses a debug token printed to console; prod uses reCAPTCHA v3.
 // To activate: Firebase Console → App Check → register web app with site key below,
