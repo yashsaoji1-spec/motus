@@ -7551,6 +7551,12 @@ body:has(#manualCamScreen.active) {
 .rd-rec-seg { flex: 1; height: 6px; border-radius: 3px; background: var(--rd-divider); }
 .rd-rec-seg.done { background: var(--rd-teal); }
 .rd-rec-seg.current { background: var(--rd-session-accent); }
+/* Shown in place of the record buttons while a set's video uploads, so the
+   patient can see it's working and can't start the next set mid-upload. */
+.rd-rec-uploading { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 6px 0; }
+.rd-rec-uploading-bar { width: 100%; max-width: 320px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.25); overflow: hidden; }
+.rd-rec-uploading-fill { height: 100%; background: var(--rd-teal, #0F766E); border-radius: 4px; transition: width 200ms ease-out; }
+.rd-rec-uploading-pct { font-size: 0.95rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
 .rd-rec-card { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); box-shadow: var(--rd-shadow); padding: 28px 20px; text-align: center; margin-bottom: 20px; }
 .rd-rec-reps { font-size: calc(38px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
 .rd-rec-prompt { font-size: calc(15px * var(--font-scale)); color: var(--rd-text2); line-height: 1.45; margin: 12px 0 18px; }

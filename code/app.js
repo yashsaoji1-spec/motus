@@ -3148,19 +3148,30 @@ async function manualCamSaveSet() {
   const notes = [chips, noteText].filter(Boolean).join(' · ');
   
   document.getElementById('setInputModal').style.display = 'none';
-  
+
   // Upload video to Storage; store only the path (viewing uses signed URLs).
   let videoStoragePath = null;
   const blob = _manualCamCurrentBlob;
   _manualCamCurrentBlob = null;
 
   if (blob && blob.size > 0) {
-    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.${videoExt(blob)}`);
+    // The upload can take a while on a phone connection. Previously this ran
+    // behind a screen still showing the last set's live "Record This Set"
+    // button, so the patient had no idea to wait — and tapping it mid-upload
+    // reopened the camera and stranded the recording. Show the wait explicitly
+    // and take the buttons away until it lands.
+    manualCamUploadingState(0);
+    const up = await uploadVideoToStorage(
+      blob,
+      `sessions/${currentUser.email}/sets/${Date.now()}.${videoExt(blob)}`,
+      pct => manualCamUploadingState(pct)
+    );
     if (up) videoStoragePath = up.storagePath;
+    else showNotice('That video could not be uploaded, but your reps and pain were saved.');
   }
 
   _manualCamSetData.push({ reps, pain, notes, videoStoragePath });
-  
+
   if (_manualCamCurrentSet >= _manualCamTotalSets) {
     await finishManualCamSession();
   } else {
@@ -3169,7 +3180,25 @@ async function manualCamSaveSet() {
     const exIdx = (_manualCamExerciseIndex || 0) + 1;
     const exTotal = _manualCamTotalExercises || 1;
     if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
+    rdRenderCamProgress();   // segments were only drawn once at session start
     manualCamSetReadyState();
+  }
+}
+
+// Blocks the record controls while a set's video uploads, and says so. Without
+// this the screen looks idle and ready for the next set while it's actually
+// still working.
+function manualCamUploadingState(pct) {
+  const promptEl = document.getElementById('manualCamPrompt');
+  const btnsEl = document.getElementById('manualCamBtns');
+  const shown = Math.max(0, Math.min(100, Math.round(pct || 0)));
+  if (promptEl) promptEl.textContent = 'Saving your video — keep this screen open.';
+  if (btnsEl) {
+    btnsEl.innerHTML =
+      `<div class="rd-rec-uploading" role="status" aria-live="polite">` +
+        `<div class="rd-rec-uploading-bar"><div class="rd-rec-uploading-fill" style="width:${shown}%"></div></div>` +
+        `<div class="rd-rec-uploading-pct">${shown}%</div>` +
+      `</div>`;
   }
 }
 
