@@ -3261,9 +3261,9 @@ async function manualCamSaveSet() {
   } else {
     _manualCamCurrentSet++;
     const setInfoEl = document.getElementById('manualCamSetInfo');
-    const exIdx = (_manualCamExerciseIndex || 0) + 1;
-    const exTotal = _manualCamTotalExercises || 1;
-    if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
+    // Exercise counter dropped — the exercise name is already in the header
+    // above this, so "EXERCISE 1 / 3 · SET 2 / 3" was two counters competing.
+    if (setInfoEl) setInfoEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets}`;
     rdRenderCamProgress();   // segments were only drawn once at session start
     await manualCamRest();   // the prescribed rest, before the next set is offered
     manualCamSetReadyState();
