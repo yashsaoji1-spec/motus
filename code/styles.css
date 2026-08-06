@@ -7578,11 +7578,35 @@ body:has(#manualCamScreen.active) {
 .rd-rec-seg.current { background: var(--rd-session-accent); }
 /* Shown in place of the record buttons while a set's video uploads, so the
    patient can see it's working and can't start the next set mid-upload. */
-/* Rest countdown between sets, on the record screen. */
-.rd-rec-rest { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 6px 0; }
-.rd-rec-rest-count { font-size: 2.4rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1; }
-.rd-rec-rest-bar { width: 100%; max-width: 320px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.25); overflow: hidden; }
-.rd-rec-rest-fill { height: 100%; background: var(--rd-teal, #0F766E); border-radius: 4px; transition: width 900ms linear; }
+/* Rest countdown between sets. Deliberately loud — the patient is looking away
+   from the phone while resting, so it has to be readable at arm's length. */
+.rd-rec-rest { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 10px 0 4px; }
+.rd-rec-rest-label {
+  font-size: 0.82rem; font-weight: 800; letter-spacing: 0.22em;
+  color: rgba(255,255,255,0.65);
+}
+.rd-rec-rest-count {
+  font-size: 5rem; font-weight: 800; color: #fff; line-height: 0.95;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.rd-rec-rest-unit { font-size: 2rem; font-weight: 700; color: rgba(255,255,255,0.6); margin-left: 2px; }
+.rd-rec-rest-bar {
+  width: 100%; max-width: 340px; height: 16px; border-radius: 8px;
+  background: rgba(255,255,255,0.18); overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.25);
+}
+.rd-rec-rest-fill {
+  height: 100%; border-radius: 8px;
+  background: linear-gradient(90deg, var(--rd-teal, #0F766E), #2DD4BF);
+  box-shadow: 0 0 14px rgba(45,212,191,0.55);
+  transition: width 900ms linear;
+}
+/* Last few seconds — warm up so it's obvious the set is about to start. */
+.rd-rec-rest.is-ending .rd-rec-rest-count { color: #FDBA74; }
+.rd-rec-rest.is-ending .rd-rec-rest-fill {
+  background: linear-gradient(90deg, #F59E0B, #FDBA74);
+  box-shadow: 0 0 14px rgba(253,186,116,0.6);
+}
 
 .rd-rec-uploading { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 6px 0; }
 .rd-rec-uploading-bar { width: 100%; max-width: 320px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.25); overflow: hidden; }

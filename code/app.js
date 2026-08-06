@@ -3295,8 +3295,9 @@ function manualCamRest() {
       if (promptEl) promptEl.textContent = 'Rest before your next set.';
       const pct = secs ? (left / secs) * 100 : 0;
       btnsEl.innerHTML =
-        `<div class="rd-rec-rest" role="status" aria-live="polite">` +
-          `<div class="rd-rec-rest-count">${left}s</div>` +
+        `<div class="rd-rec-rest${left <= 5 ? ' is-ending' : ''}" role="status" aria-live="polite">` +
+          `<div class="rd-rec-rest-label">REST</div>` +
+          `<div class="rd-rec-rest-count">${left}<span class="rd-rec-rest-unit">s</span></div>` +
           `<div class="rd-rec-rest-bar"><div class="rd-rec-rest-fill" style="width:${pct}%"></div></div>` +
           `<button class="rd-rec-logwithout" onclick="manualCamSkipRest()">Skip rest</button>` +
         `</div>`;
