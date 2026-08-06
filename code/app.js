@@ -3265,9 +3265,53 @@ async function manualCamSaveSet() {
     const exTotal = _manualCamTotalExercises || 1;
     if (setInfoEl) setInfoEl.textContent = `EXERCISE ${exIdx} / ${exTotal} \xB7 SET ${_manualCamCurrentSet} / ${_manualCamTotalSets}`;
     rdRenderCamProgress();   // segments were only drawn once at session start
+    await manualCamRest();   // the prescribed rest, before the next set is offered
     manualCamSetReadyState();
   }
 }
+
+// Rest between sets, in the flow patients actually use.
+//
+// The existing startRestTimer()/beginRestCountdown() pair belongs to the
+// angle-tracking camera flow, which is behind ANGLE_TRACKING_ENABLED=false — so
+// despite existing, no rest timer ever ran for a real patient. This is the same
+// countdown for the manual flow: the therapist's prescribed restSeconds, running
+// where the session actually happens.
+function manualCamRest() {
+  const secs = Math.max(0, parseInt(_manualCamProtocol && _manualCamProtocol.restSeconds, 10) || 30);
+  if (!secs) return Promise.resolve();
+
+  const promptEl = document.getElementById('manualCamPrompt');
+  const btnsEl = document.getElementById('manualCamBtns');
+  if (!btnsEl) return Promise.resolve();
+
+  return new Promise(resolve => {
+    let left = secs;
+    let timer = null;
+    const finish = () => { if (timer) clearInterval(timer); timer = null; _manualCamSkipRest = null; resolve(); };
+    _manualCamSkipRest = finish;          // wired to the Skip button below
+
+    const paint = () => {
+      if (promptEl) promptEl.textContent = 'Rest before your next set.';
+      const pct = secs ? (left / secs) * 100 : 0;
+      btnsEl.innerHTML =
+        `<div class="rd-rec-rest" role="status" aria-live="polite">` +
+          `<div class="rd-rec-rest-count">${left}s</div>` +
+          `<div class="rd-rec-rest-bar"><div class="rd-rec-rest-fill" style="width:${pct}%"></div></div>` +
+          `<button class="rd-rec-logwithout" onclick="manualCamSkipRest()">Skip rest</button>` +
+        `</div>`;
+    };
+    paint();
+    timer = setInterval(() => {
+      left--;
+      if (left <= 0) finish();
+      else paint();
+    }, 1000);
+  });
+}
+
+let _manualCamSkipRest = null;
+function manualCamSkipRest() { if (_manualCamSkipRest) _manualCamSkipRest(); }
 
 // Blocks the record controls while a set's video uploads, and says so. Without
 // this the screen looks idle and ready for the next set while it's actually
@@ -9342,7 +9386,7 @@ Object.assign(window, {
 
   // Manual camera session
   openManualCameraSession, manualCamExit, manualCamPickVideo, manualCamOnFileSelected, manualCamCancelSet, manualCamSaveSet, finishManualCamSession,
-  manualCamLogWithoutVideo,
+  manualCamLogWithoutVideo, manualCamSkipRest,
   updatePainBar, siAdjustReps, siSelectPain, siToggleChip,
 
   // Progress screen

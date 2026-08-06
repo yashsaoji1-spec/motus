@@ -7578,6 +7578,12 @@ body:has(#manualCamScreen.active) {
 .rd-rec-seg.current { background: var(--rd-session-accent); }
 /* Shown in place of the record buttons while a set's video uploads, so the
    patient can see it's working and can't start the next set mid-upload. */
+/* Rest countdown between sets, on the record screen. */
+.rd-rec-rest { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 6px 0; }
+.rd-rec-rest-count { font-size: 2.4rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1; }
+.rd-rec-rest-bar { width: 100%; max-width: 320px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.25); overflow: hidden; }
+.rd-rec-rest-fill { height: 100%; background: var(--rd-teal, #0F766E); border-radius: 4px; transition: width 900ms linear; }
+
 .rd-rec-uploading { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 6px 0; }
 .rd-rec-uploading-bar { width: 100%; max-width: 320px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.25); overflow: hidden; }
 .rd-rec-uploading-fill { height: 100%; background: var(--rd-teal, #0F766E); border-radius: 4px; transition: width 200ms ease-out; }
