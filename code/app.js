@@ -209,6 +209,10 @@ const I18N = {
     'connect.clinicCode': 'Clinic Code',
     'connect.connect': 'Connect',
     'connect.skip': 'Skip for now',
+    'connect.declined': "Your last request wasn't accepted. Check the code with your therapist and try again.",
+    'connect.pendingTitle': 'Request sent',
+    'connect.pendingBody': 'Waiting for',
+    'connect.pendingBody2': "to accept you. You'll get your exercises once they do.",
     'connect.help': "Your therapist or clinic gives you this 6-character code. Don't have one yet? You can skip and add it later.",
     // Patient home
     'home.loading': 'Loading…',
@@ -300,6 +304,8 @@ const I18N = {
     'si.noVideo': 'No video',
     'si.repsCompleted': 'Reps you completed',
     'si.howMuchHurt': 'How much did it hurt?',
+    'si.painNone': 'No pain',
+    'si.painWorst': 'Worst pain',
     'si.anythingToAdd': 'Anything to add?',
     'si.optional': '(optional)',
     'si.chipStrong': 'Felt strong',
@@ -342,6 +348,11 @@ const I18N = {
     'th.noPatientsYet': 'No patients connected yet.',
     'th.noMessagesYet': 'No messages yet',
     'th.needsReview': 'Needs review',
+    'th.pendingRequests': 'Requests to join',
+    'th.approve': 'Approve',
+    'th.decline': 'Decline',
+    'th.approveFailed': "Couldn't approve that request. Try again.",
+    'th.declineFailed': "Couldn't decline that request. Try again.",
     'th.allPatients': 'All patients',
     'th.selectPatient': 'Select a patient',
     'th.selectPatientHint': 'Pick someone from the list to see their sessions, pain trend, and assigned protocols.',
@@ -529,6 +540,10 @@ const I18N = {
     'connect.clinicCode': 'Código de la clínica',
     'connect.connect': 'Conectar',
     'connect.skip': 'Omitir por ahora',
+    'connect.declined': 'Tu última solicitud no fue aceptada. Verifica el código con tu terapeuta e inténtalo de nuevo.',
+    'connect.pendingTitle': 'Solicitud enviada',
+    'connect.pendingBody': 'Esperando a que',
+    'connect.pendingBody2': 'te acepte. Recibirás tus ejercicios cuando lo haga.',
     'connect.help': 'Tu terapeuta o clínica te da este código de 6 caracteres. ¿Aún no tienes uno? Puedes omitir y agregarlo más tarde.',
     'home.loading': 'Cargando…',
     'home.loadError': 'No pudimos cargar tus ejercicios — verifica tu conexión.',
@@ -615,6 +630,8 @@ const I18N = {
     'si.noVideo': 'Sin video',
     'si.repsCompleted': 'Repeticiones que hiciste',
     'si.howMuchHurt': '¿Cuánto te dolió?',
+    'si.painNone': 'Sin dolor',
+    'si.painWorst': 'Dolor máximo',
     'si.anythingToAdd': '¿Algo que agregar?',
     'si.optional': '(opcional)',
     'si.chipStrong': 'Me sentí fuerte',
@@ -656,6 +673,11 @@ const I18N = {
     'th.noPatientsYet': 'Aún no hay pacientes conectados.',
     'th.noMessagesYet': 'Sin mensajes aún',
     'th.needsReview': 'Requiere revisión',
+    'th.pendingRequests': 'Solicitudes para unirse',
+    'th.approve': 'Aprobar',
+    'th.decline': 'Rechazar',
+    'th.approveFailed': 'No se pudo aprobar la solicitud. Inténtalo de nuevo.',
+    'th.declineFailed': 'No se pudo rechazar la solicitud. Inténtalo de nuevo.',
     'th.allPatients': 'Todos los pacientes',
     'th.selectPatient': 'Selecciona un paciente',
     'th.selectPatientHint': 'Elige a alguien de la lista para ver sus sesiones, tendencia de dolor y protocolos asignados.',
@@ -862,6 +884,19 @@ let _plHiddenOpen = false;
 let _msgBadgeUnsub         = null;  // unsubscribe fn for patient unread badge listener
 let _msgThreadUnsub        = null;  // unsubscribe fn for active message thread listener
 let _msgPatientBadgesUnsub = null;  // unsubscribe fn for therapist sidebar unread badges
+// Latest unread counts keyed by the patient who sent them. Written only by the
+// snapshot in subscribeTherapistBadges; every unread indicator reads from here.
+let _unreadByPatient = {};
+
+// Detach every message listener and drop the cached counts. Must run on sign-out:
+// otherwise the listeners keep firing against the old account, and the next user
+// to sign in inherits the previous one's unread badges.
+function unsubscribeMessageListeners() {
+  if (_msgBadgeUnsub)         { _msgBadgeUnsub();         _msgBadgeUnsub = null; }
+  if (_msgThreadUnsub)        { _msgThreadUnsub();        _msgThreadUnsub = null; }
+  if (_msgPatientBadgesUnsub) { _msgPatientBadgesUnsub(); _msgPatientBadgesUnsub = null; }
+  _unreadByPatient = {};
+}
 let _myClinic      = null;   // clinic doc data or null
 let _myClinicId    = null;   // Firestore clinic document ID or null
 let _clinicInvites = [];     // pending invites for current user
@@ -1088,6 +1123,8 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     currentUser = null;
     currentRole = null;
     _stopInactivityTimer();
+    // Covers every sign-out route (button, timeout, expired session), not just logout().
+    unsubscribeMessageListeners();
     showScreen('loginScreen');
     return;
   }
@@ -1201,13 +1238,60 @@ async function getConnectedPatients(therapistEmail) {
   return snaps.filter(d => d.exists).map(d => ({ email: d.id, ...d.data() }));
 }
 
-async function saveConnection(therapistEmail, patientEmail) {
-  await Promise.all([
-    db.collection('connections').doc(therapistEmail)
-      .set({ patients: firebase.firestore.FieldValue.arrayUnion(patientEmail) }, { merge: true }),
-    db.collection('users').doc(patientEmail)
-      .update({ therapistEmail }),
-  ]);
+// Filing an invite code no longer joins a caseload — it asks to. The therapist
+// approves or declines. Enforced in firestore.rules, not just here: a patient can
+// no longer write connections/* or their own users.therapistEmail at all.
+async function requestConnection(therapistEmail, patientEmail, patientName) {
+  await db.collection('connectionRequests').doc(patientEmail).set({
+    patientEmail,
+    patientName: patientName || '',
+    therapistEmail,
+    status: 'pending',
+    requestedAt: new Date().toISOString(),
+  });
+}
+
+// The signed-in patient's own request, or null. Used to show pending/declined.
+async function getMyConnectionRequest() {
+  if (!currentUser || !currentUser.email) return null;
+  try {
+    const d = await db.collection('connectionRequests').doc(currentUser.email).get();
+    return d.exists ? { id: d.id, ...d.data() } : null;
+  } catch (e) { return null; }
+}
+
+async function getPendingRequests(therapistEmail) {
+  try {
+    const snap = await db.collection('connectionRequests')
+      .where('therapistEmail', '==', therapistEmail)
+      .where('status', '==', 'pending')
+      .get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('[Motus] pending request load failed:', e);
+    return [];
+  }
+}
+
+async function approvePatientRequest(patientEmail) {
+  const me = currentUser.email;
+  // Order matters. The users.therapistEmail write is gated on the request still
+  // being 'pending', so the request must be stamped approved LAST — flip it first
+  // and the rule rejects the very write it is meant to authorise.
+  await db.collection('users').doc(patientEmail).update({ therapistEmail: me });
+  await db.collection('connections').doc(me)
+    .set({ patients: firebase.firestore.FieldValue.arrayUnion(patientEmail) }, { merge: true });
+  await db.collection('connectionRequests').doc(patientEmail)
+    .update({ status: 'approved', decidedAt: new Date().toISOString() });
+  await writeAuditLog('patient_approved', patientEmail);
+  await loadConnectedPatients();
+}
+
+async function declinePatientRequest(patientEmail) {
+  await db.collection('connectionRequests').doc(patientEmail)
+    .update({ status: 'declined', decidedAt: new Date().toISOString() });
+  await writeAuditLog('patient_declined', patientEmail);
+  await loadConnectedPatients();
 }
 
 async function getConnectedTherapist() {
@@ -1842,15 +1926,39 @@ async function handleConnect() {
   if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character clinic code.'); return; }
   const therapist = await getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
-  await saveConnection(therapist.email, currentUser.email);
-  currentUser.therapistEmail = therapist.email;  // keep in-memory user in sync so the home screen sees the connection without a refresh
-  showNotice(`Connected to ${therapist.name}! Loading your exercises...`, 'success');
-  setTimeout(async () => {
-    showScreen('patientScreen');
-    await updatePatientHomeScreen();
-    await initSetTracker();
-    maybeStartTutorial();
-  }, 1800);
+  await requestConnection(therapist.email, currentUser.email, currentUser.name || '');
+  // Deliberately NOT setting currentUser.therapistEmail — the patient is not
+  // connected yet. Claiming otherwise would show a caseload that doesn't exist.
+  renderConnectPending(therapist.name || therapist.email);
+}
+
+// Replaces the code form with a plain waiting state. The patient stays off the
+// therapist's caseload and gets no protocols until the therapist approves.
+function renderConnectPending(therapistName) {
+  const form = document.getElementById('connectForm');
+  const pending = document.getElementById('connectPending');
+  const who = document.getElementById('connectPendingWho');
+  if (who) who.textContent = therapistName;
+  if (form) form.style.display = 'none';
+  if (pending) pending.style.display = 'block';
+}
+
+// On load, a patient who already has a request outstanding should see that,
+// not an empty code box inviting them to submit a second one.
+async function refreshConnectState() {
+  const req = await getMyConnectionRequest();
+  if (!req || req.status === 'approved') return;
+  if (req.status === 'pending') {
+    let name = req.therapistEmail;
+    try {
+      const t = await db.collection('users').doc(req.therapistEmail).get();
+      if (t.exists && t.data().name) name = t.data().name;
+    } catch (e) { /* fall back to the email */ }
+    renderConnectPending(name);
+  } else if (req.status === 'declined') {
+    const d = document.getElementById('connectDeclined');
+    if (d) d.style.display = 'block';
+  }
 }
 
 async function skipConnect() {
@@ -1863,6 +1971,8 @@ async function skipConnect() {
 // Reconnect path for an unconnected patient (home "Connect to a therapist" button).
 function goToConnect() {
   showScreen('connectScreen');
+  // Show an outstanding request rather than an empty code box that invites a second one.
+  refreshConnectState();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1909,6 +2019,7 @@ async function routePatient() {
     maybeStartTutorial();
   } else {
     showScreen('connectScreen');
+    await refreshConnectState();
   }
 }
 
@@ -2813,22 +2924,16 @@ async function updatePatientHomeScreen() {
   const recent7 = sessions.filter(s => new Date(s.date) > sevenDaysAgo);
   const adhResult = calcCompliance(sessions, protocols, 0, { nameFn: exName });
   const adherencePct = adhResult.overall;
-  const avgPain7d = recent7.length > 0
-    ? (recent7.reduce((sum, s) => {
-        return sum + sessionPainValue(s);
-      }, 0) / recent7.length).toFixed(1)
-    : null;
+  const _avgPain7dNum = avgPainOf(recent7);
+  const avgPain7d = _avgPain7dNum === null ? null : _avgPain7dNum.toFixed(1);
   // Compute prior week stats for delta
   const priorAdhResult = calcCompliance(sessions, protocols, 1, { nameFn: exName });
   const priorAdh = priorAdhResult.overall;
   const adhDelta = adherencePct - priorAdh;
   const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
   const priorWeek = sessions.filter(s => { const d = new Date(s.date); return d > fourteenDaysAgo && d <= sevenDaysAgo; });
-  const priorPain = priorWeek.length > 0
-    ? (priorWeek.reduce((sum, s) => {
-        return sum + sessionPainValue(s);
-      }, 0) / priorWeek.length).toFixed(1)
-    : null;
+  const _priorPainNum = avgPainOf(priorWeek);
+  const priorPain = _priorPainNum === null ? null : _priorPainNum.toFixed(1);
   const painDelta = (avgPain7d !== null && priorPain !== null) ? (parseFloat(avgPain7d) - parseFloat(priorPain)).toFixed(1) : null;
 
   const adherenceEl = document.getElementById('ptStatAdherence');
@@ -2845,7 +2950,9 @@ async function updatePatientHomeScreen() {
     if (d <= -0.3)      { painWord = t('home.painDown');   painClass = 'teal'; }
     else if (d >= 0.3)  { painWord = t('home.painUp'); }
     else                { painWord = t('home.painSteady'); painClass = 'teal'; }
-  } else if (avgPain7d !== null) { painWord = t('home.painSteady'); painClass = 'teal'; }
+  }
+  // No prior week means there is no trend to report. Saying "steady" here would
+  // assert a comparison that was never computed — leave the dash.
   if (avgPainEl) { avgPainEl.textContent = painWord; avgPainEl.className = 'rd-stat-big ' + painClass; }
 
   // Hidden stub (completionStatus preserved for legacy code paths)
@@ -3340,10 +3447,19 @@ async function finishManualCamSession() {
     _manualCamStream = null;
   }
 
+  // No completed sets means there is nothing real to record. Writing a session
+  // here would store invented reps and pain (this used to default pain to 1).
+  if (_manualCamSetData.length === 0) {
+    _manualCamProtocol = null;
+    await updatePatientHomeScreen();
+    showScreen('patientScreen');
+    return;
+  }
+
   const totalReps = _manualCamSetData.reduce((sum, s) => sum + s.reps, 0);
-  const avgPain = _manualCamSetData.length > 0
-    ? Math.round(_manualCamSetData.reduce((sum, s) => sum + s.pain, 0) / _manualCamSetData.length)
-    : 1;
+  const avgPain = Math.round(
+    _manualCamSetData.reduce((sum, s) => sum + (s.pain || 0), 0) / _manualCamSetData.length
+  );
 
   // F-013: disable controls and show saving indicator
   const doneBtn = document.getElementById('manualCamDoneBtn');
@@ -3444,20 +3560,16 @@ function doCleanExit() {
 }
 
 async function saveCurrentSetAndExit() {
-  const blob = _manualCamCurrentBlob;
+  // The patient exited without filling in the set modal, so this set has no real
+  // reps and no real pain. It used to be stored as reps=protocol default, pain=1,
+  // which permanently polluted their averages, the weekly pain chart and the
+  // therapist's review flag with numbers the patient never gave. The abandoned
+  // set is now dropped. Its video is discarded rather than uploaded — an
+  // unreferenced upload would be patient video nobody could view or delete.
   _manualCamCurrentBlob = null;
-  
-  let videoStoragePath = null;
-  if (blob && blob.size > 0) {
-    const up = await uploadVideoToStorage(blob, `sessions/${currentUser.email}/sets/${Date.now()}.${videoExt(blob)}`);
-    if (up) videoStoragePath = up.storagePath;
-  }
 
-  // Add with default reps/pain since user didn't fill modal
-  _manualCamSetData.push({ reps: _manualCamProtocol?.reps || 10, pain: 1, notes: 'Exited early', videoStoragePath });
-  
-  // Now save the session
-  await finishManualCamSession();
+  // Save only if genuinely completed sets exist; otherwise there is no session.
+  if (_manualCamSetData.length > 0) await finishManualCamSession();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3487,6 +3599,70 @@ const exerciseLabels = {
   thumb_ring_opposition:  'Thumb to Ring Pinch',
   thumb_little_opposition:'Thumb to Little Pinch',
   index_middle_spread:    'Index-Middle Spread',
+
+  // Whole-body library. Motus is holistic physical therapy — the hand-only set
+  // above is legacy content, kept because patients may already have it assigned.
+  neck_rotation:            'Neck Rotation',
+  neck_side_bend:           'Neck Side Bend',
+  chin_tuck:                'Chin Tuck',
+  neck_flexion_extension:   'Neck Flexion and Extension',
+  upper_trap_stretch:       'Upper Trapezius Stretch',
+  pendulum_swing:           'Pendulum Swing',
+  shoulder_flexion:         'Shoulder Flexion',
+  shoulder_abduction:       'Shoulder Abduction',
+  shoulder_external_rotation:'Shoulder External Rotation',
+  shoulder_internal_rotation:'Shoulder Internal Rotation',
+  scapular_retraction:      'Shoulder Blade Squeeze',
+  wall_slide:               'Wall Slide',
+  shoulder_shrug:           'Shoulder Shrug',
+  elbow_flexion_extension:  'Elbow Bend and Straighten',
+  forearm_rotation:         'Forearm Rotation',
+  wrist_flexion_extension:  'Wrist Bend and Straighten',
+  wrist_deviation:          'Wrist Side to Side',
+  wrist_extensor_stretch:   'Wrist Extensor Stretch',
+  pelvic_tilt:              'Pelvic Tilt',
+  knee_to_chest:            'Single Knee to Chest',
+  double_knee_to_chest:     'Double Knee to Chest',
+  lower_trunk_rotation:     'Lower Trunk Rotation',
+  cat_cow:                  'Cat and Camel',
+  prone_press_up:           'Prone Press-Up',
+  bird_dog:                 'Bird Dog',
+  glute_bridge:             'Bridge',
+  standing_back_extension:  'Standing Back Extension',
+  hip_abduction_side:       'Side-Lying Leg Raise',
+  hip_flexion_march:        'Marching',
+  hip_extension_standing:   'Standing Hip Extension',
+  clamshell:                'Clamshell',
+  hip_flexor_stretch:       'Hip Flexor Stretch',
+  piriformis_stretch:       'Figure-Four Stretch',
+  hamstring_stretch:        'Hamstring Stretch',
+  sit_to_stand:             'Sit to Stand',
+  quad_set:                 'Quad Set',
+  straight_leg_raise:       'Straight Leg Raise',
+  heel_slide:               'Heel Slide',
+  terminal_knee_extension:  'Terminal Knee Extension',
+  wall_sit:                 'Wall Sit',
+  step_up:                  'Step-Up',
+  hamstring_curl_standing:  'Standing Heel Curl',
+  ankle_pumps:              'Ankle Pumps',
+  ankle_circles:            'Ankle Circles',
+  ankle_inversion_eversion: 'Ankle In and Out',
+  calf_raise:               'Calf Raise',
+  calf_stretch_wall:        'Calf Stretch',
+  toe_curls:                'Toe Curls',
+  heel_toe_walk:            'Heel and Toe Walking',
+  single_leg_stance:        'Single Leg Stance',
+  tandem_stance:            'Tandem Stance',
+  heel_to_toe_walk:         'Heel-to-Toe Walking',
+  weight_shift:             'Weight Shifting',
+  side_stepping:            'Side Stepping',
+  backward_walking:         'Backward Walking',
+  abdominal_bracing:        'Abdominal Bracing',
+  dead_bug:                 'Dead Bug',
+  side_plank_knees:         'Side Plank on Knees',
+  front_plank_knees:        'Front Plank on Knees',
+  seated_trunk_rotation:    'Seated Trunk Rotation',
+  standing_side_bend:       'Standing Side Bend',
 };
 
 // Snapshot of the built-in English names BEFORE any runtime mutation (custom /
@@ -3674,6 +3850,86 @@ const PROTOCOL_CATALOG = [
   { id:'index_middle_spread',    cat:'Spreading & Abduction',dr:15, ds:2, df:'daily',   desc:'Spread only the index and middle finger apart, then close.' },
   { id:'grip_squeeze',           cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'All fingers flex simultaneously into a full fist. Builds grip strength.' },
   { id:'finger_flexion',         cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'Any finger completing a full flex-extend cycle counts as a rep.' },
+
+  /* ── Whole-body library ────────────────────────────────────────────────────
+     Motus is holistic PT; the hand set above is legacy content kept because
+     patients may already have it assigned.
+
+     Descriptions are shown to patients verbatim, so they describe the MOVEMENT
+     only — what moves, what stays still, how far. They deliberately carry no
+     clinical indication, progression or dosing advice: reps/sets/frequency here
+     are placeholder defaults a therapist is expected to edit per patient, not a
+     protocol, and nothing here should read as medical instruction from Motus. */
+
+  { id:'neck_rotation',            cat:'Cervical / Neck',    dr:10, ds:2, df:'daily', desc:'Turn the head slowly to one side, then to the other. Shoulders stay still.' },
+  { id:'neck_side_bend',           cat:'Cervical / Neck',    dr:10, ds:2, df:'daily', desc:'Tilt one ear toward the shoulder without turning the head, then return to centre.' },
+  { id:'chin_tuck',                cat:'Cervical / Neck',    dr:10, ds:2, df:'daily', desc:'Draw the chin straight back to lengthen the back of the neck. Hold, then release.' },
+  { id:'neck_flexion_extension',   cat:'Cervical / Neck',    dr:10, ds:2, df:'daily', desc:'Lower the chin toward the chest, then look upward. Move only as far as is comfortable.' },
+  { id:'upper_trap_stretch',       cat:'Cervical / Neck',    dr:3,  ds:1, df:'daily', desc:'Ease one ear toward the shoulder and hold. The opposite shoulder stays down.' },
+
+  { id:'pendulum_swing',           cat:'Shoulder',           dr:10, ds:2, df:'daily', desc:'Lean forward with the arm hanging loose and let it swing in small circles.' },
+  { id:'shoulder_flexion',         cat:'Shoulder',           dr:10, ds:2, df:'daily', desc:'Raise the straight arm forward and up, then lower it under control.' },
+  { id:'shoulder_abduction',       cat:'Shoulder',           dr:10, ds:2, df:'daily', desc:'Raise the straight arm out to the side, then lower it under control.' },
+  { id:'shoulder_external_rotation',cat:'Shoulder',          dr:10, ds:2, df:'daily', desc:'Elbow tucked at the side and bent to a right angle; rotate the forearm outward, then back.' },
+  { id:'shoulder_internal_rotation',cat:'Shoulder',          dr:10, ds:2, df:'daily', desc:'Elbow tucked at the side and bent to a right angle; rotate the forearm across the body, then back.' },
+  { id:'scapular_retraction',      cat:'Shoulder',           dr:10, ds:2, df:'daily', desc:'Draw both shoulder blades together and down. Hold briefly, then release.' },
+  { id:'wall_slide',               cat:'Shoulder',           dr:10, ds:2, df:'daily', desc:'Forearms resting on the wall; slide them upward, then lower them back down.' },
+  { id:'shoulder_shrug',           cat:'Shoulder',           dr:10, ds:2, df:'daily', desc:'Lift both shoulders toward the ears, hold briefly, then lower.' },
+
+  { id:'elbow_flexion_extension',  cat:'Elbow / Wrist',      dr:10, ds:2, df:'daily', desc:'Bend the elbow fully, then straighten it. The upper arm stays still.' },
+  { id:'forearm_rotation',         cat:'Elbow / Wrist',      dr:10, ds:2, df:'daily', desc:'Elbow at the side; turn the palm face up, then face down.' },
+  { id:'wrist_flexion_extension',  cat:'Elbow / Wrist',      dr:10, ds:2, df:'daily', desc:'Forearm supported on a table; bend the wrist up, then down.' },
+  { id:'wrist_deviation',          cat:'Elbow / Wrist',      dr:10, ds:2, df:'daily', desc:'Forearm supported; move the hand toward the thumb side, then the little-finger side.' },
+  { id:'wrist_extensor_stretch',   cat:'Elbow / Wrist',      dr:3,  ds:1, df:'daily', desc:'Arm straight with the palm facing down; gently draw the hand downward and hold.' },
+
+  { id:'pelvic_tilt',              cat:'Lumbar / Low Back',  dr:10, ds:2, df:'daily', desc:'Lying with the knees bent, flatten the low back down into the floor, then release.' },
+  { id:'knee_to_chest',            cat:'Lumbar / Low Back',  dr:5,  ds:2, df:'daily', desc:'Lying down, draw one knee toward the chest and hold. The other leg stays down.' },
+  { id:'double_knee_to_chest',     cat:'Lumbar / Low Back',  dr:5,  ds:2, df:'daily', desc:'Lying down, draw both knees toward the chest together and hold.' },
+  { id:'lower_trunk_rotation',     cat:'Lumbar / Low Back',  dr:10, ds:2, df:'daily', desc:'Lying with the knees bent and together, let both knees fall to one side, then the other.' },
+  { id:'cat_cow',                  cat:'Lumbar / Low Back',  dr:10, ds:2, df:'daily', desc:'On hands and knees, arch the back upward, then let it sag downward.' },
+  { id:'prone_press_up',           cat:'Lumbar / Low Back',  dr:10, ds:2, df:'daily', desc:'Lying face down, press the chest up onto the forearms while the hips stay down.' },
+  { id:'bird_dog',                 cat:'Lumbar / Low Back',  dr:10, ds:2, df:'daily', desc:'On hands and knees, extend one arm and the opposite leg, then return.' },
+  { id:'glute_bridge',             cat:'Lumbar / Low Back',  dr:10, ds:2, df:'daily', desc:'Lying with the knees bent, lift the hips until the body is in a straight line, then lower.' },
+  { id:'standing_back_extension',  cat:'Lumbar / Low Back',  dr:10, ds:2, df:'daily', desc:'Standing with hands on the low back, lean gently backward, then return upright.' },
+
+  { id:'hip_abduction_side',       cat:'Hip',                dr:10, ds:2, df:'daily', desc:'Lying on one side, raise the top leg upward, then lower it under control.' },
+  { id:'hip_flexion_march',        cat:'Hip',                dr:10, ds:2, df:'daily', desc:'Seated or standing, lift one knee toward the chest, then lower it.' },
+  { id:'hip_extension_standing',   cat:'Hip',                dr:10, ds:2, df:'daily', desc:'Standing with support, move one straight leg backward, then return.' },
+  { id:'clamshell',                cat:'Hip',                dr:10, ds:2, df:'daily', desc:'Lying on one side with the knees bent, lift the top knee while the feet stay together.' },
+  { id:'hip_flexor_stretch',       cat:'Hip',                dr:3,  ds:1, df:'daily', desc:'Half-kneeling, shift the weight forward until a stretch is felt at the front of the hip. Hold.' },
+  { id:'piriformis_stretch',       cat:'Hip',                dr:3,  ds:1, df:'daily', desc:'Lying down, cross one ankle over the opposite knee and draw both legs toward the chest.' },
+  { id:'hamstring_stretch',        cat:'Hip',                dr:3,  ds:1, df:'daily', desc:'Lying down, raise one straight leg using hands or a strap behind the thigh. Hold.' },
+  { id:'sit_to_stand',             cat:'Hip',                dr:10, ds:2, df:'daily', desc:'From a chair, stand up fully and sit back down under control.' },
+
+  { id:'quad_set',                 cat:'Knee',               dr:10, ds:2, df:'daily', desc:'Leg straight; tighten the thigh to press the back of the knee down. Hold, then release.' },
+  { id:'straight_leg_raise',       cat:'Knee',               dr:10, ds:2, df:'daily', desc:'Lying down with the leg straight, lift it a short way, then lower it under control.' },
+  { id:'heel_slide',               cat:'Knee',               dr:10, ds:2, df:'daily', desc:'Lying down, slide the heel toward the buttock to bend the knee, then straighten it.' },
+  { id:'terminal_knee_extension',  cat:'Knee',               dr:10, ds:2, df:'daily', desc:'Standing with a band behind the knee, straighten the knee against the band.' },
+  { id:'wall_sit',                 cat:'Knee',               dr:5,  ds:2, df:'daily', desc:'Back against a wall, slide down to a comfortable knee bend and hold.' },
+  { id:'step_up',                  cat:'Knee',               dr:10, ds:2, df:'daily', desc:'Step up onto a low step with one leg, then step back down under control.' },
+  { id:'hamstring_curl_standing',  cat:'Knee',               dr:10, ds:2, df:'daily', desc:'Standing with support, bend one knee to bring the heel toward the buttock.' },
+
+  { id:'ankle_pumps',              cat:'Ankle / Foot',       dr:15, ds:2, df:'daily', desc:'Point the foot away, then pull it back toward the shin.' },
+  { id:'ankle_circles',            cat:'Ankle / Foot',       dr:10, ds:2, df:'daily', desc:'Draw slow circles with the foot, one direction and then the other.' },
+  { id:'ankle_inversion_eversion', cat:'Ankle / Foot',       dr:10, ds:2, df:'daily', desc:'Turn the sole inward, then outward. The lower leg stays still.' },
+  { id:'calf_raise',               cat:'Ankle / Foot',       dr:10, ds:2, df:'daily', desc:'Standing with support, rise onto the toes, then lower under control.' },
+  { id:'calf_stretch_wall',        cat:'Ankle / Foot',       dr:3,  ds:1, df:'daily', desc:'Hands on the wall, back leg straight with the heel down; lean forward and hold.' },
+  { id:'toe_curls',                cat:'Ankle / Foot',       dr:10, ds:2, df:'daily', desc:'Gather a towel under the toes, then release it.' },
+  { id:'heel_toe_walk',            cat:'Ankle / Foot',       dr:10, ds:2, df:'daily', desc:'Walk a short distance on the heels, then the same distance on the toes.' },
+
+  { id:'single_leg_stance',        cat:'Balance & Gait',     dr:5,  ds:2, df:'daily', desc:'Stand on one leg with support within reach. Hold, then swap sides.' },
+  { id:'tandem_stance',            cat:'Balance & Gait',     dr:5,  ds:2, df:'daily', desc:'Stand with one foot directly in front of the other. Hold, then swap sides.' },
+  { id:'heel_to_toe_walk',         cat:'Balance & Gait',     dr:10, ds:2, df:'daily', desc:'Walk in a straight line, placing the heel directly in front of the opposite toes.' },
+  { id:'weight_shift',             cat:'Balance & Gait',     dr:10, ds:2, df:'daily', desc:'Standing, shift the weight slowly from side to side, then forward and back.' },
+  { id:'side_stepping',            cat:'Balance & Gait',     dr:10, ds:2, df:'daily', desc:'Step sideways along a line leading with one leg, then return leading with the other.' },
+  { id:'backward_walking',         cat:'Balance & Gait',     dr:10, ds:2, df:'daily', desc:'Walk slowly backward in a clear space with support within reach.' },
+
+  { id:'abdominal_bracing',        cat:'Core / Trunk',       dr:10, ds:2, df:'daily', desc:'Tighten the stomach muscles as if bracing, keep breathing normally, then release.' },
+  { id:'dead_bug',                 cat:'Core / Trunk',       dr:10, ds:2, df:'daily', desc:'Lying on the back, lower one arm and the opposite leg toward the floor, then return.' },
+  { id:'side_plank_knees',         cat:'Core / Trunk',       dr:5,  ds:2, df:'daily', desc:'On one side propped on the forearm with the knees bent, lift the hips, then lower.' },
+  { id:'front_plank_knees',        cat:'Core / Trunk',       dr:5,  ds:2, df:'daily', desc:'On the forearms with the knees down, hold a straight line from head to knees.' },
+  { id:'seated_trunk_rotation',    cat:'Core / Trunk',       dr:10, ds:2, df:'daily', desc:'Seated with the arms crossed, turn the trunk to one side, then the other.' },
+  { id:'standing_side_bend',       cat:'Core / Trunk',       dr:10, ds:2, df:'daily', desc:'Standing, slide one hand down the side of the leg, then return upright.' },
 ];
 
 // b is pivot. pip uses [MCP, PIP, TIP] = composite flexion, matching legacy middle-finger behavior.
@@ -4538,11 +4794,23 @@ function toggleExerciseList() {
 const _reviewedLocal = new Set();
 const _flaggedLocal = new Set();
 
+// Returns a session's pain as a number, or null when the session carries no pain
+// data at all. null is NOT zero: "never recorded" must not average in as "no
+// pain", which drags every mean down and manufactures a downward trend.
 function sessionPainValue(s) {
+  const num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
   if (s.setData && s.setData.length > 0) {
-    return s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length;
+    const vals = s.setData.map(x => num(x.pain)).filter(v => v !== null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   }
-  return s.pain || 0;
+  return num(s.pain);
+}
+
+// Mean pain across sessions, skipping any with no pain recorded. Returns null
+// when none of them have pain — callers must render a dash, never 0.
+function avgPainOf(sessions) {
+  const vals = (sessions || []).map(sessionPainValue).filter(v => v !== null);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
 
 function sessionIsFlagged(s) { return !!s.flagged || _flaggedLocal.has(s.id); }
@@ -4550,7 +4818,10 @@ function sessionIsReviewed(s) { return !!s.reviewed || _reviewedLocal.has(s.id);
 
 function sessionNeedsReview(s) {
   if (sessionIsReviewed(s)) return false;
-  const highPain = normalizePain(sessionPainValue(s)) === 8; // "a lot" (7–10)
+  const _p = sessionPainValue(s);
+  // Compare the raw value. Going through normalizePain would round 6.6 up into the
+  // top bucket and flag it as a 7+. null (no pain recorded) must never flag.
+  const highPain = _p !== null && _p >= HIGH_PAIN;
   return highPain || sessionIsFlagged(s);
 }
 
@@ -4680,6 +4951,41 @@ function closeSidebar() {
   document.querySelector('.tp-hamburger')?.setAttribute('aria-expanded', 'false');
 }
 
+// Sessions are fetched once, when the list is built — nothing re-queries them, so
+// a session a patient finishes afterwards never shows up until a full page reload.
+// This re-runs the load in place.
+//
+// Worth knowing: a live onSnapshot on sessions would remove the need for this
+// button entirely and would match the unread-dot pattern already in this file. It
+// costs continuous reads for every patient, where the button costs one burst on
+// demand. Yash asked for a button, so this is the button.
+let _refreshingPatients = false;
+async function refreshPatientList() {
+  // Guard the function, not just the button — a disabled button is not enforcement.
+  if (_refreshingPatients) return;
+  _refreshingPatients = true;
+  const setBusy = (busy) => {
+    const b = document.getElementById('thRefreshBtn');
+    if (!b) return;
+    b.disabled = busy;
+    b.classList.toggle('is-spinning', busy);
+    b.setAttribute('aria-busy', busy ? 'true' : 'false');
+  };
+  setBusy(true);
+  try {
+    await loadConnectedPatients();
+    // Refresh the open chart too, or the list updates while the detail pane still
+    // shows stale sessions. Only when a chart is actually the visible panel.
+    const showingChart = document.querySelector('#mainPanel .patient-detail');
+    if (_viewingPatientEmail && showingChart) await selectPatient(_viewingPatientEmail);
+  } catch (e) {
+    console.warn('[Motus] patient list refresh failed:', e);
+  } finally {
+    _refreshingPatients = false;
+    setBusy(false);
+  }
+}
+
 async function loadConnectedPatients() {
   // Redesign: fill the nav-rail identity (name + initials)
   const _rn = document.getElementById('thRailName');
@@ -4692,6 +4998,18 @@ async function loadConnectedPatients() {
   container.innerHTML = '';
   const existing = document.getElementById('noPatientsMsg');
   if (existing) existing.remove();
+
+  // Join requests awaiting a decision come first — they are the only thing on
+  // this screen that is blocking someone else.
+  const pendingReqs = await getPendingRequests(currentUser.email);
+  if (pendingReqs.length) {
+    const h = document.createElement('div');
+    h.className = 'rd-plist-group';
+    h.textContent = `${t('th.pendingRequests')} · ${pendingReqs.length}`;
+    container.appendChild(h);
+    pendingReqs.forEach(r => container.appendChild(buildPendingRequestRow(r)));
+  }
+
   const patients = await getConnectedPatients(currentUser.email);
   if (patients.length === 0) {
     const msg = document.createElement('div');
@@ -4726,10 +5044,48 @@ async function loadConnectedPatients() {
   addGroupHeader(t('th.allPatients'), rows.length);
   rest.forEach(r => container.appendChild(buildPatientRow(r)));
 
+  // Paint from the counts we already hold so rebuilt rows don't flash "all read"
+  // for the round-trip it takes the resubscribed snapshot to arrive.
+  applyUnreadUI();
   subscribeTherapistBadges(currentUser.email);
 }
 
 // Builds one patient-list row from a { patient, sessions, unread, status } record.
+// A join request awaiting approval. Deliberately not a .patient-row: this person
+// is not a patient yet, has no chart to open, and must not be clickable through
+// to one.
+function buildPendingRequestRow(req) {
+  const row = document.createElement('div');
+  row.className = 'rd-plist-pending';
+  const displayName = req.patientName || req.patientEmail || 'Unnamed';
+  const initials = displayName.split(/[\s@.]+/).filter(Boolean)
+    .map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+  row.innerHTML = `
+    <div class="patient-row-avatar">${escapeHtml(initials)}</div>
+    <div class="patient-row-meta">
+      <div class="patient-row-name">${escapeHtml(displayName)}</div>
+      <div class="patient-row-sub">${escapeHtml(req.patientEmail || '')}</div>
+    </div>
+    <div class="rd-plist-pending-actions">
+      <button class="rd-plist-approve" type="button">${escapeHtml(t('th.approve'))}</button>
+      <button class="rd-plist-decline" type="button">${escapeHtml(t('th.decline'))}</button>
+    </div>`;
+  const approve = row.querySelector('.rd-plist-approve');
+  const decline = row.querySelector('.rd-plist-decline');
+  const busy = (on) => { approve.disabled = on; decline.disabled = on; };
+  approve.onclick = async () => {
+    busy(true);
+    try { await approvePatientRequest(req.patientEmail); }
+    catch (e) { console.error('[Motus] approve failed:', e); showNotice(t('th.approveFailed'), 'error'); busy(false); }
+  };
+  decline.onclick = async () => {
+    busy(true);
+    try { await declinePatientRequest(req.patientEmail); }
+    catch (e) { console.error('[Motus] decline failed:', e); showNotice(t('th.declineFailed'), 'error'); busy(false); }
+  };
+  return row;
+}
+
 function buildPatientRow(r) {
   const { patient, unread, status } = r;
   const btn = document.createElement('button');
@@ -4758,6 +5114,46 @@ function buildPatientRow(r) {
   return btn;
 }
 
+// Paints every unread indicator from _unreadByPatient. Called on each snapshot AND
+// after any screen re-renders, so newly built rows show current state instead of
+// waiting for the next message to arrive.
+function applyUnreadUI() {
+  const counts = _unreadByPatient;
+
+  // Patient-list rows (this part already worked — it is why Maria's dot showed).
+  document.querySelectorAll('.patient-row').forEach(row => {
+    const pEmail = row.dataset.patientEmail;
+    if (!pEmail) return;
+    const dot = row.querySelector('.patient-row-dot');
+    if (!dot) return;
+    if ((counts[pEmail] || 0) > 0) dot.removeAttribute('hidden'); else dot.setAttribute('hidden', '');
+  });
+
+  // Sidebar "Messages" item. #thMsgBadge existed in the markup and was styled but
+  // nothing ever wrote to it, so the sidebar never showed unread at all.
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const badge = document.getElementById('thMsgBadge');
+  if (badge) {
+    badge.textContent = total > 99 ? '99+' : String(total);
+    if (total > 0) badge.removeAttribute('hidden'); else badge.setAttribute('hidden', '');
+  }
+  const navItem = document.getElementById('thNavMessages');
+  if (navItem) navItem.setAttribute('aria-label', total > 0 ? `Messages, ${total} unread` : 'Messages');
+
+  // Inbox rows, when the Messages screen is the one on display.
+  document.querySelectorAll('.th-inbox-row').forEach(row => {
+    const pEmail = row.dataset.patientEmail;
+    if (!pEmail) return;
+    const n = counts[pEmail] || 0;
+    row.classList.toggle('unread', n > 0);
+    let b = row.querySelector('.th-inbox-badge');
+    if (n > 0) {
+      if (!b) { b = document.createElement('span'); b.className = 'th-inbox-badge'; row.appendChild(b); }
+      b.textContent = String(n);
+    } else if (b) { b.remove(); }
+  });
+}
+
 function subscribeTherapistBadges(therapistEmail) {
   if (_msgPatientBadgesUnsub) { _msgPatientBadgesUnsub(); _msgPatientBadgesUnsub = null; }
   _msgPatientBadgesUnsub = db.collection('messages')
@@ -4766,14 +5162,13 @@ function subscribeTherapistBadges(therapistEmail) {
     .onSnapshot(snap => {
       const counts = {};
       snap.forEach(d => { const from = d.data().from; counts[from] = (counts[from] || 0) + 1; });
-      document.querySelectorAll('.patient-row').forEach(row => {
-        const pEmail = row.dataset.patientEmail;
-        if (!pEmail) return;
-        const dot = row.querySelector('.patient-row-dot');
-        if (!dot) return;
-        const n = counts[pEmail] || 0;
-        if (n > 0) dot.removeAttribute('hidden'); else dot.setAttribute('hidden', '');
-      });
+      _unreadByPatient = counts;
+      applyUnreadUI();
+      // This snapshot carries unread docs only, so it can't supply the inbox's
+      // preview text or timestamp. Re-render the inbox when it is the visible
+      // screen so the preview keeps up with the badge. No write happens here, so
+      // this cannot re-trigger itself.
+      if (document.getElementById('thInboxList')) openTherapistMessages();
     }, () => {});
 }
 
@@ -4864,11 +5259,8 @@ async function showRealPatient(patient) {
   // exercise, so 3 exercises/day for 6 days would otherwise read as "18 sessions"
   // instead of the meaningful "6 days worked out this week".
   const sessions7d = new Set(recent7.map(s => new Date(s.date).toISOString().slice(0, 10))).size;
-  const avgPain7d = recent7.length > 0
-    ? (recent7.reduce((sum, s) => {
-        return sum + sessionPainValue(s);
-      }, 0) / recent7.length).toFixed(1)
-    : '-';
+  const _avgPain7dNumT = avgPainOf(recent7);
+  const avgPain7d = _avgPain7dNumT === null ? '-' : _avgPain7dNumT.toFixed(1);
   const adhResultT = calcCompliance(sessions, protocols, 0, { nameFn: exName });
   const adherence = adhResultT.overall;
   const lastSess = sessions.length > 0 ? sessions[sessions.length - 1] : null;
@@ -4899,9 +5291,8 @@ async function showRealPatient(patient) {
   const priorAdhResultT = calcCompliance(sessions, protocols, 1, { nameFn: exName });
   const priorAdhT = priorAdhResultT.overall;
   const adhDeltaT = adherence - priorAdhT;
-  const priorPainT = priorW.length > 0
-    ? (priorW.reduce((sum, s) => { if (s.setData?.length > 0) return sum + s.setData.reduce((a, x) => a + (x.pain || 0), 0) / s.setData.length; return sum + (s.pain || 0); }, 0) / priorW.length).toFixed(1)
-    : null;
+  const _priorPainNumT = avgPainOf(priorW);
+  const priorPainT = _priorPainNumT === null ? null : _priorPainNumT.toFixed(1);
   const painDeltaT = (avgPain7d !== '-' && priorPainT !== null) ? (parseFloat(avgPain7d) - parseFloat(priorPainT)).toFixed(1) : null;
 
   // Day-one grace: a brand-new plan isn't scoreable yet — show neutral, not a red 0%.
@@ -5184,9 +5575,10 @@ function buildSessionHistory(sessions, patientName) {
     const exCount = Object.keys(exercisesMap).length;
     const totalSets = daySessions.length;
     const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
-    const avgPain = totalSets > 0
-      ? (daySessions.reduce((sum, s) => sum + sessionPainValue(s), 0) / totalSets).toFixed(1)
-      : '-';
+    // Average only the sets that actually recorded pain — dividing by totalSets
+    // would count "no pain data" as a zero and understate the day.
+    const _dayPain = avgPainOf(daySessions);
+    const avgPain = _dayPain === null ? '—' : _dayPain.toFixed(1);
     const dtimes = daySessions.map(s => {
       if (s.date) return new Date(s.date).getTime();
       return NaN;
@@ -5254,7 +5646,7 @@ function buildSessionHistory(sessions, patientName) {
           <div class="prog-set-data">
             ${videoBtn}
             <span class="prog-set-reps">${s.reps || 0} reps</span>
-            <span class="prog-set-pain">${s.pain || 1}/10</span>
+            <span class="prog-set-pain">${sessionPainValue(s) === null ? '—' : sessionPainValue(s) + '/10'}</span>
             ${notesBtn}
           </div>
         </div>`;
@@ -7146,9 +7538,10 @@ function buildProgressByDay(sessions) {
     const exCount = Object.keys(exercisesMap).length;
     const totalSets = daySessions.length;
     const totalReps = daySessions.reduce((sum, s) => sum + (s.reps || 0), 0);
-    const avgPain = totalSets > 0
-      ? (daySessions.reduce((sum, s) => sum + sessionPainValue(s), 0) / totalSets).toFixed(1)
-      : '-';
+    // Average only the sets that actually recorded pain — dividing by totalSets
+    // would count "no pain data" as a zero and understate the day.
+    const _dayPain = avgPainOf(daySessions);
+    const avgPain = _dayPain === null ? '—' : _dayPain.toFixed(1);
     const dateTimes = daySessions.map(s => {
       if (s.timestamp && s.timestamp.toDate) return s.timestamp.toDate().getTime();
       if (s.timestamp) return new Date(s.timestamp).getTime();
@@ -7225,7 +7618,7 @@ function buildProgressByDay(sessions) {
           <div class="prog-set-data">
             ${videoBtn}
             <span class="prog-set-reps">${s.reps || 0} reps</span>
-            <span class="prog-set-pain">${s.pain || 1}/10</span>
+            <span class="prog-set-pain">${sessionPainValue(s) === null ? '—' : sessionPainValue(s) + '/10'}</span>
             ${notesBtn}
           </div>
         </div>`;
@@ -7315,9 +7708,9 @@ async function renderProgressScreen() {
   var painTrendValue = null;
   var painTrendClass = '';
   var painTrendDisplay = '\u2014';
-  if (last7.length && prior7.length) {
-    const avgLast = last7.reduce(function(s, x) { return s + sessionPainValue(x); }, 0) / last7.length;
-    const avgPrior = prior7.reduce(function(s, x) { return s + sessionPainValue(x); }, 0) / prior7.length;
+  const avgLast = avgPainOf(last7);
+  const avgPrior = avgPainOf(prior7);
+  if (avgLast !== null && avgPrior !== null) {
     const diff = avgLast - avgPrior;
     if (diff < 0) {
       painTrendDisplay = '\u2193 ' + Math.abs(diff).toFixed(1);
@@ -7830,7 +8223,7 @@ async function openTherapistMessages() {
     const initials = (r.p.name || '').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
     const preview = r.last ? (r.last.from === me ? 'You: ' : '') + r.last.text : t('th.noMessagesYet');
     const time = r.last ? timeAgo(r.last.timestamp) : '';
-    return `<button class="th-inbox-row${r.unread ? ' unread' : ''}" onclick="openTherapistThread('${escJsAttr(r.p.email)}','${escJsAttr(r.p.name || '')}')">
+    return `<button class="th-inbox-row${r.unread ? ' unread' : ''}" data-patient-email="${escapeHtml(r.p.email)}" onclick="openTherapistThread('${escJsAttr(r.p.email)}','${escJsAttr(r.p.name || '')}')">
         <div class="th-inbox-avatar">${escapeHtml(initials)}</div>
         <div class="th-inbox-meta">
           <div class="th-inbox-row-top"><span class="th-inbox-name">${escapeHtml(r.p.name || r.p.email)}</span><span class="th-inbox-time">${escapeHtml(time)}</span></div>
@@ -7839,6 +8232,13 @@ async function openTherapistMessages() {
         ${r.unread ? `<span class="th-inbox-badge">${r.unread}</span>` : ''}
       </button>`;
   }).join('');
+
+  // The rows above come from a one-off read; reconcile them against the live
+  // counts so a message that arrived mid-render is not shown as already read.
+  applyUnreadUI();
+  // Cheap no-op when already subscribed to this therapist's messages, but it
+  // guarantees the listener exists even if Messages is the first screen opened.
+  if (!_msgPatientBadgesUnsub) subscribeTherapistBadges(me);
 }
 
 // Open a single conversation (from the inbox) as a focused thread in the main panel.
@@ -9006,8 +9406,16 @@ function mlTrainerBack() {
 
 function updatePainBar(val) { siSelectPain(val); }
 
-// Redesign (D-1): pain is captured as four plain-language buckets, each storing
-// one representative 0-10 value. PAIN_BUCKETS is the single source of truth.
+// Pain is captured as a whole number 0-10 (D-1's four buckets stored only 0/2/5/8,
+// so "7-10" was one value and a 7 was indistinguishable from a 10).
+const PAIN_MAX = 10;
+// At or above this the session is surfaced to the therapist as "Reported high
+// pain". 7 is the top bucket's old floor, so historical flagging is unchanged.
+const HIGH_PAIN = 7;
+
+// The buckets now serve one purpose only: turning a stored number into a
+// plain-language word for display. They no longer constrain what can be stored.
+// Ranges line up with normalizePain's cutoffs, so a label always matches its number.
 const PAIN_BUCKETS = [
   { key: 'notAtAll',  val: 0, range: '0'    },
   { key: 'aLittle',   val: 2, range: '1–3'  },
@@ -9015,10 +9423,14 @@ const PAIN_BUCKETS = [
   { key: 'aLot',      val: 8, range: '7–10', danger: true },
 ];
 
-// D-1 normalize-on-read: map any stored pain (old continuous 0-10 OR a new bucket
-// value) to the nearest bucket value, so charts/averages/labels stay consistent
-// across the migration. Used wherever old sessions are read for display.
+// Maps a pain number to its bucket's representative value. This is now a LABELLING
+// helper only — it must never be applied to a value that gets displayed as a
+// number, charted, or averaged, or it would snap real 0-10 data back to 0/2/5/8
+// and undo the point of the 0-10 scale. Only painBucketLabel may call it.
 function normalizePain(v) {
+  // Guard null/undefined/'' explicitly: Number(null) is 0, which would silently
+  // report "no pain recorded" as "not at all".
+  if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   if (isNaN(n)) return null;
   if (n <= 0.5) return 0;
@@ -9028,27 +9440,46 @@ function normalizePain(v) {
 }
 function painBucketLabel(v) {
   const nv = normalizePain(v);
+  // No pain on record is not the same as a pain of zero — never label it.
+  if (nv === null) return '—';
   const b = PAIN_BUCKETS.find(x => x.val === nv) || PAIN_BUCKETS[0];
   return t('pain.' + b.key);
 }
 
+// Every whole number 0-10 is selectable. The four PAIN_BUCKETS words survive only
+// as a plain-language label for whatever number is chosen — they no longer limit
+// what can be stored, so a 7 and a 10 are now distinguishable in the data.
 function siInitPainGrid() {
-  const wrap = document.getElementById('siPainButtons');
-  if (!wrap) return;
-  wrap.innerHTML = PAIN_BUCKETS.map(b =>
-    `<button type="button" class="rd-pain-btn" data-pval="${b.val}" onclick="siSelectPain(${b.val})">
-       <span class="rd-pain-name">${t('pain.' + b.key)}</span>
-       <span class="rd-pain-range${b.danger ? ' danger' : ''}">${b.range}</span>
-     </button>`).join('');
+  const ticks = document.querySelector('#siPainButtons .rd-pain-ticks');
+  if (ticks && !ticks.childElementCount) {
+    // One mark per step, so the scale reads as 11 discrete choices rather than a
+    // continuous smear — the slider snaps to whole numbers anyway.
+    ticks.innerHTML = Array.from({ length: PAIN_MAX + 1 }, () => '<i></i>').join('');
+  }
+  siSelectPain(0);
 }
 
 function siSelectPain(val) {
-  const v = parseInt(val);
+  const v = Math.max(0, Math.min(PAIN_MAX, parseInt(val) || 0));
   const hidden = document.getElementById('setInputPain');
   if (hidden) hidden.value = v;
-  document.querySelectorAll('#siPainButtons .rd-pain-btn').forEach(btn => {
-    btn.classList.toggle('selected', parseInt(btn.dataset.pval) === v);
-  });
+  const range = document.getElementById('siPainRange');
+  // Guard: siSelectPain is also called programmatically (updatePainBar, reset),
+  // so the slider has to follow the value, not only drive it.
+  if (range && Number(range.value) !== v) range.value = v;
+  if (range) {
+    range.setAttribute('aria-valuetext', `${v} out of ${PAIN_MAX}, ${painBucketLabel(v)}`);
+    // Fill the track up to the thumb so severity is readable at a glance.
+    range.style.setProperty('--pain-pct', (v / PAIN_MAX) * 100 + '%');
+  }
+  const num = document.getElementById('siPainNum');
+  const word = document.getElementById('siPainWord');
+  if (num) num.textContent = v;
+  if (word) word.textContent = painBucketLabel(v);
+  const chip = document.getElementById('siPainChip');
+  if (chip) chip.classList.toggle('danger', v >= HIGH_PAIN);
+  const slider = document.getElementById('siPainButtons');
+  if (slider) slider.classList.toggle('danger', v >= HIGH_PAIN);
 }
 
 // Redesign: reveal the free-text note when the "Type a note…" chip is tapped
@@ -9357,7 +9788,7 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  copyClinicCode, openTherapistMessages, openTherapistThread,
+  copyClinicCode, openTherapistMessages, openTherapistThread, refreshPatientList,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,
 

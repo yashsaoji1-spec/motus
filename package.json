@@ -10,8 +10,9 @@
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:unit": "vitest run tests/compliance",
-    "test:rules": "firebase emulators:exec --only firestore,auth 'vitest run tests/rules'",
-    "test:e2e": "firebase emulators:exec --only firestore,auth 'playwright test'"
+    "test:rules": "firebase emulators:exec --only firestore 'vitest run tests/rules'",
+    "test:e2e": "firebase emulators:exec --only firestore,auth 'playwright test'",
+    "test:pain": "node tests/pain/verify-pain-readers.mjs code/app.js && node tests/pain/verify-pain-capture.mjs code/app.js"
   },
   "keywords": [],
   "author": "Yash Saoji & Oliver Huelsbeck",

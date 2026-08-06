@@ -81,8 +81,13 @@ service cloud.firestore {
       );
       // Self-update: role is immutable for non-admins — blocks self-promotion to therapist/admin
       // (legitimate self-writes — name, language, demographics, consent, clinicId — never touch role).
+      // therapistEmail is ALSO immutable to the user themselves: knowing an invite
+      // code must not let a patient attach themselves to a caseload. Only the
+      // therapist may set it, and only by approving a pending request (rule below).
       allow update: if isAuth() && (
-        (myEmail() == email && request.resource.data.role == resource.data.role) ||
+        (myEmail() == email &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.get('therapistEmail', '') == resource.data.get('therapistEmail', '')) ||
         isAdmin()
       );
       allow delete: if isAuth() && (myEmail() == email || isAdmin());
@@ -91,6 +96,55 @@ service cloud.firestore {
       allow update: if isAuth() && isTherapist() && connectedToPatient(email) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapistEmail']) &&
         !('therapistEmail' in request.resource.data);
+      // THE APPROVAL GATE. A therapist may attach a patient to themselves only
+      // while that patient has a request addressed to this therapist that is still
+      // pending. It sets therapistEmail and nothing else, and it can only ever set
+      // it to the approving therapist — so no one can route a patient elsewhere.
+      allow update: if isAuth() && isTherapist() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapistEmail']) &&
+        request.resource.data.therapistEmail == myEmail() &&
+        exists(/databases/$(database)/documents/connectionRequests/$(email)) &&
+        get(/databases/$(database)/documents/connectionRequests/$(email)).data.therapistEmail == myEmail() &&
+        get(/databases/$(database)/documents/connectionRequests/$(email)).data.status == 'pending';
+    }
+
+
+    // -- connectionRequests/{patientEmail} --
+    // A patient's outstanding request to join one therapist's caseload. One per
+    // patient: re-requesting overwrites. The therapist decides; the patient can
+    // only ever file something 'pending'.
+    match /connectionRequests/{patientEmail} {
+      allow read: if isAuth() && (
+        myEmail() == patientEmail ||
+        isAdmin() ||
+        (isTherapist() && resource.data.therapistEmail == myEmail())
+      );
+      // Patient files their own request. status is pinned to 'pending' so the
+      // create itself can never arrive pre-approved.
+      allow create: if isAuth() && isPatient() && myEmail() == patientEmail &&
+        request.resource.data.patientEmail == patientEmail &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.keys().hasOnly(
+          ['patientEmail', 'patientName', 'therapistEmail', 'status', 'requestedAt']);
+      allow update: if isAuth() && (
+        // Patient re-requests after a decline, or switches to a different code.
+        // Still pinned to 'pending' — a patient can never approve themselves.
+        (isPatient() && myEmail() == patientEmail &&
+          request.resource.data.patientEmail == patientEmail &&
+          request.resource.data.status == 'pending') ||
+        // The addressed therapist decides. They cannot hand the request to
+        // someone else, and 'pending' is not a verdict they can write back.
+        (isTherapist() && resource.data.therapistEmail == myEmail() &&
+          request.resource.data.therapistEmail == resource.data.therapistEmail &&
+          request.resource.data.patientEmail == resource.data.patientEmail &&
+          request.resource.data.status in ['approved', 'declined']) ||
+        isAdmin()
+      );
+      allow delete: if isAuth() && (
+        myEmail() == patientEmail ||
+        isAdmin() ||
+        (isTherapist() && resource.data.therapistEmail == myEmail())
+      );
     }
 
 
@@ -99,24 +153,13 @@ service cloud.firestore {
     // Patients can update (but not create/delete) to add themselves via connect code.
     match /connections/{therapistEmail} {
       allow read: if isAuth() && (myEmail() == therapistEmail || isAdmin() || myEmail() in resource.data.patients);
-      allow create: if isAuth() && (
-        myEmail() == therapistEmail ||
-        isAdmin() ||
-        // Patient bootstraps the doc when connecting to their first therapist.
-        // Restrict to only the patients field so no other keys can be injected.
-        (isPatient() &&
-          request.resource.data.keys().hasOnly(['patients']) &&
-          request.resource.data.patients.hasOnly([myEmail()]))
-      );
+      // Only the therapist who owns the caseload (or an admin) may write it. The
+      // patient self-serve create/update paths that used to live here are gone:
+      // they let anyone holding an invite code add themselves to a caseload with
+      // no approval. Patients now file a connectionRequests doc instead.
+      allow create: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       allow delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
-      // Patients may only append their own email to the patients array — no other mutations.
-      allow update: if isAuth() && (
-        myEmail() == therapistEmail ||
-        isAdmin() ||
-        (isPatient() &&
-          request.resource.data.patients.hasAll(resource.data.patients) &&
-          request.resource.data.patients.hasOnly(resource.data.patients.concat([myEmail()])))
-      );
+      allow update: if isAuth() && (myEmail() == therapistEmail || isAdmin());
     }
 
 

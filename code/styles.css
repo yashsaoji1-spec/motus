@@ -7184,8 +7184,10 @@ body:has(#manualCamScreen.active) {
   /* Accessibility text-size (2p). Scales every rd font via calc(). */
   --font-scale: 1;
 }
-[data-text-size="large"]   { --font-scale: 1.15; }
-[data-text-size="largest"] { --font-scale: 1.30; }
+/* 1.15/1.30 were too close to tell apart. Wider steps so each one is an obvious
+   change; "largest" is meant to look large. Layouts scroll rather than clip. */
+[data-text-size="large"]   { --font-scale: 1.25; }
+[data-text-size="largest"] { --font-scale: 1.55; }
 
 /* ── Auth screens (2a–2g) ─────────────────────────────────────────────────── */
 .rd-auth {
@@ -7503,18 +7505,63 @@ body:has(#manualCamScreen.active) {
 .rd-step-mid { flex: 1; text-align: center; -webkit-user-select: none; user-select: none; }
 .rd-step-num { font-size: calc(30px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); line-height: 1; font-variant-numeric: tabular-nums; }
 .rd-step-goal { font-size: calc(13px * var(--font-scale)); color: var(--rd-text2); margin-top: 4px; }
-.rd-pain-btns { display: flex; flex-direction: column; gap: 10px; }
-.rd-pain-btn {
-  display: flex; align-items: center; justify-content: space-between;
-  min-height: 54px; padding: 0 18px; background: var(--rd-card);
-  border: 2px solid var(--rd-input-border); border-radius: 14px; cursor: pointer;
-  font-family: var(--rd-font);
+/* Pain 0-10 as a slider. A grid of 11 tap targets needed two rows plus a separate
+   readout (~190px); this puts the value inline with the label and needs one row. */
+.rd-pain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rd-pain-head .rd-sheet-label { margin-bottom: 0; }
+.rd-pain-chip {
+  display: inline-flex; align-items: baseline; gap: 6px; flex-shrink: 0;
+  padding: 3px 10px; border-radius: 999px;
+  background: var(--rd-teal-tint); color: var(--rd-teal);
 }
-.rd-pain-name { font-size: calc(17px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
-.rd-pain-range { font-size: calc(15px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); }
-.rd-pain-range.danger { color: var(--rd-danger); }
-.rd-pain-btn.selected { background: var(--rd-teal-tint); border-color: var(--rd-teal); }
-.rd-pain-btn.selected .rd-pain-name { color: var(--rd-teal); }
+.rd-pain-chip b { font-size: calc(20px * var(--font-scale)); font-weight: 800; font-variant-numeric: tabular-nums; }
+.rd-pain-chip span { font-size: calc(13px * var(--font-scale)); font-weight: 700; }
+.rd-pain-chip.danger { background: rgba(220,38,38,0.10); color: var(--rd-danger); }
+
+.rd-pain-slider { position: relative; margin-top: 10px; }
+/* Ticks sit behind the track and mark the 11 stops. */
+.rd-pain-ticks {
+  position: absolute; left: 13px; right: 13px; top: 50%; transform: translateY(-50%);
+  display: flex; justify-content: space-between; pointer-events: none;
+}
+.rd-pain-ticks i { width: 2px; height: 8px; border-radius: 1px; background: var(--rd-input-border); }
+
+.rd-pain-input {
+  -webkit-appearance: none; appearance: none; width: 100%;
+  /* 44px of touch height while the visible track stays thin. */
+  height: 44px; background: transparent; cursor: pointer; display: block; margin: 0;
+}
+.rd-pain-input:focus { outline: none; }
+.rd-pain-input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(15,118,110,0.30); }
+.rd-pain-input::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 4px;
+  background: linear-gradient(to right, var(--rd-teal) var(--pain-pct, 0%), var(--rd-input-border) var(--pain-pct, 0%));
+}
+.rd-pain-input::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; border-radius: 50%; margin-top: -9px;
+  background: var(--rd-teal); border: 3px solid var(--rd-card);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.rd-pain-input::-moz-range-track { height: 8px; border-radius: 4px; background: var(--rd-input-border); }
+.rd-pain-input::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--rd-teal); }
+.rd-pain-input::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--rd-teal); border: 3px solid var(--rd-card);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+/* High pain recolours the fill and thumb, so 7+ is obvious without reading. */
+.rd-pain-slider.danger .rd-pain-input::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--rd-danger) var(--pain-pct, 0%), var(--rd-input-border) var(--pain-pct, 0%));
+}
+.rd-pain-slider.danger .rd-pain-input::-webkit-slider-thumb { background: var(--rd-danger); }
+.rd-pain-slider.danger .rd-pain-input::-moz-range-progress { background: var(--rd-danger); }
+.rd-pain-slider.danger .rd-pain-input::-moz-range-thumb { background: var(--rd-danger); }
+
+.rd-pain-anchors {
+  display: flex; justify-content: space-between;
+  font-size: calc(12px * var(--font-scale)); color: var(--rd-muted);
+}
 .rd-sheet-chips-label { font-size: calc(15px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); margin-bottom: 10px; }
 .rd-optional { font-weight: 400; color: var(--rd-muted); }
 .rd-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
@@ -7748,42 +7795,85 @@ body:has(#manualCamScreen.active) {
 .rd-rail { width: 210px; flex-shrink: 0; background: var(--rd-th-rail); display: flex; flex-direction: column; padding: 20px 12px; height: 100vh; height: 100dvh; overflow-y: auto; box-sizing: border-box; }
 .rd-rail-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 8px; margin-bottom: 16px; }
 .rd-rail-logo { width: 32px; height: 32px; border-radius: 8px; background: var(--rd-teal); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.rd-rail-wordmark { font-size: 18px; font-weight: 700; color: #fff; }
+.rd-rail-wordmark { font-size: calc(18px * var(--font-scale)); font-weight: 700; color: #fff; }
 .rd-rail-nav { display: flex; flex-direction: column; gap: 4px; }
-.rd-rail-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: none; color: rgba(255,255,255,0.72); font-family: var(--rd-font); font-weight: 700; font-size: 15px; border-radius: 10px; cursor: pointer; text-align: left; width: 100%; min-height: auto; }
+.rd-rail-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: none; background: none; color: rgba(255,255,255,0.72); font-family: var(--rd-font); font-weight: 700; font-size: calc(15px * var(--font-scale)); border-radius: 10px; cursor: pointer; text-align: left; width: 100%; min-height: auto; }
 .rd-rail-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .rd-rail-item.active { background: var(--rd-teal); color: #fff; }
 .rd-rail-item svg { flex-shrink: 0; }
-.rd-rail-badge, .therapist-scope .clinic-invite-badge { margin-left: auto; background: #F26D5B; color: #fff; font-size: 12px; font-weight: 700; min-width: 20px; height: 20px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
+.rd-rail-badge, .therapist-scope .clinic-invite-badge { margin-left: auto; background: #F26D5B; color: #fff; font-size: calc(12px * var(--font-scale)); font-weight: 700; min-width: 20px; height: 20px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
 .rd-rail-spacer { flex: 1; }
 .rd-rail-profile { display: flex; align-items: center; gap: 10px; padding: 10px 8px; margin-top: 6px; border: none; background: none; cursor: pointer; width: 100%; min-height: auto; }
 .rd-rail-profile:hover { background: rgba(255,255,255,0.06); border-radius: 10px; }
-.rd-rail-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--rd-teal); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.rd-rail-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--rd-teal); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(13px * var(--font-scale)); flex-shrink: 0; }
 .rd-rail-profile-info { display: flex; flex-direction: column; text-align: left; }
-.rd-rail-name { font-size: 14px; font-weight: 700; color: #fff; }
-.rd-rail-signout { font-size: 12px; color: rgba(255,255,255,0.6); }
+.rd-rail-name { font-size: calc(14px * var(--font-scale)); font-weight: 700; color: #fff; }
+.rd-rail-signout { font-size: calc(12px * var(--font-scale)); color: rgba(255,255,255,0.6); }
 /* Patient list column */
 .rd-plist { width: 300px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--rd-card-border); height: 100vh; box-sizing: border-box; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; }
 .rd-plist-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.rd-plist-title { font-size: 18px; font-weight: 700; color: var(--rd-ink); }
-.rd-plist-bulk { background: var(--rd-teal-tint); color: var(--rd-teal); border: none; border-radius: var(--rd-r-pill); padding: 7px 14px; font-family: var(--rd-font); font-weight: 700; font-size: 13px; cursor: pointer; min-height: auto; }
+.rd-plist-title { font-size: calc(18px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
+.rd-plist-refresh {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0;
+  border: none; border-radius: 8px; background: none;
+  color: var(--rd-text2); cursor: pointer;
+}
+.rd-plist-refresh:hover:not(:disabled) { background: var(--rd-teal-tint); color: var(--rd-teal); }
+.rd-plist-refresh:disabled { cursor: default; color: var(--rd-muted); }
+.rd-plist-refresh.is-spinning svg { animation: rd-spin 0.7s linear infinite; }
+@keyframes rd-spin { to { transform: rotate(360deg); } }
+/* Respect reduced-motion: keep the disabled state as the busy signal instead. */
+@media (prefers-reduced-motion: reduce) {
+  .rd-plist-refresh.is-spinning svg { animation: none; }
+  .rd-plist-refresh.is-spinning { opacity: 0.5; }
+}
+.rd-plist-bulk { background: var(--rd-teal-tint); color: var(--rd-teal); border: none; border-radius: var(--rd-r-pill); padding: 7px 14px; font-family: var(--rd-font); font-weight: 700; font-size: calc(13px * var(--font-scale)); cursor: pointer; min-height: auto; }
 .rd-plist-search { display: flex; align-items: center; gap: 8px; background: var(--rd-paper); border: 1px solid var(--rd-card-border); border-radius: 10px; padding: 0 12px; margin-bottom: 12px; color: var(--rd-muted); }
-.rd-plist-search input { flex: 1; border: none; background: none; min-height: 42px; font-family: var(--rd-font); font-size: 15px; color: var(--rd-ink); outline: none; }
-.rd-plist-invite { display: flex; align-items: center; gap: 8px; width: 100%; background: var(--rd-paper); border: 1px dashed var(--rd-input-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 18px; cursor: pointer; font-family: var(--rd-font); color: var(--rd-text2); min-height: auto; }
-.rd-plist-invite-lbl { font-size: 13px; }
-.rd-plist-invite-code { font-size: 14px; font-weight: 700; color: var(--rd-ink); letter-spacing: 1px; }
-.rd-plist-invite svg { margin-left: auto; }
+.rd-plist-search input { flex: 1; border: none; background: none; min-height: 42px; font-family: var(--rd-font); font-size: calc(15px * var(--font-scale)); color: var(--rd-ink); outline: none; }
+/* The invite code is the one string a therapist reads aloud or copies down for a
+   patient, so it is the hero of this box rather than a 14px afterthought beside
+   its label. Monospaced + wide tracking so 0/O and 1/I can't be confused. */
+.rd-plist-invite { display: flex; align-items: center; gap: 12px; width: 100%; background: var(--rd-teal-tint); border: 1px dashed var(--rd-teal); border-radius: 12px; padding: 12px 14px; margin-bottom: 18px; cursor: pointer; font-family: var(--rd-font); color: var(--rd-teal); min-height: auto; text-align: left; }
+.rd-plist-invite:hover { background: var(--rd-teal); color: #fff; }
+.rd-plist-invite:hover .rd-plist-invite-code { color: #fff; }
+.rd-plist-invite-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rd-plist-invite-lbl { font-size: calc(12px * var(--font-scale)); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.rd-plist-invite-code {
+  font-size: calc(26px * var(--font-scale)); font-weight: 800; color: var(--rd-ink);
+  letter-spacing: 0.14em; line-height: 1.15;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.rd-plist-invite svg { margin-left: auto; flex-shrink: 0; }
+/* A join request awaiting a decision. Visibly not a patient row — no hover, no
+   pointer, because there is no chart behind it to open yet. */
+.rd-plist-pending {
+  display: flex; align-items: center; gap: 10px; padding: 10px;
+  border: 1px solid var(--rd-input-border); border-radius: 10px;
+  background: var(--rd-paper); margin-bottom: 6px; flex-wrap: wrap;
+}
+.rd-plist-pending-actions { display: flex; gap: 6px; margin-left: auto; }
+.rd-plist-approve, .rd-plist-decline {
+  border-radius: 8px; padding: 7px 12px; cursor: pointer; min-height: auto;
+  font-family: var(--rd-font); font-weight: 700;
+  font-size: calc(13px * var(--font-scale)); border: 1px solid transparent;
+}
+.rd-plist-approve { background: var(--rd-teal); color: #fff; }
+.rd-plist-decline { background: none; color: var(--rd-text2); border-color: var(--rd-input-border); }
+.rd-plist-approve:disabled, .rd-plist-decline:disabled { opacity: 0.5; cursor: default; }
+
 .rd-plist-rows { display: flex; flex-direction: column; gap: 4px; }
-.rd-plist-group { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rd-muted); margin: 14px 4px 6px; }
+.rd-plist-group { font-size: calc(12px * var(--font-scale)); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rd-muted); margin: 14px 4px 6px; }
 .rd-plist-rows .patient-row { display: flex; align-items: center; gap: 10px; padding: 10px; border: none; background: none; border-radius: 10px; cursor: pointer; width: 100%; text-align: left; font-family: var(--rd-font); min-height: auto; }
 .rd-plist-rows .patient-row:hover { background: var(--rd-paper); }
 .rd-plist-rows .patient-row--active { background: var(--rd-teal-tint); }
-.rd-plist-rows .patient-row-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.rd-plist-rows .patient-row-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(13px * var(--font-scale)); flex-shrink: 0; }
 /* meta must flex + min-width:0 or a long patient name pushes the status dots
    out of the row and the ellipsis below can never trigger. */
 .rd-plist-rows .patient-row-meta { flex: 1; min-width: 0; }
-.rd-plist-rows .patient-row-name { font-size: 15px; font-weight: 700; color: var(--rd-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rd-plist-rows .patient-row-sub { font-size: 13px; color: var(--rd-text2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-plist-rows .patient-row-name { font-size: calc(15px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-plist-rows .patient-row-sub { font-size: calc(13px * var(--font-scale)); color: var(--rd-text2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* no margin-left:auto — .patient-row-meta{flex:1} already pushes these right.
    With auto on BOTH dots the free space split between them, so a patient who is
    both flagged AND unread (e.g. Maria) rendered her two dots far apart. */
@@ -7793,7 +7883,7 @@ body:has(#manualCamScreen.active) {
 .rd-plist-rows .pr-ok { color: var(--rd-text2); }
 .rd-plist-rows .patient-row-review-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rd-danger); flex-shrink: 0; }
 .rd-plist-rows .patient-row--review .patient-row-avatar { background: #FBE8DE; color: var(--rd-danger); }
-.rd-plist-rows .no-patients, .rd-plist-rows .no-patients-match { padding: 16px; color: var(--rd-text2); font-size: 14px; text-align: center; }
+.rd-plist-rows .no-patients, .rd-plist-rows .no-patients-match { padding: 16px; color: var(--rd-text2); font-size: calc(14px * var(--font-scale)); text-align: center; }
 /* D-2 review button in detail header */
 .patient-detail .tp-btn-review { background: var(--rd-danger); border-color: var(--rd-danger); color: #fff; }
 .patient-detail .tp-btn-review:hover { background: #9A3C0A; border-color: #9A3C0A; }
@@ -7801,28 +7891,28 @@ body:has(#manualCamScreen.active) {
 .rd-review-overlay { position: fixed; inset: 0; background: var(--rd-scrim); z-index: 1400; display: flex; align-items: center; justify-content: center; padding: 20px; font-family: var(--rd-font); }
 .rd-review-box { background: var(--rd-card); border-radius: var(--rd-r-card); width: 100%; max-width: 520px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 64px rgba(31,41,51,0.28); }
 .rd-review-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--rd-divider); }
-.rd-review-title { font-size: 18px; font-weight: 700; color: var(--rd-ink); }
-.rd-review-close { background: none; border: none; font-size: 24px; line-height: 1; color: var(--rd-muted); cursor: pointer; padding: 0 4px; min-height: auto; }
+.rd-review-title { font-size: calc(18px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
+.rd-review-close { background: none; border: none; font-size: calc(24px * var(--font-scale)); line-height: 1; color: var(--rd-muted); cursor: pointer; padding: 0 4px; min-height: auto; }
 .rd-review-list { overflow-y: auto; padding: 8px 22px; }
 .rd-review-item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--rd-divider); }
 .rd-review-item:last-child { border-bottom: none; }
 .rd-review-item-main { flex: 1; }
-.rd-review-item-when { font-size: 15px; font-weight: 700; color: var(--rd-ink); }
-.rd-review-item-pain { font-size: 13px; color: var(--rd-danger); font-weight: 700; margin-top: 2px; }
+.rd-review-item-when { font-size: calc(15px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
+.rd-review-item-pain { font-size: calc(13px * var(--font-scale)); color: var(--rd-danger); font-weight: 700; margin-top: 2px; }
 .rd-review-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.rd-review-flag, .rd-review-done { font-family: var(--rd-font); font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 10px; cursor: pointer; min-height: auto; border: 1px solid var(--rd-card-border); }
+.rd-review-flag, .rd-review-done { font-family: var(--rd-font); font-weight: 700; font-size: calc(13px * var(--font-scale)); padding: 8px 12px; border-radius: 10px; cursor: pointer; min-height: auto; border: 1px solid var(--rd-card-border); }
 .rd-review-flag { background: #fff; color: var(--rd-text2); }
 .rd-review-flag.active { background: var(--rd-warn-fill); color: var(--rd-warn-text); border-color: var(--rd-warn-border); }
 .rd-review-done { background: var(--rd-teal); color: #fff; border-color: var(--rd-teal); }
 .rd-review-done:hover { background: var(--rd-teal-hover); }
-.rd-review-empty { padding: 28px 12px; text-align: center; color: var(--rd-text2); font-size: 15px; }
+.rd-review-empty { padding: 28px 12px; text-align: center; color: var(--rd-text2); font-size: calc(15px * var(--font-scale)); }
 .rd-review-footer { padding: 14px 22px; border-top: 1px solid var(--rd-divider); }
-.rd-review-alldone { width: 100%; background: var(--rd-teal-tint); color: var(--rd-teal); border: none; border-radius: 12px; font-family: var(--rd-font); font-weight: 700; font-size: 15px; padding: 12px; cursor: pointer; min-height: auto; }
+.rd-review-alldone { width: 100%; background: var(--rd-teal-tint); color: var(--rd-teal); border: none; border-radius: 12px; font-family: var(--rd-font); font-weight: 700; font-size: calc(15px * var(--font-scale)); padding: 12px; cursor: pointer; min-height: auto; }
 .rd-review-alldone:hover { background: #D5EAE6; }
 /* Type-to-confirm gate (3i) */
 .confirm-type-gate { margin: 14px 0 4px; text-align: left; }
-.confirm-type-label { display: block; font-family: var(--rd-font); font-size: 13px; font-weight: 700; color: var(--rd-text2); margin-bottom: 6px; }
-.confirm-type-input { width: 100%; box-sizing: border-box; font-family: var(--rd-font); font-size: 16px; color: var(--rd-ink); padding: 11px 14px; border: 1px solid var(--rd-input-border); border-radius: var(--rd-r-input); background: var(--rd-canvas); outline: none; }
+.confirm-type-label { display: block; font-family: var(--rd-font); font-size: calc(13px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); margin-bottom: 6px; }
+.confirm-type-input { width: 100%; box-sizing: border-box; font-family: var(--rd-font); font-size: calc(16px * var(--font-scale)); color: var(--rd-ink); padding: 11px 14px; border: 1px solid var(--rd-input-border); border-radius: var(--rd-r-input); background: var(--rd-canvas); outline: none; }
 .confirm-type-input:focus { border-color: var(--rd-danger); box-shadow: 0 0 0 3px rgba(180,71,12,0.12); }
 #confirmModalOk.is-disabled { opacity: 0.45; cursor: not-allowed; }
 
@@ -7873,31 +7963,31 @@ body:has(#manualCamScreen.active) {
 /* ═══ THERAPIST MESSAGES INBOX + THREAD (main panel) ═══ */
 .th-inbox { height: 100vh; display: flex; flex-direction: column; font-family: var(--rd-font); }
 .th-inbox-header { flex-shrink: 0; padding: 28px 32px 16px; border-bottom: 1px solid var(--rd-divider); }
-.th-inbox-title { font-size: 24px; font-weight: 700; color: var(--rd-ink); margin: 0; }
+.th-inbox-title { font-size: calc(24px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); margin: 0; }
 .th-inbox-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 24px; }
-.th-inbox-empty { padding: 40px 20px; text-align: center; color: var(--rd-text2); font-size: 15px; }
+.th-inbox-empty { padding: 40px 20px; text-align: center; color: var(--rd-text2); font-size: calc(15px * var(--font-scale)); }
 .th-inbox-row { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: none; border: none; border-radius: 12px; padding: 14px 16px; cursor: pointer; font-family: var(--rd-font); min-height: auto; }
 .th-inbox-row:hover { background: var(--rd-paper); }
-.th-inbox-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+.th-inbox-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(15px * var(--font-scale)); flex-shrink: 0; }
 .th-inbox-meta { flex: 1; min-width: 0; }
 .th-inbox-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.th-inbox-name { font-size: 16px; font-weight: 700; color: var(--rd-ink); }
-.th-inbox-time { font-size: 13px; color: var(--rd-muted); flex-shrink: 0; }
-.th-inbox-preview { font-size: 14px; color: var(--rd-text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-inbox-name { font-size: calc(16px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
+.th-inbox-time { font-size: calc(13px * var(--font-scale)); color: var(--rd-muted); flex-shrink: 0; }
+.th-inbox-preview { font-size: calc(14px * var(--font-scale)); color: var(--rd-text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .th-inbox-row.unread .th-inbox-name, .th-inbox-row.unread .th-inbox-preview { color: var(--rd-ink); font-weight: 700; }
-.th-inbox-badge { flex-shrink: 0; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--rd-teal); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.th-inbox-badge { flex-shrink: 0; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--rd-teal); color: #fff; font-size: calc(12px * var(--font-scale)); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 /* Thread view */
 .th-thread { height: 100vh; display: flex; flex-direction: column; font-family: var(--rd-font); --accent: var(--rd-teal); }
 .th-thread-header { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--rd-card-border); background: var(--rd-card); }
 .th-thread-back { background: none; border: none; color: var(--rd-ink); cursor: pointer; display: flex; padding: 4px; min-height: auto; }
 .th-thread-back:hover { color: var(--rd-teal); }
-.th-thread-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
-.th-thread-name { font-size: 18px; font-weight: 700; color: var(--rd-ink); flex: 1; }
-.th-thread-open { background: #fff; border: 1px solid var(--rd-card-border); color: var(--rd-ink); font-family: var(--rd-font); font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 10px; cursor: pointer; min-height: auto; }
+.th-thread-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(14px * var(--font-scale)); flex-shrink: 0; }
+.th-thread-name { font-size: calc(18px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); flex: 1; }
+.th-thread-open { background: #fff; border: 1px solid var(--rd-card-border); color: var(--rd-ink); font-family: var(--rd-font); font-weight: 700; font-size: calc(13px * var(--font-scale)); padding: 8px 14px; border-radius: 10px; cursor: pointer; min-height: auto; }
 .th-thread-open:hover { background: var(--rd-paper); }
 .th-thread-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 24px; display: flex; flex-direction: column; gap: 6px; background: var(--rd-canvas); }
 .th-thread-composer { flex-shrink: 0; display: flex; gap: 10px; align-items: center; padding: 14px 24px; border-top: 1px solid var(--rd-card-border); background: var(--rd-card); }
-.th-thread-input { flex: 1; min-height: 46px; padding: 0 16px; background: var(--rd-paper); border: 1px solid var(--rd-input-border); border-radius: var(--rd-r-pill); font-family: var(--rd-font); font-size: 15px; color: var(--rd-ink); outline: none; }
+.th-thread-input { flex: 1; min-height: 46px; padding: 0 16px; background: var(--rd-paper); border: 1px solid var(--rd-input-border); border-radius: var(--rd-r-pill); font-family: var(--rd-font); font-size: calc(15px * var(--font-scale)); color: var(--rd-ink); outline: none; }
 .th-thread-input:focus { border-color: var(--rd-teal); }
 .th-thread-send { width: 46px; height: 46px; border-radius: 50%; background: var(--rd-teal); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
 .th-thread-send:hover { background: var(--rd-teal-hover); }
@@ -7915,21 +8005,21 @@ body:has(#manualCamScreen.active) {
   --font-mono: var(--rd-font);
 }
 .patient-detail .tp-colsec { border-radius: var(--rd-r-card); box-shadow: none; }
-.patient-detail .tp-colsec-title { font-weight: 700; font-size: 15px; }
+.patient-detail .tp-colsec-title { font-weight: 700; font-size: calc(15px * var(--font-scale)); }
 .patient-detail .therapist-msg-send { background: var(--rd-teal); }
 .patient-detail .therapist-msg-send:hover { background: var(--rd-teal-hover); }
 .patient-detail .msg-bubble-out { background: var(--rd-teal); }
 .patient-detail .cn-tb-btn:hover { color: var(--rd-teal); }
 .patient-detail .pd-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
-.patient-detail .pd-avatar { width: 48px; height: 48px; border-radius: 12px; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-family: var(--rd-font); font-size: 16px; font-weight: 700; flex-shrink: 0; }
+.patient-detail .pd-avatar { width: 48px; height: 48px; border-radius: 12px; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-family: var(--rd-font); font-size: calc(16px * var(--font-scale)); font-weight: 700; flex-shrink: 0; }
 .patient-detail .pd-header-meta { flex: 1; }
-.patient-detail .pd-name { font-size: 24px; font-weight: 700; color: var(--rd-ink); margin: 0 0 3px; }
-.patient-detail .pd-sub { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--rd-text2); }
+.patient-detail .pd-name { font-size: calc(24px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); margin: 0 0 3px; }
+.patient-detail .pd-sub { display: flex; align-items: center; gap: 8px; font-size: calc(14px * var(--font-scale)); color: var(--rd-text2); }
 .patient-detail .pd-dot { color: var(--rd-muted); }
 .patient-detail .pd-demographics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.patient-detail .pd-demo-tag { background: var(--rd-paper); border: 1px solid var(--rd-card-border); color: var(--rd-text2); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: var(--rd-r-pill); }
+.patient-detail .pd-demo-tag { background: var(--rd-paper); border: 1px solid var(--rd-card-border); color: var(--rd-text2); font-size: calc(12px * var(--font-scale)); font-weight: 700; padding: 3px 10px; border-radius: var(--rd-r-pill); }
 .patient-detail .pd-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.patient-detail .tp-btn { background: #fff; border: 1px solid var(--rd-card-border); color: var(--rd-ink); font-family: var(--rd-font); font-weight: 700; font-size: 14px; padding: 9px 16px; border-radius: 10px; cursor: pointer; min-height: auto; }
+.patient-detail .tp-btn { background: #fff; border: 1px solid var(--rd-card-border); color: var(--rd-ink); font-family: var(--rd-font); font-weight: 700; font-size: calc(14px * var(--font-scale)); padding: 9px 16px; border-radius: 10px; cursor: pointer; min-height: auto; }
 .patient-detail .tp-btn:hover { background: var(--rd-paper); }
 .patient-detail .tp-btn-primary { background: var(--rd-teal); border-color: var(--rd-teal); color: #fff; }
 .patient-detail .tp-btn-primary:hover { background: var(--rd-teal-hover); }
@@ -7937,37 +8027,37 @@ body:has(#manualCamScreen.active) {
 /* All four tiles now hold the same content (label + value), so top-aligning keeps
    every heading on the same line and the boxes hug their content — no dead space. */
 .patient-detail .pd-vital { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); padding: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 8px; }
-.patient-detail .pd-vital-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rd-text2); }
-.patient-detail .pd-vital-value { font-size: 32px; font-weight: 700; color: var(--rd-ink); line-height: 1.05; }
-.patient-detail .pd-vital-unit { font-size: 15px; font-weight: 700; color: var(--rd-muted); }
-.patient-detail .pd-vital-delta { font-size: 12px; font-weight: 700; }
+.patient-detail .pd-vital-label { font-size: calc(11px * var(--font-scale)); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--rd-text2); }
+.patient-detail .pd-vital-value { font-size: calc(32px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); line-height: 1.05; }
+.patient-detail .pd-vital-unit { font-size: calc(15px * var(--font-scale)); font-weight: 700; color: var(--rd-muted); }
+.patient-detail .pd-vital-delta { font-size: calc(12px * var(--font-scale)); font-weight: 700; }
 /* Pulled out of the ADHERENCE tile (so the four vitals stay equal height) into a
    calm, full-width strip below the row — reads as a quiet caption, not a 4th column. */
 .patient-detail .pd-adh-breakdown { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 22px; padding: 12px 16px; background: var(--rd-paper); border-radius: var(--rd-r-card); }
 /* gap + truncation: without them a long exercise name butts straight against
    its status ("Just started") because space-between leaves zero separation. */
-.patient-detail .pd-adh-row { display: flex; gap: 6px; font-size: 12px; align-items: baseline; }
+.patient-detail .pd-adh-row { display: flex; gap: 6px; font-size: calc(12px * var(--font-scale)); align-items: baseline; }
 .patient-detail .pd-adh-name { color: var(--rd-text2); }
 .patient-detail .pd-adh-detail { color: var(--rd-muted); font-weight: 700; white-space: nowrap; }
 .patient-detail .pd-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
 .patient-detail .pd-card { background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); padding: 18px 20px; }
 .patient-detail .pd-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.patient-detail .pd-card-header h2 { font-size: 16px; font-weight: 700; color: var(--rd-ink); margin: 0; }
-.patient-detail .pd-card-link { background: none; border: none; color: var(--rd-teal); font-family: var(--rd-font); font-weight: 700; font-size: 15px; cursor: pointer; padding: 0; min-height: auto; }
+.patient-detail .pd-card-header h2 { font-size: calc(16px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); margin: 0; }
+.patient-detail .pd-card-link { background: none; border: none; color: var(--rd-teal); font-family: var(--rd-font); font-weight: 700; font-size: calc(15px * var(--font-scale)); cursor: pointer; padding: 0; min-height: auto; }
 .patient-detail .pd-protocol-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .patient-detail .pd-protocol-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--rd-divider); }
 .patient-detail .pd-protocol-row:last-child { border-bottom: none; }
-.patient-detail .pd-protocol-name { font-size: 15px; font-weight: 700; color: var(--rd-ink); }
-.patient-detail .pd-protocol-params { font-size: 13px; color: var(--rd-text2); }
+.patient-detail .pd-protocol-name { font-size: calc(15px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
+.patient-detail .pd-protocol-params { font-size: calc(13px * var(--font-scale)); color: var(--rd-text2); }
 .patient-detail .pd-protocol-meta { flex: 1; min-width: 0; }
-.patient-detail .pd-protocol-dose { font-size: 14px; font-weight: 700; color: var(--rd-text2); white-space: nowrap; }
+.patient-detail .pd-protocol-dose { font-size: calc(14px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); white-space: nowrap; }
 .patient-detail .pd-protocol-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.patient-detail .pd-row-btn { font-family: var(--rd-font); font-weight: 700; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--rd-card-border); background: #fff; color: var(--rd-ink); cursor: pointer; min-height: auto; }
+.patient-detail .pd-row-btn { font-family: var(--rd-font); font-weight: 700; font-size: calc(13px * var(--font-scale)); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--rd-card-border); background: #fff; color: var(--rd-ink); cursor: pointer; min-height: auto; }
 .patient-detail .pd-row-btn:hover { background: var(--rd-paper); }
 .patient-detail .pd-row-btn-danger { color: var(--rd-danger); border-color: transparent; }
 .patient-detail .pd-row-btn-danger:hover { background: #FBE8DE; }
 .patient-detail .pain-range-toggle { display: inline-flex; background: var(--rd-paper); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-pill); padding: 2px; gap: 2px; }
-.patient-detail .pain-range-btn { background: none; border: none; font-family: var(--rd-font); font-weight: 700; font-size: 12px; color: var(--rd-text2); padding: 5px 12px; border-radius: var(--rd-r-pill); cursor: pointer; min-height: auto; }
+.patient-detail .pain-range-btn { background: none; border: none; font-family: var(--rd-font); font-weight: 700; font-size: calc(12px * var(--font-scale)); color: var(--rd-text2); padding: 5px 12px; border-radius: var(--rd-r-pill); cursor: pointer; min-height: auto; }
 .patient-detail .pain-range-btn.active { background: #fff; color: var(--rd-teal); box-shadow: 0 1px 2px rgba(31,41,51,0.08); }
 .patient-detail .pd-chart-wrap { height: 200px; position: relative; }
 @media (max-width: 1100px) { .patient-detail .pd-columns { grid-template-columns: 1fr; } .patient-detail .pd-vitals { grid-template-columns: repeat(2, 1fr); } }

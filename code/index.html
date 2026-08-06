@@ -347,16 +347,27 @@
       </div>
       <h1 class="rd-auth-title" data-i18n="connect.title">Connect to a Therapist</h1>
       <p class="rd-auth-sub" data-i18n="connect.sub">Enter your clinic code to get started</p>
-      <div class="rd-field">
-        <div class="rd-field-labelrow"><label class="rd-label" for="connectCode" data-i18n="connect.clinicCode">Clinic Code</label></div>
-        <input type="text" id="connectCode" class="rd-code-input" placeholder="------" maxlength="6"
-               oninput="this.value=this.value.toUpperCase()"
-               onkeydown="if(event.key==='Enter') handleConnect()" />
+      <div id="connectForm">
+        <div class="rd-field">
+          <div class="rd-field-labelrow"><label class="rd-label" for="connectCode" data-i18n="connect.clinicCode">Clinic Code</label></div>
+          <input type="text" id="connectCode" class="rd-code-input" placeholder="------" maxlength="6"
+                 oninput="this.value=this.value.toUpperCase()"
+                 onkeydown="if(event.key==='Enter') handleConnect()" />
+        </div>
+        <div id="connectError" class="rd-auth-error" style="display:none" aria-live="polite"></div>
+        <div id="connectSuccess" class="rd-auth-success" style="display:none" aria-live="polite"></div>
+        <div id="connectDeclined" class="rd-auth-error" style="display:none" aria-live="polite" data-i18n="connect.declined">Your last request wasn't accepted. Check the code with your therapist and try again.</div>
+        <div class="rd-info-card" data-i18n="connect.help">Your therapist or clinic gives you this 6-character code. Don't have one yet? You can skip and add it later.</div>
+        <button class="rd-btn-primary rd-mt" onclick="handleConnect()" data-i18n="connect.connect">Connect</button>
       </div>
-      <div id="connectError" class="rd-auth-error" style="display:none" aria-live="polite"></div>
-      <div id="connectSuccess" class="rd-auth-success" style="display:none" aria-live="polite"></div>
-      <div class="rd-info-card" data-i18n="connect.help">Your therapist or clinic gives you this 6-character code. Don't have one yet? You can skip and add it later.</div>
-      <button class="rd-btn-primary rd-mt" onclick="handleConnect()" data-i18n="connect.connect">Connect</button>
+      <div id="connectPending" style="display:none" aria-live="polite">
+        <div class="rd-info-card">
+          <strong data-i18n="connect.pendingTitle">Request sent</strong><br/>
+          <span data-i18n="connect.pendingBody">Waiting for</span>
+          <span id="connectPendingWho"></span>
+          <span data-i18n="connect.pendingBody2">to accept you. You'll get your exercises once they do.</span>
+        </div>
+      </div>
       <button class="rd-btn-outline rd-mt" onclick="skipConnect()" data-i18n="connect.skip">Skip for now</button>
     </div>
   </div>
@@ -613,8 +624,19 @@
     </div>
 
     <div class="rd-sheet-card">
-      <div class="rd-sheet-label" data-i18n="si.howMuchHurt">How much did it hurt?</div>
-      <div id="siPainButtons" class="rd-pain-btns"></div>
+      <div class="rd-pain-head">
+        <span class="rd-sheet-label" data-i18n="si.howMuchHurt">How much did it hurt?</span>
+        <span class="rd-pain-chip" id="siPainChip"><b id="siPainNum">0</b><span id="siPainWord">Not at all</span></span>
+      </div>
+      <div id="siPainButtons" class="rd-pain-slider">
+        <input type="range" id="siPainRange" class="rd-pain-input" min="0" max="10" step="1" value="0"
+               oninput="siSelectPain(this.value)" aria-label="Pain level, 0 to 10">
+        <div class="rd-pain-ticks" aria-hidden="true"></div>
+      </div>
+      <div class="rd-pain-anchors">
+        <span data-i18n="si.painNone">No pain</span>
+        <span data-i18n="si.painWorst">Worst pain</span>
+      </div>
       <span id="setInputPainVal" hidden></span><span id="siPainSeverity" hidden></span>
     </div>
 
@@ -701,14 +723,19 @@
   <div class="rd-plist">
     <div class="rd-plist-header">
       <span class="rd-plist-title" data-i18n="th.patients">Patients</span>
+      <button class="rd-plist-refresh" id="thRefreshBtn" onclick="refreshPatientList()" aria-label="Refresh patient list" title="Refresh">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
     </div>
     <div class="rd-plist-search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="patientSearch" aria-label="Search patients" placeholder="Search patients" oninput="filterPatients(this.value)" />
     </div>
     <button class="rd-plist-invite" onclick="copyClinicCode()" aria-label="Copy invite code">
-      <span class="rd-plist-invite-lbl">Invite code:</span>
-      <span class="rd-plist-invite-code" id="therapistCode">------</span>
+      <span class="rd-plist-invite-text">
+        <span class="rd-plist-invite-lbl">Invite code</span>
+        <span class="rd-plist-invite-code" id="therapistCode">------</span>
+      </span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
     </button>
     <div id="patientRows" class="rd-plist-rows"></div>
