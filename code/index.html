@@ -37,7 +37,17 @@
 <!-- ═══════════════════════════════════════════════════════
      LOGIN
 ═══════════════════════════════════════════════════════ -->
-<div id="loginScreen" class="screen active patient-scope">
+<!-- Boot splash. Holds the frame until Firebase resolves the auth state, so a
+     refresh no longer flashes the login screen at an already-signed-in user.
+     Any showScreen() call clears it; a safety timer in app.js falls back to
+     login if auth never resolves, so this can't strand anyone. -->
+<div id="bootScreen" class="screen active patient-scope">
+  <div class="boot-splash">
+    <img src="/motus-mark.png" alt="" width="56" height="56" />
+  </div>
+</div>
+
+<div id="loginScreen" class="screen patient-scope">
   <div class="rd-auth">
     <div class="rd-auth-inner">
       <div class="rd-logo-lozenge">

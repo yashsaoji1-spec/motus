@@ -1070,6 +1070,17 @@ db.enablePersistence({ synchronizeTabs: true }).catch(err => {
 });
 
 // Restore session on page reload and route on sign-in / sign-out
+// Safety net for the boot splash: if auth never resolves (offline, blocked
+// third-party storage, a thrown init), fall back to login rather than leaving
+// someone staring at a logo forever. A stuck splash is worse than a flash.
+setTimeout(() => {
+  const boot = document.getElementById('bootScreen');
+  if (boot && boot.classList.contains('active')) {
+    console.warn('[Motus] auth did not resolve in time — falling back to login');
+    showScreen('loginScreen');
+  }
+}, 6000);
+
 auth.onAuthStateChanged(async (firebaseUser) => {
   if (AUTH_ACTION) return;              // branded email-action handler owns the screen
   if (_resendingVerification) return;  // resendVerification() manages its own session
@@ -1303,8 +1314,33 @@ const screenTitles = {
 
 const AUTH_SCREENS = new Set(['loginScreen', 'signupScreen', 'forgotScreen', 'authActionScreen', 'roleScreen', 'connectScreen', 'pendingScreen', 'consentScreen']);
 
+// ── In-app history ───────────────────────────────────────────────────────────
+// The browser Back button used to leave the site entirely, because screen
+// changes were pure class toggles with no history entries. We push an entry per
+// screen so Back walks back through the app instead.
+//
+// The URL is deliberately left unchanged: Firebase Hosting has no SPA catch-all
+// rewrite (only /demo, /privacy, /tos, /auth/action), so inventing paths here
+// would 404 on refresh. pushState with the current href gives us the history
+// entry without touching the address bar.
+let _navFromPopstate = false;
+let _navPushedFirst = false;
+
+window.addEventListener('popstate', (e) => {
+  const target = e.state && e.state.motusScreen;
+  if (!target || !document.getElementById(target)) return;
+  _navFromPopstate = true;
+  try { showScreen(target); } finally { _navFromPopstate = false; }
+});
+
 function showScreen(screenId) {
   closeSidebar();
+  // Record the screen in browser history unless we're *responding* to Back.
+  if (!_navFromPopstate) {
+    const entry = { motusScreen: screenId };
+    if (_navPushedFirst) history.pushState(entry, '', location.href);
+    else { history.replaceState(entry, '', location.href); _navPushedFirst = true; }
+  }
   const prevActive = document.querySelector('.screen.active');
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const next = document.getElementById(screenId);
@@ -2735,18 +2771,35 @@ async function updatePatientHomeScreen() {
             : t('home.repsSetsShort', { reps: p.reps || 10, sets: target });
         const check = done ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '';
         const chevron = done ? '' : '<svg class="rd-plan-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-        return `<li class="rd-plan-item${done ? ' done' : ''}" tabindex="0" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"><div class="rd-plan-check${done ? ' done' : ''}">${check}</div><div class="rd-plan-item-body"><div class="rd-plan-item-name">${escapeHtml(name)}</div><div class="rd-plan-item-sub">${sub}</div></div>${chevron}</li>`;
+        // A finished exercise is inert: no click, no keyboard target, no chevron.
+        // Doing extra sets isn't "bonus effort" — it's off-prescription, and the
+        // therapist's dosage is the point.
+        const openAttrs = done
+          ? 'aria-disabled="true"'
+          : `tabindex="0" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"`;
+        return `<li class="rd-plan-item${done ? ' done is-locked' : ''}" ${openAttrs}><div class="rd-plan-check${done ? ' done' : ''}">${check}</div><div class="rd-plan-item-body"><div class="rd-plan-item-name">${escapeHtml(name)}</div><div class="rd-plan-item-sub">${sub}</div></div>${chevron}</li>`;
       }).join('');
       const _doneCount = protocols.filter(p => setsDoneFor(p) >= (p.sets || 3)).length;
       const _planDoneEl = document.getElementById('ptPlanDone');
       if (_planDoneEl) _planDoneEl.textContent = t('home.nOfMDone', { done: _doneCount, total: protocols.length });
       // The CTA was hardcoded to "Continue Session" and read that way even at 0 of 3.
       // Set data-i18n too, so a later applyTranslations() doesn't revert the label.
+      const _allDone = protocols.length > 0 && _doneCount === protocols.length;
       const _ctaSpan = document.querySelector('#ptStartSessionBtn span[data-i18n]');
       if (_ctaSpan) {
         const _ctaKey = _doneCount > 0 ? 'home.continueSession' : 'home.startSession';
         _ctaSpan.setAttribute('data-i18n', _ctaKey);
-        _ctaSpan.textContent = t(_ctaKey);
+        // Plain text, not an i18n key — this state has no translation entry and
+        // a missing key would render as "home.allDoneToday" on screen.
+        _ctaSpan.textContent = _allDone ? 'All done for today' : t(_ctaKey);
+      }
+      // Everything prescribed is logged: close the door to the session flow
+      // rather than leaving a live button that starts an off-plan set.
+      const _startBtn = document.getElementById('ptStartSessionBtn');
+      if (_startBtn) {
+        _startBtn.disabled = _allDone;
+        _startBtn.classList.toggle('is-done', _allDone);
+        _startBtn.setAttribute('aria-disabled', _allDone ? 'true' : 'false');
       }
     } else {
       planList.innerHTML = `<li class="rd-plan-empty">${t('home.noExercisesYet')}</li>`;
@@ -2905,7 +2958,38 @@ async function startSessionByIndex(i) {
   await startSessionWithProtocol(_exercisesProtocols[i]);
 }
 
+// Sets logged today against a given protocol. Same matching rule as the home
+// screen: protocolId when present, exerciseType for older docs.
+async function setsLoggedTodayFor(protocol) {
+  if (!protocol || !currentUser) return 0;
+  try {
+    const snap = await db.collection('sessions').where('patientEmail', '==', currentUser.email).get();
+    const today = new Date().toDateString();
+    return snap.docs.reduce((n, d) => {
+      const s = d.data();
+      if (new Date(s.date).toDateString() !== today) return n;
+      const match = (s.protocolId && protocol.id && s.protocolId === protocol.id) ||
+                    (!s.protocolId && s.exerciseType === protocol.exerciseType);
+      if (!match) return n;
+      return n + ((s.setData && s.setData.length) ? s.setData.length : 1);
+    }, 0);
+  } catch (e) {
+    console.warn('[Motus] set-count check failed:', e);
+    return 0;   // fail open — never block a patient because a read failed
+  }
+}
+
 async function startSessionWithProtocol(protocol) {
+  // Enforce the prescription. Disabling the buttons is presentation; this is the
+  // part that actually holds if a stale screen or a keyboard path gets through.
+  const target = protocol && (protocol.sets || 3);
+  const alreadyDone = await setsLoggedTodayFor(protocol);
+  if (target && alreadyDone >= target) {
+    showNotice(`You've finished all ${target} sets of this exercise today. Rest is part of the plan — come back tomorrow.`);
+    await updatePatientHomeScreen();
+    showScreen('patientScreen');
+    return;
+  }
   selectedProtocol = protocol;
   if (!ANGLE_TRACKING_ENABLED) {
     // Always show demo overlay if demo video exists

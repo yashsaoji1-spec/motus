@@ -184,6 +184,16 @@ body {
 
 .screen { display: none; width: 100%; max-width: 100%; overflow-x: hidden; }
 .screen.active { display: flex; flex-direction: column; }
+/* Boot splash — deliberately plain. It should read as the app still loading,
+   not as a screen the user has arrived at. */
+#bootScreen .boot-splash {
+  flex: 1; min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--rd-paper, #F6F4EF);
+}
+#bootScreen .boot-splash img { border-radius: 12px; opacity: 0.9; animation: bootPulse 1.4s ease-in-out infinite; }
+@keyframes bootPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.95; } }
+@media (prefers-reduced-motion: reduce) { #bootScreen .boot-splash img { animation: none; } }
 
 /* ── Auth screens ─────────────────────────────────────────────────────────── */
 #loginScreen, #signupScreen, #forgotScreen, #consentScreen, #connectScreen,
@@ -7390,6 +7400,11 @@ body:has(#manualCamScreen.active) {
 .rd-plan-item-body { flex: 1; min-width: 0; }
 .rd-plan-item-name { font-size: calc(16px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
 .rd-plan-item.done .rd-plan-item-name { color: var(--rd-muted); text-decoration: line-through; }
+/* A finished exercise reads as finished and stops behaving like a button —
+   no pointer, no hover lift, no press state. */
+.rd-plan-item.is-locked { cursor: default; opacity: 0.55; }
+.rd-plan-item.is-locked:hover,
+.rd-plan-item.is-locked:active { background: transparent; transform: none; box-shadow: none; }
 .rd-plan-item-sub { font-size: calc(14px * var(--font-scale)); color: var(--rd-text2); margin-top: 1px; }
 .rd-plan-chevron { color: var(--rd-muted); flex-shrink: 0; }
 .rd-plan-empty { padding: 14px 0; color: var(--rd-text2); font-size: calc(15px * var(--font-scale)); }
@@ -7399,6 +7414,16 @@ body:has(#manualCamScreen.active) {
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s ease;
 }
 .rd-btn-cta:hover { background: var(--rd-teal-hover); }
+/* Day's plan complete — the CTA stays visible as confirmation, but is plainly
+   not pressable. */
+.rd-btn-cta.is-done,
+.rd-btn-cta:disabled {
+  background: var(--rd-divider, #E3E0D8); color: var(--rd-text2, #5B6770);
+  cursor: default; opacity: 1;
+}
+.rd-btn-cta.is-done:hover,
+.rd-btn-cta:disabled:hover { background: var(--rd-divider, #E3E0D8); }
+.rd-btn-cta.is-done svg, .rd-btn-cta:disabled svg { display: none; }
 .rd-stats-row { display: flex; gap: 14px; margin-bottom: 14px; }
 .rd-stat-tile { flex: 1; padding: 16px; background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); }
 .rd-stat-eyebrow { font-size: calc(13px * var(--font-scale)); color: var(--rd-text2); margin-bottom: 6px; }
