@@ -350,6 +350,7 @@ const I18N = {
     'th.noMessagesYet': 'No messages yet',
     'th.needsReview': 'Needs review',
     'th.pendingRequests': 'Requests to join',
+    'th.pendingLoadFailed': "Couldn't load join requests. Refresh to try again.",
     'th.inviteCode': 'Invite code',
     'th.hideInvite': 'Hide invite code',
     'th.showInvite': 'Show invite code',
@@ -680,6 +681,7 @@ const I18N = {
     'th.noMessagesYet': 'Sin mensajes aún',
     'th.needsReview': 'Requiere revisión',
     'th.pendingRequests': 'Solicitudes para unirse',
+    'th.pendingLoadFailed': 'No se pudieron cargar las solicitudes. Actualiza para reintentar.',
     'th.inviteCode': 'Código de invitación',
     'th.hideInvite': 'Ocultar código de invitación',
     'th.showInvite': 'Mostrar código de invitación',
@@ -1270,17 +1272,15 @@ async function getMyConnectionRequest() {
   } catch (e) { return null; }
 }
 
+// Throws on failure ON PURPOSE. Returning [] on error made a failed load
+// indistinguishable from "nobody is waiting" — the therapist would silently
+// never see a request. The caller renders an explicit error row instead.
 async function getPendingRequests(therapistEmail) {
-  try {
-    const snap = await db.collection('connectionRequests')
-      .where('therapistEmail', '==', therapistEmail)
-      .where('status', '==', 'pending')
-      .get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (e) {
-    console.warn('[Motus] pending request load failed:', e);
-    return [];
-  }
+  const snap = await db.collection('connectionRequests')
+    .where('therapistEmail', '==', therapistEmail)
+    .where('status', '==', 'pending')
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 async function approvePatientRequest(patientEmail) {
@@ -1936,7 +1936,17 @@ async function handleConnect() {
   if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character clinic code.'); return; }
   const therapist = await getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
-  await requestConnection(therapist.email, currentUser.email, currentUser.name || '');
+  // If this write is refused (rules, offline, quota) the patient MUST be told.
+  // Unhandled, the promise just rejects: no error, no pending screen, nothing
+  // happens on tap — and the therapist never sees a request that was never
+  // filed. That silent failure is exactly how this went unnoticed.
+  try {
+    await requestConnection(therapist.email, currentUser.email, currentUser.name || '');
+  } catch (e) {
+    console.error('[Motus] connection request failed:', e);
+    showError('connectError', "Couldn't send your request. Check your connection and try again.");
+    return;
+  }
   // Deliberately NOT setting currentUser.therapistEmail — the patient is not
   // connected yet. Claiming otherwise would show a caseload that doesn't exist.
   renderConnectPending(therapist.name || therapist.email);
@@ -5010,8 +5020,19 @@ async function loadConnectedPatients() {
   if (existing) existing.remove();
 
   // Join requests awaiting a decision come first — they are the only thing on
-  // this screen that is blocking someone else.
-  const pendingReqs = await getPendingRequests(currentUser.email);
+  // this screen that is blocking someone else. A failure here is shown, not
+  // swallowed: "couldn't load" and "nobody waiting" must never look the same,
+  // or a patient sits unapproved forever with nothing on screen to explain it.
+  let pendingReqs = [];
+  try {
+    pendingReqs = await getPendingRequests(currentUser.email);
+  } catch (e) {
+    console.error('[Motus] pending request load failed:', e);
+    const err = document.createElement('div');
+    err.className = 'rd-plist-pending-error';
+    err.textContent = t('th.pendingLoadFailed');
+    container.appendChild(err);
+  }
   if (pendingReqs.length) {
     const h = document.createElement('div');
     h.className = 'rd-plist-group';

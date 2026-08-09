@@ -8180,3 +8180,10 @@ body:has(#manualCamScreen.active) {
     scroll-behavior: auto !important;
   }
 }
+
+/* A failed load of join requests must look different from an empty list. */
+.rd-plist-pending-error {
+  padding: 10px 12px; margin-bottom: 6px; border-radius: 10px;
+  background: rgba(220,38,38,0.08); color: var(--rd-danger);
+  font-size: calc(13px * var(--font-scale)); font-weight: 700;
+}
