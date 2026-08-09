@@ -349,6 +349,10 @@ const I18N = {
     'th.noMessagesYet': 'No messages yet',
     'th.needsReview': 'Needs review',
     'th.pendingRequests': 'Requests to join',
+    'th.inviteCode': 'Invite code',
+    'th.hideInvite': 'Hide invite code',
+    'th.showInvite': 'Show invite code',
+    'th.inviteHidden': 'Invite code hidden',
     'th.approve': 'Approve',
     'th.decline': 'Decline',
     'th.approveFailed': "Couldn't approve that request. Try again.",
@@ -674,6 +678,10 @@ const I18N = {
     'th.noMessagesYet': 'Sin mensajes aún',
     'th.needsReview': 'Requiere revisión',
     'th.pendingRequests': 'Solicitudes para unirse',
+    'th.inviteCode': 'Código de invitación',
+    'th.hideInvite': 'Ocultar código de invitación',
+    'th.showInvite': 'Mostrar código de invitación',
+    'th.inviteHidden': 'Código de invitación oculto',
     'th.approve': 'Aprobar',
     'th.decline': 'Rechazar',
     'th.approveFailed': 'No se pudo aprobar la solicitud. Inténtalo de nuevo.',
@@ -1989,6 +1997,7 @@ async function loginSuccess() {
   } else if (currentRole === 'therapist') {
     showScreen('therapistScreen');
     document.getElementById('therapistCode').textContent = await getOrCreateTherapistCode(currentUser.email);
+    restoreInviteVisibility();
     await loadConnectedPatients();
     await loadMyClinic();
     await loadMyInvites();
@@ -8283,8 +8292,48 @@ function showSidebarTooltip(anchor, text) {
 }
 
 function copyClinicCode() {
+  // Nothing to copy while the code is concealed — and silently copying something
+  // the therapist can't see is worse than doing nothing.
+  if (_inviteCodeHidden) return;
   const code = document.getElementById('therapistCode').textContent;
   navigator.clipboard.writeText(code);
+}
+
+/* ── Invite code visibility ──────────────────────────────────────────────────
+   A therapist only needs the code when onboarding someone, so it can be put
+   away. Hiding collapses the box rather than masking the characters: masking
+   would still occupy the same space, which defeats the point. The choice is
+   per-browser (localStorage) — it is a display preference, not account state,
+   so it costs no Firestore read and no rules change. */
+const INVITE_HIDDEN_KEY = 'motus_invite_hidden';
+let _inviteCodeHidden = false;
+
+function applyInviteVisibility() {
+  const box = document.getElementById('thInviteBox');
+  const toggle = document.getElementById('thInviteToggle');
+  const main = document.getElementById('thInviteMain');
+  if (box) box.classList.toggle('is-hidden', _inviteCodeHidden);
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', _inviteCodeHidden ? 'false' : 'true');
+    toggle.setAttribute('aria-label', t(_inviteCodeHidden ? 'th.showInvite' : 'th.hideInvite'));
+    toggle.setAttribute('title', t(_inviteCodeHidden ? 'th.showInvite' : 'th.hideInvite'));
+  }
+  if (main) {
+    // Not just visually inert — unfocusable and unclickable while concealed.
+    main.disabled = _inviteCodeHidden;
+    main.setAttribute('aria-hidden', _inviteCodeHidden ? 'true' : 'false');
+  }
+}
+
+function toggleInviteCode() {
+  _inviteCodeHidden = !_inviteCodeHidden;
+  try { localStorage.setItem(INVITE_HIDDEN_KEY, _inviteCodeHidden ? '1' : '0'); } catch (e) { /* private mode */ }
+  applyInviteVisibility();
+}
+
+function restoreInviteVisibility() {
+  try { _inviteCodeHidden = localStorage.getItem(INVITE_HIDDEN_KEY) === '1'; } catch (e) { _inviteCodeHidden = false; }
+  applyInviteVisibility();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -9788,7 +9837,7 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  copyClinicCode, openTherapistMessages, openTherapistThread, refreshPatientList,
+  copyClinicCode, toggleInviteCode, openTherapistMessages, openTherapistThread, refreshPatientList,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,
 
