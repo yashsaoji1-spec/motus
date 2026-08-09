@@ -7834,25 +7834,48 @@ body:has(#manualCamScreen.active) {
 /* The invite code is the one string a therapist reads aloud or copies down for a
    patient, so it is the hero of this box rather than a 14px afterthought beside
    its label. Monospaced + wide tracking so 0/O and 1/I can't be confused. */
-.rd-plist-invite { display: flex; align-items: center; gap: 4px; width: 100%; background: var(--rd-teal-tint); border: 1px dashed var(--rd-teal); border-radius: 12px; padding: 12px 14px; margin-bottom: 18px; font-family: var(--rd-font); color: var(--rd-teal); text-align: left; }
-/* The copy target and the hide toggle are siblings — a button inside a button
-   would be invalid markup and the toggle click would also fire the copy. */
-.rd-plist-invite-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 0; border: none; background: none; color: inherit; font-family: var(--rd-font); text-align: left; cursor: pointer; min-height: auto; }
-.rd-plist-invite-main:hover:not(:disabled) .rd-plist-invite-code { color: var(--rd-teal); }
-.rd-plist-invite-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border: none; border-radius: 8px; background: none; color: var(--rd-teal); cursor: pointer; min-height: auto; }
-.rd-plist-invite-toggle:hover { background: rgba(15,118,110,0.12); }
-/* Icon swaps with state: eye-off while visible (the action is "hide"), eye while hidden. */
-.rd-plist-invite-toggle .rd-icon-show { display: none; }
-.rd-plist-invite.is-hidden .rd-plist-invite-toggle .rd-icon-show { display: block; }
-.rd-plist-invite.is-hidden .rd-plist-invite-toggle .rd-icon-hide { display: none; }
-/* Hidden state collapses the box instead of masking the characters — masking
-   would occupy the same height, which is the whole thing being complained about. */
-.rd-plist-invite.is-hidden { padding: 7px 14px; border-style: solid; border-color: var(--rd-input-border); background: none; }
-.rd-plist-invite.is-hidden .rd-plist-invite-code,
-.rd-plist-invite.is-hidden .rd-plist-invite-main svg { display: none; }
-.rd-plist-invite.is-hidden .rd-plist-invite-main { cursor: default; }
-.rd-plist-invite.is-hidden .rd-plist-invite-lbl { color: var(--rd-muted); text-transform: none; letter-spacing: 0; }
-.rd-plist-invite-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* Invite-code drawer. Shut by default and slid open on demand — a disclosure,
+   not a privacy control, so it uses a chevron rather than an eye. */
+.rd-plist-invite {
+  width: 100%; margin-bottom: 18px; border-radius: 12px;
+  border: 1px solid var(--rd-input-border); background: none;
+  font-family: var(--rd-font); text-align: left;
+  transition: background 200ms ease, border-color 200ms ease;
+}
+.rd-plist-invite.is-open { background: var(--rd-teal-tint); border-color: var(--rd-teal); border-style: dashed; }
+
+.rd-plist-invite-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 9px 14px; border: none; background: none;
+  color: var(--rd-text2); font-family: var(--rd-font); cursor: pointer;
+  min-height: auto; border-radius: 12px; text-align: left;
+}
+.rd-plist-invite-head:hover { color: var(--rd-teal); }
+.rd-plist-invite.is-open .rd-plist-invite-head { color: var(--rd-teal); padding-bottom: 2px; }
+.rd-plist-invite-chev { flex-shrink: 0; transition: transform 220ms ease; }
+.rd-plist-invite.is-open .rd-plist-invite-chev { transform: rotate(180deg); }
+
+/* Slide via max-height. The cap only needs to exceed the real content height
+   (42px here, ~65px at the largest text scale); resting height stays
+   content-driven, so the cap never dictates layout — it just bounds the
+   animation. Raise it if the code block ever grows. */
+.rd-plist-invite-body {
+  overflow: hidden; max-height: 0;
+  transition: max-height 220ms ease;
+}
+.rd-plist-invite.is-open .rd-plist-invite-body { max-height: 140px; }
+
+.rd-plist-invite-main {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 0 14px 12px; border: none; background: none; color: inherit;
+  font-family: var(--rd-font); text-align: left; cursor: pointer; min-height: auto;
+}
+.rd-plist-invite-main svg { margin-left: auto; flex-shrink: 0; color: var(--rd-teal); }
+.rd-plist-invite-main:hover:not(:disabled) .rd-plist-invite-code { opacity: 0.75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-plist-invite-body, .rd-plist-invite-chev, .rd-plist-invite { transition: none; }
+}
 .rd-plist-invite-lbl { font-size: calc(12px * var(--font-scale)); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .rd-plist-invite-code {
   font-size: calc(26px * var(--font-scale)); font-weight: 800; color: var(--rd-ink);

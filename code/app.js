@@ -8292,47 +8292,51 @@ function showSidebarTooltip(anchor, text) {
 }
 
 function copyClinicCode() {
-  // Nothing to copy while the code is concealed — and silently copying something
+  // Nothing to copy while the drawer is shut — and silently copying something
   // the therapist can't see is worse than doing nothing.
-  if (_inviteCodeHidden) return;
+  if (!_inviteCodeOpen) return;
   const code = document.getElementById('therapistCode').textContent;
   navigator.clipboard.writeText(code);
 }
 
-/* ── Invite code visibility ──────────────────────────────────────────────────
-   A therapist only needs the code when onboarding someone, so it can be put
-   away. Hiding collapses the box rather than masking the characters: masking
-   would still occupy the same space, which defeats the point. The choice is
-   per-browser (localStorage) — it is a display preference, not account state,
-   so it costs no Firestore read and no rules change. */
-const INVITE_HIDDEN_KEY = 'motus_invite_hidden';
-let _inviteCodeHidden = false;
+/* ── Invite code drawer ──────────────────────────────────────────────────────
+   A therapist only needs the code while onboarding someone, so it sits shut by
+   default and slides open on demand. This is a disclosure, not a privacy
+   control — hence a chevron rather than an eye, which would imply the code is
+   a secret being masked. The state is per-browser (localStorage): a display
+   preference, not account state, so it costs no Firestore read and no rules
+   change. */
+const INVITE_OPEN_KEY = 'motus_invite_open';
+let _inviteCodeOpen = false;
 
 function applyInviteVisibility() {
   const box = document.getElementById('thInviteBox');
   const toggle = document.getElementById('thInviteToggle');
   const main = document.getElementById('thInviteMain');
-  if (box) box.classList.toggle('is-hidden', _inviteCodeHidden);
+  if (box) box.classList.toggle('is-open', _inviteCodeOpen);
   if (toggle) {
-    toggle.setAttribute('aria-expanded', _inviteCodeHidden ? 'false' : 'true');
-    toggle.setAttribute('aria-label', t(_inviteCodeHidden ? 'th.showInvite' : 'th.hideInvite'));
-    toggle.setAttribute('title', t(_inviteCodeHidden ? 'th.showInvite' : 'th.hideInvite'));
+    toggle.setAttribute('aria-expanded', _inviteCodeOpen ? 'true' : 'false');
+    const lbl = t(_inviteCodeOpen ? 'th.hideInvite' : 'th.showInvite');
+    toggle.setAttribute('aria-label', lbl);
+    toggle.setAttribute('title', lbl);
   }
   if (main) {
-    // Not just visually inert — unfocusable and unclickable while concealed.
-    main.disabled = _inviteCodeHidden;
-    main.setAttribute('aria-hidden', _inviteCodeHidden ? 'true' : 'false');
+    // Not just visually clipped — unfocusable and unclickable while shut, so it
+    // can't be reached by tabbing into a collapsed drawer.
+    main.disabled = !_inviteCodeOpen;
+    main.setAttribute('tabindex', _inviteCodeOpen ? '0' : '-1');
   }
 }
 
 function toggleInviteCode() {
-  _inviteCodeHidden = !_inviteCodeHidden;
-  try { localStorage.setItem(INVITE_HIDDEN_KEY, _inviteCodeHidden ? '1' : '0'); } catch (e) { /* private mode */ }
+  _inviteCodeOpen = !_inviteCodeOpen;
+  try { localStorage.setItem(INVITE_OPEN_KEY, _inviteCodeOpen ? '1' : '0'); } catch (e) { /* private mode */ }
   applyInviteVisibility();
 }
 
 function restoreInviteVisibility() {
-  try { _inviteCodeHidden = localStorage.getItem(INVITE_HIDDEN_KEY) === '1'; } catch (e) { _inviteCodeHidden = false; }
+  // Defaults to shut: the whole point is that it isn't in the way by default.
+  try { _inviteCodeOpen = localStorage.getItem(INVITE_OPEN_KEY) === '1'; } catch (e) { _inviteCodeOpen = false; }
   applyInviteVisibility();
 }
 
