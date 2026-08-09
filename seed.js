@@ -219,20 +219,35 @@ async function seedUnconnectedPatient(patient) {
 // approval flow can actually be signed into. emailVerified is forced true: the
 // app blocks unverified non-demo accounts at login, and a seeded account has no
 // inbox to click a link in.
+// NON-FATAL by design. admin.auth() needs an OAuth token from accounts.google.com,
+// a different host from the Firestore endpoints — so in a network-restricted
+// shell this step can fail while every Firestore write above succeeded. Letting
+// it throw once left prod fully reset but only half re-seeded. The Firestore
+// state is what the demo depends on; a missing login is recoverable by hand.
 async function ensureAuthUser(patient) {
   try {
-    const existing = await admin.auth().getUserByEmail(patient.email);
-    await admin.auth().updateUser(existing.uid, {
-      password: patient.password, emailVerified: true, displayName: patient.name,
-    });
-    console.log(`  auth: reset password for ${patient.email}`);
+    try {
+      const existing = await admin.auth().getUserByEmail(patient.email);
+      await admin.auth().updateUser(existing.uid, {
+        password: patient.password, emailVerified: true, displayName: patient.name,
+      });
+      console.log(`  auth: reset password for ${patient.email}`);
+    } catch (e) {
+      if (e.code !== 'auth/user-not-found') throw e;
+      await admin.auth().createUser({
+        email: patient.email, password: patient.password,
+        emailVerified: true, displayName: patient.name,
+      });
+      console.log(`  auth: created ${patient.email}`);
+    }
+    return true;
   } catch (e) {
-    if (e.code !== 'auth/user-not-found') throw e;
-    await admin.auth().createUser({
-      email: patient.email, password: patient.password,
-      emailVerified: true, displayName: patient.name,
-    });
-    console.log(`  auth: created ${patient.email}`);
+    console.warn(`\n  WARNING: could not create the auth login for ${patient.email}`);
+    console.warn(`  ${e.code || ''} ${e.message}`);
+    console.warn('  Firestore data is fine — only the sign-in account is missing, so the');
+    console.warn('  patient half of the approval flow cannot be tested until it exists.');
+    console.warn('  If this was a network/DNS error, re-run from an unrestricted shell.\n');
+    return false;
   }
 }
 
@@ -284,7 +299,7 @@ async function run() {
   });
 
   await seedUnconnectedPatient(ALEX);
-  await ensureAuthUser(ALEX);
+  const alexLoginOk = await ensureAuthUser(ALEX);
   // No connectionRequests doc for Alex on purpose — he files it himself by
   // entering the code, which is the half of the flow that needs a real login.
 
@@ -317,8 +332,14 @@ async function run() {
   console.log('');
   console.log('Approval gate test accounts:');
   console.log(`  Nina Okafor  — request PENDING. Sarah should see "Requests to join · 1" on login.`);
-  console.log(`  Alex Rivera  — log in as ${ALEX.email} / ${ALEX.password}, enter Sarah's`);
-  console.log(`                 invite code, and confirm you land in "Request sent" with no exercises.`);
+  if (alexLoginOk) {
+    console.log(`  Alex Rivera  — log in as ${ALEX.email} / ${ALEX.password}, enter Sarah's`);
+    console.log(`                 invite code, and confirm you land in "Request sent" with no exercises.`);
+  } else {
+    console.log(`  Alex Rivera  — Firestore profile written, but the LOGIN WAS NOT CREATED (see`);
+    console.log(`                 the warning above). Re-run from an unrestricted shell, or add`);
+    console.log(`                 ${ALEX.email} manually in Firebase Console > Authentication.`);
+  }
   console.log('');
   console.log('Remember to DELETE serviceAccountKey.json now.');
   process.exit(0);
