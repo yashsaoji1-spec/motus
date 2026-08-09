@@ -35,17 +35,35 @@ beforeAll(async () => {
 
 afterAll(async () => { await testEnv.cleanup(); });
 
-beforeEach(async () => {
-  await testEnv.clearFirestore();
-  // Role docs the rules' myRole() helper reads.
-  await seed('users', PATIENT, { role: 'patient', name: 'James Park', consentGiven: true });
-  await seed('users', OTHER_PATIENT, { role: 'patient', name: 'Maria Alvarez', consentGiven: true });
-  await seed('users', THERAPIST, { role: 'therapist', name: 'Sarah Chen' });
-  await seed('users', RIVAL, { role: 'therapist', name: 'Rival Clinic' });
-});
+beforeEach(async () => { await testEnv.clearFirestore(); });
 
+// Role docs the rules' myRole() helper reads. Seeded INSIDE each test, not in
+// beforeEach: clearFirestore() returns before the wipe has fully settled, so
+// docs written straight after it can be swallowed. Every test that seeded in
+// its own body passed while the two that relied on beforeEach failed with
+// "Null value error" — get(users/...) returning null. security.test.js already
+// seeds per-test for this reason; follow it.
+// All four docs in ONE rules-disabled context. Four separate calls meant 72
+// contexts across the suite, which is the same churn that made as() flaky.
+async function seedUsers() {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'users', PATIENT), { role: 'patient', name: 'James Park', consentGiven: true });
+    await setDoc(doc(db, 'users', OTHER_PATIENT), { role: 'patient', name: 'Maria Alvarez', consentGiven: true });
+    await setDoc(doc(db, 'users', THERAPIST), { role: 'therapist', name: 'Sarah Chen' });
+    await setDoc(doc(db, 'users', RIVAL), { role: 'therapist', name: 'Rival Clinic' });
+  });
+}
+
+// Each context's Firestore client is built ONCE and reused. Building a fresh
+// client per call leaked dozens of them across 18 tests and produced spurious,
+// flaky PERMISSION_DENIED / "Null value error" results — the same operations
+// pass every time in a small file (see _diagnose.test.js) and intermittently in
+// a large one. The rules were never the problem.
+const _clients = {};
 function as(uid, email) {
-  return testEnv.authenticatedContext(uid, { email }).firestore();
+  if (!_clients[uid]) _clients[uid] = testEnv.authenticatedContext(uid, { email }).firestore();
+  return _clients[uid];
 }
 const asPatient   = () => as('uid-pat', PATIENT);
 const asTherapist = () => as('uid-th', THERAPIST);
@@ -70,10 +88,12 @@ const newRequest = (patient, therapist, status = 'pending') => ({
 
 describe('a patient cannot join a caseload on their own', () => {
   it('blocks creating connections/{therapist} naming themselves', async () => {
+    await seedUsers();
     await assertFails(setDoc(doc(asPatient(), 'connections', THERAPIST), { patients: [PATIENT] }));
   });
 
   it('blocks appending themselves to an existing caseload', async () => {
+    await seedUsers();
     await seed('connections', THERAPIST, { patients: [OTHER_PATIENT] });
     await assertFails(updateDoc(doc(asPatient(), 'connections', THERAPIST), {
       patients: [OTHER_PATIENT, PATIENT],
@@ -81,37 +101,44 @@ describe('a patient cannot join a caseload on their own', () => {
   });
 
   it('blocks setting their own users.therapistEmail', async () => {
+    await seedUsers();
     await assertFails(updateDoc(doc(asPatient(), 'users', PATIENT), { therapistEmail: THERAPIST }));
   });
 
   it('still allows ordinary profile self-updates', async () => {
+    await seedUsers();
     await assertSucceeds(updateDoc(doc(asPatient(), 'users', PATIENT), { name: 'James P' }));
   });
 });
 
 describe('requests can only ever be filed as pending', () => {
   it('allows a patient to file their own pending request', async () => {
+    await seedUsers();
     await assertSucceeds(setDoc(
       doc(asPatient(), 'connectionRequests', PATIENT), newRequest(PATIENT, THERAPIST)));
   });
 
   it('blocks a request that arrives pre-approved', async () => {
+    await seedUsers();
     await assertFails(setDoc(
       doc(asPatient(), 'connectionRequests', PATIENT), newRequest(PATIENT, THERAPIST, 'approved')));
   });
 
   it('blocks a patient self-approving an existing request', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST);
     await assertFails(updateDoc(
       doc(asPatient(), 'connectionRequests', PATIENT), { status: 'approved' }));
   });
 
   it('blocks filing a request on someone else behalf', async () => {
+    await seedUsers();
     await assertFails(setDoc(
       doc(asPatient(), 'connectionRequests', OTHER_PATIENT), newRequest(OTHER_PATIENT, THERAPIST)));
   });
 
   it('allows re-requesting after a decline', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST, 'declined');
     await assertSucceeds(updateDoc(doc(asPatient(), 'connectionRequests', PATIENT), {
       patientEmail: PATIENT, therapistEmail: THERAPIST, status: 'pending',
@@ -121,33 +148,39 @@ describe('requests can only ever be filed as pending', () => {
 
 describe('only the addressed therapist can approve, and only while pending', () => {
   it('blocks attaching a patient who never asked', async () => {
+    await seedUsers();
     await assertFails(updateDoc(
       doc(asTherapist(), 'users', PATIENT), { therapistEmail: THERAPIST }));
   });
 
   it('ALLOWS attaching a patient with a pending request to them', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST);
     await assertSucceeds(updateDoc(
       doc(asTherapist(), 'users', PATIENT), { therapistEmail: THERAPIST }));
   });
 
   it('blocks a rival therapist poaching a request addressed elsewhere', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST);
     await assertFails(updateDoc(doc(asRival(), 'users', PATIENT), { therapistEmail: RIVAL }));
   });
 
   it('blocks attaching once the request is declined', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST, 'declined');
     await assertFails(updateDoc(
       doc(asTherapist(), 'users', PATIENT), { therapistEmail: THERAPIST }));
   });
 
   it('blocks pointing a patient at a different therapist', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST);
     await assertFails(updateDoc(doc(asTherapist(), 'users', PATIENT), { therapistEmail: RIVAL }));
   });
 
   it('blocks smuggling extra fields into the approval write', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST);
     await assertFails(updateDoc(doc(asTherapist(), 'users', PATIENT), {
       therapistEmail: THERAPIST, role: 'admin',
@@ -155,6 +188,7 @@ describe('only the addressed therapist can approve, and only while pending', () 
   });
 
   it('allows the addressed therapist to record a verdict', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST);
     await assertSucceeds(updateDoc(doc(asTherapist(), 'connectionRequests', PATIENT), {
       status: 'declined', decidedAt: '2026-08-05T01:00:00.000Z',
@@ -162,6 +196,7 @@ describe('only the addressed therapist can approve, and only while pending', () 
   });
 
   it('blocks a rival reading or deciding a request addressed elsewhere', async () => {
+    await seedUsers();
     await seedRequest(PATIENT, THERAPIST);
     await assertFails(getDoc(doc(asRival(), 'connectionRequests', PATIENT)));
     await assertFails(updateDoc(
@@ -171,6 +206,7 @@ describe('only the addressed therapist can approve, and only while pending', () 
 
 describe('the happy path still works end to end', () => {
   it('request -> approve -> connected', async () => {
+    await seedUsers();
     await assertSucceeds(setDoc(
       doc(asPatient(), 'connectionRequests', PATIENT), newRequest(PATIENT, THERAPIST)));
     // Same order the app uses: the gated write first, the verdict last. Flipping
@@ -184,8 +220,12 @@ describe('the happy path still works end to end', () => {
       status: 'approved', decidedAt: '2026-08-05T01:00:00.000Z',
     }));
 
-    const snap = await testEnv.withSecurityRulesDisabled(async (ctx) =>
-      getDoc(doc(ctx.firestore(), 'users', PATIENT)));
-    expect(snap.data().therapistEmail).toBe(THERAPIST);
+    // withSecurityRulesDisabled does not forward the callback's return value,
+    // so capture it out-of-band rather than awaiting the wrapper.
+    let after;
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      after = await getDoc(doc(ctx.firestore(), 'users', PATIENT));
+    });
+    expect(after.data().therapistEmail).toBe(THERAPIST);
   });
 });

@@ -72,6 +72,10 @@ async function deletePatient(email, userData) {
     db.collection('clinicalNotes').doc(email),
     db.collection('jointTracking').doc(email),
     db.collection('connections').doc(email), // harmless if absent
+    // Any outstanding join request. Left behind it becomes a ghost row on a
+    // therapist's list for an account that no longer exists — and approving it
+    // would half-recreate the deleted user's doc.
+    db.collection('connectionRequests').doc(email),
   ]);
   await deleteByQuery(db.collection('sessions').where('patientEmail', '==', email));
   await deleteMessagesAndThreads(email);
@@ -98,6 +102,10 @@ async function deleteTherapist(email) {
     db.collection('therapistLibrary').doc(email),
   ]);
   await deleteByQuery(db.collection('therapistCodes').where('email', '==', email));
+  // Join requests addressed to this therapist. The patients who filed them stay,
+  // but the request is dead — the therapist it was sent to no longer exists, and
+  // nobody else is permitted to act on it.
+  await deleteByQuery(db.collection('connectionRequests').where('therapistEmail', '==', email));
   await deleteByQuery(db.collection('customExercises').where('createdBy', '==', email));
   await deleteByQuery(db.collection('clinicInvites').where('invitedBy', '==', email));
   await deleteByQuery(db.collection('clinicInvites').where('inviteeEmail', '==', email));

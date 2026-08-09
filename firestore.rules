@@ -84,10 +84,16 @@ service cloud.firestore {
       // therapistEmail is ALSO immutable to the user themselves: knowing an invite
       // code must not let a patient attach themselves to a caseload. Only the
       // therapist may set it, and only by approving a pending request (rule below).
+      // Stated as "a self-update must not TOUCH these keys", rather than by
+      // comparing their before/after values. Comparing values means reading
+      // fields that may not exist on a given user (a new patient has no
+      // therapistEmail), and a rule that throws denies — which was blocking
+      // ordinary self-updates like changing your own name. affectedKeys() is
+      // defined over the keys actually written, so it cannot throw.
       allow update: if isAuth() && (
         (myEmail() == email &&
-          request.resource.data.role == resource.data.role &&
-          request.resource.data.get('therapistEmail', '') == resource.data.get('therapistEmail', '')) ||
+          !request.resource.data.diff(resource.data)
+            .affectedKeys().hasAny(['role', 'therapistEmail'])) ||
         isAdmin()
       );
       allow delete: if isAuth() && (myEmail() == email || isAdmin());
@@ -102,10 +108,10 @@ service cloud.firestore {
       // it to the approving therapist — so no one can route a patient elsewhere.
       allow update: if isAuth() && isTherapist() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapistEmail']) &&
-        request.resource.data.therapistEmail == myEmail() &&
+        request.resource.data.get('therapistEmail', '') == myEmail() &&
         exists(/databases/$(database)/documents/connectionRequests/$(email)) &&
-        get(/databases/$(database)/documents/connectionRequests/$(email)).data.therapistEmail == myEmail() &&
-        get(/databases/$(database)/documents/connectionRequests/$(email)).data.status == 'pending';
+        get(/databases/$(database)/documents/connectionRequests/$(email)).data.get('therapistEmail', '') == myEmail() &&
+        get(/databases/$(database)/documents/connectionRequests/$(email)).data.get('status', '') == 'pending';
     }
 
 
@@ -114,36 +120,44 @@ service cloud.firestore {
     // patient: re-requesting overwrites. The therapist decides; the patient can
     // only ever file something 'pending'.
     match /connectionRequests/{patientEmail} {
+      // `resource` is NULL on a create, and reading resource.data on null throws
+      // — a throwing rule denies, which is how a patient filing a perfectly valid
+      // first request got PERMISSION_DENIED. Guard resource != null before any
+      // read of it, and use .get(key, default) so an absent field is falsy rather
+      // than fatal.
       allow read: if isAuth() && (
         myEmail() == patientEmail ||
         isAdmin() ||
-        (isTherapist() && resource.data.therapistEmail == myEmail())
+        (isTherapist() && resource != null &&
+          resource.data.get('therapistEmail', '') == myEmail())
       );
       // Patient files their own request. status is pinned to 'pending' so the
       // create itself can never arrive pre-approved.
       allow create: if isAuth() && isPatient() && myEmail() == patientEmail &&
-        request.resource.data.patientEmail == patientEmail &&
-        request.resource.data.status == 'pending' &&
+        request.resource.data.get('patientEmail', '') == patientEmail &&
+        request.resource.data.get('status', '') == 'pending' &&
         request.resource.data.keys().hasOnly(
           ['patientEmail', 'patientName', 'therapistEmail', 'status', 'requestedAt']);
       allow update: if isAuth() && (
         // Patient re-requests after a decline, or switches to a different code.
         // Still pinned to 'pending' — a patient can never approve themselves.
         (isPatient() && myEmail() == patientEmail &&
-          request.resource.data.patientEmail == patientEmail &&
-          request.resource.data.status == 'pending') ||
+          request.resource.data.get('patientEmail', '') == patientEmail &&
+          request.resource.data.get('status', '') == 'pending') ||
         // The addressed therapist decides. They cannot hand the request to
         // someone else, and 'pending' is not a verdict they can write back.
-        (isTherapist() && resource.data.therapistEmail == myEmail() &&
-          request.resource.data.therapistEmail == resource.data.therapistEmail &&
-          request.resource.data.patientEmail == resource.data.patientEmail &&
-          request.resource.data.status in ['approved', 'declined']) ||
+        (isTherapist() && resource != null &&
+          resource.data.get('therapistEmail', '') == myEmail() &&
+          request.resource.data.get('therapistEmail', '') == resource.data.get('therapistEmail', '') &&
+          request.resource.data.get('patientEmail', '') == resource.data.get('patientEmail', '') &&
+          request.resource.data.get('status', '') in ['approved', 'declined']) ||
         isAdmin()
       );
       allow delete: if isAuth() && (
         myEmail() == patientEmail ||
         isAdmin() ||
-        (isTherapist() && resource.data.therapistEmail == myEmail())
+        (isTherapist() && resource != null &&
+          resource.data.get('therapistEmail', '') == myEmail())
       );
     }
 
