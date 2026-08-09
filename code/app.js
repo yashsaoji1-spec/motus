@@ -3870,6 +3870,32 @@ const EXERCISE_DEFAULTS = {
   index_middle_spread:     { metric:'abduction', tipA:8, tipB:12, spreadAt:0.20, closedAt:0.10 },
 };
 
+// Head-to-toe. The picker groups by category, and alphabetical/insertion order
+// made a therapist scroll past the ankle to reach the neck. Anything not listed
+// here sorts to the end alphabetically, so adding a category can't silently
+// vanish — it just lands last until it's given a position.
+const CATEGORY_ORDER = [
+  'Cervical / Neck',
+  'Shoulder',
+  'Elbow / Wrist',
+  'Core / Trunk',
+  'Lumbar / Low Back',
+  'Hip',
+  'Knee',
+  'Ankle / Foot',
+  'Balance & Gait',   // whole-body, so it reads last rather than mid-leg
+];
+
+function orderedCategories(catNames) {
+  return [...catNames].sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a), ib = CATEGORY_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;          // known categories before unknown
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);          // unknown (e.g. Custom) alphabetical
+  });
+}
+
 const PROTOCOL_CATALOG = [
   /* ── Whole-body library ────────────────────────────────────────────────────
      Motus is holistic PT; the hand set above is legacy content kept because
@@ -5967,17 +5993,26 @@ function _apmRenderLibrary(query, mode) {
   }
   const cats = {};
   for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
-  listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
-    <div class="apm-lib-cat">
-      <div class="apm-lib-cat-label">${escapeHtml(exCat(cat))}</div>
+  // Collapsed by default so the list is one screen of body regions instead of 61
+  // rows. Native <details> gets keyboard support and open/close state for free.
+  // Auto-expanded when a search is active (otherwise matches would be hidden
+  // inside shut sections) or when the section holds the current selection.
+  const _sel = document.getElementById('exerciseType')?.value;
+  const _searching = terms.length > 0;
+  listEl.innerHTML = orderedCategories(Object.keys(cats)).map(cat => {
+    const items = cats[cat];
+    const open = _searching || items.some(e => e.id === _sel);
+    return `
+    <details class="apm-lib-cat"${open ? ' open' : ''}>
+      <summary class="apm-lib-cat-label">${escapeHtml(exCat(cat))}<span class="apm-lib-cat-count">${items.length}</span></summary>
       ${items.map(e => `
         <div class="apm-lib-item" id="apm-item-${e.id}" onclick="apmSelectExercise('${e.id}')">
           <div class="apm-lib-item-name">${escapeHtml(exName(e.id))}</div>
           <div class="apm-lib-item-desc">${escapeHtml(exDesc(e.id, e.desc))}</div>
         </div>
       `).join('')}
-    </div>
-  `).join('');
+    </details>`;
+  }).join('');
   const currentType = document.getElementById('exerciseType')?.value;
   if (currentType) _apmHighlightSelected(currentType);
 }
@@ -6172,9 +6207,13 @@ function plRender() {
   } else {
     const cats = {};
     for (const e of filtered) { if (!cats[e.cat]) cats[e.cat] = []; cats[e.cat].push(e); }
-    listEl.innerHTML = Object.entries(cats).map(([cat, items]) => `
-      <div class="apm-lib-cat">
-        <div class="apm-lib-cat-label">${escapeHtml(exCat(cat))}</div>
+    // Same head-to-toe accordion as the assign picker — see _apmRenderLibrary.
+    listEl.innerHTML = orderedCategories(Object.keys(cats)).map(cat => {
+      const items = cats[cat];
+      const open = !!q || items.some(e => e.id === _plSelectedId);
+      return `
+      <details class="apm-lib-cat"${open ? ' open' : ''}>
+        <summary class="apm-lib-cat-label">${escapeHtml(exCat(cat))}<span class="apm-lib-cat-count">${items.length}</span></summary>
         ${items.map(e => {
           const label = exName(e.id);
           const editedClass = e._isEdited ? ' apm-lib-item--edited' : '';
@@ -6184,8 +6223,8 @@ function plRender() {
             <div class="apm-lib-item-desc">${escapeHtml(exDesc(e.id, e.desc))}</div>
           </div>`;
         }).join('')}
-      </div>
-    `).join('');
+      </details>`;
+    }).join('');
   }
 
   const hiddenList = document.getElementById('plHiddenList');
