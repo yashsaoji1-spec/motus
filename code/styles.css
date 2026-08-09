@@ -7720,6 +7720,7 @@ body:has(#manualCamScreen.active) {
 .rd-prog-card { padding: 18px; margin-bottom: 14px; }
 .rd-prog-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .rd-prog-card-title { font-size: calc(16px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
+.rd-prog-card-sub { display: block; font-size: calc(12px * var(--font-scale)); font-weight: 400; color: var(--rd-muted); margin-top: 2px; }
 .rd-prog-trend { font-size: calc(14px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); }
 .rd-prog-trend.teal { color: var(--rd-teal); }
 .rd-prog-dots { display: flex; justify-content: space-between; gap: 4px; margin-top: 12px; }

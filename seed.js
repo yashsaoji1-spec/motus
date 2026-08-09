@@ -48,13 +48,16 @@ const NPP_VERSION = '2026-06-21'; // keep in sync with app.js so patients skip t
 const threadId = (a, b) => [a, b].sort().join(':');
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d; };
 
-// Three believable hand-rehab exercises. assignedAt is relative to each patient's start.
+// A low-back program. These ids must exist in PROTOCOL_CATALOG — the hand/finger
+// exercises this used to seed were retired on 2026-08-09, and seeding ids that
+// are no longer in the catalog would put a demo patient on exercises a therapist
+// can't assign or edit. assignedAt is relative to each patient's start.
 function protocolItems(startDaysAgo) {
   const at = daysAgo(startDaysAgo).toISOString();
   return [
-    { id: 'seed_grip',  exerciseType: 'grip_squeeze',  exerciseName: 'Grip Squeeze',   reps: 10, sets: 3, frequency: 'daily', restSeconds: 30, notes: 'Squeeze slowly, hold 2s at the top.', assignedBy: THERAPIST.name, assignedAt: at },
-    { id: 'seed_flex',  exerciseType: 'finger_flexion', exerciseName: 'Finger Flexion', reps: 12, sets: 3, frequency: 'daily', restSeconds: 30, notes: 'Full range, stop if sharp pain.',     assignedBy: THERAPIST.name, assignedAt: at },
-    { id: 'seed_wrist', exerciseType: 'wrist_flexion',  exerciseName: 'Wrist Flexion',  reps: 10, sets: 2, frequency: 'daily', restSeconds: 45, notes: 'Keep forearm supported on the table.', assignedBy: THERAPIST.name, assignedAt: at },
+    { id: 'seed_bridge', exerciseType: 'glute_bridge',  exerciseName: 'Bridge',              reps: 10, sets: 2, frequency: 'daily', restSeconds: 30, notes: 'Lift until the body is in a straight line, then lower.', assignedBy: THERAPIST.name, assignedAt: at },
+    { id: 'seed_knee',   exerciseType: 'knee_to_chest', exerciseName: 'Single Knee to Chest', reps: 5,  sets: 2, frequency: 'daily', restSeconds: 30, notes: 'Hold at the top. The other leg stays down.',            assignedBy: THERAPIST.name, assignedAt: at },
+    { id: 'seed_cat',    exerciseType: 'cat_cow',       exerciseName: 'Cat and Camel',        reps: 10, sets: 2, frequency: 'daily', restSeconds: 45, notes: 'Move slowly between the two positions.',                 assignedBy: THERAPIST.name, assignedAt: at },
   ];
 }
 
@@ -87,7 +90,7 @@ function jamesSessions(items) {
 function mariaSessions(items) {
   const out = [];
   for (let off = 21; off >= 3; off -= 2) out.push(...daySessions(MARIA, off, 3, items));
-  // the flagged spike: yesterday, grip only, stopped early
+  // the flagged spike: yesterday, first exercise only, stopped early
   out.push(...daySessions(MARIA, 1, 8, [items[0]], {
     notes: 'Sharp pain on rep 6, stopped the set early.',
   }));
@@ -108,15 +111,15 @@ function emilySessions(items) {
 
 // ── Messages ─────────────────────────────────────────────────────────────────
 const JAMES_MESSAGES = [
-  { from: THERAPIST.email, to: JAMES.email, text: 'Hi James — I just assigned your home program. Start with the grip squeezes today.', day: 43, read: true },
+  { from: THERAPIST.email, to: JAMES.email, text: 'Hi James — I just assigned your home program. Start with the bridges today.', day: 43, read: true },
   { from: JAMES.email, to: THERAPIST.email, text: 'Got it, thanks! The first few felt tight but doable.', day: 42, read: true },
   { from: THERAPIST.email, to: JAMES.email, text: 'That tightness is normal early on. Keep the reps slow and let me know your pain levels.', day: 41, read: true },
   { from: JAMES.email, to: THERAPIST.email, text: 'Pain is down to about a 3 this week, feeling a lot better.', day: 7, read: true },
-  { from: THERAPIST.email, to: JAMES.email, text: 'Great progress — the trend looks excellent. Let’s add the wrist work going forward.', day: 6, read: true },
+  { from: THERAPIST.email, to: JAMES.email, text: 'Great progress — the trend looks excellent. Let’s add the cat and camel going forward.', day: 6, read: true },
 ];
 // Maria's unread inbound message — Sarah replies to it in Shot 10.
 const MARIA_MESSAGES = [
-  { from: THERAPIST.email, to: MARIA.email, text: 'How did the grip work feel this week, Maria?', day: 3, read: true },
+  { from: THERAPIST.email, to: MARIA.email, text: 'How did the bridges feel this week, Maria?', day: 3, read: true },
   { from: MARIA.email, to: THERAPIST.email, text: 'I had a sharp pain on the sixth rep yesterday and had to stop.', day: 1, read: false },
 ];
 

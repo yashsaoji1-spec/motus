@@ -270,7 +270,8 @@ const I18N = {
     'prog.3wks': '3 wks',
     'prog.2wks': '2 wks',
     'prog.lastWk': 'Last wk',
-    'prog.now': 'Now',
+    'prog.now': 'This wk',
+    'prog.painAfterSub': 'Weekly average',
     'prog.doingWell': "You're doing well",
     'prog.bannerMsg': "Pain is down and you've kept your routine {n} of the last 7 days.",
     'prog.encGreat': "You're doing great",
@@ -603,7 +604,8 @@ const I18N = {
     'prog.3wks': '3 sem',
     'prog.2wks': '2 sem',
     'prog.lastWk': 'Sem pas.',
-    'prog.now': 'Ahora',
+    'prog.now': 'Esta sem',
+    'prog.painAfterSub': 'Promedio semanal',
     'prog.doingWell': 'Vas muy bien',
     'prog.bannerMsg': 'El dolor bajó y mantuviste tu rutina {n} de los últimos 7 días.',
     'prog.encGreat': 'Vas muy bien',
@@ -3620,9 +3622,17 @@ const exerciseLabels = {
   thumb_ring_opposition:  'Thumb to Ring Pinch',
   thumb_little_opposition:'Thumb to Little Pinch',
   index_middle_spread:    'Index-Middle Spread',
+  // ^ The hand/finger names above are RETIRED — they were removed from
+  // PROTOCOL_CATALOG (2026-08-09) so a therapist can no longer assign them, and
+  // Motus is holistic PT, not hand rehab.
+  //
+  // DO NOT DELETE THESE LABELS. Protocols and sessions already written to
+  // Firestore still carry these ids. exName() falls back to this map, so
+  // dropping an entry turns a patient's history into a raw id ("hook_fist")
+  // on their progress screen and on the therapist's chart. The names cost
+  // nothing; the catalog is what controls what can be assigned.
 
-  // Whole-body library. Motus is holistic physical therapy — the hand-only set
-  // above is legacy content, kept because patients may already have it assigned.
+  // Whole-body library.
   neck_rotation:            'Neck Rotation',
   neck_side_bend:           'Neck Side Bend',
   chin_tuck:                'Chin Tuck',
@@ -3851,27 +3861,6 @@ const EXERCISE_DEFAULTS = {
 };
 
 const PROTOCOL_CATALOG = [
-  { id:'hook_fist',              cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Middle and tip knuckles flex while base knuckles stay straight.' },
-  { id:'straight_fist',          cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'All knuckles flex except the tip joint; fingertips point straight down.' },
-  { id:'tabletop_position',      cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Base knuckles 90°, middle and tip joints stay straight.' },
-  { id:'full_fist',              cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Complete fist then full open. All four fingers flex together.' },
-  { id:'finger_extension',       cat:'Tendon Gliding',       dr:10, ds:3, df:'daily',   desc:'Straighten and spread all fingers from a loosely bent position.' },
-  { id:'index_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the index finger through its full available range.' },
-  { id:'middle_flexion',         cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the middle finger through its full available range.' },
-  { id:'ring_flexion',           cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the ring finger through its full available range.' },
-  { id:'pinky_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex and extend the little finger through its full available range.' },
-  { id:'thumb_flexion',          cat:'Individual Finger',    dr:15, ds:3, df:'daily',   desc:'Flex thumb across the palm toward the little finger and return.' },
-  { id:'pip_blocking',           cat:'Blocking & Isolation', dr:10, ds:3, df:'daily',   desc:'Stabilize base knuckle; flex and extend only the middle joint.' },
-  { id:'dip_blocking',           cat:'Blocking & Isolation', dr:10, ds:3, df:'daily',   desc:'Stabilize middle joint; flex and extend only the tip joint.' },
-  { id:'thumb_index_opposition', cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets index fingertip, then returns open.' },
-  { id:'thumb_opposition',       cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets middle fingertip and returns.' },
-  { id:'thumb_ring_opposition',  cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets ring fingertip and returns.' },
-  { id:'thumb_little_opposition',cat:'Opposition & Pinch',   dr:12, ds:3, df:'daily',   desc:'Thumb tip meets little fingertip and returns.' },
-  { id:'finger_abduction',       cat:'Spreading & Abduction',dr:12, ds:2, df:'daily',   desc:'Spread all four fingers wide apart, then return together.' },
-  { id:'index_middle_spread',    cat:'Spreading & Abduction',dr:15, ds:2, df:'daily',   desc:'Spread only the index and middle finger apart, then close.' },
-  { id:'grip_squeeze',           cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'All fingers flex simultaneously into a full fist. Builds grip strength.' },
-  { id:'finger_flexion',         cat:'Grip & Composite',     dr:10, ds:3, df:'daily',   desc:'Any finger completing a full flex-extend cycle counts as a rep.' },
-
   /* ── Whole-body library ────────────────────────────────────────────────────
      Motus is holistic PT; the hand set above is legacy content kept because
      patients may already have it assigned.
@@ -7838,7 +7827,10 @@ async function renderProgressScreen() {
   content.innerHTML =
     '<div class="rd-prog-banner"><div class="rd-prog-banner-eyebrow">' + escapeHtml(_eyebrow) + '</div><div class="rd-prog-banner-msg">' + escapeHtml(_bannerMsg) + '</div></div>' +
     '<div class="rd-card rd-prog-card"><div class="rd-prog-card-title">' + escapeHtml(t('prog.thisWeek')) + '</div><div class="rd-prog-dots">' + dots + '</div></div>' +
-    '<div class="rd-card rd-prog-card"><div class="rd-prog-card-head"><span class="rd-prog-card-title">' + escapeHtml(t('prog.painAfter')) + '</span>' + (trendWord ? '<span class="rd-prog-trend ' + trendClass + '">' + escapeHtml(trendWord) + '</span>' : '') + '</div><div class="rd-prog-bars">' + bars + '</div>' + (summary ? '<div class="rd-prog-summary">' + summary + '</div>' : '') + '</div>';
+    // "Weekly average" is stated outright: each bar is a mean over 7 days, so one
+    // hard session barely moves it. Without saying so the chart reads as if it
+    // ignores what you just logged.
+    '<div class="rd-card rd-prog-card"><div class="rd-prog-card-head"><span class="rd-prog-card-title">' + escapeHtml(t('prog.painAfter')) + '<span class="rd-prog-card-sub">' + escapeHtml(t('prog.painAfterSub')) + '</span></span>' + (trendWord ? '<span class="rd-prog-trend ' + trendClass + '">' + escapeHtml(trendWord) + '</span>' : '') + '</div><div class="rd-prog-bars">' + bars + '</div>' + (summary ? '<div class="rd-prog-summary">' + summary + '</div>' : '') + '</div>';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
