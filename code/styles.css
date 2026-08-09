@@ -7520,35 +7520,39 @@ body:has(#manualCamScreen.active) {
 
 .rd-pain-slider { position: relative; margin-top: 10px; }
 /* Ticks sit behind the track and mark the 11 stops. */
+/* Inset by the thumb's radius so the first and last tick sit under the thumb's
+   travel limits rather than past them. */
 .rd-pain-ticks {
-  position: absolute; left: 13px; right: 13px; top: 50%; transform: translateY(-50%);
+  position: absolute; left: 17px; right: 17px; top: 50%; transform: translateY(-50%);
   display: flex; justify-content: space-between; pointer-events: none;
 }
-.rd-pain-ticks i { width: 2px; height: 8px; border-radius: 1px; background: var(--rd-input-border); }
+.rd-pain-ticks i { width: 2px; height: 12px; border-radius: 1px; background: var(--rd-input-border); }
 
 .rd-pain-input {
   -webkit-appearance: none; appearance: none; width: 100%;
-  /* 44px of touch height while the visible track stays thin. */
-  height: 44px; background: transparent; cursor: pointer; display: block; margin: 0;
+  /* Generous touch height; the visible track is chunky enough to read as a
+     drag control at a glance rather than a hairline. */
+  height: 48px; background: transparent; cursor: pointer; display: block; margin: 0;
 }
 .rd-pain-input:focus { outline: none; }
 .rd-pain-input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(15,118,110,0.30); }
 .rd-pain-input::-webkit-slider-runnable-track {
-  height: 8px; border-radius: 4px;
+  height: 16px; border-radius: 8px;
   background: linear-gradient(to right, var(--rd-teal) var(--pain-pct, 0%), var(--rd-input-border) var(--pain-pct, 0%));
 }
 .rd-pain-input::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
-  width: 26px; height: 26px; border-radius: 50%; margin-top: -9px;
-  background: var(--rd-teal); border: 3px solid var(--rd-card);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  /* margin-top = (track - thumb) / 2 keeps the thumb centred on the track. */
+  width: 34px; height: 34px; border-radius: 50%; margin-top: -9px;
+  background: var(--rd-teal); border: 4px solid var(--rd-card);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.30);
 }
-.rd-pain-input::-moz-range-track { height: 8px; border-radius: 4px; background: var(--rd-input-border); }
-.rd-pain-input::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--rd-teal); }
+.rd-pain-input::-moz-range-track { height: 16px; border-radius: 8px; background: var(--rd-input-border); }
+.rd-pain-input::-moz-range-progress { height: 16px; border-radius: 8px; background: var(--rd-teal); }
 .rd-pain-input::-moz-range-thumb {
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--rd-teal); border: 3px solid var(--rd-card);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--rd-teal); border: 4px solid var(--rd-card);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.30);
 }
 /* High pain recolours the fill and thumb, so 7+ is obvious without reading. */
 .rd-pain-slider.danger .rd-pain-input::-webkit-slider-runnable-track {
@@ -7725,7 +7729,8 @@ body:has(#manualCamScreen.active) {
 .rd-prog-dot.today { background: transparent; border: 2px dashed var(--rd-input-border); }
 .rd-prog-dot-lbl { font-size: calc(12px * var(--font-scale)); color: var(--rd-text2); }
 .rd-prog-dot-lbl.today { font-weight: 700; color: var(--rd-ink); }
-.rd-prog-bars { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; height: 92px; }
+.rd-prog-bars { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; height: 112px; }
+.rd-prog-bar-val { font-size: calc(12px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); margin-bottom: 4px; font-variant-numeric: tabular-nums; min-height: 1em; }
 .rd-prog-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
 .rd-prog-bar-track { flex: 1; display: flex; align-items: flex-end; width: 100%; }
 .rd-prog-bar { width: 100%; border-radius: 8px; }

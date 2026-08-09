@@ -1996,7 +1996,19 @@ async function loginSuccess() {
     await loadAdminScreen();
   } else if (currentRole === 'therapist') {
     showScreen('therapistScreen');
-    document.getElementById('therapistCode').textContent = await getOrCreateTherapistCode(currentUser.email);
+    // The invite code is generated (or fetched) on every therapist login and
+    // persisted to users.clinicCode + therapistCodes/{code}. Isolated in its own
+    // try: this call sits inside onAuthStateChanged's try block, whose catch
+    // SIGNS THE USER OUT — so without this, one transient Firestore hiccup while
+    // writing the code would bounce a therapist to the login screen. The code is
+    // display-only here; failing to render it must never cost the session.
+    try {
+      document.getElementById('therapistCode').textContent =
+        await getOrCreateTherapistCode(currentUser.email);
+    } catch (e) {
+      console.error('[Motus] invite code unavailable:', e);
+      document.getElementById('therapistCode').textContent = '——————';
+    }
     restoreInviteVisibility();
     await loadConnectedPatients();
     await loadMyClinic();
@@ -7746,8 +7758,18 @@ async function renderProgressScreen() {
       '</div><div class="rd-prog-dot-lbl' + (isToday ? ' today' : '') + '">' + escapeHtml(lbl) + '</div></div>';
   }
 
-  // Pain after exercise: 5 weekly bars (4 wks ago → now), normalized to buckets
-  const RAMP = ['#D8A48F', '#DBB29E', '#B9CCC2', '#7FB3A6', '#0F766E'];
+  // Pain after exercise: 5 weekly bars (4 wks ago → now).
+  //
+  // Colour comes from the VALUE, not the bar's position. It used to be a fixed
+  // left-to-right ramp (clay → teal) indexed by position, which drew every
+  // patient as improving regardless of their data — a patient going 2 → 10 still
+  // got a reassuring teal "Now" bar. The height was always real; the colour was
+  // telling a story the numbers didn't support.
+  const painBarColor = (v) =>
+    v >= HIGH_PAIN ? 'var(--rd-danger)'   // 7+, matches the review flag
+    : v >= 4       ? '#D8A48F'
+    : v >= 2       ? '#7FB3A6'
+    :                'var(--rd-teal)';
   const wkLabels = [t('prog.4wks'), t('prog.3wks'), t('prog.2wks'), t('prog.lastWk'), t('prog.now')];
   const wkAvg = [];
   for (let w = 4; w >= 0; w--) {
@@ -7765,8 +7787,17 @@ async function renderProgressScreen() {
     // clamp to MAXH: an out-of-range pain value (>10) would otherwise render a
     // bar taller than its own track and spill over the chart.
     const h = v === null ? 6 : Math.min(MAXH, Math.max(8, Math.round((v/10)*MAXH)));
-    const col = v === null ? 'var(--rd-divider)' : RAMP[i];
-    bars += '<div class="rd-prog-bar-col"><div class="rd-prog-bar-track"><div class="rd-prog-bar" style="height:' + h + 'px;background:' + col + '"></div></div><div class="rd-prog-bar-lbl' + (i===4?' now':'') + '">' + escapeHtml(wkLabels[i]) + '</div></div>';
+    const col = v === null ? 'var(--rd-divider)' : painBarColor(v);
+    // Print the averaged value above each bar. Without it a bar is unfalsifiable
+    // — there is no way to tell a real average from a static graphic, which is
+    // exactly the doubt this chart attracted. Each bar is a WEEKLY MEAN, so one
+    // hard session is diluted by the rest of that week; showing the number makes
+    // that legible instead of looking like nothing moved.
+    const valLbl = v === null ? '' : (Math.round(v * 10) / 10);
+    bars += '<div class="rd-prog-bar-col">' +
+      '<div class="rd-prog-bar-val">' + escapeHtml(String(valLbl)) + '</div>' +
+      '<div class="rd-prog-bar-track"><div class="rd-prog-bar" style="height:' + h + 'px;background:' + col + '"></div></div>' +
+      '<div class="rd-prog-bar-lbl' + (i===4?' now':'') + '">' + escapeHtml(wkLabels[i]) + '</div></div>';
   });
 
   const nowV = wkAvg[4], monthV = wkAvg[0];
