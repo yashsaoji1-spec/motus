@@ -21,7 +21,14 @@ admin.initializeApp();
 setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 
 const db = admin.firestore();
-const bucket = admin.storage().bucket();
+// Resolved LAZILY. At module scope this blocks: admin.storage().bucket() needs a
+// default bucket, which only exists in the deployed runtime — so the module never
+// finished loading locally, and `firebase deploy` must load it to enumerate
+// exports. That made the functions codebase undeployable ("User code failed to
+// load. Cannot determine backend specification. Timeout after 10000"). Inside a
+// handler the runtime config is present and this resolves fine.
+let _bucket;
+const bucket = () => (_bucket || (_bucket = admin.storage().bucket()));
 const FieldValue = admin.firestore.FieldValue;
 
 const SESSION_RETENTION_DAYS = 30;
@@ -51,7 +58,7 @@ async function deleteMessagesAndThreads(email) {
 }
 
 async function deleteStoragePrefix(prefix) {
-  try { await bucket.deleteFiles({ prefix }); }
+  try { await bucket().deleteFiles({ prefix }); }
   catch (e) { console.warn(`[delete] storage prefix ${prefix}:`, e.message); }
 }
 
@@ -180,7 +187,7 @@ exports.getSignedVideoUrl = onCall(async (request) => {
   }
 
   try {
-    const [url] = await bucket.file(path).getSignedUrl({
+    const [url] = await bucket().file(path).getSignedUrl({
       version: 'v4',
       action: 'read',
       expires: Date.now() + 15 * 60 * 1000,
@@ -208,7 +215,7 @@ exports.expireVideos = onSchedule('every 24 hours', async () => {
     if (paths.length === 0 && !d.videoUrl) continue;
 
     for (const p of paths) {
-      try { await bucket.file(p).delete(); }
+      try { await bucket().file(p).delete(); }
       catch (e) { if (e.code !== 404) console.warn('[expire] delete', p, e.message); }
     }
 
