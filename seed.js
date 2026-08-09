@@ -5,8 +5,15 @@
 //   Maria Alvarez— NEEDS REVIEW. Recent session with a high-pain spike + note, unread message.
 //   Robert Kim   — STALE. No session in 6 days.
 //   Emily Torres — ON TRACK. Steady low pain.
-// Only James + Sarah have auth logins (patient@ / therapist@). Maria/Robert/Emily
-// never log in — the seeder writes their profiles so they render on Sarah's dashboard.
+// Maria/Robert/Emily never log in — the seeder writes their profiles so they
+// render on Sarah's dashboard.
+//
+// Auth logins: James (patient@), Sarah (therapist@), and Alex Rivera
+// (newpatient@ / demo1234) — Alex is created BY this seeder via admin.auth() to
+// test the therapist-approval gate. Two accounts exist for that gate and neither
+// is on Sarah's caseload:
+//   Nina Okafor  — request already PENDING (tests approve/decline)
+//   Alex Rivera  — real login, no request (tests the patient side end to end)
 //
 // USAGE:
 //   1. Firebase Console → Project Settings → Service accounts → Generate new
@@ -42,6 +49,20 @@ const MARIA  = { email: 'maria.alvarez@example.com', name: 'Maria Alvarez' };
 const ROBERT = { email: 'robert.kim@example.com',    name: 'Robert Kim' };
 const EMILY  = { email: 'emily.torres@example.com',  name: 'Emily Torres' };
 const PATIENTS = [JAMES, MARIA, ROBERT, EMILY];
+
+// ── Approval-flow test accounts (D-? 2026-08-09) ─────────────────────────────
+// Deliberately NOT in PATIENTS: neither is connected to Sarah, neither appears
+// on her caseload, and neither gets protocols. They exist to exercise the
+// therapist-approval gate.
+//
+//   NINA  — request already filed and pending. Sarah sees "Requests to join · 1"
+//           the moment she logs in, so approve/decline is testable in one window.
+//   ALEX  — a real auth login with NO request at all, so the patient half of the
+//           flow can be walked end to end: sign in, enter the code, land in the
+//           pending state, and confirm no exercises arrive until approval.
+const NINA = { email: 'nina.okafor@example.com', name: 'Nina Okafor' };
+const ALEX = { email: 'newpatient@gmail.com', name: 'Alex Rivera', password: 'demo1234' };
+const APPROVAL_TEST = [NINA, ALEX];
 
 const NPP_VERSION = '2026-06-21'; // keep in sync with app.js so patients skip the consent screen
 
@@ -150,6 +171,16 @@ async function reset() {
     await db.collection('protocols').doc(p.email).delete().catch(() => {});
     await db.collection('users').doc(p.email).delete().catch(() => {});
   }
+  // Approval-flow accounts. Clear EVERY request addressed to Sarah, not just
+  // these two — a re-seed must put the gate back to a known state rather than
+  // leave a stale approved/declined verdict from a previous test run.
+  await deleteQuery(
+    db.collection('connectionRequests').where('therapistEmail', '==', THERAPIST.email),
+    'connection requests');
+  for (const p of APPROVAL_TEST) {
+    await db.collection('users').doc(p.email).delete().catch(() => {});
+    await db.collection('protocols').doc(p.email).delete().catch(() => {});
+  }
   await db.collection('connections').doc(THERAPIST.email).delete().catch(() => {});
   console.log('Reset complete.\n');
 }
@@ -165,6 +196,44 @@ async function seedPatient(patient, startDaysAgo, sessions) {
   await db.collection('protocols').doc(patient.email).set({ items: protocolItems(startDaysAgo) });
   for (const s of sessions) await db.collection('sessions').add(s);
   return sessions.length;
+}
+
+// Writes an unconnected patient: a user doc with NO therapistEmail, no protocols,
+// and no entry in Sarah's connections. This is the state the approval gate is
+// supposed to hold someone in.
+async function seedUnconnectedPatient(patient) {
+  await db.collection('users').doc(patient.email).set({
+    email: patient.email, name: patient.name, role: 'patient',
+    consentGiven: true, consentTimestamp: daysAgo(1).toISOString(),
+    nppAcknowledgedAt: daysAgo(1).toISOString(), nppVersionAccepted: NPP_VERSION,
+    tutorialCompleted: true,
+    // Explicitly REMOVE the field rather than just omitting it. merge:true keeps
+    // whatever is already there, so re-seeding without --reset after a previous
+    // test approval would leave therapistEmail set and the gate would look
+    // broken (patient already connected) when it is actually working.
+    therapistEmail: admin.firestore.FieldValue.delete(),
+  }, { merge: true });
+}
+
+// Creates (or repairs) a real Firebase Auth login so the patient side of the
+// approval flow can actually be signed into. emailVerified is forced true: the
+// app blocks unverified non-demo accounts at login, and a seeded account has no
+// inbox to click a link in.
+async function ensureAuthUser(patient) {
+  try {
+    const existing = await admin.auth().getUserByEmail(patient.email);
+    await admin.auth().updateUser(existing.uid, {
+      password: patient.password, emailVerified: true, displayName: patient.name,
+    });
+    console.log(`  auth: reset password for ${patient.email}`);
+  } catch (e) {
+    if (e.code !== 'auth/user-not-found') throw e;
+    await admin.auth().createUser({
+      email: patient.email, password: patient.password,
+      emailVerified: true, displayName: patient.name,
+    });
+    console.log(`  auth: created ${patient.email}`);
+  }
 }
 
 async function seedThread(patient, messages) {
@@ -205,8 +274,52 @@ async function run() {
   nM += await seedThread(JAMES, JAMES_MESSAGES);
   nM += await seedThread(MARIA, MARIA_MESSAGES);
 
+  // ── Approval-gate test accounts ────────────────────────────────────────────
+  // Written AFTER the connections doc above, and never added to it, so neither
+  // of these can leak onto Sarah's caseload.
+  await seedUnconnectedPatient(NINA);
+  await db.collection('connectionRequests').doc(NINA.email).set({
+    patientEmail: NINA.email, patientName: NINA.name, therapistEmail: THERAPIST.email,
+    status: 'pending', requestedAt: daysAgo(1).toISOString(),
+  });
+
+  await seedUnconnectedPatient(ALEX);
+  await ensureAuthUser(ALEX);
+  // No connectionRequests doc for Alex on purpose — he files it himself by
+  // entering the code, which is the half of the flow that needs a real login.
+
+  // Verify against the artifact, not this script's own optimism: re-read what
+  // actually landed. A patient who is silently connected would make the gate
+  // look broken (or look like it passed when it didn't).
+  const connDoc = await db.collection('connections').doc(THERAPIST.email).get();
+  const caseload = connDoc.exists ? (connDoc.data().patients || []) : [];
+  const checks = [];
+  for (const p of APPROVAL_TEST) {
+    const u = await db.collection('users').doc(p.email).get();
+    const r = await db.collection('connectionRequests').doc(p.email).get();
+    checks.push({
+      patient: p.email,
+      userDoc: u.exists,
+      therapistEmail: u.exists ? (u.data().therapistEmail || 'none') : 'n/a',
+      request: r.exists ? r.data().status : 'none',
+      onSarahsCaseload: caseload.includes(p.email),
+    });
+  }
+  console.table(checks);
+  const leaked = checks.filter((c) => c.onSarahsCaseload || c.therapistEmail !== 'none');
+  if (leaked.length) {
+    console.error('FAIL: an approval-test patient is already connected — the gate cannot be tested.');
+    process.exit(1);
+  }
+
   console.log(`Done: ${PATIENTS.length} patients, ${nS} sessions, ${nM} messages.`);
   console.log('Dashboard should show: Maria in "Needs review", Robert "No session in 6 days", James + Emily "On track".');
+  console.log('');
+  console.log('Approval gate test accounts:');
+  console.log(`  Nina Okafor  — request PENDING. Sarah should see "Requests to join · 1" on login.`);
+  console.log(`  Alex Rivera  — log in as ${ALEX.email} / ${ALEX.password}, enter Sarah's`);
+  console.log(`                 invite code, and confirm you land in "Request sent" with no exercises.`);
+  console.log('');
   console.log('Remember to DELETE serviceAccountKey.json now.');
   process.exit(0);
 }
