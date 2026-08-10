@@ -1249,6 +1249,14 @@
           <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoReRecord()">Replace</button>
           <button class="apm-demo-btn apm-demo-btn--danger" onclick="demoClearVideo()">Remove</button>
         </div>
+        <!-- Shown once a NEW clip is staged: decides whether it becomes this
+             therapist's saved demo for the exercise (and fans out to everyone
+             already using the saved one) or stays custom to this patient. -->
+        <label class="apm-demo-savelib" id="apmDemoSaveRow" style="display:none;">
+          <input type="checkbox" id="apmDemoSaveToLibrary" checked>
+          <span>Save for this exercise <span class="apm-demo-savelib-hint">— reuse on every patient</span></span>
+        </label>
+        <button class="apm-demo-dellib" id="apmDemoDeleteLib" style="display:none;" onclick="demoDeleteLibraryDemo()">Delete saved demo</button>
         <input type="file" id="demoFileInput" accept="video/*" style="display:none;" onchange="demoHandleFileSelect(this)">
       </div>
     </div>

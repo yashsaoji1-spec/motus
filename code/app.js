@@ -947,6 +947,9 @@ let _demoTimerInterval   = null;   // countdown timer interval
 let _demoTimerSec        = 0;      // elapsed seconds
 let _demoAnimFrame       = null;   // requestAnimationFrame handle for canvas draw loop
 let _demoExistingVideoUrl = null;  // preserves existing URL in edit mode
+let _demoFromLibrary      = false; // staged demo is the therapist's saved demo for this exercise
+let _demoSaveToLibraryDefault = true; // initial state of the "Save for this exercise" checkbox
+let _exerciseDemos        = null;  // cache of therapistLibrary.exerciseDemos, null = not loaded
 let _pendingDemoProtocol  = null;  // protocol awaiting demo auto-play on patient side
 let _manualCamProtocol    = null;  // current protocol for manual camera session
 let _manualCamSetData    = [];    // array of {reps, pain, notes, videoUrl} for each set
@@ -3142,7 +3145,10 @@ async function startSessionWithProtocol(protocol) {
       if (overlay && player) {
         if (nameEl) nameEl.textContent = exName(protocol.exerciseType, protocol.exerciseName);
         player.src = protocol.demoVideoUrl;
-        player.poster = protocol.demoVideoUrl.replace('/video/upload/', '/video/upload/so_1,w_400,h_225,c_fill/').replace('.mp4', '.jpg').replace('.webm', '.jpg');
+        // Was doing the Cloudinary URL rewrite inline and unguarded, which on a
+        // Firebase Storage URL just mangles ".webm" into a 404 poster. Cloudinary
+        // was removed 2026-08-02; _getThumbnailUrl no-ops on non-Cloudinary URLs.
+        player.poster = _getThumbnailUrl(protocol.demoVideoUrl);
 
         // Button state: while playing show only Skip; on ended show Rewatch + Start
         const startBtn  = document.getElementById('demoStartBtn');
@@ -4027,8 +4033,10 @@ async function getExistingProtocol(patientEmail) {
 async function deleteProtocol(patientEmail, protocolId) {
   _openConfirmModal('confirm.deleteProtocol.body', 'confirm.deleteProtocol.ok', async () => {
     const existing = await getProtocols(patientEmail);
-    // Note: if the deleted item has a demoVideoUrl, the Cloudinary file becomes orphaned.
-    // Client-side deletion requires a signed API call — deferred to future Cloud Function cleanup.
+    // Note: if the deleted item has a custom demoVideoUrl, the stored file becomes
+    // orphaned — nothing cleans demos up except full account deletion. Deferred to
+    // a future Cloud Function. Items on a saved demo (demoFromLibrary) share one
+    // file that other protocols still point at, so nothing is removed for those.
     const updated = existing.filter(p => p.id !== protocolId);
     if (updated.length === 0) {
       await db.collection('protocols').doc(patientEmail).delete();
@@ -4090,6 +4098,9 @@ async function editProtocol(patientEmail, protocolId) {
   // Populate demo col with existing demo if present
   _demoBlob = null;
   _demoExistingVideoUrl = p.demoVideoUrl || null;
+  _demoFromLibrary = p.demoFromLibrary === true;
+  _demoSaveToLibraryDefault = true;
+  await _loadExerciseDemos();
   if (p.demoVideoUrl) {
     const playback = document.getElementById('demoPlayback');
     if (playback) {
@@ -4101,6 +4112,8 @@ async function editProtocol(patientEmail, protocolId) {
     _demoSetState('confirmed');
   } else {
     _demoSetState('initial');
+    // Nothing saved on the item — offer the saved demo for this exercise.
+    _demoApplyLibraryFor(p.exerciseType);
   }
 }
 
@@ -4118,6 +4131,168 @@ async function saveTrackedJoints(patientEmail, joints) {
     joints: [...joints],
     updatedBy: currentUser?.email || ''
   });
+}
+
+// ── Saved demo videos (per therapist, per exercise) ────────────────────────
+//
+// A therapist records "Bridge" once and every patient they assign it to gets
+// that clip. The saved entry lives on therapistLibrary/{email}.exerciseDemos,
+// but the URL is ALSO denormalised onto each protocol item, because the PATIENT
+// renders the demo and patients cannot read therapistLibrary — opening that up
+// would expose the therapist's whole library doc (custom exercises, hidden-
+// exercise lists, everything). So the patient read path is unchanged and needs
+// no rules change; the shared-update behaviour comes from a fan-out when the
+// therapist re-records: update the saved entry, then rewrite every protocol of
+// theirs carrying demoFromLibrary === true for that exercise.
+
+async function _loadExerciseDemos(force) {
+  if (_exerciseDemos && !force) return _exerciseDemos;
+  const email = auth.currentUser?.email;
+  if (!email) return (_exerciseDemos = {});
+  try {
+    const doc = await db.collection('therapistLibrary').doc(email).get();
+    _exerciseDemos = (doc.exists && doc.data().exerciseDemos) || {};
+  } catch (e) {
+    _exerciseDemos = {}; // non-fatal — falls back to per-protocol demos only
+  }
+  return _exerciseDemos;
+}
+
+function _libraryDemoFor(exerciseId) {
+  return (exerciseId && _exerciseDemos && _exerciseDemos[exerciseId]) || null;
+}
+
+async function _saveLibraryDemo(exerciseId, url, storagePath) {
+  const email = auth.currentUser?.email;
+  if (!email || !exerciseId || !url) return;
+  const entry = { url, storagePath: storagePath || '', updatedAt: new Date().toISOString() };
+  await db.collection('therapistLibrary').doc(email)
+    .set({ exerciseDemos: { [exerciseId]: entry } }, { merge: true });
+  if (!_exerciseDemos) _exerciseDemos = {};
+  _exerciseDemos[exerciseId] = entry;
+  // Keep the library-modal copy in step — it writes the whole doc back on save.
+  if (_plTherapistData) {
+    _plTherapistData.exerciseDemos = { ...(_plTherapistData.exerciseDemos || {}), [exerciseId]: entry };
+  }
+}
+
+// Every protocol item across this therapist's caseload that is riding the saved
+// demo for `exerciseId`. Backs both the fan-out and the delete warning's count.
+async function _scanLibraryDemoProtocols(exerciseId) {
+  const email = auth.currentUser?.email;
+  if (!email || !exerciseId) return [];
+  let patients = [];
+  try { patients = await getConnectedPatients(email); } catch (e) { return []; }
+  const hits = [];
+  for (const p of patients) {
+    let items;
+    try { items = await getProtocols(p.email); } catch (e) { continue; }
+    const idxs = [];
+    items.forEach((it, i) => {
+      if (it && it.demoFromLibrary === true && it.exerciseType === exerciseId) idxs.push(i);
+    });
+    if (idxs.length) hits.push({ email: p.email, items, idxs });
+  }
+  return hits;
+}
+
+// Push a re-recorded saved demo out to everyone already using it. `skipEmail` is
+// the patient the caller is writing anyway, so we don't write them twice.
+async function _fanOutLibraryDemo(exerciseId, url, skip) {
+  const skipSet = new Set(Array.isArray(skip) ? skip : (skip ? [skip] : []));
+  const hits = await _scanLibraryDemoProtocols(exerciseId);
+  let updated = 0;
+  for (const h of hits) {
+    if (skipSet.has(h.email)) continue;
+    const items = h.items.map((it, i) => (h.idxs.includes(i) ? { ...it, demoVideoUrl: url } : it));
+    try {
+      await db.collection('protocols').doc(h.email).set({ items });
+      updated++;
+    } catch (e) {
+      console.warn('[Motus] demo fan-out failed for', h.email, e);
+    }
+  }
+  return updated;
+}
+
+async function demoDeleteLibraryDemo() {
+  const exerciseId = document.getElementById('exerciseType')?.value;
+  const entry = _libraryDemoFor(exerciseId);
+  if (!exerciseId || !entry) return;
+  const label = exName(exerciseId) || exerciseId;
+
+  // One file backs many protocols, so deleting it breaks playback for every
+  // patient on it. The warning has to say how many that is.
+  const hits = await _scanLibraryDemoProtocols(exerciseId);
+  const n = hits.length;
+  const msg = n
+    ? `Delete the saved demo for ${label}? ${n} patient${n === 1 ? '' : 's'} ${n === 1 ? 'has' : 'have'} it in their protocol and will lose the video.`
+    : `Delete the saved demo for ${label}? No patients are using it right now.`;
+  if (!(await confirmModal(msg, 'Delete'))) return;
+
+  for (const h of hits) {
+    const items = h.items.map((it, i) => {
+      if (!h.idxs.includes(i)) return it;
+      const copy = { ...it };
+      delete copy.demoVideoUrl;
+      delete copy.demoFromLibrary;
+      return copy;
+    });
+    try { await db.collection('protocols').doc(h.email).set({ items }); }
+    catch (e) { console.warn('[Motus] demo delete fan-out failed for', h.email, e); }
+  }
+
+  const email = auth.currentUser?.email;
+  try {
+    await db.collection('therapistLibrary').doc(email).set(
+      { exerciseDemos: { [exerciseId]: firebase.firestore.FieldValue.delete() } },
+      { merge: true }
+    );
+  } catch (e) {
+    console.warn('[Motus] saved demo delete failed', e);
+    showNotice('Could not delete the saved demo. Please try again.');
+    return;
+  }
+  if (entry.storagePath) {
+    // Best-effort: a failure here only leaves an orphaned file, which is the
+    // pre-existing cleanup gap noted in deleteProtocol().
+    try { await (await getStorage()).ref(entry.storagePath).delete(); }
+    catch (e) { console.warn('[Motus] saved demo file not removed', e); }
+  }
+  if (_exerciseDemos) delete _exerciseDemos[exerciseId];
+  if (_plTherapistData && _plTherapistData.exerciseDemos) delete _plTherapistData.exerciseDemos[exerciseId];
+  _demoFromLibrary = false;
+  demoClearVideo();
+  showNotice(n ? `Saved demo deleted. ${n} patient${n === 1 ? '' : 's'} updated.` : 'Saved demo deleted.', 'success');
+}
+
+// Fill the demo pane from the saved library demo when the therapist picks an
+// exercise. Never clobbers a freshly recorded clip or a custom per-patient one —
+// only an empty pane, or the saved demo belonging to the previously picked
+// exercise.
+function _demoApplyLibraryFor(exerciseId) {
+  if (_demoBlob) return;
+  if (_demoExistingVideoUrl && !_demoFromLibrary) return; // custom demo — leave it
+  const entry = _libraryDemoFor(exerciseId);
+  if (entry) {
+    _demoExistingVideoUrl = entry.url;
+    _demoFromLibrary = true;
+    const playback = document.getElementById('demoPlayback');
+    if (playback) {
+      playback.src = entry.url;
+      playback.controls = true;
+      playback.poster = _getThumbnailUrl(entry.url);
+      playback.load();
+    }
+    _demoSetState('confirmed');
+  } else if (_demoFromLibrary) {
+    // Was showing the previous exercise's saved demo — clear it.
+    _demoFromLibrary = false;
+    _demoExistingVideoUrl = null;
+    const playback = document.getElementById('demoPlayback');
+    if (playback) playback.removeAttribute('src');
+    _demoSetState('initial');
+  }
 }
 
 // ── Demo video recording (Add Protocol modal) ─────────────────────────────
@@ -4171,8 +4346,32 @@ function _demoSetState(state) {
         els.playback.poster = _demoThumbnailUrl;
       }
     }
-    if (els.confBadge) els.confBadge.style.display = 'flex';
+    if (els.confBadge) {
+      els.confBadge.textContent = (_demoFromLibrary && !_demoBlob)
+        ? 'Saved demo for this exercise'
+        : 'Demo recorded';
+      els.confBadge.style.display = 'flex';
+    }
     if (els.btnConf) els.btnConf.style.display = 'flex';
+  }
+
+  // Saved-demo controls. The "save for this exercise" checkbox only applies to a
+  // newly staged clip; the delete link only to one already saved to the library.
+  const saveRow = document.getElementById('apmDemoSaveRow');
+  const showSave = !!_demoBlob && (state === 'preview' || state === 'confirmed');
+  if (saveRow) {
+    const wasHidden = saveRow.style.display === 'none';
+    saveRow.style.display = showSave ? 'flex' : 'none';
+    // Seed from the default only as it appears, so a manual toggle survives the
+    // preview -> confirmed transition.
+    if (showSave && wasHidden) {
+      const cb = document.getElementById('apmDemoSaveToLibrary');
+      if (cb) cb.checked = _demoSaveToLibraryDefault;
+    }
+  }
+  const delBtn = document.getElementById('apmDemoDeleteLib');
+  if (delBtn) {
+    delBtn.style.display = (state === 'confirmed' && _demoFromLibrary && !_demoBlob) ? 'block' : 'none';
   }
 }
 
@@ -4198,6 +4397,8 @@ function _demoCleanup() {
   _demoBlob = null;
   _demoThumbnailUrl = null;
   _demoExistingVideoUrl = null;
+  _demoFromLibrary = false;
+  _demoSaveToLibraryDefault = true;
   const playback = document.getElementById('demoPlayback');
   if (playback && playback.src) { URL.revokeObjectURL(playback.src); playback.removeAttribute('src'); }
 }
@@ -4364,15 +4565,21 @@ async function demoFlipCamera() {
 
 function demoUseThis() {
   _demoExistingVideoUrl = null;
+  _demoFromLibrary = false;
   _demoSetState('confirmed');
 }
 
 async function demoReRecord() {
+  // Replacing the saved demo defaults to updating it for everyone (record once,
+  // everyone using it updates); replacing a custom per-patient clip defaults to
+  // staying custom.
+  _demoSaveToLibraryDefault = _demoFromLibrary || !_demoExistingVideoUrl;
   const playback = document.getElementById('demoPlayback');
   if (playback && playback.src) { URL.revokeObjectURL(playback.src); playback.removeAttribute('src'); }
   _demoBlob = null;
   _demoThumbnailUrl = null;
   _demoExistingVideoUrl = null;
+  _demoFromLibrary = false;
   await _demoStartCameraAndRecord();
 }
 
@@ -4391,6 +4598,9 @@ async function demoHandleFileSelect(input) {
   if (!file) return;
   input.value = '';
   try {
+    _demoSaveToLibraryDefault = _demoFromLibrary || !_demoExistingVideoUrl;
+    _demoFromLibrary = false;
+    _demoExistingVideoUrl = null;
     _demoBlob = await compressVideo(file, 'demo');
     const playback = document.getElementById('demoPlayback');
     if (playback) {
@@ -4420,6 +4630,8 @@ async function removeProtocolDemo(patientEmail, protocolId) {
       if (p.id !== protocolId) return p;
       const copy = { ...p };
       delete copy.demoVideoUrl;
+      // Detaches this patient from the saved demo; the saved demo itself stays.
+      delete copy.demoFromLibrary;
       return copy;
     });
     await db.collection('protocols').doc(patientEmail).set({ items: updated });
@@ -4561,14 +4773,24 @@ async function assignProtocol() {
   const submitBtn = document.getElementById('apmSubmitBtn');
   const origSubmitText = submitBtn ? submitBtn.textContent : null;
   let demoVideoUrl = _demoExistingVideoUrl || null;
+  // Carried onto the protocol item so the fan-out knows which demos track the
+  // saved one and which are custom to this patient.
+  let demoFromLibrary = _demoFromLibrary;
+  let demoStoragePath = null;
+  const saveDemoToLibrary = !!document.getElementById('apmDemoSaveToLibrary')?.checked;
   if (_demoBlob) {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading demo...'; }
-    { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
+    {
+      const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`);
+      demoVideoUrl = up ? up.url : null;
+      demoStoragePath = up ? up.storagePath : null;
+    }
     if (demoVideoUrl) {
       _demoThumbnailUrl = _getThumbnailUrl(demoVideoUrl);
     } else {
       console.warn('[Motus] Demo upload failed');
     }
+    demoFromLibrary = !!demoVideoUrl && saveDemoToLibrary;
     if (submitBtn) submitBtn.disabled = false;
   }
 
@@ -4599,6 +4821,8 @@ async function assignProtocol() {
           editedAt:   new Date().toISOString()
         };
         if (demoVideoUrl !== undefined) edited.demoVideoUrl = demoVideoUrl;
+        if (demoVideoUrl && demoFromLibrary) edited.demoFromLibrary = true;
+        else delete edited.demoFromLibrary;
         if (exerciseParams) edited.exerciseParams = exerciseParams;
         else delete edited.exerciseParams;
         return edited;
@@ -4621,6 +4845,7 @@ async function assignProtocol() {
         assignedAt:   new Date().toISOString()
       };
       if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
+      if (demoVideoUrl && demoFromLibrary) newItem.demoFromLibrary = true;
       if (exerciseParams) newItem.exerciseParams = exerciseParams;
       await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
     }
@@ -4637,6 +4862,22 @@ async function assignProtocol() {
   }
 
   if (!saveOk) return;
+
+  // A newly recorded clip marked "save for this exercise" becomes the therapist's
+  // saved demo, then fans out to every patient already riding the saved one.
+  // This patient was just written above, so skip them.
+  if (_demoBlob && demoVideoUrl && demoFromLibrary) {
+    if (submitBtn) submitBtn.textContent = 'Updating saved demo...';
+    try {
+      await _saveLibraryDemo(exerciseType, demoVideoUrl, demoStoragePath);
+      await _fanOutLibraryDemo(exerciseType, demoVideoUrl, patientEmail);
+    } catch (e) {
+      // The assignment itself already succeeded — don't fail the flow over the
+      // shared copy, just don't claim it happened.
+      console.warn('[Motus] saved demo update failed', e);
+      showNotice('Exercise assigned, but the saved demo could not be updated for your other patients.');
+    }
+  }
 
   // F-010: show success banner after close
   closeAddProtocol();
@@ -5789,6 +6030,8 @@ async function openAddProtocol(patientEmail, patientName) {
   if (infoEl) infoEl.style.display = 'none';
   _demoBlob = null;
   _demoExistingVideoUrl = null;
+  _demoFromLibrary = false;
+  _demoSaveToLibraryDefault = true;
   _demoSetState('initial');
 }
 
@@ -5846,6 +6089,11 @@ async function openBulkAssign() {
   document.body.style.overflow = 'hidden';
   _apmRenderLibrary('');
   updateExerciseParamsUI(null, null);
+  _demoBlob = null;
+  _demoExistingVideoUrl = null;
+  _demoFromLibrary = false;
+  _demoSaveToLibraryDefault = true;
+  _demoSetState('initial');
 }
 
 async function _bapLoadPatients() {
@@ -5920,11 +6168,20 @@ async function bulkAssignProtocol() {
   if (submitBtn) submitBtn.disabled = true;
 
   try {
-    // Upload demo once, reuse URL across all patients
-    let demoVideoUrl = null;
+    // Upload demo once, reuse URL across all patients. An auto-filled saved demo
+    // needs no upload at all — its URL is already there.
+    let demoVideoUrl = _demoExistingVideoUrl || null;
+    let demoFromLibrary = _demoFromLibrary;
+    let demoStoragePath = null;
+    const saveDemoToLibrary = !!document.getElementById('apmDemoSaveToLibrary')?.checked;
     if (_demoBlob) {
       if (submitBtn) submitBtn.textContent = 'Uploading demo...';
-      { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
+      {
+        const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`);
+        demoVideoUrl = up ? up.url : null;
+        demoStoragePath = up ? up.storagePath : null;
+      }
+      demoFromLibrary = !!demoVideoUrl && saveDemoToLibrary;
       if (submitBtn) submitBtn.textContent = 'Assigning...';
     }
 
@@ -5945,6 +6202,7 @@ async function bulkAssignProtocol() {
           assignedAt:   new Date().toISOString()
         };
         if (demoVideoUrl) newItem.demoVideoUrl = demoVideoUrl;
+        if (demoVideoUrl && demoFromLibrary) newItem.demoFromLibrary = true;
         if (exerciseParams) newItem.exerciseParams = exerciseParams;
         await db.collection('protocols').doc(patientEmail).set({ items: [...existing, newItem] });
         writeAuditLog('protocol_created', patientEmail);
@@ -5954,6 +6212,18 @@ async function bulkAssignProtocol() {
         failedEmails.push(patientEmail);
       }
     }
+    // Publish the saved demo and push it to anyone already on it who wasn't in
+    // this batch (the batch already got the new URL written above).
+    if (_demoBlob && demoVideoUrl && demoFromLibrary) {
+      if (submitBtn) submitBtn.textContent = 'Updating saved demo...';
+      try {
+        await _saveLibraryDemo(exerciseType, demoVideoUrl, demoStoragePath);
+        await _fanOutLibraryDemo(exerciseType, demoVideoUrl, selected);
+      } catch (e) {
+        console.warn('[Motus] saved demo update failed', e);
+      }
+    }
+
     // F-012: report failed patients alongside the success count
     if (failedEmails.length > 0) {
       showNotice(t('th.bulkAssignFailed', { emails: failedEmails.join(', ') }) + '\n\n' + t('th.bulkAssignPartial', { ok: successCount, total: selected.length }));
@@ -6047,6 +6317,8 @@ function apmSelectExercise(id) {
   }
   updateExerciseParamsUI(id, null);
   _apmHighlightSelected(id);
+  // Auto-fill this therapist's saved demo for the exercise, if they have one.
+  _demoApplyLibraryFor(id);
 }
 
 function apmFilter(query) { _apmRenderLibrary(query); }
@@ -6093,6 +6365,7 @@ async function _apmLoadCustomExercises() {
       const doc = await db.collection('therapistLibrary').doc(auth.currentUser.email).get();
       if (doc.exists) {
         const data = doc.data();
+        _exerciseDemos = data.exerciseDemos || {}; // saved per-exercise demo videos
         const hidden = new Set(data.hiddenIds || []);
         const edited = {};
         (data.editedBuiltIns || []).forEach(e => { edited[e.id] = e; });
@@ -6115,6 +6388,8 @@ async function _apmLoadCustomExercises() {
         for (let i = PROTOCOL_CATALOG.length - 1; i >= 0; i--) {
           if (hidden.has(PROTOCOL_CATALOG[i].id)) PROTOCOL_CATALOG.splice(i, 1);
         }
+      } else {
+        _exerciseDemos = {};
       }
     } catch (e) { /* non-fatal */ }
   }
@@ -6132,7 +6407,9 @@ async function loadTherapistLibrary() {
       _plTherapistData = doc.data();
     } else {
       _plTherapistData = { customExercises: [], hiddenIds: [], editedBuiltIns: [] };
-      await db.collection('therapistLibrary').doc(auth.currentUser.email).set(_plTherapistData);
+      // merge: saved exercise demos live on this same doc and are written
+      // separately — a wholesale set() here would wipe them.
+      await db.collection('therapistLibrary').doc(auth.currentUser.email).set(_plTherapistData, { merge: true });
     }
   } catch (e) {
     _plTherapistData = { customExercises: [], hiddenIds: [], editedBuiltIns: [] };
@@ -9948,7 +10225,7 @@ Object.assign(window, {
   // Demo recording
   demoStartDemo, demoEndDemo, demoFlipCamera,
   demoUseThis, demoReRecord, demoClearVideo,
-  demoUploadFile, demoHandleFileSelect,
+  demoUploadFile, demoHandleFileSelect, demoDeleteLibraryDemo,
   playProtocolDemo, removeProtocolDemo,
   closeDemoAndStart, skipDemoVideo, replayDemoInSession, exitDemoNoSave,
 

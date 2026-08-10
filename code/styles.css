@@ -2100,6 +2100,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
   display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);
 }
+/* The confirm dialog is a blocking prompt, so it has to sit above whatever
+   opened it — including the Add Protocol modal (.apm-overlay, z-index 1200)
+   and notices (.saved-modal-overlay, 4000). At the base 1000 it opened behind
+   them and the flow just looked frozen. */
+#confirmModal.modal-overlay { z-index: 4100; }
 .modal-box {
   background: var(--surface); border-radius: 16px; padding: 32px; width: 340px;
   text-align: center; display: flex; flex-direction: column; gap: 12px;
@@ -4238,6 +4243,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .apm-demo-btns {
   display: flex; gap: var(--space-2); flex-wrap: wrap;
+}
+/* Saved-demo controls (library-backed demo videos) */
+.apm-demo-savelib {
+  display: flex; align-items: flex-start; gap: var(--space-2);
+  margin-top: var(--space-2); cursor: pointer;
+  font-size: var(--text-sm); color: var(--text-secondary, #475569);
+  line-height: 1.35;
+}
+.apm-demo-savelib input { margin-top: 2px; flex: none; }
+.apm-demo-savelib-hint { color: var(--th-muted, #64748b); }
+.apm-demo-dellib {
+  margin-top: var(--space-2); padding: 6px 4px;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: var(--text-sm); color: var(--danger, #dc2626);
+  text-decoration: underline; text-align: left;
 }
 .apm-demo-btn {
   flex: 1; min-width: 80px; padding: 9px 12px;
