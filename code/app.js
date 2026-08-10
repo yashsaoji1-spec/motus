@@ -4200,9 +4200,11 @@ async function _scanLibraryDemoProtocols(exerciseId) {
 
 // Push a re-recorded saved demo out to everyone already using it. `skipEmail` is
 // the patient the caller is writing anyway, so we don't write them twice.
-async function _fanOutLibraryDemo(exerciseId, url, skip) {
+async function _fanOutLibraryDemo(exerciseId, url, skip, knownHits) {
   const skipSet = new Set(Array.isArray(skip) ? skip : (skip ? [skip] : []));
-  const hits = await _scanLibraryDemoProtocols(exerciseId);
+  // Callers that already scanned (to warn with a count) pass their result back
+  // in rather than paying for every protocol read a second time.
+  const hits = knownHits || await _scanLibraryDemoProtocols(exerciseId);
   let updated = 0;
   for (const h of hits) {
     if (skipSet.has(h.email)) continue;
@@ -4385,15 +4387,42 @@ function _demoUnmount() {
 async function _plSaveDemo() {
   const exerciseId = _plSelectedId;
   if (!exerciseId || !_demoBlob) return;
+  const label = exName(exerciseId) || exerciseId;
   const saveBtn = document.getElementById('apmDemoUseBtn');
   const orig = saveBtn ? saveBtn.textContent : null;
+
+  // Saving here is a fan-out — it replaces the video for everyone already on
+  // this exercise's saved demo, and there's no per-patient checkbox in the
+  // library the way there is on the assign screen. Get explicit agreement, with
+  // the real number rather than a vague "all patients".
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Checking...'; }
+  let hits = [];
+  try {
+    hits = await _scanLibraryDemoProtocols(exerciseId);
+  } catch (e) {
+    console.warn('[Motus] could not count affected patients', e);
+    hits = null; // unknown — warn without a number rather than claiming zero
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; if (orig) saveBtn.textContent = orig; }
+  }
+  const n = hits ? hits.length : null;
+  let msg;
+  if (n === null) {
+    msg = `This will become your saved demo for ${label} and replace the video for every patient already using it. Save it for all patients?`;
+  } else if (n === 0) {
+    msg = `This will become your saved demo for ${label}. Every patient you assign ${label} to will see it. No patients are using it yet.`;
+  } else {
+    msg = `This will become your saved demo for ${label}. ${n} patient${n === 1 ? '' : 's'} already ${n === 1 ? 'has' : 'have'} it in their protocol and ${n === 1 ? 'will' : 'will each'} see this video instead of the one they have now.`;
+  }
+  if (!(await confirmModal(msg, 'Save for all patients'))) return;
+
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Uploading...'; }
   try {
     const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`);
     if (!up) { showNotice('Could not upload the demo. Please try again.'); return; }
     await _saveLibraryDemo(exerciseId, up.url, up.storagePath);
     if (saveBtn) saveBtn.textContent = 'Updating patients...';
-    const n = await _fanOutLibraryDemo(exerciseId, up.url);
+    const updated = await _fanOutLibraryDemo(exerciseId, up.url, null, hits);
     _demoBlob = null;
     _demoExistingVideoUrl = up.url;
     _demoFromLibrary = true;
@@ -4405,7 +4434,7 @@ async function _plSaveDemo() {
       playback.load();
     }
     _demoSetState('confirmed');
-    showNotice(n ? `Demo saved. ${n} patient${n === 1 ? '' : 's'} updated.` : 'Demo saved.', 'success');
+    showNotice(updated ? `Demo saved. ${updated} patient${updated === 1 ? '' : 's'} updated.` : 'Demo saved.', 'success');
   } catch (e) {
     console.error('[Motus] library demo save failed', e);
     showNotice('Could not save the demo. Please try again.');
