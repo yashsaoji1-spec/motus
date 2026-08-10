@@ -4389,7 +4389,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   transition: border-color var(--ease-default); width: 100%; cursor: pointer;
 }
 .apm-select:focus { outline: none; border-color: var(--accent); }
-.apm-selected-ex-info { padding-bottom: var(--space-3); border-bottom: 1px solid var(--border); }
+/* The column's 16px flex gap doesn't reach here — this block sits inside an
+   inner wrapper, so the rule was landing 0px off the uppercase labels below it.
+   Restate the same 16px rhythm explicitly. */
+.apm-selected-ex-info { padding-bottom: var(--space-3); border-bottom: 1px solid var(--border); margin-bottom: var(--space-4); }
 .apm-selected-ex-name { font-size: var(--text-base); font-weight: var(--font-semibold); color: var(--text); margin-bottom: var(--space-1); }
 .apm-selected-ex-desc { font-size: var(--text-sm); color: var(--muted); line-height: 1.45; }
 .apm-notes-field { display: flex; flex-direction: column; gap: var(--space-1); }
