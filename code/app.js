@@ -112,6 +112,11 @@ const I18N = {
     'auth.resendNeedCreds': 'Enter your email and password, then tap Resend.',
     'auth.resendFailed': 'Could not resend. Check your email and password.',
     'auth.alreadyVerified': 'Your email is already verified — just sign in.',
+    // Verification mail currently sends from Firebase's shared default domain,
+    // which filters treat harshly, so it lands in spam more often than not.
+    // Say so up front rather than letting people conclude it never arrived.
+    'auth.signupCreated': 'Account created. Check your email to verify before signing in — it will likely be in your spam folder.',
+    'auth.verifyRequired': 'Please verify your email before signing in. Check your inbox, and your spam folder — that is usually where it lands.',
     // Email action handler (verify / reset)
     'action.loadingTitle': 'Just a moment…',
     'action.loadingSub': 'Confirming your request.',
@@ -454,6 +459,8 @@ const I18N = {
     'auth.resendNeedCreds': 'Ingresa tu correo y contraseña, luego toca Reenviar.',
     'auth.resendFailed': 'No se pudo reenviar. Verifica tu correo y contraseña.',
     'auth.alreadyVerified': 'Tu correo ya está verificado: inicia sesión.',
+    'auth.signupCreated': 'Cuenta creada. Revisa tu correo para verificarla antes de iniciar sesión; lo más probable es que esté en la carpeta de spam.',
+    'auth.verifyRequired': 'Verifica tu correo antes de iniciar sesión. Revisa tu bandeja de entrada y la carpeta de spam, que es donde suele llegar.',
     // Email action handler (verify / reset)
     'action.loadingTitle': 'Un momento…',
     'action.loadingSub': 'Confirmando tu solicitud.',
@@ -1158,7 +1165,7 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     if (!import.meta.env.DEV && !firebaseUser.emailVerified && currentRole !== 'admin' && !DEMO_EMAILS.has(firebaseUser.email)) {
       await auth.signOut();
       showScreen('loginScreen');
-      showError('loginError', 'Please verify your email before signing in. Check your inbox for the verification link.');
+      showError('loginError', t('auth.verifyRequired'));
       const rb = document.getElementById('resendVerifyBtn');
       if (rb) rb.style.display = 'block';
       return;
@@ -1674,22 +1681,40 @@ async function finalizeSignup(skipData = false) {
   const btn = document.getElementById('signupCreateBtn');
   const origText = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = t('auth.creatingAccount'); }
+  let accountCreated = false;
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
+    accountCreated = true;
+    // Send the verification BEFORE anything that can fail. This used to run
+    // last, after the users/ write: if that write was rejected (rules, App
+    // Check, offline) the account was already live in Auth but no email ever
+    // went out, the screen said "Sign up failed", and retrying answered "email
+    // already in use". A dead end with no way back for the user.
+    if (!import.meta.env.DEV) await cred.user.sendEmailVerification();
     await db.collection('users').doc(cred.user.email).set(docData);
     await writeAuditLog('user_signup', cred.user.email);
-    if (!import.meta.env.DEV) await cred.user.sendEmailVerification();
     await auth.signOut();
     _pendingSignup = {};
     selectedRole = 'patient';
     signupGoToStep(0);
     showScreen('loginScreen');
-    showError('loginError', 'Account created. Check your email to verify before signing in.');
+    showError('loginError', t('auth.signupCreated'));
   } catch (e) {
-    showError('signupError',
-      e.code === 'auth/email-already-in-use'
-        ? 'An account with that email already exists.'
-        : (e.message || 'Sign up failed. Please try again.'));
+    console.error('[Motus] signup failed:', e);
+    // Don't leave a half-created account signed in — the success path signs out
+    // too, and the verification gate expects to be reached from a clean state.
+    if (accountCreated) { try { await auth.signOut(); } catch (_) {} }
+    let msg;
+    if (e.code === 'auth/email-already-in-use') {
+      msg = 'An account with that email already exists.';
+    } else if (accountCreated) {
+      // The account is live even though setup didn't finish, so "try again"
+      // would be a lie — the retry can only ever say "already in use".
+      msg = 'Your account was created, but setup did not finish. Sign in with these details, and use "Resend verification email" if you did not get one.';
+    } else {
+      msg = e.message || 'Sign up failed. Please try again.';
+    }
+    showError('signupError', msg);
     signupGoToStep(0);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origText; }
