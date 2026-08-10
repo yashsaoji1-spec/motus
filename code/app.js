@@ -8682,11 +8682,21 @@ async function disconnectPatient(patientEmail) {
       }, { merge: true }),
     ]);
     await writeAuditLog('patient_disconnected', patientEmail);
-    backToPatientList();
-    await loadPatients();
   } catch (e) {
     console.error('[Motus] Disconnect patient failed:', e);
     showNotice('Failed to disconnect patient. Please try again.');
+    return;
+  }
+  // Refreshing the UI is NOT part of the disconnect succeeding. This used to sit
+  // inside the try and called loadPatients(), which does not exist — so every
+  // disconnect threw ReferenceError after its writes had already committed, and
+  // reported "Failed to disconnect" for work that was done. The real function is
+  // refreshPatientList(); a failure here is now cosmetic and says so.
+  try {
+    backToPatientList();
+    await refreshPatientList();
+  } catch (e) {
+    console.error('[Motus] Patient list refresh after disconnect failed:', e);
   }
 }
 
