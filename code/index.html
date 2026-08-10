@@ -1221,44 +1221,10 @@
 
         
       </div>
-      <div class="apm-demo-col" id="apmDemoCol">
-        <div class="apm-demo-label">Demo Video <span class="apm-demo-optional">(optional)</span></div>
-        <div class="apm-demo-screen">
-          <video id="demoCameraPreview" class="apm-demo-video" playsinline muted autoplay style="display:none;" aria-label="Demo camera preview"></video>
-          <video id="demoPlayback" class="apm-demo-video" playsinline controls style="display:none;" aria-label="Demo video playback"></video>
-          <canvas id="demoRecordCanvas" style="display:none;"></canvas>
-          <div id="demoEmptyState" class="apm-demo-empty">No demo recorded</div>
-          <div id="demoRecordingBadge" class="apm-demo-rec-badge" style="display:none;">
-            <span class="apm-demo-rec-dot"></span><span id="demoTimerText">0:00</span>
-          </div>
-          <div id="demoConfirmedBadge" class="apm-demo-confirmed-badge" style="display:none;">Demo recorded</div>
-        </div>
-        <div class="apm-demo-btns" id="apmDemoBtnsInitial">
-          <button class="apm-demo-btn" onclick="demoStartDemo()">Start Demo</button>
-          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoUploadFile()">Upload</button>
-        </div>
-        <div class="apm-demo-btns" id="apmDemoBtnsRecording" style="display:none;">
-          <button class="apm-demo-btn apm-demo-btn--danger" onclick="demoEndDemo()">End Demo</button>
-          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoFlipCamera()">Flip</button>
-        </div>
-        <div class="apm-demo-btns" id="apmDemoBtnsPreview" style="display:none;">
-          <button class="apm-demo-btn" onclick="demoUseThis()">Use This</button>
-          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoReRecord()">Re-record</button>
-        </div>
-        <div class="apm-demo-btns" id="apmDemoBtnsConfirmed" style="display:none;">
-          <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoReRecord()">Replace</button>
-          <button class="apm-demo-btn apm-demo-btn--danger" onclick="demoClearVideo()">Remove</button>
-        </div>
-        <!-- Shown once a NEW clip is staged: decides whether it becomes this
-             therapist's saved demo for the exercise (and fans out to everyone
-             already using the saved one) or stays custom to this patient. -->
-        <label class="apm-demo-savelib" id="apmDemoSaveRow" style="display:none;">
-          <input type="checkbox" id="apmDemoSaveToLibrary" checked>
-          <span>Save for this exercise <span class="apm-demo-savelib-hint">— reuse on every patient</span></span>
-        </label>
-        <button class="apm-demo-dellib" id="apmDemoDeleteLib" style="display:none;" onclick="demoDeleteLibraryDemo()">Delete saved demo</button>
-        <input type="file" id="demoFileInput" accept="video/*" style="display:none;" onchange="demoHandleFileSelect(this)">
-      </div>
+      <!-- Recorder markup is rendered by _demoMount() so the same one instance
+           can serve this modal and the Exercise Library modal without ever
+           duplicating its element IDs. -->
+      <div class="apm-demo-col" id="apmDemoCol"></div>
     </div>
     <div class="apm-footer">
       <div id="apmAssignError" class="apm-assign-error" style="display:none;" aria-live="polite"></div>
@@ -1332,6 +1298,9 @@
               <label class="apm-label">Description</label>
               <textarea id="plDesc" class="apm-textarea" placeholder="Describe this exercise..." maxlength="500" rows="2"></textarea>
             </div>
+            <!-- Saved demo for this exercise. Same recorder as the assign modal,
+                 mounted here by _demoMount(); saving fans out immediately. -->
+            <div class="apm-demo-col apm-demo-col--inline" id="plDemoCol"></div>
             <div class="pl-actions">
               <button class="pl-save-btn" onclick="plSaveExercise()">Save Changes</button>
               <button class="pl-hide-btn" id="plHideBtn" onclick="plToggleHide()">Hide Exercise</button>

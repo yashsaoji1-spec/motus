@@ -948,6 +948,7 @@ let _demoTimerSec        = 0;      // elapsed seconds
 let _demoAnimFrame       = null;   // requestAnimationFrame handle for canvas draw loop
 let _demoExistingVideoUrl = null;  // preserves existing URL in edit mode
 let _demoFromLibrary      = false; // staged demo is the therapist's saved demo for this exercise
+let _demoHost             = 'apm'; // where the recorder is mounted: 'apm' (assign) | 'pl' (library)
 let _demoSaveToLibraryDefault = true; // initial state of the "Save for this exercise" checkbox
 let _exerciseDemos        = null;  // cache of therapistLibrary.exerciseDemos, null = not loaded
 let _pendingDemoProtocol  = null;  // protocol awaiting demo auto-play on patient side
@@ -4096,6 +4097,7 @@ async function editProtocol(patientEmail, protocolId) {
   if (notesEl) notesEl.value = p.notes || '';
 
   // Populate demo col with existing demo if present
+  _demoMount('apmDemoCol', 'apm');
   _demoBlob = null;
   _demoExistingVideoUrl = p.demoVideoUrl || null;
   _demoFromLibrary = p.demoFromLibrary === true;
@@ -4216,7 +4218,9 @@ async function _fanOutLibraryDemo(exerciseId, url, skip) {
 }
 
 async function demoDeleteLibraryDemo() {
-  const exerciseId = document.getElementById('exerciseType')?.value;
+  const exerciseId = _demoHost === 'pl'
+    ? _plSelectedId
+    : document.getElementById('exerciseType')?.value;
   const entry = _libraryDemoFor(exerciseId);
   if (!exerciseId || !entry) return;
   const label = exName(exerciseId) || exerciseId;
@@ -4293,6 +4297,133 @@ function _demoApplyLibraryFor(exerciseId) {
     if (playback) playback.removeAttribute('src');
     _demoSetState('initial');
   }
+}
+
+// ── Where the recorder is mounted ──────────────────────────────────────────
+//
+// Two screens need the same recorder: the Add Protocol modal (attach a demo
+// while assigning) and the Exercise Library modal (record the exercise's saved
+// demo directly, with no patient in play). Rather than duplicate the markup —
+// which would duplicate every element ID the demo* functions look up — the
+// markup is rendered here and mounted into whichever container is live. Exactly
+// one instance exists at a time, so all the existing getElementById calls work
+// unchanged wherever it currently sits.
+
+function _demoColHTML() {
+  const isPl = _demoHost === 'pl';
+  return `
+    <div class="apm-demo-label">${isPl ? 'Saved Demo' : 'Demo Video <span class="apm-demo-optional">(optional)</span>'}</div>
+    <div class="apm-demo-screen">
+      <video id="demoCameraPreview" class="apm-demo-video" playsinline muted autoplay style="display:none;" aria-label="Demo camera preview"></video>
+      <video id="demoPlayback" class="apm-demo-video" playsinline controls style="display:none;" aria-label="Demo video playback"></video>
+      <canvas id="demoRecordCanvas" style="display:none;"></canvas>
+      <div id="demoEmptyState" class="apm-demo-empty">No demo recorded</div>
+      <div id="demoRecordingBadge" class="apm-demo-rec-badge" style="display:none;">
+        <span class="apm-demo-rec-dot"></span><span id="demoTimerText">0:00</span>
+      </div>
+      <div id="demoConfirmedBadge" class="apm-demo-confirmed-badge" style="display:none;">Demo recorded</div>
+    </div>
+    <div class="apm-demo-btns" id="apmDemoBtnsInitial">
+      <button class="apm-demo-btn" onclick="demoStartDemo()">Start Demo</button>
+      <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoUploadFile()">Upload</button>
+    </div>
+    <div class="apm-demo-btns" id="apmDemoBtnsRecording" style="display:none;">
+      <button class="apm-demo-btn apm-demo-btn--danger" onclick="demoEndDemo()">End Demo</button>
+      <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoFlipCamera()">Flip</button>
+    </div>
+    <div class="apm-demo-btns" id="apmDemoBtnsPreview" style="display:none;">
+      <button class="apm-demo-btn" id="apmDemoUseBtn" onclick="demoUseThis()">${isPl ? 'Save Demo' : 'Use This'}</button>
+      <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoReRecord()">Re-record</button>
+    </div>
+    <div class="apm-demo-btns" id="apmDemoBtnsConfirmed" style="display:none;">
+      <button class="apm-demo-btn apm-demo-btn--secondary" onclick="demoReRecord()">Replace</button>
+      <button class="apm-demo-btn apm-demo-btn--danger" onclick="${isPl ? 'demoDeleteLibraryDemo()' : 'demoClearVideo()'}">Remove</button>
+    </div>
+    ${isPl ? '' : `
+    <!-- Shown once a NEW clip is staged: decides whether it becomes this
+         therapist's saved demo for the exercise (and fans out to everyone
+         already using the saved one) or stays custom to this patient. In the
+         library there is no patient, so saving is always to the library. -->
+    <label class="apm-demo-savelib" id="apmDemoSaveRow" style="display:none;">
+      <input type="checkbox" id="apmDemoSaveToLibrary" checked>
+      <span>Save for this exercise <span class="apm-demo-savelib-hint">— reuse on every patient</span></span>
+    </label>
+    <button class="apm-demo-dellib" id="apmDemoDeleteLib" style="display:none;" onclick="demoDeleteLibraryDemo()">Delete saved demo</button>`}
+    <input type="file" id="demoFileInput" accept="video/*" style="display:none;" onchange="demoHandleFileSelect(this)">`;
+}
+
+function _demoMount(containerId, host) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  _demoCleanup(); // stop any camera still running in the previous host
+  ['apmDemoCol', 'plDemoCol'].forEach(id => {
+    if (id === containerId) return;
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+  _demoHost = host;
+  container.innerHTML = _demoColHTML();
+}
+
+function _demoUnmount() {
+  _demoCleanup();
+  ['apmDemoCol', 'plDemoCol'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
+
+// Library context: there is no patient to attach the clip to, so confirming it
+// means saving it as this exercise's demo and pushing it to everyone already on
+// the old one.
+async function _plSaveDemo() {
+  const exerciseId = _plSelectedId;
+  if (!exerciseId || !_demoBlob) return;
+  const saveBtn = document.getElementById('apmDemoUseBtn');
+  const orig = saveBtn ? saveBtn.textContent : null;
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Uploading...'; }
+  try {
+    const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`);
+    if (!up) { showNotice('Could not upload the demo. Please try again.'); return; }
+    await _saveLibraryDemo(exerciseId, up.url, up.storagePath);
+    if (saveBtn) saveBtn.textContent = 'Updating patients...';
+    const n = await _fanOutLibraryDemo(exerciseId, up.url);
+    _demoBlob = null;
+    _demoExistingVideoUrl = up.url;
+    _demoFromLibrary = true;
+    const playback = document.getElementById('demoPlayback');
+    if (playback) {
+      if (playback.src && playback.src.startsWith('blob:')) URL.revokeObjectURL(playback.src);
+      playback.src = up.url;
+      playback.poster = _getThumbnailUrl(up.url);
+      playback.load();
+    }
+    _demoSetState('confirmed');
+    showNotice(n ? `Demo saved. ${n} patient${n === 1 ? '' : 's'} updated.` : 'Demo saved.', 'success');
+  } catch (e) {
+    console.error('[Motus] library demo save failed', e);
+    showNotice('Could not save the demo. Please try again.');
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; if (orig) saveBtn.textContent = orig; }
+  }
+}
+
+// Fill the library modal's demo pane for the exercise just selected.
+async function _plLoadDemoPane(exerciseId) {
+  await _loadExerciseDemos();
+  if (_demoHost !== 'pl' || _plSelectedId !== exerciseId) return; // selection moved on
+  const entry = _libraryDemoFor(exerciseId);
+  if (!entry) { _demoSetState('initial'); return; }
+  _demoExistingVideoUrl = entry.url;
+  _demoFromLibrary = true;
+  const playback = document.getElementById('demoPlayback');
+  if (playback) {
+    playback.src = entry.url;
+    playback.controls = true;
+    playback.poster = _getThumbnailUrl(entry.url);
+    playback.load();
+  }
+  _demoSetState('confirmed');
 }
 
 // ── Demo video recording (Add Protocol modal) ─────────────────────────────
@@ -4563,7 +4694,9 @@ async function demoFlipCamera() {
   await _demoStartCameraAndRecord();
 }
 
-function demoUseThis() {
+async function demoUseThis() {
+  // In the library the clip has nowhere to wait — confirming it saves it.
+  if (_demoHost === 'pl') return _plSaveDemo();
   _demoExistingVideoUrl = null;
   _demoFromLibrary = false;
   _demoSetState('confirmed');
@@ -6028,6 +6161,7 @@ async function openAddProtocol(patientEmail, patientName) {
   updateExerciseParamsUI(null, null);
   const infoEl = document.getElementById('apmSelectedExInfo');
   if (infoEl) infoEl.style.display = 'none';
+  _demoMount('apmDemoCol', 'apm');
   _demoBlob = null;
   _demoExistingVideoUrl = null;
   _demoFromLibrary = false;
@@ -6089,6 +6223,7 @@ async function openBulkAssign() {
   document.body.style.overflow = 'hidden';
   _apmRenderLibrary('');
   updateExerciseParamsUI(null, null);
+  _demoMount('apmDemoCol', 'apm');
   _demoBlob = null;
   _demoExistingVideoUrl = null;
   _demoFromLibrary = false;
@@ -6467,6 +6602,7 @@ function openProtocolLibrary() {
 function closeProtocolLibrary() {
   document.getElementById('protocolLibraryModal').style.display = 'none';
   document.body.style.overflow = '';
+  _demoUnmount(); // stop the camera if a demo was mid-record
   _plSelectedId = null;
   _plCreateMode = false;
 }
@@ -6559,10 +6695,16 @@ function plSelectExercise(id) {
   const resetBtn = document.getElementById('plResetBtn');
   if (resetBtn) resetBtn.style.display = entry._isEdited ? '' : 'none';
 
+  // Saved demo for this exercise — mount the recorder here, then fill it in.
+  _demoMount('plDemoCol', 'pl');
+  _demoSetState('initial');
+  _plLoadDemoPane(id);
+
   _plHighlightSelected(id);
 }
 
 function plDeselect() {
+  _demoUnmount();
   _plSelectedId = null;
   document.getElementById('plEmptyState').style.display = '';
   document.getElementById('plConfigFields').style.display = 'none';
@@ -6578,6 +6720,7 @@ function _plHighlightSelected(id) {
 }
 
 function plEnterCreateMode() {
+  _demoUnmount(); // a new exercise has no saved demo yet — record one after saving
   _plCreateMode = true;
   _plSelectedId = null;
   document.getElementById('plEmptyState').style.display = 'none';
