@@ -97,6 +97,16 @@ service cloud.firestore {
         isAdmin()
       );
       allow delete: if isAuth() && (myEmail() == email || isAdmin());
+      // A patient may DETACH themselves: clear therapistEmail, touching nothing else.
+      // The self-update rule above bars the field outright, which was aimed at a
+      // patient ATTACHING themselves to a caseload with a known invite code —
+      // but written as "must not touch", it also blocked leaving, so the two
+      // Disconnect buttons in the patient UI could never succeed. Setting the
+      // field is still impossible here (the write is only allowed when the key is
+      // absent from the result), so the approval gate is untouched.
+      allow update: if isAuth() && myEmail() == email &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['therapistEmail']) &&
+        !('therapistEmail' in request.resource.data);
       // Therapist can clear a connected patient's therapistEmail field on disconnect.
       // Must still be connected when this write runs (sequenced before removing from connections).
       allow update: if isAuth() && isTherapist() && connectedToPatient(email) &&
@@ -174,6 +184,17 @@ service cloud.firestore {
       allow create: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       allow delete: if isAuth() && (myEmail() == therapistEmail || isAdmin());
       allow update: if isAuth() && (myEmail() == therapistEmail || isAdmin());
+      // A departing patient may remove THEMSELVES from the caseload — the other
+      // half of self-disconnect. Deliberately narrow: patients is the only field
+      // touched, the caller was on the list before, is not on it after, and the
+      // result equals the old list minus exactly them. So this cannot add anyone,
+      // cannot remove anyone else, and cannot empty the caseload.
+      allow update: if isAuth() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['patients']) &&
+        myEmail() in resource.data.patients &&
+        !(myEmail() in request.resource.data.patients) &&
+        request.resource.data.patients.toSet() ==
+          resource.data.patients.toSet().difference([myEmail()].toSet());
     }
 
 

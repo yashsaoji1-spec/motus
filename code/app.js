@@ -5844,6 +5844,10 @@ async function showRealPatient(patient) {
         <div class="pd-header-actions">
           ${reviewBtnHtml}
           <button class="tp-btn" onclick="messagePatient('${safeEmail}')">Message</button>
+          <!-- disconnectPatient() has existed and been correct for a long time,
+               but nothing ever called it — so a connection could not be undone
+               from either side. -->
+          <button class="tp-btn tp-btn-danger" onclick="disconnectPatient('${safeEmail}')">Disconnect</button>
         </div>
       </header>
 

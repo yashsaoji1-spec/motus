@@ -11,7 +11,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  setDoc, updateDoc, doc, getDoc,
+  setDoc, updateDoc, doc, getDoc, deleteField, arrayRemove, arrayUnion,
 } from 'firebase/firestore';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
@@ -227,5 +227,63 @@ describe('the happy path still works end to end', () => {
       after = await getDoc(doc(ctx.firestore(), 'users', PATIENT));
     });
     expect(after.data().therapistEmail).toBe(THERAPIST);
+  });
+});
+
+// Leaving is not joining. The rule barring a patient from touching their own
+// therapistEmail was aimed at ATTACHING with a known invite code, but written as
+// "must not touch" it also blocked DETACHING — so both Disconnect buttons in the
+// patient UI failed every time. These pin the asymmetry: clearing is allowed,
+// setting still is not.
+describe('a patient can disconnect themselves', () => {
+  it('allows clearing their own therapistEmail', async () => {
+    await seedUsers();
+    await seed('users', PATIENT, {
+      role: 'patient', name: 'James Park', consentGiven: true, therapistEmail: THERAPIST,
+    });
+    await assertSucceeds(updateDoc(doc(asPatient(), 'users', PATIENT), {
+      therapistEmail: deleteField(),
+    }));
+  });
+
+  it('still blocks setting their own therapistEmail', async () => {
+    await seedUsers();
+    await assertFails(updateDoc(doc(asPatient(), 'users', PATIENT), {
+      therapistEmail: THERAPIST,
+    }));
+  });
+
+  it('still blocks re-pointing an existing therapistEmail at someone else', async () => {
+    await seedUsers();
+    await seed('users', PATIENT, {
+      role: 'patient', name: 'James Park', consentGiven: true, therapistEmail: THERAPIST,
+    });
+    await assertFails(updateDoc(doc(asPatient(), 'users', PATIENT), {
+      therapistEmail: RIVAL,
+    }));
+  });
+
+  it('allows removing themselves from the caseload', async () => {
+    await seedUsers();
+    await seed('connections', THERAPIST, { patients: [PATIENT, OTHER_PATIENT] });
+    await assertSucceeds(updateDoc(doc(asPatient(), 'connections', THERAPIST), {
+      patients: arrayRemove(PATIENT),
+    }));
+  });
+
+  it('blocks removing a DIFFERENT patient from the caseload', async () => {
+    await seedUsers();
+    await seed('connections', THERAPIST, { patients: [PATIENT, OTHER_PATIENT] });
+    await assertFails(updateDoc(doc(asPatient(), 'connections', THERAPIST), {
+      patients: arrayRemove(OTHER_PATIENT),
+    }));
+  });
+
+  it('blocks adding themselves to a caseload they are not on', async () => {
+    await seedUsers();
+    await seed('connections', THERAPIST, { patients: [OTHER_PATIENT] });
+    await assertFails(updateDoc(doc(asPatient(), 'connections', THERAPIST), {
+      patients: arrayUnion(PATIENT),
+    }));
   });
 });
