@@ -4359,7 +4359,9 @@ function _demoMount(containerId, host) {
   ['apmDemoCol', 'plDemoCol'].forEach(id => {
     if (id === containerId) return;
     const el = document.getElementById(id);
-    if (el) el.innerHTML = '';
+    if (!el) return;
+    el.innerHTML = '';
+    if (id === 'plDemoCol') el.style.display = 'none';
   });
   _demoHost = host;
   container.innerHTML = _demoColHTML();
@@ -4371,6 +4373,10 @@ function _demoUnmount() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
+  // The library's column is only there when an exercise is selected; the assign
+  // modal's is part of that modal's fixed layout and always stays.
+  const plCol = document.getElementById('plDemoCol');
+  if (plCol) plCol.style.display = 'none';
 }
 
 // Library context: there is no patient to attach the clip to, so confirming it
@@ -6696,6 +6702,8 @@ function plSelectExercise(id) {
   if (resetBtn) resetBtn.style.display = entry._isEdited ? '' : 'none';
 
   // Saved demo for this exercise — mount the recorder here, then fill it in.
+  const demoCol = document.getElementById('plDemoCol');
+  if (demoCol) demoCol.style.display = '';
   _demoMount('plDemoCol', 'pl');
   _demoSetState('initial');
   _plLoadDemoPane(id);

@@ -4244,26 +4244,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .apm-demo-btns {
   display: flex; gap: var(--space-2); flex-wrap: wrap;
 }
-/* The recorder mounted inside a form pane (Exercise Library) rather than as its
-   own 440px column — it has to sit in the flow and not repaint the background.
-   Stacked vertically the 9:16 preview alone runs ~460px and shoves Save Changes
-   off the pane, so here the preview sits beside its controls instead. Only one
-   .apm-demo-btns row is ever visible; the hidden ones are display:none and so
-   claim no grid track. */
-.apm-demo-col--inline {
-  width: auto; padding: 0; background: none; overflow-y: visible;
-  margin-top: var(--space-4);
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
-  column-gap: var(--space-4); row-gap: var(--space-2);
-  align-items: start;
-}
-.apm-demo-col--inline .apm-demo-label { grid-column: 1 / -1; }
-.apm-demo-col--inline .apm-demo-screen {
-  grid-column: 1; grid-row: 2 / span 20; max-width: 170px;
-}
-.apm-demo-col--inline .apm-demo-btns { grid-column: 2; }
-.apm-demo-col--inline .apm-demo-btn { flex: 0 1 auto; }
 /* Saved-demo controls (library-backed demo videos) */
 .apm-demo-savelib {
   display: flex; align-items: flex-start; gap: var(--space-2);

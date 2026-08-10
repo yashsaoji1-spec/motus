@@ -1298,9 +1298,6 @@
               <label class="apm-label">Description</label>
               <textarea id="plDesc" class="apm-textarea" placeholder="Describe this exercise..." maxlength="500" rows="2"></textarea>
             </div>
-            <!-- Saved demo for this exercise. Same recorder as the assign modal,
-                 mounted here by _demoMount(); saving fans out immediately. -->
-            <div class="apm-demo-col apm-demo-col--inline" id="plDemoCol"></div>
             <div class="pl-actions">
               <button class="pl-save-btn" onclick="plSaveExercise()">Save Changes</button>
               <button class="pl-hide-btn" id="plHideBtn" onclick="plToggleHide()">Hide Exercise</button>
@@ -1346,6 +1343,10 @@
           </div>
         </div>
       </div>
+      <!-- Saved demo for this exercise — the same right-hand recorder column as
+           the Add Protocol modal, mounted by _demoMount(). Hidden until an
+           exercise is selected, since there'd be nothing to record against. -->
+      <div class="apm-demo-col" id="plDemoCol" style="display:none;"></div>
     </div>
   </div>
 </div>
