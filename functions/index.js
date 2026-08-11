@@ -236,3 +236,109 @@ exports.expireVideos = onSchedule('every 24 hours', async () => {
 
   console.log(`[expireVideos] cleared video from ${cleared} session(s) older than ${SESSION_RETENTION_DAYS}d`);
 });
+
+
+// ── Verification email, sent by us instead of Firebase ─────────────────────
+//
+// Firebase's built-in sender put every verification email in spam: it sends from
+// the shared noreply@motus-prod.firebaseapp.com, so a message branded "Motus
+// Medicine" arrives from a domain with no relationship to it — a phishing shape,
+// on a domain whose reputation is shared with every other Firebase project.
+// Firebase's own custom-domain feature is not a way out: its console flow arms
+// useCustomDomain WITHOUT starting verification, which silently drops ALL mail
+// (2026-07-11 and again 2026-08-09).
+//
+// So Firebase only mints the oobCode here; we own the send. Mail goes out signed
+// as motusmedicine.com through Resend, and the link points at our own branded
+// /auth/action page rather than motus-prod.firebaseapp.com. Resend's dashboard
+// then shows delivered/bounced/complained per message — the visibility whose
+// absence made the August outage take hours.
+const { defineSecret } = require('firebase-functions/params');
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+
+const VERIFY_COOLDOWN_MS = 60 * 1000;
+
+function verifyEmailBody(link, lang) {
+  const es = lang === 'es';
+  const t = es ? {
+    hi: 'Hola,',
+    lead: 'Confirma tu correo para empezar a usar Motus.',
+    cta: 'Verificar mi correo',
+    fallback: 'Si el botón no funciona, copia y pega este enlace:',
+    ignore: 'Si no creaste una cuenta en Motus, puedes ignorar este mensaje.',
+    sign: 'El equipo de Motus Medicine',
+  } : {
+    hi: 'Hi,',
+    lead: 'Confirm your email address to start using Motus.',
+    cta: 'Verify my email',
+    fallback: "If the button doesn't work, copy and paste this link:",
+    ignore: "If you didn't create a Motus account, you can ignore this message.",
+    sign: 'The Motus Medicine team',
+  };
+  // Plain text alongside HTML: a multipart message scores better with filters
+  // than HTML alone, and some clients only ever render the text part.
+  const text = `${t.hi}\n\n${t.lead}\n\n${link}\n\n${t.ignore}\n\n${t.sign}`;
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f3ef;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1e293b">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px">
+    <p style="margin:0 0 16px;font-size:16px">${t.hi}</p>
+    <p style="margin:0 0 24px;font-size:16px;line-height:1.5">${t.lead}</p>
+    <p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;background:#2f6f62;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">${t.cta}</a></p>
+    <p style="margin:0 0 8px;font-size:13px;color:#64748b">${t.fallback}</p>
+    <p style="margin:0 0 24px;font-size:13px;word-break:break-all"><a href="${link}" style="color:#2f6f62">${link}</a></p>
+    <p style="margin:0 0 8px;font-size:13px;color:#64748b">${t.ignore}</p>
+    <p style="margin:0;font-size:13px;color:#64748b">${t.sign}</p>
+  </div></body></html>`;
+  return { text, html, subject: es ? 'Verifica tu correo para Motus Medicine' : 'Verify your email for Motus Medicine' };
+}
+
+exports.sendVerificationEmail = onCall({ secrets: [RESEND_API_KEY] }, async (request) => {
+  // Callable and authenticated: the caller is signed in as the account being
+  // verified, so nobody can trigger mail to an address they do not control.
+  const email = request.auth?.token?.email;
+  if (!email) throw new HttpsError('unauthenticated', 'Sign in before requesting verification.');
+  if (request.auth.token.email_verified) return { sent: false, reason: 'already-verified' };
+
+  const lang = request.data?.lang === 'es' ? 'es' : 'en';
+  const ref = db.collection('verificationSends').doc(email);
+  const prior = await ref.get();
+  const lastSent = prior.exists ? (prior.data().lastSentAt || 0) : 0;
+  if (Date.now() - lastSent < VERIFY_COOLDOWN_MS) {
+    throw new HttpsError('resource-exhausted', 'A verification email was just sent. Check your inbox and spam, then try again in a minute.');
+  }
+
+  // Firebase still mints the oobCode — only the delivery changes. The generated
+  // link points at Firebase's default handler, so keep the code and re-point it
+  // at our own /auth/action page, which already knows how to apply it.
+  const generated = await admin.auth().generateEmailVerificationLink(email, {
+    url: 'https://motusmedicine.com',
+    handleCodeInApp: false,
+  });
+  const oobCode = new URL(generated).searchParams.get('oobCode');
+  if (!oobCode) throw new HttpsError('internal', 'Could not build a verification link.');
+  const link = `https://motusmedicine.com/auth/action?mode=verifyEmail&oobCode=${encodeURIComponent(oobCode)}&lang=${lang}`;
+
+  const { subject, html, text } = verifyEmailBody(link, lang);
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY.value()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'Motus Medicine <noreply@motusmedicine.com>',
+      reply_to: 'support@motusmedicine.com',
+      to: [email],
+      subject, html, text,
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    console.error('[verify] Resend rejected the send:', res.status, detail);
+    throw new HttpsError('internal', 'Could not send the verification email.');
+  }
+  const body = await res.json().catch(() => ({}));
+  await ref.set({ lastSentAt: Date.now(), messageId: body.id || null }, { merge: true });
+  console.log(`[verify] sent to ${email.replace(/^(.).*(@.*)$/, '$1***$2')} id=${body.id}`);
+  return { sent: true };
+});

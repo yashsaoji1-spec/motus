@@ -1690,7 +1690,7 @@ async function finalizeSignup(skipData = false) {
     // Check, offline) the account was already live in Auth but no email ever
     // went out, the screen said "Sign up failed", and retrying answered "email
     // already in use". A dead end with no way back for the user.
-    if (!import.meta.env.DEV) await cred.user.sendEmailVerification();
+    if (!import.meta.env.DEV) await sendVerificationEmail();
     await db.collection('users').doc(cred.user.email).set(docData);
     await writeAuditLog('user_signup', cred.user.email);
     await auth.signOut();
@@ -1782,6 +1782,16 @@ function finishAuthAction() {
   window.location.replace(window.location.origin + '/');
 }
 
+// Verification mail is sent by our own Cloud Function through Resend, not by
+// Firebase — Firebase's shared sender put every message in spam, and its
+// custom-domain feature silently killed delivery outright, twice. The function
+// still has Firebase mint the oobCode; only the delivery is ours. Requires a
+// signed-in user, same as sendEmailVerification() did.
+async function sendVerificationEmail() {
+  const fns = await getFunctions();
+  return fns.httpsCallable('sendVerificationEmail')({ lang: currentLang || 'en' });
+}
+
 // Re-send the verification email using the credentials already typed on the login
 // form. sendEmailVerification needs a signed-in user, so we sign in, send, sign out.
 async function resendVerification() {
@@ -1800,7 +1810,7 @@ async function resendVerification() {
       if (btn) btn.style.display = 'none';
       return;
     }
-    await cred.user.sendEmailVerification();
+    await sendVerificationEmail();
     await auth.signOut();
     showError('loginError', t('auth.verifySent'));
   } catch (e) {
