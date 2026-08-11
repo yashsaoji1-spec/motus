@@ -112,11 +112,12 @@ const I18N = {
     'auth.resendNeedCreds': 'Enter your email and password, then tap Resend.',
     'auth.resendFailed': 'Could not resend. Check your email and password.',
     'auth.alreadyVerified': 'Your email is already verified — just sign in.',
-    // Verification mail currently sends from Firebase's shared default domain,
-    // which filters treat harshly, so it lands in spam more often than not.
-    // Say so up front rather than letting people conclude it never arrived.
-    'auth.signupCreated': 'Account created. Check your email to verify before signing in — it will likely be in your spam folder.',
-    'auth.verifyRequired': 'Please verify your email before signing in. Check your inbox, and your spam folder — that is usually where it lands.',
+    // Mail now sends from motusmedicine.com via Resend and lands in the inbox,
+    // so the earlier "it will likely be in spam" warning is wrong — it sent
+    // people hunting through spam for something already in front of them. Keep
+    // a light mention: a new sending domain still gets filtered occasionally.
+    'auth.signupCreated': 'Account created. Check your email to verify before signing in — if you don’t see it, check spam.',
+    'auth.verifyRequired': 'Please verify your email before signing in. Check your inbox, and spam if it’s not there.',
     // Email action handler (verify / reset)
     'action.loadingTitle': 'Just a moment…',
     'action.loadingSub': 'Confirming your request.',
@@ -459,8 +460,8 @@ const I18N = {
     'auth.resendNeedCreds': 'Ingresa tu correo y contraseña, luego toca Reenviar.',
     'auth.resendFailed': 'No se pudo reenviar. Verifica tu correo y contraseña.',
     'auth.alreadyVerified': 'Tu correo ya está verificado: inicia sesión.',
-    'auth.signupCreated': 'Cuenta creada. Revisa tu correo para verificarla antes de iniciar sesión; lo más probable es que esté en la carpeta de spam.',
-    'auth.verifyRequired': 'Verifica tu correo antes de iniciar sesión. Revisa tu bandeja de entrada y la carpeta de spam, que es donde suele llegar.',
+    'auth.signupCreated': 'Cuenta creada. Revisa tu correo para verificarla antes de iniciar sesión; si no lo ves, revisa la carpeta de spam.',
+    'auth.verifyRequired': 'Verifica tu correo antes de iniciar sesión. Revisa tu bandeja de entrada y, si no está ahí, la carpeta de spam.',
     // Email action handler (verify / reset)
     'action.loadingTitle': 'Un momento…',
     'action.loadingSub': 'Confirmando tu solicitud.',
@@ -1682,6 +1683,14 @@ async function finalizeSignup(skipData = false) {
   const origText = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = t('auth.creatingAccount'); }
   let accountCreated = false;
+  // Hold off the verification gate in onAuthStateChanged. Creating the account
+  // signs the user in, the gate sees emailVerified === false and signs them
+  // straight back out — which used to be harmless, because
+  // cred.user.sendEmailVerification() carried its own token. Now the send is a
+  // callable that needs the signed-in session, and losing it mid-flight arrives
+  // at the function as auth: MISSING and no email. Same flag resendVerification
+  // uses for the same reason.
+  _resendingVerification = true;
   try {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     accountCreated = true;
@@ -1717,6 +1726,7 @@ async function finalizeSignup(skipData = false) {
     showError('signupError', msg);
     signupGoToStep(0);
   } finally {
+    _resendingVerification = false;
     if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 }
