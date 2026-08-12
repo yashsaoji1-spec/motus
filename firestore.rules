@@ -434,6 +434,36 @@ service cloud.firestore {
     }
 
 
+    // -- patientInvites/{code} --
+    // A single-use invite a therapist issues for one named patient, alongside
+    // (not replacing) the shared clinic code. The code IS the doc id, so
+    // redeeming is a direct get() — you must already know the code — and `list`
+    // is restricted to the owning therapist so codes cannot be enumerated,
+    // which is what makes a 6-character code acceptable here.
+    // Redeeming still only files a connectionRequest; the therapist approves.
+    match /patientInvites/{code} {
+      allow get: if isAuth();
+      allow list: if isAuth() && isTherapist() && resource.data.therapistEmail == myEmail();
+      allow create: if isAuth() && isTherapist() &&
+        request.resource.data.therapistEmail == myEmail() &&
+        request.resource.data.status == 'open';
+      allow delete: if isAuth() && resource.data.therapistEmail == myEmail();
+      // The owning therapist may revoke it, or reopen one whose request they
+      // declined. Only the lifecycle fields — never the label or the owner.
+      allow update: if isAuth() && resource.data.therapistEmail == myEmail() &&
+        request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['status', 'claimedBy', 'claimedAt']);
+      // The redeemer burns it: open -> claimed, naming only themselves. Cannot
+      // re-claim one already used, and cannot claim it for anybody else.
+      allow update: if isAuth() &&
+        resource.data.status == 'open' &&
+        request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['status', 'claimedBy', 'claimedAt']) &&
+        request.resource.data.status == 'claimed' &&
+        request.resource.data.claimedBy == myEmail();
+    }
+
+
     // -- therapistCodes/{code} -- maps clinic codes to therapist emails
     // Therapists create/read their own code; patients read any code (for connect-by-code).
     match /therapistCodes/{code} {

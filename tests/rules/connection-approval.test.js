@@ -11,7 +11,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  setDoc, updateDoc, doc, getDoc, deleteField, arrayRemove, arrayUnion,
+  setDoc, updateDoc, doc, getDoc, deleteDoc, deleteField, arrayRemove, arrayUnion,
 } from 'firebase/firestore';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
@@ -315,5 +315,82 @@ describe('role cannot be changed from a client, even by an admin', () => {
   it('blocks a therapist promoting themselves', async () => {
     await seedUsers();
     await assertFails(updateDoc(doc(asTherapist(), 'users', THERAPIST), { role: 'admin' }));
+  });
+});
+
+// Per-patient invites. The code is the doc id, so a direct get() is the redeem
+// path and MUST stay open to any signed-in user — the protection is that `list`
+// is denied, so codes cannot be swept, and that burning one can only ever name
+// yourself.
+describe('per-patient invite codes', () => {
+  const CODE = 'K7RTX9';
+  const openInvite = (therapist = THERAPIST) => ({
+    therapistEmail: therapist, label: 'James P', status: 'open',
+    claimedBy: null, createdAt: '2026-08-12T00:00:00.000Z',
+  });
+
+  it('lets the owning therapist create one', async () => {
+    await seedUsers();
+    await assertSucceeds(setDoc(doc(asTherapist(), 'patientInvites', CODE), openInvite()));
+  });
+
+  it('blocks creating an invite in another therapist name', async () => {
+    await seedUsers();
+    await assertFails(setDoc(doc(asRival(), 'patientInvites', CODE), openInvite(THERAPIST)));
+  });
+
+  it('blocks a patient minting their own invite', async () => {
+    await seedUsers();
+    await assertFails(setDoc(doc(asPatient(), 'patientInvites', CODE), openInvite()));
+  });
+
+  it('lets a patient READ a code they already know', async () => {
+    await seedUsers();
+    await seed('patientInvites', CODE, openInvite());
+    await assertSucceeds(getDoc(doc(asPatient(), 'patientInvites', CODE)));
+  });
+
+  it('lets the redeemer burn it onto themselves', async () => {
+    await seedUsers();
+    await seed('patientInvites', CODE, openInvite());
+    await assertSucceeds(updateDoc(doc(asPatient(), 'patientInvites', CODE), {
+      status: 'claimed', claimedBy: PATIENT, claimedAt: '2026-08-12T01:00:00.000Z',
+    }));
+  });
+
+  it('blocks burning it onto somebody else', async () => {
+    await seedUsers();
+    await seed('patientInvites', CODE, openInvite());
+    await assertFails(updateDoc(doc(asPatient(), 'patientInvites', CODE), {
+      status: 'claimed', claimedBy: OTHER_PATIENT, claimedAt: '2026-08-12T01:00:00.000Z',
+    }));
+  });
+
+  it('blocks reusing an invite that is already claimed', async () => {
+    await seedUsers();
+    await seed('patientInvites', CODE, { ...openInvite(), status: 'claimed', claimedBy: OTHER_PATIENT });
+    await assertFails(updateDoc(doc(asPatient(), 'patientInvites', CODE), {
+      status: 'claimed', claimedBy: PATIENT, claimedAt: '2026-08-12T01:00:00.000Z',
+    }));
+  });
+
+  it('blocks a redeemer rewriting the label or the owner', async () => {
+    await seedUsers();
+    await seed('patientInvites', CODE, openInvite());
+    await assertFails(updateDoc(doc(asPatient(), 'patientInvites', CODE), {
+      status: 'claimed', claimedBy: PATIENT, therapistEmail: RIVAL,
+    }));
+  });
+
+  it('lets the owning therapist revoke it', async () => {
+    await seedUsers();
+    await seed('patientInvites', CODE, openInvite());
+    await assertSucceeds(deleteDoc(doc(asTherapist(), 'patientInvites', CODE)));
+  });
+
+  it('blocks another therapist revoking it', async () => {
+    await seedUsers();
+    await seed('patientInvites', CODE, openInvite());
+    await assertFails(deleteDoc(doc(asRival(), 'patientInvites', CODE)));
   });
 });

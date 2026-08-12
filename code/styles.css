@@ -8279,3 +8279,40 @@ body:has(#manualCamScreen.active) {
   background: rgba(220,38,38,0.08); color: var(--rd-danger);
   font-size: calc(13px * var(--font-scale)); font-weight: 700;
 }
+
+/* ── Per-patient invite codes (therapist sidebar drawer) ─────────────────── */
+.th-invite-new { display: flex; gap: 6px; margin-top: 10px; }
+.th-invite-input {
+  flex: 1; min-width: 0; padding: 7px 10px;
+  border: 1px solid var(--rd-card-border, var(--border)); border-radius: var(--radius-md);
+  background: var(--rd-card, var(--surface)); color: var(--rd-ink, var(--text));
+  font-family: var(--rd-font); font-size: 0.8rem;
+}
+.th-invite-create {
+  flex: none; padding: 7px 12px; border: none; border-radius: var(--radius-md);
+  background: var(--rd-teal, var(--th-primary)); color: #fff;
+  font-family: var(--rd-font); font-size: 0.78rem; font-weight: 700; cursor: pointer;
+}
+.th-invite-create:disabled { opacity: 0.5; cursor: not-allowed; }
+.th-invite-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.th-invite-row { display: flex; align-items: center; gap: 8px; }
+.th-invite-code {
+  flex: none; padding: 4px 8px; border: 1px dashed var(--rd-card-border, var(--border));
+  border-radius: var(--radius-sm); background: none; cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--rd-ink, var(--text));
+}
+.th-invite-code:hover { border-style: solid; border-color: var(--rd-teal, var(--th-primary)); }
+/* The label is the whole point of a per-patient code — it is what tells two
+   otherwise identical six-character strings apart. Truncate, never wrap. */
+.th-invite-label {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.78rem; color: var(--rd-muted, var(--muted));
+}
+.th-invite-revoke {
+  flex: none; width: 22px; height: 22px; line-height: 1; padding: 0;
+  border: none; background: none; cursor: pointer;
+  color: var(--rd-muted, var(--muted)); font-size: 1.05rem;
+}
+.th-invite-revoke:hover { color: var(--danger); }

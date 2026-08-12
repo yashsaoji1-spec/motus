@@ -1310,13 +1310,150 @@ async function approvePatientRequest(patientEmail) {
 async function declinePatientRequest(patientEmail) {
   await db.collection('connectionRequests').doc(patientEmail)
     .update({ status: 'declined', decidedAt: new Date().toISOString() });
+  // Reopen the invite they spent. A declined request usually means they typed
+  // the wrong code or applied too early — stranding a single-use invite would
+  // force the therapist to issue a fresh one for the same patient.
+  try {
+    const spent = await db.collection('patientInvites')
+      .where('therapistEmail', '==', currentUser.email)
+      .where('claimedBy', '==', patientEmail)
+      .where('status', '==', 'claimed')
+      .get();
+    await Promise.all(spent.docs.map(d => d.ref.update({
+      status: 'open', claimedBy: null, claimedAt: null,
+    })));
+  } catch (e) {
+    console.warn('[Motus] could not reopen invite after decline', e);
+  }
   await writeAuditLog('patient_declined', patientEmail);
   await loadConnectedPatients();
+  loadPatientInvites();
+}
+
+// ── Therapist: issue and manage per-patient invites ────────────────────────
+
+async function createPatientInvite() {
+  const input = document.getElementById('thInviteLabel');
+  const label = (input?.value || '').trim();
+  if (!label) { showNotice('Enter the patient’s name so you can tell invites apart.'); input?.focus(); return; }
+  const btn = document.getElementById('thInviteCreateBtn');
+  if (btn) btn.disabled = true;
+  try {
+    // Collision on a 1.07-billion space is vanishingly unlikely, but a silent
+    // overwrite would hand two patients the same code, so check and retry.
+    let code = null;
+    for (let i = 0; i < 5 && !code; i++) {
+      const candidate = generateInviteCode();
+      const existing = await db.collection('patientInvites').doc(candidate).get();
+      if (!existing.exists) code = candidate;
+    }
+    if (!code) throw new Error('could not allocate an unused code');
+    await db.collection('patientInvites').doc(code).set({
+      therapistEmail: currentUser.email,
+      label,
+      status: 'open',
+      claimedBy: null,
+      createdAt: new Date().toISOString(),
+    });
+    if (input) input.value = '';
+    await loadPatientInvites();
+  } catch (e) {
+    console.error('[Motus] createPatientInvite failed', e);
+    showNotice('Could not create the invite. Please try again.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function loadPatientInvites() {
+  const list = document.getElementById('thInviteList');
+  if (!list || !currentUser?.email) return;
+  try {
+    const snap = await db.collection('patientInvites')
+      .where('therapistEmail', '==', currentUser.email)
+      .where('status', '==', 'open')
+      .get();
+    if (snap.empty) { list.innerHTML = ''; return; }
+    const rows = snap.docs
+      .map(d => ({ code: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    list.innerHTML = rows.map(r => `
+      <div class="th-invite-row">
+        <button class="th-invite-code" onclick="copyInviteCode('${escJsAttr(r.code)}')" title="Copy code">${escapeHtml(r.code)}</button>
+        <span class="th-invite-label">${escapeHtml(r.label)}</span>
+        <button class="th-invite-revoke" onclick="revokePatientInvite('${escJsAttr(r.code)}')" aria-label="Revoke invite for ${escapeHtml(r.label)}" title="Revoke">&times;</button>
+      </div>`).join('');
+  } catch (e) {
+    console.warn('[Motus] loadPatientInvites failed', e);
+    list.innerHTML = '';
+  }
+}
+
+function copyInviteCode(code) {
+  navigator.clipboard.writeText(code);
+  showNotice(`Code ${code} copied.`, 'success');
+}
+
+async function revokePatientInvite(code) {
+  if (!await confirmModal(`Revoke invite code ${code}? Anyone holding it will no longer be able to use it.`, 'Revoke')) return;
+  try {
+    await db.collection('patientInvites').doc(code).delete();
+    await loadPatientInvites();
+  } catch (e) {
+    console.error('[Motus] revokePatientInvite failed', e);
+    showNotice('Could not revoke that invite. Please try again.');
+  }
 }
 
 async function getConnectedTherapist() {
   if (!currentUser) return null;
   return currentUser.therapistEmail || null;
+}
+
+// ── Per-patient invite codes ───────────────────────────────────────────────
+//
+// A therapist issues one code per patient, labelled with who it is for, good
+// for a single use. The shared clinic code stays as a fallback for walk-ins.
+// Redeeming still only files a connectionRequest — the therapist approves —
+// so this narrows who can ask, it does not replace the approval gate.
+//
+// I, O, 0 and 1 are excluded: these get read aloud, written on paper and typed
+// by patients, and those four are the pairs people confuse. 32^6 is about 1.07
+// billion, against 900k for the shared 6-digit numeric code, and unlike that
+// one it is random rather than a hash of the therapist's email.
+const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateInviteCode() {
+  const bytes = new Uint32Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => INVITE_ALPHABET[b % INVITE_ALPHABET.length]).join('');
+}
+
+// An invite names its therapist by email; the connect screen needs their
+// display name. Patients may read therapist docs (see the users read rule).
+async function _userDoc(email) {
+  try {
+    const d = await db.collection('users').doc(email).get();
+    return d.exists ? { email: d.id, ...d.data() } : null;
+  } catch (e) {
+    console.warn('[Motus] could not read therapist doc', e);
+    return null;
+  }
+}
+
+// Returns the invite doc if this code is an unused per-patient invite.
+async function lookupPatientInvite(code) {
+  try {
+    const doc = await db.collection('patientInvites').doc(code).get();
+    if (!doc.exists) return null;
+    const d = doc.data();
+    return d.status === 'open' ? { code, ...d } : null;
+  } catch (e) {
+    // A denied or offline read must not silently fall through to the shared
+    // code path pretending the invite doesn't exist.
+    console.warn('[Motus] invite lookup failed', e);
+    return null;
+  }
 }
 
 async function getTherapistForCode(code) {
@@ -1977,9 +2114,14 @@ async function handleForgot() {
 
 async function handleConnect() {
   hideError('connectError');
-  const code = document.getElementById('connectCode').value.trim();
-  if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character clinic code.'); return; }
-  const therapist = await getTherapistForCode(code);
+  const code = document.getElementById('connectCode').value.trim().toUpperCase();
+  if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character code.'); return; }
+  // A per-patient invite is checked first: it is single-use and names one
+  // person, so it should win over the shared clinic code if both could match.
+  const invite = await lookupPatientInvite(code);
+  const therapist = invite
+    ? await _userDoc(invite.therapistEmail)
+    : await getTherapistForCode(code);
   if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
   // If this write is refused (rules, offline, quota) the patient MUST be told.
   // Unhandled, the promise just rejects: no error, no pending screen, nothing
@@ -1991,6 +2133,21 @@ async function handleConnect() {
     console.error('[Motus] connection request failed:', e);
     showError('connectError', "Couldn't send your request. Check your connection and try again.");
     return;
+  }
+  // Burn the invite only after the request is actually filed. Burning first
+  // would spend a single-use code on a request that then failed to send.
+  if (invite) {
+    try {
+      await db.collection('patientInvites').doc(invite.code).update({
+        status: 'claimed',
+        claimedBy: currentUser.email,
+        claimedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      // The request exists and the therapist will see it; an unburned invite is
+      // a loose end, not a failure worth showing the patient.
+      console.warn('[Motus] could not burn invite', invite.code, e);
+    }
   }
   // Deliberately NOT setting currentUser.therapistEmail — the patient is not
   // connected yet. Claiming otherwise would show a caseload that doesn't exist.
@@ -2067,6 +2224,9 @@ async function loginSuccess() {
       document.getElementById('therapistCode').textContent = '——————';
     }
     restoreInviteVisibility();
+    // Not awaited, and deliberately: the same reasoning as the shared code
+    // above — the caseload must not wait on, or be lost to, an invite read.
+    loadPatientInvites();
     await loadConnectedPatients();
     await loadMyClinic();
     await loadMyInvites();
@@ -10396,6 +10556,7 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode, toggleInviteCode, openTherapistMessages, openTherapistThread, refreshPatientList,
+  createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,
 
