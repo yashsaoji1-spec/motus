@@ -6872,6 +6872,26 @@ body:has(#manualCamScreen.active) {
 }
 .therapist-scope .pd-dot { color: var(--th-border-strong); }
 .therapist-scope .pd-header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* Disconnect lives at the very bottom of the patient panel, right-aligned and
+   solid red — deliberately far from Message and Review, and the only filled-red
+   control on the screen so it can't be mistaken for a routine action. */
+.therapist-scope .pd-danger-row {
+  display: flex; justify-content: flex-end;
+  margin-top: 32px; padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.therapist-scope .pd-disconnect-btn {
+  background: var(--danger); color: #fff; border: 1px solid var(--danger);
+  font-family: var(--th-font); font-size: 0.82rem; font-weight: 700;
+  padding: 10px 20px; border-radius: var(--radius-md);
+  cursor: pointer; min-height: 44px; transition: all 0.15s;
+}
+.therapist-scope .pd-disconnect-btn:hover { filter: brightness(0.9); }
+.therapist-scope .pd-disconnect-btn:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+@media (max-width: 480px) {
+  .therapist-scope .pd-danger-row { justify-content: stretch; }
+  .therapist-scope .pd-disconnect-btn { width: 100%; }
+}
 /* On phones the avatar+name+actions row can't fit on one line — drop the actions
    to a full-width second row so they never push past the viewport edge. */
 @media (max-width: 480px) {

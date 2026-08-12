@@ -419,7 +419,6 @@ const I18N = {
     'set.help': 'Help',
     'set.replayTutorial': 'Replay tutorial',
     'set.account': 'Account',
-    'set.downloadData': 'Download my data',
     'set.disconnect': 'Disconnect from therapist',
     'set.deleteAccount': 'Delete account',
     'set.signOut': 'Sign out',
@@ -748,7 +747,6 @@ const I18N = {
     'set.help': 'Ayuda',
     'set.replayTutorial': 'Ver el tutorial de nuevo',
     'set.account': 'Cuenta',
-    'set.downloadData': 'Descargar mis datos',
     'set.disconnect': 'Desconectar del terapeuta',
     'set.deleteAccount': 'Eliminar cuenta',
     'set.signOut': 'Cerrar sesión',
@@ -1853,12 +1851,10 @@ function showSettingsScreen() {
   document.getElementById('settingsScreen').classList.toggle('settings-with-nav', isPatient);
   const patSec = document.getElementById('settingsPatientSection');
   const thSec  = document.getElementById('settingsTherapistSection');
-  const dlBtn  = document.getElementById('settingsDownloadBtn');
   const discBtn = document.getElementById('settingsDisconnectBtn');
   const clinicSec = document.getElementById('settingsClinicSection');
   if (patSec)  patSec.hidden  = !isPatient;
   if (thSec)   thSec.hidden   = isPatient;
-  if (dlBtn)   dlBtn.hidden   = !isPatient;
   if (discBtn) discBtn.hidden = !isPatient;
   const isClinicOwner = !isPatient && _myClinic && _myClinic.ownerEmail === (currentUser?.email || '');
   if (clinicSec) clinicSec.style.display = isClinicOwner ? '' : 'none';
@@ -5864,10 +5860,6 @@ async function showRealPatient(patient) {
         <div class="pd-header-actions">
           ${reviewBtnHtml}
           <button class="tp-btn" onclick="messagePatient('${safeEmail}')">Message</button>
-          <!-- disconnectPatient() has existed and been correct for a long time,
-               but nothing ever called it — so a connection could not be undone
-               from either side. -->
-          <button class="tp-btn tp-btn-danger" onclick="disconnectPatient('${safeEmail}')">Disconnect</button>
         </div>
       </header>
 
@@ -5915,6 +5907,12 @@ async function showRealPatient(patient) {
       ${makeCollapsible('notes', 'Clinical Notes', buildClinicalNotes(), false)}
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}
+      <!-- Destructive, and unrelated to reviewing the patient — so it sits at the
+           very bottom rather than beside Message in the header, where it was one
+           slip away from every routine action. -->
+      <div class="pd-danger-row">
+        <button class="pd-disconnect-btn" onclick="disconnectPatient('${safeEmail}')">Disconnect Patient</button>
+      </div>
     </div>`;
 
   if (sessions.length > 0) {
@@ -8582,76 +8580,6 @@ async function deleteMyAccount() {
   }, 'DELETE');
 }
 
-async function downloadMyData() {
-  const btn = document.getElementById('settingsDownloadBtn');
-  const origText = btn ? btn.textContent : null;
-  if (btn) { btn.disabled = true; btn.textContent = 'Preparing...'; }
-  try {
-    const email = currentUser.email;
-
-    // Helper: read a single doc, return its data or null (never throws).
-    const safeDoc = async (col, id) => {
-      try { const d = await db.collection(col).doc(id).get(); return d.exists ? d.data() : null; }
-      catch (e) { console.warn(`[Motus] export: could not read ${col}/${id}`, e); return null; }
-    };
-    // Helper: read a query, return array of {id, ...data} (never throws).
-    const safeQuery = async (q) => {
-      try { const s = await q.get(); return s.docs.map(d => ({ id: d.id, ...d.data() })); }
-      catch (e) { console.warn('[Motus] export: query failed', e); return []; }
-    };
-
-    const [profile, protocol, sessionsTo, sessionsFrom, msgsTo, msgsFrom] = await Promise.all([
-      safeDoc('users', email),
-      safeDoc('protocols', email),
-      safeQuery(db.collection('sessions').where('patientEmail', '==', email)),
-      safeQuery(db.collection('sessions').where('userEmail', '==', email)),
-      safeQuery(db.collection('messages').where('to', '==', email)),
-      safeQuery(db.collection('messages').where('from', '==', email)),
-    ]);
-
-    // Merge session results from either field name, de-duped by id.
-    const sessionsById = {};
-    [...sessionsTo, ...sessionsFrom].forEach(s => { sessionsById[s.id] = s; });
-    const sessions = Object.values(sessionsById);
-
-    // Merge messages, de-duped, sorted oldest-first when a timestamp exists.
-    const msgsById = {};
-    [...msgsTo, ...msgsFrom].forEach(m => { msgsById[m.id] = m; });
-    const messages = Object.values(msgsById).sort((a, b) => {
-      const ta = a.createdAt?.seconds || a.timestamp || 0;
-      const tb = b.createdAt?.seconds || b.timestamp || 0;
-      return ta - tb;
-    });
-
-    const exportData = {
-      _about: 'Motus personal data export (HIPAA Right of Access). This file contains the health information Motus holds about you that is readable from your account.',
-      _generatedAt: new Date().toISOString(),
-      _account: email,
-      _note: 'Clinical notes written by your therapist are part of the therapist\'s designated record set and are not readable from a patient account; request them directly from your therapist or email the contact on our Privacy Policy. Session video files are not embedded here; you can view or save them in the app while they are retained.',
-      profile,
-      protocol,
-      sessions,
-      messages,
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `motus-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    try { await writeAuditLog('data_exported', email); } catch (_) {}
-  } catch (e) {
-    console.error('[Motus] Data export failed:', e);
-    showNotice('Export failed. Please try again or contact support.');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = origText || 'Download my data'; }
-  }
-}
 
 async function disconnectFromTherapist() {
   const tEmail = currentUser?.therapistEmail;
@@ -10422,7 +10350,7 @@ Object.assign(window, {
   // Patient flows
   startScanSession, startSessionWithProtocol, startSessionByIndex, showPatientHome, showExercisesScreen,
   showProgressScreen, openPatientMessaging, sendMessageFromPatient, toggleMsgSend, toggleExerciseList,
-  downloadMyData, deleteMyAccount, disconnectFromTherapist, disconnectPatient,
+  deleteMyAccount, disconnectFromTherapist, disconnectPatient,
 
   // Camera session
   flipCamera, advanceSet, skipRest, completeSessionEarly, dismissSummary, dismissSummaryToProgress,

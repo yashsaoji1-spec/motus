@@ -445,7 +445,6 @@
   <div style="display:none" aria-hidden="true">
     <div id="todaysPlanCard"><span id="completionStatus"></span></div>
     <span class="msg-unread-badge" id="patientUnreadBadge"></span>
-    <button id="downloadMyDataBtn" onclick="downloadMyData()"></button>
     <button id="disconnectTherapistBtn" onclick="disconnectFromTherapist()"></button>
     <button class="delete-account-btn" onclick="deleteMyAccount()"></button>
   </div>
@@ -1559,7 +1558,6 @@
     <!-- Account section -->
     <div class="settings-section">
       <div class="settings-section-title" data-i18n="set.account">Account</div>
-      <button class="settings-account-btn" id="settingsDownloadBtn" onclick="downloadMyData()" data-i18n="set.downloadData">Download my data</button>
       <button class="settings-account-btn" id="settingsDisconnectBtn" onclick="disconnectFromTherapist()" data-i18n="set.disconnect">Disconnect from therapist</button>
       <button class="settings-account-btn settings-account-btn--danger" onclick="deleteMyAccount()" data-i18n="set.deleteAccount">Delete account</button>
       <button class="settings-account-btn" onclick="requestLogout()" data-i18n="set.signOut">Sign out</button>
