@@ -7264,11 +7264,13 @@ body:has(#manualCamScreen.active) {
      A second, parallel set (--rd-r-card/input/pill) was later invented inside
      this stylesheet and used 49 more times; it is gone, folded in here:
        --rd-r-input 14px -> --radius-lg  (identical)
-       --rd-r-card  18px -> --radius-xl  (20px, 2px rounder)
+       --rd-r-card  18px -> --radius-xl  (held at 18px, see below)
        --rd-r-pill 999px -> --radius-full (99px; both fully round, no visual change)
      Add new sizes to THIS ladder rather than starting a third one. */
   --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
-  --radius-xl: 20px; --radius-full: 99px;
+  /* xl is 18, not the design system's 20 — cards read too round at 20 on the
+     real screens. This is the value the redesign shipped and ran with. */
+  --radius-xl: 18px; --radius-full: 99px;
   --rd-shadow: 0 2px 16px rgba(31,41,51,0.08);
   --rd-scrim: rgba(31,41,51,0.55);
   /* Accessibility text-size (2p). Scales every rd font via calc(). */
