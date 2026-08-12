@@ -2270,22 +2270,41 @@ function _doConfirm() {
    ══════════════════════════════════════════════════════════════════════════ */
 
 async function loadAdminScreen() {
-  const snap = await db.collection('users').where('role', '==', 'therapist_pending').get();
   const list = document.getElementById('pendingTherapistList');
-  if (snap.empty) {
+  // Read through the function, not Firestore directly: whether an address was
+  // ever verified lives in Firebase Auth, which the client cannot see.
+  let pending;
+  try {
+    const res = await (await getFunctions()).httpsCallable('listPendingTherapists')();
+    pending = res.data.pending || [];
+  } catch (e) {
+    console.error('[Motus] loadAdminScreen error:', e);
+    list.innerHTML = '<p style="color:var(--danger)">Could not load pending approvals. Please retry.</p>';
+    return;
+  }
+  if (!pending.length) {
     list.innerHTML = '<p style="color:var(--muted)">No pending therapist approvals.</p>';
     return;
   }
-  list.innerHTML = snap.docs.map(d => {
-    const u = d.data();
+  list.innerHTML = pending.map(u => {
+    const safe = escJsAttr(u.email);
+    // Unverified applicants stay visible — an admin should see that someone
+    // applied — but Approve is withheld and says why. The function refuses
+    // regardless; this only explains the refusal before it happens.
+    const approveBtn = u.emailVerified
+      ? `<button class="tp-btn tp-btn-sm tp-btn-primary" onclick="approveTherapist('${safe}')">Approve</button>`
+      : `<button class="tp-btn tp-btn-sm" disabled title="This address has never been verified">Approve</button>`;
+    const flag = u.emailVerified
+      ? ''
+      : '<br><span style="color:var(--danger);font-size:0.78rem;font-weight:600">Email not verified</span>';
     return `<div class="pending-therapist-row">
       <div>
         <strong>${escapeHtml(u.name)}</strong><br>
-        <span style="color:var(--muted);font-size:0.85rem">${d.id}</span>
+        <span style="color:var(--muted);font-size:0.85rem">${escapeHtml(u.email)}</span>${flag}
       </div>
       <div class="pending-therapist-row-btns">
-        <button class="tp-btn tp-btn-sm tp-btn-primary" onclick="approveTherapist('${d.id}')">Approve</button>
-        <button class="tp-btn tp-btn-sm tp-btn-secondary" onclick="rejectTherapist('${d.id}')">Reject</button>
+        ${approveBtn}
+        <button class="tp-btn tp-btn-sm tp-btn-secondary" onclick="rejectTherapist('${safe}')">Reject</button>
       </div>
     </div>`;
   }).join('');
@@ -2300,7 +2319,9 @@ async function approveTherapist(email) {
   if (errEl) errEl.style.display = 'none';
   try {
     // F-020: wrap in try/catch
-    await db.collection('users').doc(email).update({ role: 'therapist' });
+    // Promotion happens server-side so the verified-email check cannot be
+    // skipped by driving Firestore directly.
+    await (await getFunctions()).httpsCallable('approveTherapist')({ email });
     writeAuditLog('admin_action:approve_therapist', email);
     await loadAdminScreen();
     const banner = document.getElementById('adminApprovalBanner');
@@ -2310,7 +2331,13 @@ async function approveTherapist(email) {
     }
   } catch (e) {
     console.error('[Motus] approveTherapist error:', e);
-    if (errEl) { errEl.textContent = t('admin.approveError'); errEl.style.display = 'block'; }
+    // Prefer the server's reason — "that email was never verified" is
+    // actionable, the generic string is not.
+    if (errEl) {
+      errEl.textContent = (e && e.message) ? e.message : t('admin.approveError');
+      errEl.style.display = 'block';
+    }
+    await loadAdminScreen();
   } finally {
     // Restore button in finally — operating on a detached node after row removal is harmless
     if (btn) { btn.disabled = false; btn.textContent = origText; }

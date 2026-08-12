@@ -342,3 +342,78 @@ exports.sendVerificationEmail = onCall({ secrets: [RESEND_API_KEY] }, async (req
   console.log(`[verify] sent to ${email.replace(/^(.).*(@.*)$/, '$1***$2')} id=${body.id}`);
   return { sent: true };
 });
+
+
+// ── Therapist approval: verified email required ────────────────────────────
+//
+// The pending queue is driven by users/{email}.role == 'therapist_pending',
+// which is written at signup, before any email is sent and with no reference to
+// whether the address was ever confirmed. So the queue happily lists people who
+// never proved they own the address they signed up with, and approving one
+// hands a stranger's inbox a caseload of patient data.
+//
+// Firestore rules cannot close this: emailVerified lives in Firebase Auth, and
+// rules cannot read it. Nor can the check live in the admin UI — a disabled
+// button is not enforcement, the same principle the connection rules follow. So
+// the promotion moves here, where the Admin SDK can read Auth directly and the
+// role is only written after the check passes.
+
+async function assertAdmin(request) {
+  const email = request.auth?.token?.email;
+  if (!email) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const me = await db.collection('users').doc(email).get();
+  if (!me.exists || me.data().role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Admins only.');
+  }
+  return email;
+}
+
+// Pending therapists, each annotated with whether Auth says their email is
+// verified. The UI needs this to show WHY an Approve button is unavailable.
+exports.listPendingTherapists = onCall(async (request) => {
+  await assertAdmin(request);
+  const snap = await db.collection('users').where('role', '==', 'therapist_pending').get();
+  const rows = await Promise.all(snap.docs.map(async (d) => {
+    let emailVerified = false;
+    let createdAt = null;
+    try {
+      const u = await admin.auth().getUserByEmail(d.id);
+      emailVerified = u.emailVerified;
+      createdAt = u.metadata.creationTime;
+    } catch (e) {
+      // No Auth user (deleted account, stale Firestore doc). Treat as
+      // unverified — never as verified — so a broken lookup cannot approve.
+      console.warn('[approval] no auth user for', d.id, e.code || e.message);
+    }
+    return { email: d.id, name: d.data().name || '', emailVerified, createdAt };
+  }));
+  return { pending: rows };
+});
+
+exports.approveTherapist = onCall(async (request) => {
+  const adminEmail = await assertAdmin(request);
+  const email = (request.data?.email || '').trim().toLowerCase();
+  if (!email) throw new HttpsError('invalid-argument', 'No email given.');
+
+  const doc = await db.collection('users').doc(email).get();
+  if (!doc.exists) throw new HttpsError('not-found', 'No such user.');
+  if (doc.data().role !== 'therapist_pending') {
+    throw new HttpsError('failed-precondition', 'That account is not awaiting approval.');
+  }
+
+  // THE GATE. A failed lookup is a refusal, not a pass.
+  let user;
+  try {
+    user = await admin.auth().getUserByEmail(email);
+  } catch (e) {
+    throw new HttpsError('failed-precondition', 'That account has no sign-in record.');
+  }
+  if (!user.emailVerified) {
+    throw new HttpsError('failed-precondition',
+      'That email address has never been verified, so this account cannot be approved yet.');
+  }
+
+  await db.collection('users').doc(email).update({ role: 'therapist' });
+  console.log(`[approval] ${adminEmail} approved ${email.replace(/^(.).*(@.*)$/, '$1***$2')}`);
+  return { approved: true };
+});
