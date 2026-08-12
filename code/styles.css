@@ -6881,13 +6881,29 @@ body:has(#manualCamScreen.active) {
   border-top: 1px solid var(--border);
 }
 .therapist-scope .pd-disconnect-btn {
-  background: var(--danger); color: #fff; border: 1px solid var(--danger);
-  font-family: var(--th-font); font-size: 0.82rem; font-weight: 700;
-  padding: 10px 20px; border-radius: var(--radius-md);
-  cursor: pointer; min-height: 44px; transition: all 0.15s;
+  background: var(--danger); color: #fff; border: none;
+  font-family: var(--th-font); font-size: 0.85rem; font-weight: 700;
+  letter-spacing: 0.01em;
+  /* --rd-r-pill, not --radius-full: the latter is never declared anywhere and
+     silently resolves to 0, which is why this button rendered square. */
+  padding: 12px 28px; border-radius: var(--rd-r-pill);
+  cursor: pointer; min-height: 44px;
+  /* Shadow tinted with the button's own red rather than neutral black — a grey
+     shadow under a saturated fill reads as muddy. */
+  box-shadow: 0 2px 6px rgba(204, 41, 54, 0.28);
+  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
-.therapist-scope .pd-disconnect-btn:hover { filter: brightness(0.9); }
-.therapist-scope .pd-disconnect-btn:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+.therapist-scope .pd-disconnect-btn:hover {
+  background: #B32330;
+  box-shadow: 0 4px 12px rgba(204, 41, 54, 0.36);
+  transform: translateY(-1px);
+}
+.therapist-scope .pd-disconnect-btn:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(204, 41, 54, 0.3); }
+.therapist-scope .pd-disconnect-btn:focus-visible { outline: 2px solid var(--danger); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .therapist-scope .pd-disconnect-btn { transition: none; }
+  .therapist-scope .pd-disconnect-btn:hover { transform: none; }
+}
 @media (max-width: 480px) {
   .therapist-scope .pd-danger-row { justify-content: stretch; }
   .therapist-scope .pd-disconnect-btn { width: 100%; }
@@ -7244,6 +7260,12 @@ body:has(#manualCamScreen.active) {
   /* Type + shape */
   --rd-font: 'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;
   --rd-r-card: 18px; --rd-r-input: 14px; --rd-r-pill: 999px;
+  /* The generic radius scale. These were used 75 times across this stylesheet
+     but declared nowhere — an unset custom property resolves to nothing, so
+     every one of those corners silently rendered SQUARE. Values restored from
+     the design-system source of truth in _design-handoff/_ds, not invented. */
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+  --radius-xl: 20px; --radius-full: 99px;
   --rd-shadow: 0 2px 16px rgba(31,41,51,0.08);
   --rd-scrim: rgba(31,41,51,0.55);
   /* Accessibility text-size (2p). Scales every rd font via calc(). */
