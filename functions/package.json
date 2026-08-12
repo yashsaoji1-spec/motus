@@ -1,7 +1,7 @@
 {
   "name": "functions",
   "description": "Motus Cloud Functions (account-deletion cascade, video expiry)",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "main": "index.js",
   "private": true,
   "dependencies": {
