@@ -19,6 +19,7 @@ const PATIENT = 'patient@x.com';
 const OTHER_PATIENT = 'other@x.com';
 const THERAPIST = 'therapist@x.com';
 const RIVAL = 'rival@x.com';
+const ADMIN = 'admin@x.com';
 
 let testEnv;
 
@@ -52,6 +53,7 @@ async function seedUsers() {
     await setDoc(doc(db, 'users', OTHER_PATIENT), { role: 'patient', name: 'Maria Alvarez', consentGiven: true });
     await setDoc(doc(db, 'users', THERAPIST), { role: 'therapist', name: 'Sarah Chen' });
     await setDoc(doc(db, 'users', RIVAL), { role: 'therapist', name: 'Rival Clinic' });
+    await setDoc(doc(db, 'users', ADMIN), { role: 'admin', name: 'Adam Admin' });
   });
 }
 
@@ -68,6 +70,7 @@ function as(uid, email) {
 const asPatient   = () => as('uid-pat', PATIENT);
 const asTherapist = () => as('uid-th', THERAPIST);
 const asRival     = () => as('uid-rival', RIVAL);
+const asAdmin     = () => as('uid-admin', ADMIN);
 
 async function seed(path, id, data) {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
@@ -285,5 +288,32 @@ describe('a patient can disconnect themselves', () => {
     await assertFails(updateDoc(doc(asPatient(), 'connections', THERAPIST), {
       patients: arrayUnion(PATIENT),
     }));
+  });
+});
+
+// Promotion to therapist must go through the approveTherapist function, which
+// refuses unless Firebase Auth says the email was verified. Rules cannot check
+// that themselves — emailVerified is not visible to them — so the only way to
+// keep the gate closed is to stop role being written from a client at all.
+describe('role cannot be changed from a client, even by an admin', () => {
+  it('blocks an admin promoting a pending therapist', async () => {
+    await seedUsers();
+    await seed('users', PATIENT, { role: 'therapist_pending', name: 'Applicant' });
+    await assertFails(updateDoc(doc(asAdmin(), 'users', PATIENT), { role: 'therapist' }));
+  });
+
+  it('blocks an admin granting themselves nothing new either', async () => {
+    await seedUsers();
+    await assertFails(updateDoc(doc(asAdmin(), 'users', THERAPIST), { role: 'admin' }));
+  });
+
+  it('still allows an admin to repair other fields', async () => {
+    await seedUsers();
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'users', PATIENT), { name: 'Corrected Name' }));
+  });
+
+  it('blocks a therapist promoting themselves', async () => {
+    await seedUsers();
+    await assertFails(updateDoc(doc(asTherapist(), 'users', THERAPIST), { role: 'admin' }));
   });
 });
