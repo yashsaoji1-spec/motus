@@ -211,8 +211,9 @@ const I18N = {
     'pending.signOut': 'Sign Out',
     // Connect
     'connect.title': 'Connect to a Therapist',
-    'connect.sub': 'Enter your clinic code to get started',
+    'connect.sub': 'Enter the invite code your therapist gave you',
     'connect.clinicCode': 'Invite Code',
+    'connect.wrongTherapist': 'Not the right therapist? Use a different code',
     'connect.connect': 'Connect',
     'connect.skip': 'Skip for now',
     'connect.declined': "Your last request wasn't accepted. Check the code with your therapist and try again.",
@@ -551,6 +552,7 @@ const I18N = {
     'connect.title': 'Conéctate con un terapeuta',
     'connect.sub': 'Ingresa el código de tu clínica para empezar',
     'connect.clinicCode': 'Código de invitación',
+    'connect.wrongTherapist': '¿No es el terapeuta correcto? Usa otro código',
     'connect.connect': 'Conectar',
     'connect.skip': 'Omitir por ahora',
     'connect.declined': 'Tu última solicitud no fue aceptada. Verifica el código con tu terapeuta e inténtalo de nuevo.',
@@ -2124,6 +2126,31 @@ function renderConnectPending(therapistName) {
   if (who) who.textContent = therapistName;
   if (form) form.style.display = 'none';
   if (pending) pending.style.display = 'block';
+}
+
+// Withdraw an outstanding request and get the code box back. Patients may
+// delete their own connectionRequest (see the rules), so this needs no
+// therapist involvement — which is the point: a therapist who never answers
+// must not be able to strand someone on the waiting screen forever.
+async function cancelConnectRequest() {
+  if (!await confirmModal(
+    'Cancel your request and enter a different code? Your current request will be withdrawn.',
+    'Use a different code')) return;
+  try {
+    await db.collection('connectionRequests').doc(currentUser.email).delete();
+  } catch (e) {
+    console.error('[Motus] could not withdraw request:', e);
+    showNotice('Could not cancel the request. Please try again.');
+    return;
+  }
+  const form = document.getElementById('connectForm');
+  const pending = document.getElementById('connectPending');
+  const declined = document.getElementById('connectDeclined');
+  if (pending) pending.style.display = 'none';
+  if (declined) declined.style.display = 'none';
+  if (form) form.style.display = '';
+  const input = document.getElementById('connectCode');
+  if (input) { input.value = ''; input.focus(); }
 }
 
 // On load, a patient who already has a request outstanding should see that,
@@ -5657,7 +5684,7 @@ async function loadConnectedPatients() {
     const msg = document.createElement('div');
     msg.id = 'noPatientsMsg';
     msg.className = 'no-patients';
-    msg.innerHTML = `No patients connected yet.<br/>Share your clinic code above<br/>with your patients to get started.`;
+    msg.innerHTML = `No patients connected yet.<br/>Use <strong>Invite a patient</strong> above<br/>to send someone a code.`;
     container.appendChild(msg);
     return;
   }
@@ -10225,8 +10252,8 @@ const TUTORIAL_STEPS = {
     { type: 'welcome' },
     { target: '.rd-plist', title: 'Your patients',
       text: 'Everyone connected to you appears in this list. Tap a patient to open their detail view.' },
-    { target: '.rd-plist-invite', title: 'Your clinic code',
-      text: 'Share this 6-character code with patients — they enter it when signing up to connect with you.' },
+    { target: '.rd-plist-invite-btn', title: 'Invite a patient',
+      text: 'Create a single-use code for one patient. They enter it when signing up, then you approve them.' },
     { target: '#mainPanel', title: 'Patient detail',
       text: 'Selecting a patient shows their sessions, pain trend, clinical notes, and assigned protocols — and lets you assign new ones.' },
     { target: '.rd-plist-bulk', title: 'Bulk assign',
@@ -10474,7 +10501,7 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  openInviteModal, closeInviteModal, openTherapistMessages, openTherapistThread, refreshPatientList,
+  openInviteModal, closeInviteModal, cancelConnectRequest, openTherapistMessages, openTherapistThread, refreshPatientList,
   createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,

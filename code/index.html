@@ -367,6 +367,10 @@
           <span id="connectPendingWho"></span>
           <span data-i18n="connect.pendingBody2">to accept you. You'll get your exercises once they do.</span>
         </div>
+        <!-- Without this the screen is a dead end: any outstanding request hides
+             the code box, so a patient waiting on the wrong therapist — or one
+             who never answers — has no way to use a different code. -->
+        <button class="rd-link-btn rd-mt" onclick="cancelConnectRequest()" data-i18n="connect.wrongTherapist">Not the right therapist? Use a different code</button>
       </div>
       <button class="rd-btn-outline rd-mt" onclick="skipConnect()" data-i18n="connect.skip">Skip for now</button>
     </div>
