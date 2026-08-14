@@ -1238,13 +1238,8 @@
     </div>
 
     <div class="inv-body">
-      <label class="inv-label" for="invName">Who is this for?</label>
-      <div class="inv-create">
-        <input type="text" id="invName" class="inv-input" placeholder="Patient's name" maxlength="40" autocomplete="off"
-               onkeydown="if(event.key==='Enter') createPatientInvite()">
-        <button class="inv-create-btn" id="invCreateBtn" onclick="createPatientInvite()">Create code</button>
-      </div>
-      <p class="inv-hint">A code only they can use, once. You still approve them before they join your caseload.</p>
+      <button class="inv-create-btn inv-create-btn--block" id="invCreateBtn" onclick="createPatientInvite()">Create invite code</button>
+      <p class="inv-hint">Works once, for one person. They enter it when signing up, then you approve them.</p>
 
       <div id="invList" class="inv-list"></div>
 

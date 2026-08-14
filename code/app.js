@@ -1310,9 +1310,6 @@ async function declinePatientRequest(patientEmail) {
 // ── Therapist: issue and manage per-patient invites ────────────────────────
 
 async function createPatientInvite() {
-  const input = document.getElementById('invName');
-  const label = (input?.value || '').trim();
-  if (!label) { showNotice('Enter the patient’s name so you can tell invites apart.'); input?.focus(); return; }
   const btn = document.getElementById('invCreateBtn');
   if (btn) btn.disabled = true;
   try {
@@ -1327,12 +1324,10 @@ async function createPatientInvite() {
     if (!code) throw new Error('could not allocate an unused code');
     await db.collection('patientInvites').doc(code).set({
       therapistEmail: currentUser.email,
-      label,
       status: 'open',
       claimedBy: null,
       createdAt: new Date().toISOString(),
     });
-    if (input) input.value = '';
     await loadPatientInvites();
   } catch (e) {
     console.error('[Motus] createPatientInvite failed', e);
@@ -1354,12 +1349,20 @@ async function loadPatientInvites() {
     const rows = snap.docs
       .map(d => ({ code: d.id, ...d.data() }))
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    list.innerHTML = rows.map(r => `
+    list.innerHTML = rows.map(r => {
+      const when = r.createdAt
+        ? new Date(r.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        : '';
+      // Older invites carry a label; newer ones don't. Show whichever exists so
+      // codes issued before the name field was dropped still read sensibly.
+      const sub = r.label ? escapeHtml(r.label) : `Created ${when}`;
+      return `
       <div class="inv-row">
         <button class="inv-code" onclick="copyInviteCode('${escJsAttr(r.code)}')" title="Copy code">${escapeHtml(r.code)}</button>
-        <span class="inv-name">${escapeHtml(r.label)}</span>
-        <button class="inv-revoke" onclick="revokePatientInvite('${escJsAttr(r.code)}')" aria-label="Revoke invite for ${escapeHtml(r.label)}">Revoke</button>
-      </div>`).join('');
+        <span class="inv-name">${sub}</span>
+        <button class="inv-revoke" onclick="revokePatientInvite('${escJsAttr(r.code)}')" aria-label="Revoke code ${escapeHtml(r.code)}">Revoke</button>
+      </div>`;
+    }).join('');
   } catch (e) {
     console.warn('[Motus] loadPatientInvites failed', e);
     list.innerHTML = '';
@@ -8991,7 +8994,7 @@ function openInviteModal() {
   m.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   loadPatientInvites();
-  document.getElementById('invName')?.focus();
+  document.getElementById('invCreateBtn')?.focus();
 }
 
 function closeInviteModal() {
