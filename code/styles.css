@@ -7961,7 +7961,12 @@ body:has(#manualCamScreen.active) {
   overflow: hidden; max-height: 0;
   transition: max-height 220ms ease;
 }
-.rd-plist-invite.is-open .rd-plist-invite-body { max-height: 140px; }
+/* 140px fitted the original single shared code exactly. The drawer now also
+   carries per-patient invites, which grow, so the cap has to leave room and
+   scroll past it rather than silently clipping whatever doesn't fit — which is
+   how the "new code" control vanished. max-height stays because the open/close
+   animation depends on it. */
+.rd-plist-invite.is-open .rd-plist-invite-body { max-height: 340px; overflow-y: auto; }
 
 .rd-plist-invite-main {
   display: flex; align-items: center; gap: 12px; width: 100%;
@@ -8281,38 +8286,53 @@ body:has(#manualCamScreen.active) {
 }
 
 /* ── Per-patient invite codes (therapist sidebar drawer) ─────────────────── */
-.th-invite-new { display: flex; gap: 6px; margin-top: 10px; }
+/* This drawer exists to be read, not operated. Everything here stays quieter
+   than the shared code above it: the add control is a text link, the form only
+   appears once asked for, and issued codes read as a compact list. */
+.th-invite-add {
+  display: block; width: 100%; margin-top: 10px; padding: 6px 0;
+  background: none; border: none; cursor: pointer; text-align: left;
+  font-family: var(--rd-font); font-size: 0.75rem; font-weight: 700;
+  color: var(--rd-teal, var(--th-primary)); opacity: 0.85;
+}
+.th-invite-add:hover { opacity: 1; text-decoration: underline; }
+.th-invite-new { display: flex; gap: 6px; margin-top: 8px; }
+.th-invite-new[hidden] { display: none; }
 .th-invite-input {
-  flex: 1; min-width: 0; padding: 7px 10px;
+  flex: 1; min-width: 0; padding: 6px 9px;
   border: 1px solid var(--rd-card-border, var(--border)); border-radius: var(--radius-md);
   background: var(--rd-card, var(--surface)); color: var(--rd-ink, var(--text));
-  font-family: var(--rd-font); font-size: 0.8rem;
+  font-family: var(--rd-font); font-size: 0.76rem;
 }
+.th-invite-input:focus { outline: none; border-color: var(--rd-teal, var(--th-primary)); }
 .th-invite-create {
-  flex: none; padding: 7px 12px; border: none; border-radius: var(--radius-md);
-  background: var(--rd-teal, var(--th-primary)); color: #fff;
-  font-family: var(--rd-font); font-size: 0.78rem; font-weight: 700; cursor: pointer;
+  flex: none; padding: 6px 12px; border-radius: var(--radius-md);
+  border: 1px solid var(--rd-teal, var(--th-primary));
+  background: none; color: var(--rd-teal, var(--th-primary));
+  font-family: var(--rd-font); font-size: 0.76rem; font-weight: 700; cursor: pointer;
 }
+.th-invite-create:hover { background: var(--rd-teal, var(--th-primary)); color: #fff; }
 .th-invite-create:disabled { opacity: 0.5; cursor: not-allowed; }
-.th-invite-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
-.th-invite-row { display: flex; align-items: center; gap: 8px; }
+.th-invite-list { display: flex; flex-direction: column; gap: 2px; }
+.th-invite-list:not(:empty) { margin-top: 10px; }
+.th-invite-row { display: flex; align-items: center; gap: 6px; }
 .th-invite-code {
-  flex: none; padding: 4px 8px; border: 1px dashed var(--rd-card-border, var(--border));
-  border-radius: var(--radius-sm); background: none; cursor: pointer;
+  flex: none; padding: 2px 6px; border: none; border-radius: var(--radius-sm);
+  background: none; cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.82rem; font-weight: 700; letter-spacing: 0.06em;
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em;
   color: var(--rd-ink, var(--text));
 }
-.th-invite-code:hover { border-style: solid; border-color: var(--rd-teal, var(--th-primary)); }
+.th-invite-code:hover { background: rgba(0,0,0,0.05); }
 /* The label is the whole point of a per-patient code — it is what tells two
    otherwise identical six-character strings apart. Truncate, never wrap. */
 .th-invite-label {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 0.78rem; color: var(--rd-muted, var(--muted));
+  font-size: 0.72rem; color: var(--rd-muted, var(--muted));
 }
 .th-invite-revoke {
-  flex: none; width: 22px; height: 22px; line-height: 1; padding: 0;
+  flex: none; width: 18px; height: 18px; line-height: 1; padding: 0;
   border: none; background: none; cursor: pointer;
-  color: var(--rd-muted, var(--muted)); font-size: 1.05rem;
+  color: var(--rd-muted, var(--muted)); font-size: 0.95rem; opacity: 0.6;
 }
-.th-invite-revoke:hover { color: var(--danger); }
+.th-invite-revoke:hover { color: var(--danger); opacity: 1; }

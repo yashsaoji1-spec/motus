@@ -1332,6 +1332,15 @@ async function declinePatientRequest(patientEmail) {
 
 // ── Therapist: issue and manage per-patient invites ────────────────────────
 
+function toggleInviteForm(show) {
+  const form = document.getElementById('thInviteNew');
+  const add  = document.getElementById('thInviteAddBtn');
+  if (!form || !add) return;
+  form.hidden = !show;
+  add.hidden = show;
+  if (show) document.getElementById('thInviteLabel')?.focus();
+}
+
 async function createPatientInvite() {
   const input = document.getElementById('thInviteLabel');
   const label = (input?.value || '').trim();
@@ -1356,6 +1365,7 @@ async function createPatientInvite() {
       createdAt: new Date().toISOString(),
     });
     if (input) input.value = '';
+    toggleInviteForm(false);   // job done — collapse back to the quiet state
     await loadPatientInvites();
   } catch (e) {
     console.error('[Motus] createPatientInvite failed', e);
@@ -10556,7 +10566,7 @@ Object.assign(window, {
 
   // Therapist panel
   copyClinicCode, toggleInviteCode, openTherapistMessages, openTherapistThread, refreshPatientList,
-  createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite,
+  createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite, toggleInviteForm,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,
 
