@@ -212,7 +212,7 @@ const I18N = {
     // Connect
     'connect.title': 'Connect to a Therapist',
     'connect.sub': 'Enter your clinic code to get started',
-    'connect.clinicCode': 'Clinic Code',
+    'connect.clinicCode': 'Invite Code',
     'connect.connect': 'Connect',
     'connect.skip': 'Skip for now',
     'connect.declined': "Your last request wasn't accepted. Check the code with your therapist and try again.",
@@ -550,7 +550,7 @@ const I18N = {
     'pending.signOut': 'Cerrar sesión',
     'connect.title': 'Conéctate con un terapeuta',
     'connect.sub': 'Ingresa el código de tu clínica para empezar',
-    'connect.clinicCode': 'Código de la clínica',
+    'connect.clinicCode': 'Código de invitación',
     'connect.connect': 'Conectar',
     'connect.skip': 'Omitir por ahora',
     'connect.declined': 'Tu última solicitud no fue aceptada. Verifica el código con tu terapeuta e inténtalo de nuevo.',
@@ -1228,31 +1228,6 @@ function autoLogout() {
   document.addEventListener(ev, () => { if (currentUser) resetInactivityTimer(); }, { passive: true })
 );
 
-function generateCodeForEmail(email) {
-  let hash = 0;
-  for (let i = 0; i < email.length; i++) {
-    hash = ((hash << 5) - hash) + email.charCodeAt(i);
-    hash |= 0;
-  }
-  return String(Math.abs(hash) % 900000 + 100000);
-}
-
-async function getOrCreateTherapistCode(email) {
-  const ref = db.collection('therapistCodes');
-  const userDoc = await db.collection('users').doc(email).get();
-  if (userDoc.exists && userDoc.data().clinicCode) return userDoc.data().clinicCode;
-  let code = generateCodeForEmail(email);
-  const existing = await ref.doc(code).get();
-  if (existing.exists && existing.data().email !== email) {
-    code = String(100000 + Math.floor(Math.random() * 900000));
-  }
-  await Promise.all([
-    ref.doc(code).set({ email }),
-    db.collection('users').doc(email).update({ clinicCode: code })
-  ]);
-  return code;
-}
-
 async function getConnectedPatients(therapistEmail) {
   const doc = await db.collection('connections').doc(therapistEmail).get();
   const emails = doc.exists ? (doc.data().patients || []) : [];
@@ -1454,19 +1429,6 @@ async function lookupPatientInvite(code) {
     console.warn('[Motus] invite lookup failed', e);
     return null;
   }
-}
-
-async function getTherapistForCode(code) {
-  const codeDoc = await db.collection('therapistCodes').doc(code).get();
-  if (codeDoc.exists) {
-    const tDoc = await db.collection('users').doc(codeDoc.data().email).get();
-    if (tDoc.exists) return { email: tDoc.id, ...tDoc.data() };
-  }
-  const snap = await db.collection('users').where('role', '==', 'therapist').get();
-  for (const doc of snap.docs) {
-    if (generateCodeForEmail(doc.id) === code) return { email: doc.id, ...doc.data() };
-  }
-  return null;
 }
 
 // ── Audit logging (HIPAA §164.312(b)) ────────────────────────────────────────
@@ -2116,13 +2078,12 @@ async function handleConnect() {
   hideError('connectError');
   const code = document.getElementById('connectCode').value.trim().toUpperCase();
   if (code.length !== 6) { showError('connectError', 'Please enter a valid 6-character code.'); return; }
-  // A per-patient invite is checked first: it is single-use and names one
-  // person, so it should win over the shared clinic code if both could match.
   const invite = await lookupPatientInvite(code);
-  const therapist = invite
-    ? await _userDoc(invite.therapistEmail)
-    : await getTherapistForCode(code);
-  if (!therapist) { showError('connectError', 'No therapist found with that code. Double-check with your therapist.'); return; }
+  const therapist = invite ? await _userDoc(invite.therapistEmail) : null;
+  if (!therapist) {
+    showError('connectError', "That code isn't valid, or it has already been used. Ask your therapist for a new one.");
+    return;
+  }
   // If this write is refused (rules, offline, quota) the patient MUST be told.
   // Unhandled, the promise just rejects: no error, no pending screen, nothing
   // happens on tap — and the therapist never sees a request that was never
@@ -2210,21 +2171,9 @@ async function loginSuccess() {
     await loadAdminScreen();
   } else if (currentRole === 'therapist') {
     showScreen('therapistScreen');
-    // The invite code is generated (or fetched) on every therapist login and
-    // persisted to users.clinicCode + therapistCodes/{code}. Isolated in its own
-    // try: this call sits inside onAuthStateChanged's try block, whose catch
-    // SIGNS THE USER OUT — so without this, one transient Firestore hiccup while
-    // writing the code would bounce a therapist to the login screen. The code is
-    // display-only here; failing to render it must never cost the session.
-    try {
-      document.getElementById('therapistCode').textContent =
-        await getOrCreateTherapistCode(currentUser.email);
-    } catch (e) {
-      console.error('[Motus] invite code unavailable:', e);
-      document.getElementById('therapistCode').textContent = '——————';
-    }
-    // Not awaited, and deliberately: the same reasoning as the shared code
-    // above — the caseload must not wait on, or be lost to, an invite read.
+    // Not awaited, deliberately: this sits inside onAuthStateChanged's try,
+    // whose catch SIGNS THE USER OUT. A transient Firestore hiccup reading
+    // invites must never cost the therapist their session.
     loadPatientInvites();
     await loadConnectedPatients();
     await loadMyClinic();
@@ -9004,13 +8953,6 @@ function showSidebarTooltip(anchor, text) {
   setTimeout(() => tip.remove(), 2000);
 }
 
-function copyClinicCode() {
-  const code = document.getElementById('therapistCode')?.textContent || '';
-  if (!code || code.startsWith('-')) return;   // not loaded yet
-  navigator.clipboard.writeText(code);
-  showNotice(`Code ${code} copied.`, 'success');
-}
-
 /* ── Invite modal ──────────────────────────────────────────────────────────
    Replaced a collapsible drawer pinned above the caseload. Inviting is
    occasional and deliberate; a permanently expanded panel competing with the
@@ -10532,7 +10474,7 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  copyClinicCode, openInviteModal, closeInviteModal, openTherapistMessages, openTherapistThread, refreshPatientList,
+  openInviteModal, closeInviteModal, openTherapistMessages, openTherapistThread, refreshPatientList,
   createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,

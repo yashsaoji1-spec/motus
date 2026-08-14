@@ -464,12 +464,13 @@ service cloud.firestore {
     }
 
 
-    // -- therapistCodes/{code} -- maps clinic codes to therapist emails
-    // Therapists create/read their own code; patients read any code (for connect-by-code).
-    match /therapistCodes/{code} {
-      allow read: if isAuth();
-      allow write: if isAuth() && isTherapist() && request.resource.data.email == myEmail();
-    }
+    // therapistCodes/{code} is GONE. It mapped a permanent, shared clinic code
+    // to a therapist. That code never expired, was a hash of the therapist's
+    // email rather than random, and getTherapistForCode fell back to rescanning
+    // every therapist and recomputing the hash — so codes that were never
+    // provisioned still resolved. patientInvites replaced it: random,
+    // single-use, revocable, and unenumerable because `list` is denied.
+    // No rule means default-deny; the old docs are inert.
 
 
     // -- auditLog/{entryId} -- HIPAA §164.312(b) audit trail
