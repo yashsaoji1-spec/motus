@@ -1600,11 +1600,11 @@
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     <span data-i18n="nav.home">Home</span>
   </button>
-  <button class="pt-bottom-nav-item" onclick="showProgressScreen()">
+  <button class="pt-bottom-nav-item" id="ptNavProgress" onclick="showProgressScreen()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
     <span data-i18n="nav.progress">Progress</span>
   </button>
-  <button class="pt-bottom-nav-item" onclick="openPatientMessaging()">
+  <button class="pt-bottom-nav-item" id="ptNavMessages" onclick="openPatientMessaging()">
     <span class="pt-bottom-nav-icon-wrap">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span class="pt-bottom-nav-dot" id="patientNavUnreadDot" style="display:none"></span>

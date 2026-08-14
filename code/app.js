@@ -1959,7 +1959,9 @@ function showSettingsScreen() {
   const clinicSec = document.getElementById('settingsClinicSection');
   if (patSec)  patSec.hidden  = !isPatient;
   if (thSec)   thSec.hidden   = isPatient;
-  if (discBtn) discBtn.hidden = !isPatient;
+  // Was shown to every patient, connected or not — offering to disconnect
+  // from nobody.
+  if (discBtn) discBtn.hidden = !isPatient || !currentUser?.therapistEmail;
   const isClinicOwner = !isPatient && _myClinic && _myClinic.ownerEmail === (currentUser?.email || '');
   if (clinicSec) clinicSec.style.display = isClinicOwner ? '' : 'none';
   const modal = document.getElementById('settingsSavedModal');
@@ -2175,7 +2177,11 @@ async function refreshConnectState() {
 }
 
 async function skipConnect() {
+  setPatientNav(0);
   showScreen('patientScreen');
+  // updatePatientHomeScreen() blanks the plan and history when there is no
+  // therapist, so skipping lands on an honest empty home rather than the
+  // previous therapist's exercises.
   await updatePatientHomeScreen();
   await initSetTracker();
   maybeStartTutorial();
@@ -3058,6 +3064,20 @@ async function updatePatientHomeScreen() {
   } catch {
     protocols = []; sessions = []; therapistEmail = null;
   }
+
+  // Without a therapist there is no plan and no progress to report. The
+  // documents stay in Firestore — they are the patient's own record, and a
+  // future therapist may want the history — but they are not a current plan,
+  // and showing yesterday's exercises to someone with nobody supervising them
+  // is the app telling them to train unsupervised. Blanking here rather than at
+  // each render site means a new section cannot forget to check.
+  if (!therapistEmail) { protocols = []; sessions = []; }
+
+  // Progress and Messages are meaningless with nobody on the other end.
+  const navProgress = document.getElementById('ptNavProgress');
+  const navMessages = document.getElementById('ptNavMessages');
+  if (navProgress) navProgress.hidden = !therapistEmail;
+  if (navMessages) navMessages.hidden = !therapistEmail;
 
   const disconnectBtn = document.getElementById('disconnectTherapistBtn');
   if (disconnectBtn) disconnectBtn.style.display = therapistEmail ? '' : 'none';
