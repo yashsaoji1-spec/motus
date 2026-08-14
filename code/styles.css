@@ -8285,54 +8285,134 @@ body:has(#manualCamScreen.active) {
   font-size: calc(13px * var(--font-scale)); font-weight: 700;
 }
 
-/* ── Per-patient invite codes (therapist sidebar drawer) ─────────────────── */
-/* This drawer exists to be read, not operated. Everything here stays quieter
-   than the shared code above it: the add control is a text link, the form only
-   appears once asked for, and issued codes read as a compact list. */
-.th-invite-add {
-  display: block; width: 100%; margin-top: 10px; padding: 6px 0;
-  background: none; border: none; cursor: pointer; text-align: left;
-  font-family: var(--rd-font); font-size: 0.75rem; font-weight: 700;
-  color: var(--rd-teal, var(--th-primary)); opacity: 0.85;
+/* ── Invite a patient ────────────────────────────────────────────────────── */
+/* Inviting is occasional and deliberate, so it gets a modal rather than a panel
+   living permanently above the caseload. Hierarchy inside: the thing you came to
+   do (make a code for one person) is at the top at full weight; codes you have
+   already issued sit under it; the shared clinic code is last and quietest,
+   because it is the fallback. */
+
+/* Sidebar trigger — reads as one of the list's own controls, not a card. */
+.rd-plist-invite-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin: 0 0 4px; padding: 9px 12px;
+  background: none; border: 1px solid var(--rd-card-border, var(--border));
+  border-radius: var(--radius-md); cursor: pointer;
+  font-family: var(--rd-font); font-size: 0.82rem; font-weight: 700;
+  color: var(--rd-teal, var(--th-primary));
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.th-invite-add:hover { opacity: 1; text-decoration: underline; }
-.th-invite-new { display: flex; gap: 6px; margin-top: 8px; }
-.th-invite-new[hidden] { display: none; }
-.th-invite-input {
-  flex: 1; min-width: 0; padding: 6px 9px;
+.rd-plist-invite-btn:hover {
+  background: var(--rd-teal-soft, rgba(47,111,98,0.07));
+  border-color: var(--rd-teal, var(--th-primary));
+}
+.rd-plist-invite-btn svg { flex: none; }
+
+.inv-panel {
+  width: min(440px, calc(100vw - 32px));
+  background: var(--rd-card, var(--surface));
+  border-radius: var(--radius-xl);
+  box-shadow: var(--rd-shadow, 0 2px 16px rgba(31,41,51,0.08));
+  font-family: var(--rd-font);
+  overflow: hidden;
+}
+.inv-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 22px 0;
+}
+.inv-title {
+  margin: 0; font-size: 1.05rem; font-weight: 800;
+  color: var(--rd-ink, var(--text)); letter-spacing: -0.01em;
+}
+.inv-close {
+  width: 30px; height: 30px; flex: none; padding: 0;
+  background: none; border: none; border-radius: var(--radius-full);
+  font-size: 1.4rem; line-height: 1; cursor: pointer;
+  color: var(--rd-muted, var(--muted));
+}
+.inv-close:hover { background: rgba(0,0,0,0.06); color: var(--rd-ink, var(--text)); }
+
+.inv-body { padding: 16px 22px 22px; }
+.inv-label {
+  display: block; margin-bottom: 7px;
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--rd-muted, var(--muted));
+}
+.inv-create { display: flex; gap: 8px; }
+.inv-input {
+  flex: 1; min-width: 0; padding: 11px 13px;
   border: 1px solid var(--rd-card-border, var(--border)); border-radius: var(--radius-md);
-  background: var(--rd-card, var(--surface)); color: var(--rd-ink, var(--text));
-  font-family: var(--rd-font); font-size: 0.76rem;
+  background: var(--rd-paper, var(--bg)); color: var(--rd-ink, var(--text));
+  font-family: var(--rd-font); font-size: 0.88rem;
 }
-.th-invite-input:focus { outline: none; border-color: var(--rd-teal, var(--th-primary)); }
-.th-invite-create {
-  flex: none; padding: 6px 12px; border-radius: var(--radius-md);
-  border: 1px solid var(--rd-teal, var(--th-primary));
-  background: none; color: var(--rd-teal, var(--th-primary));
-  font-family: var(--rd-font); font-size: 0.76rem; font-weight: 700; cursor: pointer;
+.inv-input::placeholder { color: var(--rd-muted, var(--muted)); }
+.inv-input:focus {
+  outline: none; border-color: var(--rd-teal, var(--th-primary));
+  background: var(--rd-card, var(--surface));
 }
-.th-invite-create:hover { background: var(--rd-teal, var(--th-primary)); color: #fff; }
-.th-invite-create:disabled { opacity: 0.5; cursor: not-allowed; }
-.th-invite-list { display: flex; flex-direction: column; gap: 2px; }
-.th-invite-list:not(:empty) { margin-top: 10px; }
-.th-invite-row { display: flex; align-items: center; gap: 6px; }
-.th-invite-code {
-  flex: none; padding: 2px 6px; border: none; border-radius: var(--radius-sm);
-  background: none; cursor: pointer;
+.inv-create-btn {
+  flex: none; padding: 11px 16px; border: none; border-radius: var(--radius-md);
+  background: var(--rd-teal, var(--th-primary)); color: #fff;
+  font-family: var(--rd-font); font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  transition: background 0.15s ease;
+}
+.inv-create-btn:hover { background: var(--rd-teal-hover, var(--th-primary)); }
+.inv-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.inv-hint {
+  margin: 9px 2px 0; font-size: 0.76rem; line-height: 1.45;
+  color: var(--rd-muted, var(--muted));
+}
+
+.inv-list { display: flex; flex-direction: column; }
+.inv-list:not(:empty) { margin-top: 18px; border-top: 1px solid var(--rd-card-border, var(--border)); }
+.inv-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--rd-card-border, var(--border));
+}
+/* The clinic-code block draws its own top rule, so the last row must not draw
+   one too — otherwise the two stack into a visible double line. */
+.inv-row:last-child { border-bottom: none; }
+/* The code is the object here, so it gets the monospace and the weight. */
+.inv-code {
+  flex: none; padding: 5px 9px; border: none; border-radius: var(--radius-sm);
+  background: var(--rd-paper, var(--bg)); cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em;
+  font-size: 0.86rem; font-weight: 700; letter-spacing: 0.08em;
   color: var(--rd-ink, var(--text));
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.th-invite-code:hover { background: rgba(0,0,0,0.05); }
-/* The label is the whole point of a per-patient code — it is what tells two
-   otherwise identical six-character strings apart. Truncate, never wrap. */
-.th-invite-label {
+.inv-code:hover { background: var(--rd-teal, var(--th-primary)); color: #fff; }
+.inv-name {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 0.72rem; color: var(--rd-muted, var(--muted));
+  font-size: 0.86rem; color: var(--rd-ink, var(--text));
 }
-.th-invite-revoke {
-  flex: none; width: 18px; height: 18px; line-height: 1; padding: 0;
-  border: none; background: none; cursor: pointer;
-  color: var(--rd-muted, var(--muted)); font-size: 0.95rem; opacity: 0.6;
+.inv-revoke {
+  flex: none; padding: 4px 8px; border: none; background: none; cursor: pointer;
+  font-family: var(--rd-font); font-size: 0.76rem; font-weight: 700;
+  color: var(--rd-muted, var(--muted));
 }
-.th-invite-revoke:hover { color: var(--danger); opacity: 1; }
+.inv-revoke:hover { color: var(--danger); }
+
+.inv-shared {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid var(--rd-card-border, var(--border));
+}
+.inv-shared-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.inv-shared-label { font-size: 0.82rem; font-weight: 700; color: var(--rd-ink, var(--text)); }
+.inv-shared-sub { font-size: 0.72rem; color: var(--rd-muted, var(--muted)); }
+.inv-shared-code {
+  display: flex; align-items: center; gap: 7px; flex: none;
+  padding: 8px 12px; border: 1px solid var(--rd-card-border, var(--border));
+  border-radius: var(--radius-md); background: none; cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86rem; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--rd-muted, var(--muted));
+}
+.inv-shared-code:hover { color: var(--rd-ink, var(--text)); border-color: var(--rd-ink, var(--text)); }
+
+@media (max-width: 480px) {
+  .inv-create { flex-direction: column; }
+  .inv-create-btn { width: 100%; }
+}

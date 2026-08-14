@@ -730,31 +730,12 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" id="patientSearch" aria-label="Search patients" placeholder="Search patients" oninput="filterPatients(this.value)" />
     </div>
-    <div class="rd-plist-invite" id="thInviteBox">
-      <button class="rd-plist-invite-head" id="thInviteToggle" onclick="toggleInviteCode()" aria-expanded="false" aria-controls="thInviteBody" aria-label="Show invite code" title="Show invite code">
-        <span class="rd-plist-invite-lbl" data-i18n="th.inviteCode">Invite code</span>
-        <svg class="rd-plist-invite-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="rd-plist-invite-body" id="thInviteBody">
-        <div class="rd-plist-invite-body-inner">
-          <button class="rd-plist-invite-main" id="thInviteMain" onclick="copyClinicCode()" aria-label="Copy invite code" disabled tabindex="-1">
-            <span class="rd-plist-invite-code" id="therapistCode">------</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
-          <!-- Per-patient invites: one code per person, single use. The shared
-               code above stays for walk-ins. The form stays hidden until asked
-               for — this drawer is mostly opened just to read the code, and two
-               full-weight controls sitting under it drowned it out. -->
-          <div id="thInviteList" class="th-invite-list"></div>
-          <button class="th-invite-add" id="thInviteAddBtn" onclick="toggleInviteForm(true)">+ Code for one patient</button>
-          <div class="th-invite-new" id="thInviteNew" hidden>
-            <input type="text" id="thInviteLabel" class="th-invite-input" placeholder="Patient name" maxlength="40" autocomplete="off"
-                   onkeydown="if(event.key==='Enter') createPatientInvite(); if(event.key==='Escape') toggleInviteForm(false)">
-            <button class="th-invite-create" id="thInviteCreateBtn" onclick="createPatientInvite()" aria-label="Create invite code">Add</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Inviting is an occasional, deliberate act — it gets its own surface
+         rather than a permanently expanded panel wedged above the caseload. -->
+    <button class="rd-plist-invite-btn" onclick="openInviteModal()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+      <span>Invite a patient</span>
+    </button>
     <div id="patientRows" class="rd-plist-rows"></div>
   </div>
 
@@ -1240,6 +1221,40 @@
       <div id="apmAssignError" class="apm-assign-error" style="display:none;" aria-live="polite"></div>
       <button class="apm-cancel-btn" id="apmCancelBtn" onclick="closeAddProtocol()">Cancel</button>
       <button class="apm-submit-btn" id="apmSubmitBtn" onclick="assignProtocol()">Add to Protocol</button>
+    </div>
+  </div>
+</div>
+
+<!-- Invite Patient Modal -->
+<div id="inviteModal" class="apm-overlay" style="display:none" onclick="if(event.target===this)closeInviteModal()">
+  <div class="inv-panel" role="dialog" aria-modal="true" aria-labelledby="invTitle">
+    <div class="inv-hdr">
+      <h2 class="inv-title" id="invTitle">Invite a patient</h2>
+      <button class="inv-close" onclick="closeInviteModal()" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="inv-body">
+      <label class="inv-label" for="invName">Who is this for?</label>
+      <div class="inv-create">
+        <input type="text" id="invName" class="inv-input" placeholder="Patient's name" maxlength="40" autocomplete="off"
+               onkeydown="if(event.key==='Enter') createPatientInvite()">
+        <button class="inv-create-btn" id="invCreateBtn" onclick="createPatientInvite()">Create code</button>
+      </div>
+      <p class="inv-hint">A code only they can use, once. You still approve them before they join your caseload.</p>
+
+      <div id="invList" class="inv-list"></div>
+
+      <!-- The shared code is the fallback, so it reads as the quieter option. -->
+      <div class="inv-shared">
+        <div class="inv-shared-text">
+          <span class="inv-shared-label">Clinic code</span>
+          <span class="inv-shared-sub">Anyone with it can request to join. Never expires.</span>
+        </div>
+        <button class="inv-shared-code" onclick="copyClinicCode()" aria-label="Copy clinic code">
+          <span id="therapistCode">------</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 </div>

@@ -1332,20 +1332,11 @@ async function declinePatientRequest(patientEmail) {
 
 // ── Therapist: issue and manage per-patient invites ────────────────────────
 
-function toggleInviteForm(show) {
-  const form = document.getElementById('thInviteNew');
-  const add  = document.getElementById('thInviteAddBtn');
-  if (!form || !add) return;
-  form.hidden = !show;
-  add.hidden = show;
-  if (show) document.getElementById('thInviteLabel')?.focus();
-}
-
 async function createPatientInvite() {
-  const input = document.getElementById('thInviteLabel');
+  const input = document.getElementById('invName');
   const label = (input?.value || '').trim();
   if (!label) { showNotice('Enter the patient’s name so you can tell invites apart.'); input?.focus(); return; }
-  const btn = document.getElementById('thInviteCreateBtn');
+  const btn = document.getElementById('invCreateBtn');
   if (btn) btn.disabled = true;
   try {
     // Collision on a 1.07-billion space is vanishingly unlikely, but a silent
@@ -1365,7 +1356,6 @@ async function createPatientInvite() {
       createdAt: new Date().toISOString(),
     });
     if (input) input.value = '';
-    toggleInviteForm(false);   // job done — collapse back to the quiet state
     await loadPatientInvites();
   } catch (e) {
     console.error('[Motus] createPatientInvite failed', e);
@@ -1376,7 +1366,7 @@ async function createPatientInvite() {
 }
 
 async function loadPatientInvites() {
-  const list = document.getElementById('thInviteList');
+  const list = document.getElementById('invList');
   if (!list || !currentUser?.email) return;
   try {
     const snap = await db.collection('patientInvites')
@@ -1388,10 +1378,10 @@ async function loadPatientInvites() {
       .map(d => ({ code: d.id, ...d.data() }))
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     list.innerHTML = rows.map(r => `
-      <div class="th-invite-row">
-        <button class="th-invite-code" onclick="copyInviteCode('${escJsAttr(r.code)}')" title="Copy code">${escapeHtml(r.code)}</button>
-        <span class="th-invite-label">${escapeHtml(r.label)}</span>
-        <button class="th-invite-revoke" onclick="revokePatientInvite('${escJsAttr(r.code)}')" aria-label="Revoke invite for ${escapeHtml(r.label)}" title="Revoke">&times;</button>
+      <div class="inv-row">
+        <button class="inv-code" onclick="copyInviteCode('${escJsAttr(r.code)}')" title="Copy code">${escapeHtml(r.code)}</button>
+        <span class="inv-name">${escapeHtml(r.label)}</span>
+        <button class="inv-revoke" onclick="revokePatientInvite('${escJsAttr(r.code)}')" aria-label="Revoke invite for ${escapeHtml(r.label)}">Revoke</button>
       </div>`).join('');
   } catch (e) {
     console.warn('[Motus] loadPatientInvites failed', e);
@@ -2233,7 +2223,6 @@ async function loginSuccess() {
       console.error('[Motus] invite code unavailable:', e);
       document.getElementById('therapistCode').textContent = '——————';
     }
-    restoreInviteVisibility();
     // Not awaited, and deliberately: the same reasoning as the shared code
     // above — the caseload must not wait on, or be lost to, an invite read.
     loadPatientInvites();
@@ -9016,52 +9005,30 @@ function showSidebarTooltip(anchor, text) {
 }
 
 function copyClinicCode() {
-  // Nothing to copy while the drawer is shut — and silently copying something
-  // the therapist can't see is worse than doing nothing.
-  if (!_inviteCodeOpen) return;
-  const code = document.getElementById('therapistCode').textContent;
+  const code = document.getElementById('therapistCode')?.textContent || '';
+  if (!code || code.startsWith('-')) return;   // not loaded yet
   navigator.clipboard.writeText(code);
+  showNotice(`Code ${code} copied.`, 'success');
 }
 
-/* ── Invite code drawer ──────────────────────────────────────────────────────
-   A therapist only needs the code while onboarding someone, so it sits shut by
-   default and slides open on demand. This is a disclosure, not a privacy
-   control — hence a chevron rather than an eye, which would imply the code is
-   a secret being masked. The state is per-browser (localStorage): a display
-   preference, not account state, so it costs no Firestore read and no rules
-   change. */
-const INVITE_OPEN_KEY = 'motus_invite_open';
-let _inviteCodeOpen = false;
+/* ── Invite modal ──────────────────────────────────────────────────────────
+   Replaced a collapsible drawer pinned above the caseload. Inviting is
+   occasional and deliberate; a permanently expanded panel competing with the
+   patient list was the wrong shape for it. */
 
-function applyInviteVisibility() {
-  const box = document.getElementById('thInviteBox');
-  const toggle = document.getElementById('thInviteToggle');
-  const main = document.getElementById('thInviteMain');
-  if (box) box.classList.toggle('is-open', _inviteCodeOpen);
-  if (toggle) {
-    toggle.setAttribute('aria-expanded', _inviteCodeOpen ? 'true' : 'false');
-    const lbl = t(_inviteCodeOpen ? 'th.hideInvite' : 'th.showInvite');
-    toggle.setAttribute('aria-label', lbl);
-    toggle.setAttribute('title', lbl);
-  }
-  if (main) {
-    // Not just visually clipped — unfocusable and unclickable while shut, so it
-    // can't be reached by tabbing into a collapsed drawer.
-    main.disabled = !_inviteCodeOpen;
-    main.setAttribute('tabindex', _inviteCodeOpen ? '0' : '-1');
-  }
+function openInviteModal() {
+  const m = document.getElementById('inviteModal');
+  if (!m) return;
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  loadPatientInvites();
+  document.getElementById('invName')?.focus();
 }
 
-function toggleInviteCode() {
-  _inviteCodeOpen = !_inviteCodeOpen;
-  try { localStorage.setItem(INVITE_OPEN_KEY, _inviteCodeOpen ? '1' : '0'); } catch (e) { /* private mode */ }
-  applyInviteVisibility();
-}
-
-function restoreInviteVisibility() {
-  // Defaults to shut: the whole point is that it isn't in the way by default.
-  try { _inviteCodeOpen = localStorage.getItem(INVITE_OPEN_KEY) === '1'; } catch (e) { _inviteCodeOpen = false; }
-  applyInviteVisibility();
+function closeInviteModal() {
+  const m = document.getElementById('inviteModal');
+  if (m) m.style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -10565,8 +10532,8 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  copyClinicCode, toggleInviteCode, openTherapistMessages, openTherapistThread, refreshPatientList,
-  createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite, toggleInviteForm,
+  copyClinicCode, openInviteModal, closeInviteModal, openTherapistMessages, openTherapistThread, refreshPatientList,
+  createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,
 
