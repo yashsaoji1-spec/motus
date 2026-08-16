@@ -8436,3 +8436,13 @@ body:has(#manualCamScreen.active) {
   pointer-events: none;
   font-size: 0.68rem; font-weight: 600; color: var(--rd-muted, var(--muted));
 }
+
+/* ── This week: sessions done vs prescribed ──────────────────────────────── */
+/* The dots below count DAYS touched; this counts SESSIONS against the
+   prescription, which is what "3x per week, 2x daily" is actually written in. */
+.rd-prog-count {
+  font-family: var(--rd-font); font-size: 1.15rem; font-weight: 800;
+  color: var(--rd-ink, var(--text)); line-height: 1;
+}
+.rd-prog-count.met { color: var(--rd-teal, var(--th-primary)); }
+.rd-prog-count-of { font-size: 0.82rem; font-weight: 700; color: var(--rd-muted, var(--muted)); }

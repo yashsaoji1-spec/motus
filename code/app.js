@@ -8503,6 +8503,21 @@ async function renderProgressScreen() {
     }
   }
 
+  // Sessions done this week against what was prescribed. The dots below count
+  // DAYS touched; this counts SESSIONS, which is what the prescription is
+  // actually written in — "3x per week, 2x daily" is 6 sessions, not 3 days.
+  //
+  // A session is one sitting covering the plan, so the target is the most
+  // frequent exercise in it rather than a sum: an extra stretch prescribed daily
+  // does not mean the patient owes another whole session.
+  const sessionsThisWeek = sessions.filter(s => {
+    const ts = sessionTime(s);
+    return ts && (now - ts.getTime()) <= 7 * msPerDay;
+  }).length;
+  const weekTarget = protocols.length
+    ? Math.max(...protocols.map(p => weeklyTarget(p)))
+    : 0;
+
   // This week: 7 dots (done / today)
   const doneDays = new Set(sessions.map(s => new Date(s.date).toDateString()));
   let dots = '', doneCount = 0;
@@ -8596,7 +8611,14 @@ async function renderProgressScreen() {
 
   content.innerHTML =
     '<div class="rd-prog-banner"><div class="rd-prog-banner-eyebrow">' + escapeHtml(_eyebrow) + '</div><div class="rd-prog-banner-msg">' + escapeHtml(_bannerMsg) + '</div></div>' +
-    '<div class="rd-card rd-prog-card"><div class="rd-prog-card-title">' + escapeHtml(t('prog.thisWeek')) + '</div><div class="rd-prog-dots">' + dots + '</div></div>' +
+    '<div class="rd-card rd-prog-card"><div class="rd-prog-card-head">' +
+      '<span class="rd-prog-card-title">' + escapeHtml(t('prog.thisWeek')) + '</span>' +
+      (weekTarget
+        ? '<span class="rd-prog-count' + (sessionsThisWeek >= weekTarget ? ' met' : '') + '">' +
+            sessionsThisWeek + '<span class="rd-prog-count-of">/' + weekTarget + '</span>' +
+          '</span>'
+        : '') +
+    '</div><div class="rd-prog-dots">' + dots + '</div></div>' +
     // "Weekly average" is stated outright: each bar is a mean over 7 days, so one
     // hard session barely moves it. Without saying so the chart reads as if it
     // ignores what you just logged.
