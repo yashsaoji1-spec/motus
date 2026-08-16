@@ -3436,14 +3436,14 @@ async function startScanSession() {
     showExercisesScreen();
     return;
   }
-  selectedProtocol = protocols[0];
-  if (!ANGLE_TRACKING_ENABLED) { openManualCameraSession(protocols[0]); return; }
-  trackedJoints  = await loadTrackedJoints(currentUser.email);
-  jointMaxAngles = {};
-  showScreen('cameraScreen');
-  await loadPatientProtocol();
-  await initSetTracker();
-  if (!mpCamera) startCamera();
+  // Route through startSessionWithProtocol rather than reimplementing its tail.
+  // This button used to call openManualCameraSession() directly, which skipped
+  // BOTH the demo video and the "you have already finished all your sets today"
+  // guard — so the main CTA quietly behaved differently from tapping the same
+  // exercise in the plan list.
+  _manualCamExerciseIndex = 0;
+  _manualCamTotalExercises = 1;
+  await startSessionWithProtocol(protocols[0]);
 }
 
 // ── Manual session logging (used when ANGLE_TRACKING_ENABLED = false) ──────
