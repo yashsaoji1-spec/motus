@@ -3137,7 +3137,10 @@ async function updatePatientHomeScreen() {
       _exercisesProtocols = protocols;
       planList.innerHTML = protocols.map((p, i) => {
         const name = exName(p.exerciseType, p.exerciseName);
-        const target = p.sets || 3;
+        // 2x daily x 3 sets is SIX sets today. This was p.sets alone, so one
+        // round marked a twice-daily exercise done and the patient stopped at
+        // half the prescription.
+        const target = (p.sets || 3) * frequencyCounts(p).perDay;
         const setsDone = setsDoneFor(p);
         const done = setsDone >= target;
         const sub = done
@@ -3155,7 +3158,7 @@ async function updatePatientHomeScreen() {
           : `tabindex="0" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"`;
         return `<li class="rd-plan-item${done ? ' done is-locked' : ''}" ${openAttrs}><div class="rd-plan-check${done ? ' done' : ''}">${check}</div><div class="rd-plan-item-body"><div class="rd-plan-item-name">${escapeHtml(name)}</div><div class="rd-plan-item-sub">${sub}</div></div>${chevron}</li>`;
       }).join('');
-      const _doneCount = protocols.filter(p => setsDoneFor(p) >= (p.sets || 3)).length;
+      const _doneCount = protocols.filter(p => setsDoneFor(p) >= (p.sets || 3) * frequencyCounts(p).perDay).length;
       const _planDoneEl = document.getElementById('ptPlanDone');
       if (_planDoneEl) _planDoneEl.textContent = t('home.nOfMDone', { done: _doneCount, total: protocols.length });
       // The CTA was hardcoded to "Continue Session" and read that way even at 0 of 3.
@@ -6211,12 +6214,17 @@ function buildExerciseBreakdown(exercises, sessions) {
     const painCls = pain === null ? '' : (pain >= HIGH_PAIN ? ' hurt' : '');
     // A just-started plan is not 0% — it is unscored. Saying 0% would flag a
     // patient who has had the plan for an hour.
-    const adh = e.justStarted
-      ? '<span class="pd-exb-new">New</span>'
+    // expected is 0 until a full day has elapsed since assignment (the day-one
+    // grace in calcCompliance). Printing "1/0" reads as a broken fraction, and
+    // calling it 100% claims adherence to a prescription nothing was due against
+    // yet — so an unscored row says so instead.
+    const notDueYet = e.expected === 0;
+    const adh = (e.justStarted || notDueYet)
+      ? `<span class="pd-exb-new">${e.justStarted ? 'New' : 'Not due yet'}</span>`
       : `<span class="pd-exb-pct${e.pct < 60 ? ' low' : ''}">${e.pct}%</span>`;
     return `<tr>
       <td class="pd-exb-name">${escapeHtml(e.name)}</td>
-      <td class="pd-exb-done">${e.actual}<span class="pd-exb-of">/${e.expected}</span></td>
+      <td class="pd-exb-done">${e.actual}${notDueYet ? '' : `<span class="pd-exb-of">/${e.expected}</span>`}</td>
       <td>${adh}</td>
       <td class="pd-exb-pain${painCls}">${pain === null ? '—' : (Math.round(pain * 10) / 10)}</td>
     </tr>`;
