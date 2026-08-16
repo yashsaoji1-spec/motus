@@ -214,6 +214,7 @@ const I18N = {
     'connect.sub': 'Enter the invite code your therapist gave you',
     'connect.clinicCode': 'Invite Code',
     'connect.wrongTherapist': 'Not the right therapist? Use a different code',
+    'msg.retention': 'Messages are deleted after 2 weeks.',
     'connect.connect': 'Connect',
     'connect.skip': 'Skip for now',
     'connect.declined': "Your last request wasn't accepted. Check the code with your therapist and try again.",
@@ -553,6 +554,7 @@ const I18N = {
     'connect.sub': 'Ingresa el código de tu clínica para empezar',
     'connect.clinicCode': 'Código de invitación',
     'connect.wrongTherapist': '¿No es el terapeuta correcto? Usa otro código',
+    'msg.retention': 'Los mensajes se eliminan después de 2 semanas.',
     'connect.connect': 'Conectar',
     'connect.skip': 'Omitir por ahora',
     'connect.declined': 'Tu última solicitud no fue aceptada. Verifica el código con tu terapeuta e inténtalo de nuevo.',
@@ -6110,6 +6112,7 @@ async function showRealPatient(patient) {
         </section>
       </div>
 
+      ${makeCollapsible('exbreak', 'Per-Exercise Breakdown', buildExerciseBreakdown(adhResultT.exercises, sessions), false)}
       ${makeCollapsible('notes', 'Clinical Notes', buildClinicalNotes(), false)}
       ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}
@@ -6184,6 +6187,44 @@ function assignExercisesTo(email) {
 }
 
 
+
+
+// Per-exercise adherence and pain for the therapist panel. calcCompliance has
+// always returned this breakdown; nothing ever displayed it, so the panel could
+// say "62% adherent" without saying WHICH exercise was being skipped — the one
+// question that changes what a therapist does next.
+function buildExerciseBreakdown(exercises, sessions) {
+  if (!exercises || !exercises.length) {
+    return '<div class="pd-exb-empty">No exercises assigned yet.</div>';
+  }
+  // Pain is per exercise, from the same per-session value the chart and the
+  // review flag use, so a number here can be reconciled with those.
+  const painFor = (type) => {
+    const vals = (sessions || [])
+      .filter(s => s.exerciseType === type)
+      .map(s => sessionPainValue(s))
+      .filter(v => typeof v === 'number' && !isNaN(v));
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  };
+  const rows = exercises.map(e => {
+    const pain = painFor(e.type);
+    const painCls = pain === null ? '' : (pain >= HIGH_PAIN ? ' hurt' : '');
+    // A just-started plan is not 0% — it is unscored. Saying 0% would flag a
+    // patient who has had the plan for an hour.
+    const adh = e.justStarted
+      ? '<span class="pd-exb-new">New</span>'
+      : `<span class="pd-exb-pct${e.pct < 60 ? ' low' : ''}">${e.pct}%</span>`;
+    return `<tr>
+      <td class="pd-exb-name">${escapeHtml(e.name)}</td>
+      <td class="pd-exb-done">${e.actual}<span class="pd-exb-of">/${e.expected}</span></td>
+      <td>${adh}</td>
+      <td class="pd-exb-pain${painCls}">${pain === null ? '—' : (Math.round(pain * 10) / 10)}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="pd-exb">
+    <thead><tr><th>Exercise</th><th>Done</th><th>Adherence</th><th>Avg pain</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
 
 function buildClinicalNotes() {
   return `<div class="cn-editor-wrap">

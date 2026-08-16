@@ -4,6 +4,7 @@ import {
   resolveProtocolStart,
   getCalendarWeekStart,
   getExpectedSessions,
+  getIntervalDays,
 } from '../../code/compliance.js';
 
 // Fixed reference "now": Wednesday 2026-07-08 12:00 local. Its calendar week
@@ -125,5 +126,36 @@ describe('C-1: prior-week view excludes not-yet-assigned plans', () => {
     const { exercises, overall } = calcCompliance([], protocols, 1, { now: NOW });
     expect(exercises).toHaveLength(0); // not counted as a 0% red plan
     expect(overall).toBe(0);
+  });
+});
+
+// Prescriptions became two numbers (perWeek / perDay). An item carrying those
+// has no `frequency` field, and the legacy lookup falls through to daily — which
+// would expect more than double the real sessions and report a patient who is
+// perfectly on track as badly non-compliant.
+describe('frequency as perWeek / perDay', () => {
+  it('reads the numeric form', () => {
+    expect(getIntervalDays({ perWeek: 7, perDay: 1 })).toBe(1);
+    expect(getIntervalDays({ perWeek: 7, perDay: 2 })).toBe(0.5);
+    expect(getIntervalDays({ perWeek: 3, perDay: 1 })).toBeCloseTo(7 / 3);
+  });
+
+  it('does NOT treat a 3x-per-week item as daily', () => {
+    // The whole point: 14 days at 3x/week is 6 sessions, not 14.
+    expect(getExpectedSessions({ perWeek: 3, perDay: 1 }, 14)).toBe(6);
+    expect(getExpectedSessions({ perWeek: 3, perDay: 1 }, 14)).not.toBe(14);
+  });
+
+  it('still reads legacy strings, on an item or bare', () => {
+    expect(getIntervalDays('every_other')).toBe(2);
+    expect(getIntervalDays({ frequency: 'every_other' })).toBe(2);
+    expect(getIntervalDays({ df: 'three_week' })).toBeCloseTo(7 / 3);
+    expect(getIntervalDays('custom_3')).toBe(3);
+  });
+
+  it('falls back to daily for nothing usable', () => {
+    expect(getIntervalDays(null)).toBe(1);
+    expect(getIntervalDays({})).toBe(1);
+    expect(getIntervalDays({ perWeek: 0 })).toBe(1);
   });
 });

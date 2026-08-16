@@ -417,3 +417,42 @@ exports.approveTherapist = onCall(async (request) => {
   console.log(`[approval] ${adminEmail} approved ${email.replace(/^(.).*(@.*)$/, '$1***$2')}`);
   return { approved: true };
 });
+
+
+// ── Messages expire after two weeks ────────────────────────────────────────
+//
+// Patient↔therapist messages are clinical correspondence: they name symptoms,
+// setbacks and body parts, and they accumulate forever with nobody pruning them.
+// Two weeks is long enough to hold a conversation and short enough that the app
+// is not sitting on an indefinite archive of PHI it has no reason to keep.
+//
+// Deleted, not hidden. Telling users messages expire while quietly retaining the
+// documents would be the kind of promise this app cannot afford to break.
+//
+// The messageThreads doc is deliberately left alone — it holds participants and
+// the archived flag, no message content, and removing it would break the thread
+// list for a conversation that is merely old rather than over.
+const MESSAGE_RETENTION_DAYS = 14;
+
+exports.expireMessages = onSchedule('every 24 hours', async () => {
+  const cutoff = new Date(Date.now() - MESSAGE_RETENTION_DAYS * 86400000);
+  // timestamp is a Firestore serverTimestamp. Documents written before that
+  // field existed, or with it still resolving, sort as null and are skipped —
+  // an unsent-yet write must not be deleted out from under its own callback.
+  const snap = await db.collection('messages').where('timestamp', '<', cutoff).get();
+  if (snap.empty) {
+    console.log('[expireMessages] nothing older than', MESSAGE_RETENTION_DAYS, 'days');
+    return;
+  }
+
+  // Batches cap at 500 writes.
+  let deleted = 0;
+  const docs = snap.docs;
+  for (let i = 0; i < docs.length; i += 450) {
+    const batch = db.batch();
+    docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    deleted += Math.min(450, docs.length - i);
+  }
+  console.log(`[expireMessages] deleted ${deleted} message(s) older than ${MESSAGE_RETENTION_DAYS} days`);
+});

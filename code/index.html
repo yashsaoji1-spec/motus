@@ -789,6 +789,9 @@
       <span class="rd-msg-avatar" id="msgHeaderAvatar" aria-hidden="true"></span>
       <span class="rd-msg-title" id="msgHeaderTitle">Therapist</span>
     </div>
+    <!-- Say it in the thread. Messages that vanish without warning read as a
+         bug, and silently keeping clinical correspondence forever is worse. -->
+    <div class="rd-msg-retention" data-i18n="msg.retention">Messages are deleted after 2 weeks.</div>
     <div class="rd-msg-thread msg-thread" id="msgThread"></div>
     <div id="msgSendError" class="pt-msg-error" style="display:none;" aria-live="polite"></div>
     <div class="rd-msg-composer">

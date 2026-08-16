@@ -8446,3 +8446,32 @@ body:has(#manualCamScreen.active) {
 }
 .rd-prog-count.met { color: var(--rd-teal, var(--th-primary)); }
 .rd-prog-count-of { font-size: 0.82rem; font-weight: 700; color: var(--rd-muted, var(--muted)); }
+
+/* Retention notice at the top of a message thread. */
+.rd-msg-retention {
+  padding: 6px 14px; text-align: center;
+  font-family: var(--rd-font); font-size: 0.7rem;
+  color: var(--rd-muted, var(--muted));
+  background: var(--rd-paper, var(--bg));
+  border-bottom: 1px solid var(--rd-card-border, var(--border));
+}
+
+/* ── Per-exercise breakdown (therapist patient panel) ────────────────────── */
+.pd-exb { width: 100%; border-collapse: collapse; font-family: var(--rd-font); }
+.pd-exb th {
+  text-align: left; padding: 6px 8px;
+  font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--rd-muted, var(--muted)); border-bottom: 1px solid var(--border);
+}
+.pd-exb td { padding: 9px 8px; font-size: 0.84rem; border-bottom: 1px solid var(--border); }
+.pd-exb tr:last-child td { border-bottom: none; }
+.pd-exb-name { color: var(--rd-ink, var(--text)); font-weight: 600; }
+.pd-exb-done { font-variant-numeric: tabular-nums; }
+.pd-exb-of { color: var(--rd-muted, var(--muted)); font-size: 0.76rem; }
+.pd-exb-pct { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Only the low ones are coloured — if every row is red nothing stands out. */
+.pd-exb-pct.low { color: var(--danger); }
+.pd-exb-new { font-size: 0.72rem; font-weight: 700; color: var(--rd-muted, var(--muted)); }
+.pd-exb-pain { font-variant-numeric: tabular-nums; }
+.pd-exb-pain.hurt { color: var(--danger); font-weight: 700; }
+.pd-exb-empty { padding: 12px 4px; font-size: 0.84rem; color: var(--rd-muted, var(--muted)); }

@@ -5,14 +5,33 @@
 // sessions from Monday. Doing so produced fake "missed" days and red ~0%
 // adherence for patients who were, in fact, perfectly on track since assignment.
 
-export function getIntervalDays(frequency) {
+// Accepts either a protocol item or a bare legacy frequency string.
+//
+// Prescriptions are now two numbers (perWeek / perDay). An item carrying those
+// has NO `frequency` field, and the legacy lookup below would fall through to
+// `intervals[undefined] || 1` — i.e. silently treat a 3x-per-week plan as daily,
+// expect more than double the real sessions, and report a patient who is
+// perfectly on track as badly non-compliant.
+export function getIntervalDays(freqOrItem) {
+  const item = (!freqOrItem || typeof freqOrItem === 'string')
+    ? { frequency: freqOrItem }
+    : freqOrItem;
+
+  const perWeek = Number(item.perWeek);
+  if (Number.isFinite(perWeek) && perWeek > 0) {
+    const perDay = Number.isFinite(Number(item.perDay)) && Number(item.perDay) > 0
+      ? Number(item.perDay) : 1;
+    return 7 / (perWeek * perDay);   // days between sessions
+  }
+
+  const frequency = item.frequency || item.df;
   const intervals = { daily: 1, twice_daily: 0.5, every_other: 2, three_week: 7 / 3 };
   if (frequency && frequency.startsWith('custom_')) return parseInt(frequency.split('_')[1]) || 1;
   return intervals[frequency] || 1;
 }
 
-export function getExpectedSessions(frequency, days) {
-  return Math.round(days / getIntervalDays(frequency));
+export function getExpectedSessions(freqOrItem, days) {
+  return Math.round(days / getIntervalDays(freqOrItem));
 }
 
 // `now` is injectable purely for deterministic tests; app code omits it.
@@ -79,7 +98,7 @@ export function calcCompliance(sessions, protocols, weeksAgo, opts) {
     // so a plan assigned today expects nothing yet — otherwise a patient who got
     // their plan an hour ago instantly reads as "1 missed" and a red 0%.
     const daysElapsed = Math.floor((weekEnd - effStart) / 86400000);
-    const expected = getExpectedSessions(p.frequency, daysElapsed);
+    const expected = getExpectedSessions(p, daysElapsed);
     const actual = recent.filter(function(s) { return s.exerciseType === p.exerciseType; }).length;
     // Nothing due yet and nothing logged -> neutral "just started", not 0%.
     const justStarted = expected === 0 && actual === 0;
