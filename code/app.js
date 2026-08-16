@@ -965,7 +965,9 @@ let _pendingDemoProtocol  = null;  // protocol awaiting demo auto-play on patien
 let _manualCamProtocol    = null;  // current protocol for manual camera session
 let _manualCamSetData    = [];    // array of {reps, pain, notes, videoUrl} for each set
 let _manualCamCurrentSet = 1;     // current set number (1-indexed)
-let _manualCamTotalSets = 3;      // total sets for this session
+let _manualCamTotalSets = 3;      // sets in THIS sitting (one round)
+let _manualCamSetsBefore = 0;     // sets already logged today before this sitting
+let _manualCamDayTarget  = 3;     // sets prescribed for the whole day
 let _manualCamExerciseIndex = 0;  // current exercise index (0-indexed)
 let _manualCamTotalExercises = 1; // total exercises in session
 let _manualCamStream    = null;  // getUserMedia stream
@@ -3333,6 +3335,29 @@ async function startSessionByIndex(i) {
   await startSessionWithProtocol(_exercisesProtocols[i]);
 }
 
+// Most recent set logged today for this protocol, or null. Used to judge
+// whether daily sessions are actually being spaced out.
+async function lastSetTimeToday(protocol) {
+  if (!protocol || !currentUser) return null;
+  try {
+    const snap = await db.collection('sessions').where('patientEmail', '==', currentUser.email).get();
+    const today = new Date().toDateString();
+    let latest = null;
+    snap.docs.forEach(d => {
+      const s = d.data();
+      const when = new Date(s.date);
+      if (isNaN(when.getTime()) || when.toDateString() !== today) return;
+      const match = (s.protocolId && protocol.id && s.protocolId === protocol.id) ||
+                    (!s.protocolId && s.exerciseType === protocol.exerciseType);
+      if (match && (!latest || when > latest)) latest = when;
+    });
+    return latest;
+  } catch (e) {
+    console.warn('[Motus] lastSetTimeToday failed', e);
+    return null;
+  }
+}
+
 // Sets logged today against a given protocol. Same matching rule as the home
 // screen: protocolId when present, exerciseType for older docs.
 async function setsLoggedTodayFor(protocol) {
@@ -3376,13 +3401,27 @@ async function startSessionWithProtocol(protocol) {
   // sets they were told to do is worse than letting them stack them.
   if (perDay > 1 && alreadyDone > 0 && alreadyDone % roundSets === 0) {
     const roundsDone = alreadyDone / roundSets;
-    const ok = await confirmModal(
-      `That's ${roundsDone} of ${perDay} sessions done today. These are meant to be spaced out — ideally leave a few hours before the next one. Start it now anyway?`,
-      'Start anyway');
-    if (!ok) {
-      await updatePatientHomeScreen();
-      showScreen('patientScreen');
-      return;
+    const last = await lastSetTimeToday(protocol);
+    const hoursSince = last ? (Date.now() - last.getTime()) / 3600000 : null;
+    // Already properly spaced — say nothing. A prompt that fires even when the
+    // patient did the right thing trains them to dismiss it without reading.
+    const WELL_SPACED_HOURS = 3;
+    if (hoursSince !== null && hoursSince >= WELL_SPACED_HOURS) {
+      // fall through and start
+    } else {
+      const gap = hoursSince === null
+        ? ''
+        : hoursSince < 1
+          ? ` Your last one was about ${Math.max(5, Math.round(hoursSince * 60))} minutes ago.`
+          : ` Your last one was about ${Math.round(hoursSince)} hour${Math.round(hoursSince) === 1 ? '' : 's'} ago.`;
+      const ok = await confirmModal(
+        `That's ${roundsDone} of ${perDay} sessions done today.${gap} These work best a few hours apart — but if you feel you've had a good break already, go ahead and carry on.`,
+        'Start anyway');
+      if (!ok) {
+        await updatePatientHomeScreen();
+        showScreen('patientScreen');
+        return;
+      }
     }
   }
   selectedProtocol = protocol;
@@ -3471,6 +3510,12 @@ async function startScanSession() {
 
 // ── Manual Camera Session (patient with video recording) ──
 
+// Which set of the DAY the patient is on. The sitting counts 1..roundSets; the
+// patient counts 1..dayTarget, and the second is the one worth showing them.
+function camSetLabelNum() {
+  return Math.min(_manualCamSetsBefore + _manualCamCurrentSet, _manualCamDayTarget);
+}
+
 async function openManualCameraSession(protocol) {
   logAnalyticsEvent('session_started', { sets_target: protocol.sets || 3 });
   _manualCamProtocol = protocol;
@@ -3482,7 +3527,13 @@ async function openManualCameraSession(protocol) {
   const _alreadyDone = _todaySessions
     .filter(s => s.protocolId === protocol.id && new Date(s.date).toDateString() === _today)
     .reduce((sum, s) => sum + (s.setData?.length > 0 ? s.setData.length : 1), 0);
-  _manualCamCurrentSet = Math.min(_alreadyDone + 1, _manualCamTotalSets);
+  // Two different numbers, previously conflated into one. _manualCamCurrentSet
+  // counts sets within THIS sitting and drives the end of it; the label counts
+  // sets across the DAY. Clamping the second by the first is what made the 3rd
+  // set of a 2-sets-3x-daily plan announce itself as "Set 2 of 2".
+  _manualCamSetsBefore = _alreadyDone;
+  _manualCamDayTarget  = dailySetTarget(protocol);
+  _manualCamCurrentSet = 1;
   _manualCamVideoUrl = null;
   _manualCamNoVideo = false;
   _manualCamCurrentBlob = null;
@@ -3493,7 +3544,7 @@ async function openManualCameraSession(protocol) {
   const btnsEl = document.getElementById('manualCamBtns');
 
   if (nameEl) nameEl.textContent = exName(protocol.exerciseType, protocol.exerciseName) || t('cam.exercise');
-  if (setInfoEl) setInfoEl.textContent = t('cam.setNofM', { n: _manualCamCurrentSet, m: _manualCamTotalSets });
+  if (setInfoEl) setInfoEl.textContent = t('cam.setNofM', { n: camSetLabelNum(), m: _manualCamDayTarget });
   const targetEl = document.getElementById('manualCamTarget');
   if (targetEl) targetEl.textContent = t('cam.nReps', { n: protocol.reps || 10 });
   rdRenderCamProgress();
@@ -3591,7 +3642,7 @@ function openSetInputModal() {
   if (notesInput) { notesInput.value = ''; notesInput.style.display = 'none'; }
 
   const badge = document.getElementById('setInputBadgeText');
-  if (badge) badge.textContent = t('si.howDidSetGo', { n: _manualCamCurrentSet });
+  if (badge) badge.textContent = t('si.howDidSetGo', { n: camSetLabelNum() });
   // Eyebrow must reflect whether a video was actually captured — otherwise the
   // "Log without video" recovery path still (wrongly) reads "Video saved".
   const eyebrow = document.getElementById('setInputBadge');
@@ -3625,7 +3676,17 @@ async function manualCamSaveSet() {
   const reps = Math.max(0, Math.min(100, parseInt(document.getElementById('setInputReps').value) || 0));
   const _rawPain = parseInt(document.getElementById('setInputPain').value);
   const pain = Math.max(0, Math.min(10, isNaN(_rawPain) ? 0 : _rawPain));
-  const chips = [...document.querySelectorAll('.si-chip.active')].map(c => c.textContent).join(', ');
+  // The chips are .rd-chip. This queried '.si-chip.active' — a class that
+  // appears nowhere in the app — so it always matched nothing and every
+  // built-in comment ("A bit stiff", "Sharp pain") was silently dropped. Only
+  // free-typed notes ever reached the therapist.
+  // The last chip opens the note field rather than being a comment itself, so
+  // it is excluded even though siRevealNote() marks it active.
+  const chips = [...document.querySelectorAll('#setInputModal .rd-chip.active')]
+    .filter(c => c.getAttribute('data-i18n') !== 'si.chipNote')
+    .map(c => c.textContent.trim())
+    .filter(Boolean)
+    .join(', ');
   const noteText = (document.getElementById('setInputNotes').value || '').trim();
   const notes = [chips, noteText].filter(Boolean).join(' · ');
   
@@ -3661,7 +3722,7 @@ async function manualCamSaveSet() {
     const setInfoEl = document.getElementById('manualCamSetInfo');
     // Exercise counter dropped — the exercise name is already in the header
     // above this, so "EXERCISE 1 / 3 · SET 2 / 3" was two counters competing.
-    if (setInfoEl) setInfoEl.textContent = `Set ${_manualCamCurrentSet} of ${_manualCamTotalSets}`;
+    if (setInfoEl) setInfoEl.textContent = `Set ${camSetLabelNum()} of ${_manualCamDayTarget}`;
     rdRenderCamProgress();   // segments were only drawn once at session start
     await manualCamRest();   // the prescribed rest, before the next set is offered
     manualCamSetReadyState();
