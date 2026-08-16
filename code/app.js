@@ -6112,9 +6112,9 @@ async function showRealPatient(patient) {
         </section>
       </div>
 
+      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('exbreak', 'Per-Exercise Breakdown', buildExerciseBreakdown(adhResultT.exercises, sessions), false)}
       ${makeCollapsible('notes', 'Clinical Notes', buildClinicalNotes(), false)}
-      ${makeCollapsible('history', 'Session History', buildSessionHistory(sessions, patient.name), false)}
       ${makeCollapsible('messages', 'Messages', buildMessagePanel(patient.email), false)}
       <!-- Destructive, and unrelated to reviewing the patient — so it sits at the
            very bottom rather than beside Message in the header, where it was one
