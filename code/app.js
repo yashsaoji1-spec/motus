@@ -3104,7 +3104,7 @@ async function updatePatientHomeScreen() {
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
     if (kickerEl) kickerEl.textContent = t('home.weekOf', { date: weekStart.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' }) });
-    if (freqEl) freqEl.textContent = getFrequencyLabel(p0.frequency);
+    if (freqEl) freqEl.textContent = getFrequencyLabel(p0);
     if (titleEl) titleEl.textContent = t('home.todaysPlan');
     if (subtitleEl) subtitleEl.textContent = t(protocols.length === 1 ? 'home.exercisesOne' : 'home.exercisesMany', { n: protocols.length, action: t('home.recordEachSet') });
   } else {
@@ -4028,52 +4028,74 @@ function exCat(cat) {
   return cat || '';
 }
 
-const frequencyKeys = {
-  daily:       'freq.daily',
-  twice_daily: 'freq.twiceDaily',
-  every_other: 'freq.everyOther',
-  three_week:  'freq.threeWeek'
+// ── Frequency ──────────────────────────────────────────────────────────────
+//
+// Prescriptions are two numbers: sessions per WEEK and sessions per DAY. That
+// replaced a fixed dropdown (Daily / Twice Daily / Every Other Day / 3x Per
+// Week / custom "once every N days") which could not express ordinary
+// prescriptions like 4x a week, and buried the rest behind a Custom option.
+//
+// Legacy items carry the old string in `frequency` and are read through
+// frequencyCounts(), so nothing already assigned has to be migrated.
+const LEGACY_FREQ_COUNTS = {
+  daily:       { perWeek: 7, perDay: 1 },
+  twice_daily: { perWeek: 7, perDay: 2 },
+  every_other: { perWeek: 4, perDay: 1 },   // 3.5 rounded up — see note below
+  three_week:  { perWeek: 3, perDay: 1 },
 };
-function getFrequencyLabel(freq) {
-  if (frequencyKeys[freq]) return t(frequencyKeys[freq]);
-  if (freq && freq.startsWith('custom_')) return t('freq.everyXDays', { n: freq.split('_')[1] });
-  return freq || '';
-}
 
-function toggleCustomFreq() {
-  var sel = document.getElementById('protocolFrequency');
-  var row = document.getElementById('customFreqRow');
-  if (sel && row) row.style.display = sel.value === 'custom' ? '' : 'none';
-}
-function toggleCustomFreqPL() {
-  var sel = document.getElementById('plFrequency');
-  var row = document.getElementById('plCustomFreqRow');
-  if (sel && row) row.style.display = sel.value === 'custom' ? '' : 'none';
-}
-
-function readFrequencyValue(selectId, customInputId) {
-  var sel = document.getElementById(selectId);
-  if (!sel) return 'daily';
-  if (sel.value === 'custom') {
-    var days = parseInt(document.getElementById(customInputId).value) || 2;
-    return 'custom_' + Math.max(1, Math.min(30, days));
+// The single place that decides how often something is prescribed. Everything
+// downstream — the label, the weekly target, adherence — reads from here, so a
+// legacy item and a new one are never counted differently.
+// every_other is 3.5/week and rounds UP: under-stating the target would make a
+// patient look more compliant than they are, which is the wrong way to be wrong.
+function frequencyCounts(item) {
+  if (!item) return { perWeek: 7, perDay: 1 };
+  const w = Number(item.perWeek), d = Number(item.perDay);
+  if (Number.isFinite(w) && w > 0) {
+    return { perWeek: clampInt(w, 1, 7), perDay: Number.isFinite(d) && d > 0 ? clampInt(d, 1, 6) : 1 };
   }
-  return sel.value;
+  const legacy = item.frequency || item.df || 'daily';
+  if (LEGACY_FREQ_COUNTS[legacy]) return { ...LEGACY_FREQ_COUNTS[legacy] };
+  if (typeof legacy === 'string' && legacy.startsWith('custom_')) {
+    const everyN = parseInt(legacy.split('_')[1]) || 2;
+    return { perWeek: clampInt(Math.round(7 / everyN), 1, 7), perDay: 1 };
+  }
+  return { perWeek: 7, perDay: 1 };
 }
 
-function setFrequencyValue(selectId, customInputId, customRowId, freq) {
-  var sel = document.getElementById(selectId);
-  var row = document.getElementById(customRowId);
-  var inp = document.getElementById(customInputId);
-  if (!sel) return;
-  if (freq && freq.startsWith('custom_')) {
-    sel.value = 'custom';
-    if (inp) inp.value = parseInt(freq.split('_')[1]) || 2;
-    if (row) row.style.display = '';
-  } else {
-    sel.value = freq || 'daily';
-    if (row) row.style.display = 'none';
-  }
+function clampInt(n, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(n))); }
+
+// Sessions the patient is expected to complete in a week — the denominator for
+// "3/7 this week" and for adherence.
+function weeklyTarget(item) {
+  const { perWeek, perDay } = frequencyCounts(item);
+  return perWeek * perDay;
+}
+
+function getFrequencyLabel(item) {
+  // Tolerate being handed either an item or a bare legacy string.
+  const src = (typeof item === 'string') ? { frequency: item } : item;
+  const { perWeek, perDay } = frequencyCounts(src);
+  const week = perWeek === 7 ? 'Daily' : `${perWeek}x per week`;
+  return perDay > 1 ? `${week}, ${perDay}x daily` : week;
+}
+
+function readFrequencyValue(perWeekId, perDayId) {
+  const w = parseInt(document.getElementById(perWeekId)?.value);
+  const d = parseInt(document.getElementById(perDayId)?.value);
+  return {
+    perWeek: clampInt(Number.isFinite(w) ? w : 7, 1, 7),
+    perDay:  clampInt(Number.isFinite(d) ? d : 1, 1, 6),
+  };
+}
+
+function setFrequencyValue(perWeekId, perDayId, item) {
+  const { perWeek, perDay } = frequencyCounts(item);
+  const w = document.getElementById(perWeekId);
+  const d = document.getElementById(perDayId);
+  if (w) w.value = perWeek;
+  if (d) d.value = perDay;
 }
 
 // Thresholds use calibration convention: 0° = straight, higher = more bent.
@@ -4313,12 +4335,11 @@ async function editProtocol(patientEmail, protocolId) {
 
   const repsEl = document.getElementById('protocolReps');
   const setsEl = document.getElementById('protocolSets');
-  const freqEl = document.getElementById('protocolFrequency');
   const notesEl = document.getElementById('protocolNotes');
   const restEl = document.getElementById('protocolRest');
   if (repsEl) repsEl.value = p.reps || 10;
   if (setsEl) setsEl.value = p.sets || 3;
-  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', p.frequency || 'daily');
+  setFrequencyValue('protocolPerWeek', 'protocolPerDay', p);
   if (restEl) restEl.value = p.restSeconds || 30;
   if (notesEl) notesEl.value = p.notes || '';
 
@@ -5120,17 +5141,17 @@ async function assignProtocol() {
   if (!exerciseType) {
     const dReps = parseInt(document.getElementById('protocolReps').value) || 10;
     const dSets = parseInt(document.getElementById('protocolSets').value) || 3;
-    const dFreq = readFrequencyValue('protocolFrequency', 'customFreqDays');
+    const dFreq = readFrequencyValue('protocolPerWeek', 'protocolPerDay');
     const slug = enteredName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 30) || 'exercise';
     const newId = 'custom_' + slug + '_' + Date.now().toString(36);
     try {
       await db.collection('customExercises').add({
-        id: newId, name: enteredName, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '',
+        id: newId, name: enteredName, cat: 'Custom', dr: dReps, ds: dSets, ...dFreq, desc: '',
         createdBy: currentUser.email
       });
     } catch (e) { showNotice('Could not save the new exercise. Check your connection and try again.'); return; }
     if (!PROTOCOL_CATALOG.find(x => x.id === newId)) {
-      PROTOCOL_CATALOG.push({ id: newId, cat: 'Custom', dr: dReps, ds: dSets, df: dFreq, desc: '' });
+      PROTOCOL_CATALOG.push({ id: newId, cat: 'Custom', dr: dReps, ds: dSets, ...dFreq, desc: '' });
     }
     exerciseLabels[newId] = enteredName;
     exerciseType = newId;
@@ -5208,7 +5229,7 @@ async function assignProtocol() {
           exerciseName: exerciseLabels[exerciseType] || exerciseType,
           reps,
           sets,
-          frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
+          ...readFrequencyValue('protocolPerWeek', 'protocolPerDay'),
           restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
           notes:        document.getElementById('protocolNotes').value.trim(),
           assignedBy: currentUser.name,
@@ -5232,7 +5253,7 @@ async function assignProtocol() {
         exerciseName: exerciseLabels[exerciseType] || exerciseType,
         reps,
         sets,
-        frequency:    readFrequencyValue('protocolFrequency', 'customFreqDays'),
+        ...readFrequencyValue('protocolPerWeek', 'protocolPerDay'),
         restSeconds:  parseInt(document.getElementById('protocolRest').value) || 30,
         notes:        document.getElementById('protocolNotes').value.trim(),
         assignedBy:   currentUser.name,
@@ -5348,7 +5369,7 @@ function formatProtocol(p) {
   }
 
   return `
-    <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${getFrequencyLabel(p.frequency)}</div>
+    <div class="proto-detail-line">${p.reps} reps × ${p.sets} sets · ${getFrequencyLabel(p)}</div>
     ${paramsHTML}
     ${p.notes ? `<p class="proto-notes">"${escapeHtml(p.notes)}"</p>` : ''}
     <p class="proto-meta">${escapeHtml(p.assignedBy)}${dateStr ? ` · ${dateStr}` : ''}${editedStr}</p>`;
@@ -5427,7 +5448,7 @@ async function showExercisesScreen() {
     const isDone = doneSets >= totalSetsNeeded;
     const badge = isDone ? `<span class="rd-ex-badge done">${t('ex.done')}</span>`
       : doneSets > 0 ? `<span class="rd-ex-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
-    const meta = t('ex.repsSets', { reps: p.reps, sets: p.sets, freq: getFrequencyLabel(p.frequency) });
+    const meta = t('ex.repsSets', { reps: p.reps, sets: p.sets, freq: getFrequencyLabel(p) });
     const nameHtml = `<div class="rd-ex-name">${escapeHtml(exName(p.exerciseType, p.exerciseName))}${badge}</div>`;
     if (p.demoVideoUrl) {
       return `<div class="rd-ex-card" onclick="startSessionByIndex(${i})">
@@ -6409,7 +6430,7 @@ async function openAddProtocol(patientEmail, patientName) {
   const typeEl = document.getElementById('exerciseType');
   if (repsEl) repsEl.value = 10;
   if (setsEl) setsEl.value = 3;
-  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', 'daily');
+  setFrequencyValue('protocolPerWeek', 'protocolPerDay', null);
   if (notesEl) notesEl.value = '';
   if (typeEl) typeEl.value = '';
   { const exNameEl = document.getElementById('apmExName'); if (exNameEl) exNameEl.value = ''; }
@@ -6470,7 +6491,7 @@ async function openBulkAssign() {
   const typeEl  = document.getElementById('exerciseType');
   if (repsEl)  repsEl.value  = 10;
   if (setsEl)  setsEl.value  = 3;
-  setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', 'daily');
+  setFrequencyValue('protocolPerWeek', 'protocolPerDay', null);
   if (notesEl) notesEl.value = '';
   if (typeEl)  typeEl.value  = '';
   const searchEl = document.getElementById('apmSearch');
@@ -6563,7 +6584,7 @@ async function bulkAssignProtocol() {
   const sets = parseInt(document.getElementById('protocolSets').value);
   if (isNaN(reps) || reps < 1) { showNotice('Please enter a valid rep count.'); return; }
   if (isNaN(sets) || sets < 1) { showNotice('Please enter a valid set count.'); return; }
-  const freq  = readFrequencyValue('protocolFrequency', 'customFreqDays');
+  const freq  = readFrequencyValue('protocolPerWeek', 'protocolPerDay');
   const notes = document.getElementById('protocolNotes').value.trim();
   const submitBtn = document.getElementById('apmSubmitBtn');
   const origSubmitText = submitBtn ? submitBtn.textContent : null;
@@ -6598,7 +6619,7 @@ async function bulkAssignProtocol() {
           exerciseType,
           reps,
           sets,
-          frequency:    freq,
+          ...freq,
           notes,
           assignedBy:   currentUser.name,
           assignedAt:   new Date().toISOString()
@@ -6708,7 +6729,7 @@ function apmSelectExercise(id) {
     const setsEl = document.getElementById('protocolSets');
     if (repsEl) repsEl.value = entry.dr;
     if (setsEl) setsEl.value = entry.ds;
-    setFrequencyValue('protocolFrequency', 'customFreqDays', 'customFreqRow', entry.df);
+    setFrequencyValue('protocolPerWeek', 'protocolPerDay', entry);
     const infoEl = document.getElementById('apmSelectedExInfo');
     const nameEl = document.getElementById('apmSelectedExName');
     const descEl = document.getElementById('apmSelectedExDesc');
@@ -6756,7 +6777,7 @@ async function _apmLoadCustomExercises() {
     snap.forEach(doc => {
       const d = doc.data();
       if (!PROTOCOL_CATALOG.find(e => e.id === d.id)) {
-        PROTOCOL_CATALOG.push({ id: d.id, cat: d.cat, dr: d.dr, ds: d.ds, df: d.df, desc: d.desc || '' });
+        PROTOCOL_CATALOG.push({ id: d.id, cat: d.cat, dr: d.dr, ds: d.ds, df: d.df, perWeek: d.perWeek, perDay: d.perDay, desc: d.desc || '' });
         exerciseLabels[d.id] = d.name;
       }
     });
@@ -6773,7 +6794,7 @@ async function _apmLoadCustomExercises() {
         (data.editedBuiltIns || []).forEach(e => { edited[e.id] = e; });
         (data.customExercises || []).forEach(e => {
           if (!PROTOCOL_CATALOG.find(ex => ex.id === e.id) && !hidden.has(e.id)) {
-            PROTOCOL_CATALOG.push({ id: e.id, cat: e.cat, dr: e.dr, ds: e.ds, df: e.df, desc: e.desc || '' });
+            PROTOCOL_CATALOG.push({ id: e.id, cat: e.cat, dr: e.dr, ds: e.ds, df: e.df, perWeek: e.perWeek, perDay: e.perDay, desc: e.desc || '' });
             exerciseLabels[e.id] = e.name;
           }
         });
@@ -6949,7 +6970,7 @@ function plSelectExercise(id) {
   const descEl = document.getElementById('plDesc');
   if (repsEl) repsEl.value = entry.dr;
   if (setsEl) setsEl.value = entry.ds;
-  setFrequencyValue('plFrequency', 'plCustomFreqDays', 'plCustomFreqRow', entry.df);
+  setFrequencyValue('plPerWeek', 'plPerDay', entry);
   if (descEl) descEl.value = entry.desc || '';
 
   const infoEl = document.getElementById('plSelectedExInfo');
@@ -7033,7 +7054,7 @@ async function plSaveNewExercise() {
   const dr = parseInt(document.getElementById('plNewExReps').value) || 10;
   const ds = parseInt(document.getElementById('plNewExSets').value) || 3;
   const df = document.getElementById('plNewExFrequency').value || 'daily';
-  const entry = { id, name: rawName, cat, dr, ds, df, desc, createdAt: new Date().toISOString() };
+  const entry = { id, name: rawName, cat, dr, ds, ...freqCounts, desc, createdAt: new Date().toISOString() };
 
   if (!_plTherapistData.customExercises) _plTherapistData.customExercises = [];
   _plTherapistData.customExercises.push(entry);
@@ -7053,7 +7074,7 @@ async function plSaveExercise() {
 
   const dr = parseInt(document.getElementById('plReps').value) || entry.dr;
   const ds = parseInt(document.getElementById('plSets').value) || entry.ds;
-  const df = readFrequencyValue('plFrequency', 'plCustomFreqDays') || entry.df;
+  const freqCounts = readFrequencyValue('plPerWeek', 'plPerDay');
   const desc = document.getElementById('plDesc').value.trim();
 
   if (entry._isCustom) {
@@ -10539,7 +10560,6 @@ Object.assign(window, {
   showSavedModal, hideSavedModal, showNotice, confirmModal,
   openBulkAssign, bulkAssignProtocol, bapToggleAll, bapFilterPatients, _bapUpdateSubmitBtn,
   epAddCondition, epRemoveCondition, updateExerciseParamsUI,
-  toggleCustomFreq, toggleCustomFreqPL,
 
   // Protocol Library
   openProtocolLibrary, closeProtocolLibrary, plFilter, plSelectExercise,

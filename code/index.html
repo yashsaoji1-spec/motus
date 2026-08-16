@@ -1182,20 +1182,16 @@
               <label class="apm-label">Sets</label>
               <input type="number" id="protocolSets" class="apm-input" value="3" min="1" max="10">
             </div>
-            <div class="apm-field">
+            <div class="apm-field apm-field--freq">
               <label class="apm-label">Frequency</label>
-              <select id="protocolFrequency" class="apm-select" onchange="toggleCustomFreq()">
-                <option value="daily">Daily</option>
-                <option value="twice_daily">Twice Daily</option>
-                <option value="every_other">Every Other Day</option>
-                <option value="three_week">3x Per Week</option>
-                <option value="custom">Custom...</option>
-              </select>
-              <div id="customFreqRow" style="display:none;margin-top:8px;">
-                <label class="apm-label">Once every</label>
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <input type="number" id="customFreqDays" class="apm-input" min="1" max="30" value="2" style="width:80px;">
-                  <span style="font-size:13px;color:var(--th-muted,#64748b)">days</span>
+              <div class="freq-pair">
+                <div class="freq-unit">
+                  <input type="number" id="protocolPerWeek" class="apm-input" min="1" max="7" value="7">
+                  <span class="freq-suffix">/week</span>
+                </div>
+                <div class="freq-unit">
+                  <input type="number" id="protocolPerDay" class="apm-input" min="1" max="6" value="1">
+                  <span class="freq-suffix">/day</span>
                 </div>
               </div>
             </div>
@@ -1289,23 +1285,19 @@
                 <label class="apm-label">Default Sets</label>
                 <input type="number" id="plSets" class="apm-input" min="1" max="10">
               </div>
-              <div class="apm-field">
-                <label class="apm-label">Default Frequency</label>
-                <select id="plFrequency" class="apm-select" onchange="toggleCustomFreqPL()">
-                  <option value="daily">Daily</option>
-                  <option value="twice_daily">Twice Daily</option>
-                  <option value="every_other">Every Other Day</option>
-                  <option value="three_week">3x Per Week</option>
-                  <option value="custom">Custom...</option>
-                </select>
-                <div id="plCustomFreqRow" style="display:none;margin-top:8px;">
-                  <label class="apm-label">Once every</label>
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <input type="number" id="plCustomFreqDays" class="apm-input" min="1" max="30" value="2" style="width:80px;">
-                    <span style="font-size:13px;color:var(--th-muted,#64748b)">days</span>
-                  </div>
+              <div class="apm-field apm-field--freq">
+              <label class="apm-label">Default Frequency</label>
+              <div class="freq-pair">
+                <div class="freq-unit">
+                  <input type="number" id="plPerWeek" class="apm-input" min="1" max="7" value="7">
+                  <span class="freq-suffix">/week</span>
+                </div>
+                <div class="freq-unit">
+                  <input type="number" id="plPerDay" class="apm-input" min="1" max="6" value="1">
+                  <span class="freq-suffix">/day</span>
                 </div>
               </div>
+            </div>
             </div>
             <div class="apm-notes-field">
               <label class="apm-label">Description</label>
@@ -1340,14 +1332,18 @@
               <label class="apm-label">Default Sets</label>
               <input type="number" id="plNewExSets" class="apm-input" value="3" min="1" max="10">
             </div>
-            <div class="apm-field">
+            <div class="apm-field apm-field--freq">
               <label class="apm-label">Default Frequency</label>
-              <select id="plNewExFrequency" class="apm-select">
-                <option value="daily">Daily</option>
-                <option value="twice_daily">Twice Daily</option>
-                <option value="every_other">Every Other Day</option>
-                <option value="three_week">3x Per Week</option>
-              </select>
+              <div class="freq-pair">
+                <div class="freq-unit">
+                  <input type="number" id="plNewExPerWeek" class="apm-input" min="1" max="7" value="7">
+                  <span class="freq-suffix">/week</span>
+                </div>
+                <div class="freq-unit">
+                  <input type="number" id="plNewExPerDay" class="apm-input" min="1" max="6" value="1">
+                  <span class="freq-suffix">/day</span>
+                </div>
+              </div>
             </div>
           </div>
           <div class="pl-actions">

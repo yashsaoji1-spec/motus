@@ -8419,3 +8419,20 @@ body:has(#manualCamScreen.active) {
 /* With no name to type, creating a code is a single act — the button owns the
    top of the modal rather than sitting beside an input. */
 .inv-create-btn--block { width: 100%; padding: 13px 16px; font-size: 0.9rem; }
+
+/* ── Frequency: two numbers instead of a dropdown ────────────────────────── */
+/* Two inputs where one select used to be. Sharing a four-across row left ~15px
+   for the digit, hidden behind its own unit — so frequency wraps to its own
+   full-width line instead, and reps/sets/rest keep the row above. */
+.apm-dosage-row { flex-wrap: wrap; }
+.apm-field--freq { flex: 1 0 100% !important; }
+.freq-pair { display: flex; gap: 6px; }
+.freq-unit { position: relative; flex: 1; min-width: 0; }
+.freq-unit .apm-input { width: 100%; padding-right: 38px; text-align: left; }
+/* The unit sits inside the field so "7 /week" reads as one value rather than a
+   number and a stray word. */
+.freq-suffix {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 0.68rem; font-weight: 600; color: var(--rd-muted, var(--muted));
+}
