@@ -3140,7 +3140,7 @@ async function updatePatientHomeScreen() {
         // 2x daily x 3 sets is SIX sets today. This was p.sets alone, so one
         // round marked a twice-daily exercise done and the patient stopped at
         // half the prescription.
-        const target = (p.sets || 3) * frequencyCounts(p).perDay;
+        const target = dailySetTarget(p);
         const setsDone = setsDoneFor(p);
         const done = setsDone >= target;
         const sub = done
@@ -3158,7 +3158,7 @@ async function updatePatientHomeScreen() {
           : `tabindex="0" onclick="startSessionByIndex(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();startSessionByIndex(${i});}"`;
         return `<li class="rd-plan-item${done ? ' done is-locked' : ''}" ${openAttrs}><div class="rd-plan-check${done ? ' done' : ''}">${check}</div><div class="rd-plan-item-body"><div class="rd-plan-item-name">${escapeHtml(name)}</div><div class="rd-plan-item-sub">${sub}</div></div>${chevron}</li>`;
       }).join('');
-      const _doneCount = protocols.filter(p => setsDoneFor(p) >= (p.sets || 3) * frequencyCounts(p).perDay).length;
+      const _doneCount = protocols.filter(p => setsDoneFor(p) >= dailySetTarget(p)).length;
       const _planDoneEl = document.getElementById('ptPlanDone');
       if (_planDoneEl) _planDoneEl.textContent = t('home.nOfMDone', { done: _doneCount, total: protocols.length });
       // The CTA was hardcoded to "Continue Session" and read that way even at 0 of 3.
@@ -3357,13 +3357,33 @@ async function setsLoggedTodayFor(protocol) {
 async function startSessionWithProtocol(protocol) {
   // Enforce the prescription. Disabling the buttons is presentation; this is the
   // part that actually holds if a stale screen or a keyboard path gets through.
-  const target = protocol && (protocol.sets || 3);
+  const roundSets  = protocol ? (protocol.sets || 3) : 0;          // one sitting
+  const perDay     = protocol ? frequencyCounts(protocol).perDay : 1;
+  const dayTarget  = protocol ? dailySetTarget(protocol) : 0;       // the whole day
   const alreadyDone = await setsLoggedTodayFor(protocol);
-  if (target && alreadyDone >= target) {
-    showNotice(`You've finished all ${target} sets of this exercise today. Rest is part of the plan — come back tomorrow.`);
+
+  // The day's dose is finished — this one still refuses.
+  if (dayTarget && alreadyDone >= dayTarget) {
+    showNotice(`You've finished all ${dayTarget} sets of this exercise today. Rest is part of the plan — come back tomorrow.`);
     await updatePatientHomeScreen();
     showScreen('patientScreen');
     return;
+  }
+
+  // A round is done but the day is not. The prescription is 3x DAILY, meaning
+  // spread across the day — doing all three back to back is not the same
+  // exercise. Advise, don't forbid: the patient may have a reason, and blocking
+  // sets they were told to do is worse than letting them stack them.
+  if (perDay > 1 && alreadyDone > 0 && alreadyDone % roundSets === 0) {
+    const roundsDone = alreadyDone / roundSets;
+    const ok = await confirmModal(
+      `That's ${roundsDone} of ${perDay} sessions done today. These are meant to be spaced out — ideally leave a few hours before the next one. Start it now anyway?`,
+      'Start anyway');
+    if (!ok) {
+      await updatePatientHomeScreen();
+      showScreen('patientScreen');
+      return;
+    }
   }
   selectedProtocol = protocol;
   if (!ANGLE_TRACKING_ENABLED) {
@@ -4073,6 +4093,13 @@ function clampInt(n, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(n)));
 
 // Sessions the patient is expected to complete in a week — the denominator for
 // "3/7 this week" and for adherence.
+// Sets prescribed for a whole DAY: one round of sets, repeated perDay times.
+// "2 sets, 3x daily" is six sets today. Distinct from protocol.sets, which is
+// one round — a single sitting in front of the camera.
+function dailySetTarget(item) {
+  return (item?.sets || 3) * frequencyCounts(item).perDay;
+}
+
 function weeklyTarget(item) {
   const { perWeek, perDay } = frequencyCounts(item);
   return perWeek * perDay;
@@ -5449,7 +5476,7 @@ async function showExercisesScreen() {
   const chevron = '<svg class="rd-ex-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
   const cards = protocols.map((p, i) => {
     const doneSets = doneById[p.id] || 0;
-    const totalSetsNeeded = p.sets || 3;
+    const totalSetsNeeded = dailySetTarget(p);
     const isDone = doneSets >= totalSetsNeeded;
     const badge = isDone ? `<span class="rd-ex-badge done">${t('ex.done')}</span>`
       : doneSets > 0 ? `<span class="rd-ex-badge partial">${doneSets}/${totalSetsNeeded}</span>` : '';
