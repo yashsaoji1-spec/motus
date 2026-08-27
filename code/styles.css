@@ -7267,6 +7267,42 @@ body:has(#manualCamScreen.active) {
        --rd-r-card  18px -> --radius-xl  (held at 18px, see below)
        --rd-r-pill 999px -> --radius-full (99px; both fully round, no visual change)
      Add new sizes to THIS ladder rather than starting a third one. */
+  /* Tokens referenced across this stylesheet but never declared — 75 usages
+     across 23 names, all silently resolving to nothing. --ease-default alone
+     appears in 24 rules, so two dozen transitions simply did not run. Same
+     failure as the radius scale: an unset custom property is not an error.
+     --ease-default, --pt-shadow and --space-7 are the design system's own
+     values (_design-handoff/_ds); the rest are derived from the declared
+     sibling in their own family rather than invented, and are marked with what
+     they were derived from.
+     NOT included: --rd-teal-soft and --tp-bg, which are always used with a
+     fallback and are therefore deliberate. */
+  --ease-default: 0.2s ease;                 /* design system */
+  --ease-snap: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --pt-shadow: 0 2px 12px rgba(14,165,233,0.12);   /* design system */
+  --space-7: 28px;                           /* design system */
+
+  /* Weights — --font-semibold: 600 was the only one declared. */
+  --font-normal: 400; --font-medium: 500; --font-bold: 700; --font-extrabold: 800;
+
+  /* Colour — each derived from its declared sibling. */
+  --text-secondary: #475569;                 /* = --muted */
+  --th-text-dim:    #64748B;                 /* between --th-text and --th-muted */
+  --border-light:   #E2E8F0;                 /* lighter than --border, for dashed rules */
+  --input-bg:       #FFFFFF;                 /* = --surface */
+  --input-border:   #E0F2FE;                 /* = --border */
+  --blue:           #0EA5E9;                 /* = --pt-primary */
+  --warning:        #B45309;                 /* = --rd-warn-text */
+  --warning-text:   #B45309;
+  --success-dark:   #059669;                 /* one step down from --success */
+  --success-dim:    rgba(16,185,129,0.25);   /* --success at low alpha, for glows */
+  --gradient-text:  linear-gradient(135deg, #0EA5E9, #0F766E);
+
+  --shadow-xs: 0 1px 2px rgba(12,74,110,0.05);
+  --radius: 10px;                            /* bare alias of --radius-md */
+  --max-content: 1120px;                     /* matches .patient-detail */
+  --z-nav: 100;
+
   --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
   /* xl is 18, not the design system's 20 — cards read too round at 20 on the
      real screens. This is the value the redesign shipped and ran with. */
