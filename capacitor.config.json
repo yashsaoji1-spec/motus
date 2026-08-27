@@ -6,6 +6,7 @@
     "contentInset": "always"
   },
   "server": {
+    "hostname": "motusmedicine.com",
     "androidScheme": "https"
   }
 }
