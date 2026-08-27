@@ -1,0 +1,11 @@
+{
+  "appId": "com.motus.app",
+  "appName": "Motus",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
