@@ -1892,6 +1892,12 @@ async function runAuthAction() {
     const btn = document.getElementById('authActionContinueBtn');
     if (btn) { btn.style.display = 'block'; btn.focus(); }
   } catch (e) {
+    // The user-facing copy is deliberately vague, but discarding the cause left
+    // "Link expired or invalid" indistinguishable from a code that was already
+    // used, one bound to a deleted user, or a genuinely expired one — three
+    // different bugs wearing the same screen.
+    console.error('[Motus] auth action failed:', mode, e.code || '(no code)', e.message || e);
+    Sentry.captureException(e, { tags: { flow: 'auth-action', mode } });
     document.getElementById('authActionTitle').textContent = t('action.errorTitle');
     document.getElementById('authActionSub').textContent =
       mode === 'resetPassword' ? t('action.errorResetSub') : t('action.errorVerifySub');
