@@ -29,8 +29,6 @@ docs/*
 
 # Native builds (Capacitor -- not deployed)
 android/
-ios/
-capacitor.config.json
 
 # Cloud Functions — track source, ignore installed deps
 functions/node_modules/
