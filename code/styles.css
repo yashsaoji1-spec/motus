@@ -8516,6 +8516,8 @@ body:has(#manualCamScreen.active) {
    alone loses to any display rule inherited from .prog-days-list, so it is
    pinned explicitly. */
 .sh-hidden-days[hidden] { display: none; }
+/* display:block below would otherwise beat the `hidden` attribute. */
+.sh-more-btn[hidden] { display: none; }
 .sh-more-btn {
   display: block;
   width: 100%;

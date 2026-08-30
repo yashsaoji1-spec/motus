@@ -6042,6 +6042,7 @@ function toggleTpSection(id) {
   const el = document.getElementById(id);
   if (!el) return;
   el.classList.toggle('collapsed');
+  if (el.classList.contains('collapsed')) resetSessionHistoryCap(el);
   // Let Chart.js redraw if a chart section was just revealed
   window.dispatchEvent(new Event('resize'));
   // Scroll message thread to bottom when Messages section is expanded
@@ -6535,11 +6536,20 @@ function buildSessionHistory(sessions, patientName) {
   return html;
 }
 
-// Reveal the days hidden behind "Show N earlier days" and retire the button.
+// Reveal the days hidden behind "Show N earlier days". The button is hidden
+// rather than removed so collapsing the section can put it back.
 function expandSessionHistory(btn) {
   const hidden = btn.nextElementSibling;
   if (hidden && hidden.classList.contains('sh-hidden-days')) hidden.hidden = false;
-  btn.remove();
+  btn.hidden = true;
+}
+
+// Collapsing a section returns its history to the recent days, so reopening it
+// starts short again instead of restoring whatever was expanded last time.
+function resetSessionHistoryCap(root) {
+  if (!root) return;
+  root.querySelectorAll('.sh-hidden-days').forEach(d => { d.hidden = true; });
+  root.querySelectorAll('.sh-more-btn').forEach(b => { b.hidden = false; });
 }
 
 function buildProtocolForm(patientEmail, protocols) {
