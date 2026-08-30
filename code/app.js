@@ -1798,6 +1798,8 @@ async function finalizeSignup(skipData = false) {
   const origText = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = t('auth.creatingAccount'); }
   let accountCreated = false;
+  let docWritten = false;
+  let cred = null;
   // Hold off the verification gate in onAuthStateChanged. Creating the account
   // signs the user in, the gate sees emailVerified === false and signs them
   // straight back out — which used to be harmless, because
@@ -1807,7 +1809,7 @@ async function finalizeSignup(skipData = false) {
   // uses for the same reason.
   _resendingVerification = true;
   try {
-    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    cred = await auth.createUserWithEmailAndPassword(email, password);
     accountCreated = true;
     // Send the verification BEFORE anything that can fail. This used to run
     // last, after the users/ write: if that write was rejected (rules, App
@@ -1816,6 +1818,7 @@ async function finalizeSignup(skipData = false) {
     // already in use". A dead end with no way back for the user.
     if (!import.meta.env.DEV) await sendVerificationEmail();
     await db.collection('users').doc(cred.user.email).set(docData);
+    docWritten = true;
     await writeAuditLog('user_signup', cred.user.email);
     await auth.signOut();
     _pendingSignup = {};
@@ -1825,12 +1828,32 @@ async function finalizeSignup(skipData = false) {
     showError('loginError', t('auth.signupCreated'));
   } catch (e) {
     console.error('[Motus] signup failed:', e);
+    // An Auth account whose setup never finished makes that address permanently
+    // unusable: every retry can only answer "email already in use", and the
+    // person has no way to clear it themselves. So remove it and let them try
+    // again — but ONLY when the users/ doc was never written. Deleting the
+    // account after a successful doc write would strand that doc instead, and
+    // an orphaned user doc breaks signup for the same address just as hard
+    // (its set() becomes an update, which the rules refuse for touching role).
+    // Delete before signOut: deleting needs the session that signOut throws away.
+    let cleanedUp = false;
+    if (accountCreated && !docWritten && cred && cred.user) {
+      try {
+        await cred.user.delete();
+        cleanedUp = true;
+      } catch (delErr) {
+        console.error('[Motus] could not remove half-created account:', delErr);
+      }
+    }
     // Don't leave a half-created account signed in — the success path signs out
     // too, and the verification gate expects to be reached from a clean state.
-    if (accountCreated) { try { await auth.signOut(); } catch (_) {} }
+    if (accountCreated && !cleanedUp) { try { await auth.signOut(); } catch (_) {} }
     let msg;
     if (e.code === 'auth/email-already-in-use') {
       msg = 'An account with that email already exists.';
+    } else if (cleanedUp) {
+      // Nothing was left behind, so "try again" is honest advice.
+      msg = "Sign up didn't finish and no account was created. Please try again.";
     } else if (accountCreated) {
       // The account is live even though setup didn't finish, so "try again"
       // would be a lie — the retry can only ever say "already in use".
