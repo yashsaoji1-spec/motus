@@ -221,6 +221,10 @@ const I18N = {
     'connect.pendingTitle': 'Request sent',
     'connect.pendingBody': 'Waiting for',
     'connect.pendingBody2': "to accept you. You'll get your exercises once they do.",
+    'connect.checkBtn': 'Check if my therapist has accepted me',
+    'connect.checking': 'Checking\u2026',
+    'connect.checkNotYet': "Not accepted yet. Your therapist hasn't responded — you can check again any time.",
+    'connect.checkError': "Couldn't check just now. Check your connection and try again.",
     'connect.help': "Your therapist or clinic gives you this 6-character code. Don't have one yet? You can skip and add it later.",
     // Patient home
     'home.loading': 'Loading…',
@@ -561,6 +565,10 @@ const I18N = {
     'connect.pendingTitle': 'Solicitud enviada',
     'connect.pendingBody': 'Esperando a que',
     'connect.pendingBody2': 'te acepte. Recibirás tus ejercicios cuando lo haga.',
+    'connect.checkBtn': 'Comprobar si mi terapeuta me aceptó',
+    'connect.checking': 'Comprobando\u2026',
+    'connect.checkNotYet': 'Aún no te han aceptado. Tu terapeuta no ha respondido — puedes comprobarlo cuando quieras.',
+    'connect.checkError': 'No se pudo comprobar ahora. Revisa tu conexión e inténtalo de nuevo.',
     'connect.help': 'Tu terapeuta o clínica te da este código de 6 caracteres. ¿Aún no tienes uno? Puedes omitir y agregarlo más tarde.',
     'home.loading': 'Cargando…',
     'home.loadError': 'No pudimos cargar tus ejercicios — verifica tu conexión.',
@@ -1153,6 +1161,7 @@ auth.onAuthStateChanged(async (firebaseUser) => {
     _stopInactivityTimer();
     // Covers every sign-out route (button, timeout, expired session), not just logout().
     unsubscribeMessageListeners();
+    stopWatchingConnectApproval();
     showScreen('loginScreen');
     return;
   }
@@ -2135,6 +2144,103 @@ function renderConnectPending(therapistName) {
   if (who) who.textContent = therapistName;
   if (form) form.style.display = 'none';
   if (pending) pending.style.display = 'block';
+  watchForConnectApproval();
+}
+
+// Approval is written by the therapist, on the therapist's machine, into this
+// patient's user doc. Nothing pushed that back here, so a patient sitting on
+// the waiting screen could not tell an accepted request from an ignored one —
+// short of quitting the app and signing in again. This listens for it instead.
+//
+// It watches the user doc rather than the connectionRequest because
+// `therapistEmail` on the user IS the connection: it is what routePatient and
+// every protocol read gate on. Watching the request would advance the screen
+// on a status field that is not what the rest of the app trusts.
+let _connectApprovalUnsub = null;
+
+function watchForConnectApproval() {
+  stopWatchingConnectApproval();
+  if (!currentUser || !currentUser.email) return;
+  try {
+    _connectApprovalUnsub = db.collection('users').doc(currentUser.email)
+      .onSnapshot(snap => {
+        if (!snap.exists) return;
+        const data = snap.data() || {};
+        if (!data.therapistEmail) return;
+        // currentUser is a snapshot taken at sign-in; without this refresh
+        // getConnectedTherapist() keeps returning the stale null and the
+        // patient lands back on the connect screen.
+        currentUser = { ...currentUser, ...data };
+        currentRole = currentUser.role || currentRole;
+        stopWatchingConnectApproval();
+        routePatient().catch(e => console.error('[Motus] post-approval route failed:', e));
+      }, err => {
+        // A listener that dies silently is worse than no listener: the patient
+        // waits on a screen that will never advance. Fall back to the manual
+        // check so there is still a way through.
+        console.error('[Motus] approval listener failed:', err);
+        revealManualApprovalCheck();
+      });
+  } catch (e) {
+    console.error('[Motus] could not watch for approval:', e);
+    revealManualApprovalCheck();
+  }
+}
+
+function stopWatchingConnectApproval() {
+  if (_connectApprovalUnsub) {
+    try { _connectApprovalUnsub(); } catch (_) {}
+    _connectApprovalUnsub = null;
+  }
+}
+
+function revealManualApprovalCheck() {
+  const btn = document.getElementById('connectCheckBtn');
+  if (btn) btn.hidden = false;
+}
+
+// Only reachable when the listener could not be established.
+async function checkConnectApproval() {
+  const btn    = document.getElementById('connectCheckBtn');
+  const status = document.getElementById('connectCheckStatus');
+  const label  = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('connect.checking'); }
+  if (status) status.style.display = 'none';
+  try {
+    const snap = await db.collection('users').doc(currentUser.email).get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    if (data.therapistEmail) {
+      currentUser = { ...currentUser, ...data };
+      currentRole = currentUser.role || currentRole;
+      await routePatient();
+      return;
+    }
+    const req = await getMyConnectionRequest();
+    if (req && req.status === 'declined') {
+      const form     = document.getElementById('connectForm');
+      const pending  = document.getElementById('connectPending');
+      const declined = document.getElementById('connectDeclined');
+      if (pending) pending.style.display = 'none';
+      if (form) form.style.display = '';
+      if (declined) declined.style.display = 'block';
+      return;
+    }
+    if (status) {
+      status.textContent = t('connect.checkNotYet');
+      status.style.display = 'block';
+    }
+  } catch (e) {
+    console.error('[Motus] approval check failed:', e);
+    if (status) {
+      status.textContent = t('connect.checkError');
+      status.style.display = 'block';
+    }
+  } finally {
+    if (btn && document.body.contains(btn)) {
+      btn.disabled = false;
+      btn.textContent = label || t('connect.checkBtn');
+    }
+  }
 }
 
 // Withdraw an outstanding request and get the code box back. Patients may
@@ -2160,6 +2266,7 @@ async function cancelConnectRequest() {
   if (form) form.style.display = '';
   const input = document.getElementById('connectCode');
   if (input) { input.value = ''; input.focus(); }
+  stopWatchingConnectApproval();
 }
 
 // On load, a patient who already has a request outstanding should see that,
@@ -10748,7 +10855,7 @@ Object.assign(window, {
   removeSharedExercise, showShareExerciseModal, closeShareExerciseModal,
 
   // Therapist panel
-  openInviteModal, closeInviteModal, cancelConnectRequest, openTherapistMessages, openTherapistThread, refreshPatientList,
+  openInviteModal, closeInviteModal, cancelConnectRequest, checkConnectApproval, stopWatchingConnectApproval, openTherapistMessages, openTherapistThread, refreshPatientList,
   createPatientInvite, loadPatientInvites, copyInviteCode, revokePatientInvite,
   selectPatient, messagePatient, assignExercisesTo, cnFormat, saveClinicalNotes,
   openReviewDialog, closeReviewDialog, reviewToggleFlag, reviewMarkDone, reviewMarkAll,

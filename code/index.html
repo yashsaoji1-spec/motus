@@ -367,6 +367,12 @@
           <span id="connectPendingWho"></span>
           <span data-i18n="connect.pendingBody2">to accept you. You'll get your exercises once they do.</span>
         </div>
+        <!-- Hidden by default: a live listener advances this screen on its own
+             the moment the therapist approves. This is the fallback that gets
+             revealed only if that listener cannot be established, so the
+             patient is never stranded on a screen that will not move. -->
+        <button id="connectCheckBtn" class="rd-btn-primary rd-mt" hidden onclick="checkConnectApproval()" data-i18n="connect.checkBtn">Check if my therapist has accepted me</button>
+        <div id="connectCheckStatus" class="rd-auth-error" style="display:none" aria-live="polite"></div>
         <!-- Without this the screen is a dead end: any outstanding request hides
              the code box, so a patient waiting on the wrong therapist — or one
              who never answers — has no way to use a different code. -->

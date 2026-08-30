@@ -8532,3 +8532,8 @@ body:has(#manualCamScreen.active) {
   cursor: pointer;
 }
 .sh-more-btn:hover { background: var(--th-surface-2, #F5F2EC); color: var(--th-text, #1F2937); }
+
+/* .rd-btn-primary sets its own display, which beats the `hidden` attribute —
+   without this the fallback check button shows even when the live listener
+   is working. */
+#connectCheckBtn[hidden] { display: none; }
