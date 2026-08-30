@@ -3656,6 +3656,7 @@ async function openManualCameraSession(protocol) {
   logAnalyticsEvent('session_started', { sets_target: protocol.sets || 3 });
   _manualCamProtocol = protocol;
   _manualCamSetData = [];
+  _manualCamPendingRest = null;
   _manualCamTotalSets = protocol.sets || 3;
   // Count sets already completed today for this protocol (works from any entry path)
   const _todaySessions = await getPatientSessions(currentUser.email).catch(() => []);
@@ -3849,7 +3850,17 @@ async function manualCamSaveSet() {
     else showNotice('That video could not be uploaded, but your reps and pain were saved.');
   }
 
-  _manualCamSetData.push({ reps, pain, notes, videoStoragePath });
+  _manualCamSetData.push({
+    reps, pain, notes, videoStoragePath,
+    // Only present when the preceding rest was cut short — absent on every
+    // other set, so old records and normally-rested sets read identically.
+    ...(_manualCamPendingRest ? {
+      restSkipped: true,
+      restedSeconds: _manualCamPendingRest.rested,
+      restPrescribed: _manualCamPendingRest.prescribed,
+    } : {}),
+  });
+  _manualCamPendingRest = null;
 
   if (_manualCamCurrentSet >= _manualCamTotalSets) {
     await finishManualCamSession();
@@ -3883,7 +3894,15 @@ function manualCamRest() {
   return new Promise(resolve => {
     let left = secs;
     let timer = null;
-    const finish = () => { if (timer) clearInterval(timer); timer = null; _manualCamSkipRest = null; resolve(); };
+    // Rest is prescribed by the therapist, so cutting it short is clinical
+    // information, not a UI event. Recorded against the set that FOLLOWS this
+    // rest, since that is the set performed under-rested. `left > 0` separates
+    // a tapped Skip from the timer simply running out.
+    const finish = () => {
+      if (timer) clearInterval(timer); timer = null; _manualCamSkipRest = null;
+      _manualCamPendingRest = left > 0 ? { rested: secs - left, prescribed: secs } : null;
+      resolve();
+    };
     _manualCamSkipRest = finish;          // wired to the Skip button below
 
     const paint = () => {
@@ -3907,6 +3926,8 @@ function manualCamRest() {
 }
 
 let _manualCamSkipRest = null;
+// Set by a skipped rest, consumed by the next set's record, then cleared.
+let _manualCamPendingRest = null;
 function manualCamSkipRest() { if (_manualCamSkipRest) _manualCamSkipRest(); }
 
 // Blocks the record controls while a set's video uploads, and says so. Without
@@ -6644,6 +6665,11 @@ function buildSessionHistory(sessions, patientName) {
         const exitBadge = exitedEarly
           ? `<span class="prog-set-exit-badge" title="Patient exited early">Exited</span>`
           : '';
+        // The therapist prescribed the rest; a set performed after cutting it
+        // short is worth seeing next to that set's pain, not buried.
+        const restBadge = s.restSkipped
+          ? `<span class="prog-set-rest-badge" title="Rested ${s.restedSeconds}s of the ${s.restPrescribed}s prescribed before this set">Rest skipped</span>`
+          : '';
         html += `<div class="prog-set-row">
           <div class="prog-set-info">
             <span class="prog-set-label">Set ${setNum}</span>
@@ -6653,6 +6679,7 @@ function buildSessionHistory(sessions, patientName) {
             ${videoBtn}
             <span class="prog-set-reps">${s.reps || 0} reps</span>
             <span class="prog-set-pain">${sessionPainValue(s) === null ? '—' : sessionPainValue(s) + '/10'}</span>
+            ${restBadge}
             ${notesBtn}
           </div>
         </div>`;

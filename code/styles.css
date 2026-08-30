@@ -8537,3 +8537,18 @@ body:has(#manualCamScreen.active) {
    without this the fallback check button shows even when the live listener
    is working. */
 #connectCheckBtn[hidden] { display: none; }
+
+/* Sits in the gap between pain and comments in a set row. Amber, not red: a
+   skipped rest is worth a therapist's attention, not an alarm. */
+.prog-set-rest-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: #FEF3C7;
+  color: #92400E;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+}
