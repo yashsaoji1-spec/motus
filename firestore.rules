@@ -218,6 +218,13 @@ service cloud.firestore {
         therapistCanAccessPatient(patientEmail) ||
         isAdmin()
       );
+      // Prescriptions are wiped when a connection ends, so that one therapist's
+      // plan never appears in another's panel. When the PATIENT is the one
+      // disconnecting they must be able to do that cleanup themselves: by then
+      // there is no connected therapist left holding write access.
+      // Scoped to delete, and only of their own document — it does not let a
+      // patient author or edit a prescription.
+      allow delete: if isAuth() && myEmail() == patientEmail;
     }
 
 

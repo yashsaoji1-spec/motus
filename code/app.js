@@ -434,7 +434,7 @@ const I18N = {
     'confirm.cancel': 'Cancel',
     'confirm.deleteProtocol.body': 'Delete this exercise? This can\'t be undone.',
     'confirm.deleteProtocol.ok': 'Delete Exercise',
-    'confirm.disconnect.body': 'Disconnect from your therapist? You\'ll lose access to your assigned exercises and messages.',
+    'confirm.disconnect.body': 'Disconnect from your therapist? Your assigned exercises will be deleted and you\'ll lose messaging. Your session history is kept. This cannot be undone.',
     'confirm.disconnect.ok': 'Disconnect',
     'confirm.rejectTherapist.body': 'Reject this therapist? Their account will be permanently deleted.',
     'confirm.rejectTherapist.ok': 'Reject Account',
@@ -768,7 +768,7 @@ const I18N = {
     'confirm.cancel': 'Cancelar',
     'confirm.deleteProtocol.body': '¿Eliminar este ejercicio? Esta acción no se puede deshacer.',
     'confirm.deleteProtocol.ok': 'Eliminar ejercicio',
-    'confirm.disconnect.body': '¿Desconectarte de tu terapeuta? Perderás acceso a tus ejercicios asignados y mensajes.',
+    'confirm.disconnect.body': '¿Desconectarte de tu terapeuta? Tus ejercicios asignados se eliminarán y perderás la mensajería. Tu historial de sesiones se conserva. Esto no se puede deshacer.',
     'confirm.disconnect.ok': 'Desconectar',
     'confirm.rejectTherapist.body': '¿Rechazar a este terapeuta? Su cuenta será eliminada permanentemente.',
     'confirm.rejectTherapist.ok': 'Rechazar cuenta',
@@ -1293,8 +1293,24 @@ async function approvePatientRequest(patientEmail) {
     .set({ patients: firebase.firestore.FieldValue.arrayUnion(patientEmail) }, { merge: true });
   await db.collection('connectionRequests').doc(patientEmail)
     .update({ status: 'approved', decidedAt: new Date().toISOString() });
-  await writeAuditLog('patient_approved', patientEmail);
-  await loadConnectedPatients();
+  // Past this line the patient IS connected. The audit entry and the list
+  // refresh are consequences of that, not conditions of it — letting them throw
+  // to the caller made it announce "Couldn't approve that request" for work that
+  // had already committed, which is how a therapist ends up approving twice.
+  // (Same shape as the disconnect bug that called a function that didn't exist.)
+  try {
+    await writeAuditLog('patient_approved', patientEmail);
+  } catch (e) {
+    // Not cosmetic — this is a HIPAA §164.312(b) record — but it must not be
+    // reported as a failed approval. Loud in the logs, silent in the UI.
+    console.error('[Motus] audit log for patient_approved failed:', e);
+    Sentry.captureException(e, { tags: { flow: 'approve-patient', step: 'audit' } });
+  }
+  try {
+    await loadConnectedPatients();
+  } catch (e) {
+    console.error('[Motus] patient list refresh after approval failed:', e);
+  }
 }
 
 async function declinePatientRequest(patientEmail) {
@@ -1315,8 +1331,18 @@ async function declinePatientRequest(patientEmail) {
   } catch (e) {
     console.warn('[Motus] could not reopen invite after decline', e);
   }
-  await writeAuditLog('patient_declined', patientEmail);
-  await loadConnectedPatients();
+  // Same reasoning as approvePatientRequest: the decline has committed above.
+  try {
+    await writeAuditLog('patient_declined', patientEmail);
+  } catch (e) {
+    console.error('[Motus] audit log for patient_declined failed:', e);
+    Sentry.captureException(e, { tags: { flow: 'decline-patient', step: 'audit' } });
+  }
+  try {
+    await loadConnectedPatients();
+  } catch (e) {
+    console.error('[Motus] patient list refresh after decline failed:', e);
+  }
   loadPatientInvites();
 }
 
@@ -9159,6 +9185,10 @@ async function disconnectFromTherapist() {
   _openConfirmModal('confirm.disconnect.body', 'confirm.disconnect.ok', async () => {
     const threadId = getThreadId(currentUser.email, tEmail);
     try {
+      // Same wipe from the patient's side. Allowed by the `allow delete` rule on
+      // protocols/{patientEmail} — by the time the rest of this runs there is no
+      // connected therapist left with write access to do it for them.
+      await db.collection('protocols').doc(currentUser.email).delete();
       await Promise.all([
         db.collection('connections').doc(tEmail).update({
           patients: firebase.firestore.FieldValue.arrayRemove(currentUser.email),
@@ -9183,9 +9213,15 @@ async function disconnectFromTherapist() {
 }
 
 async function disconnectPatient(patientEmail) {
-  if (!await confirmModal('Disconnect this patient? They will lose access to their assigned protocols and messaging.')) return;
+  if (!await confirmModal('Disconnect this patient? Their assigned exercises will be deleted and they will lose messaging. Session history is kept. This cannot be undone.')) return;
   const threadId = getThreadId(currentUser.email, patientEmail);
   try {
+    // Wipe the prescriptions while still connected — write access to
+    // protocols/{patient} depends on the connection, so this cannot wait until
+    // after it is torn down. Without this the doc survives, and the NEXT
+    // therapist this patient joins reads it: one clinician's plan appearing in
+    // another's panel, with Edit and Remove over it. Confirmed 2026-08-30.
+    await db.collection('protocols').doc(patientEmail).delete();
     // Clear therapistEmail on patient doc FIRST — the Firestore rule requires the connection
     // to still be active (connectedToPatient check), so this must run before removing from connections.
     await db.collection('users').doc(patientEmail).update({

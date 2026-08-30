@@ -10,7 +10,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  setDoc, doc, addDoc, collection, getDoc,
+  setDoc, doc, addDoc, collection, getDoc, deleteDoc,
 } from 'firebase/firestore';
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
 
@@ -112,5 +112,34 @@ describe('users — no self-promotion', () => {
     await seed('users', 'other@x.com', { role: 'patient' });
     const db = as('uid-pat', 'pat@x.com');
     await assertFails(getDoc(doc(db, 'users', 'other@x.com')));
+  });
+});
+
+// Prescriptions are deleted when a connection ends so that one therapist's plan
+// never shows up in the next therapist's panel (confirmed happening 2026-08-30).
+// When the patient is the one disconnecting, no connected therapist is left to
+// do that cleanup — hence a narrow self-delete. It must stay narrow.
+describe('protocols — self-delete on disconnect', () => {
+  it('lets a patient delete their own protocol doc', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('protocols', 'pat@x.com', { items: [{ exerciseType: 'squat' }] });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertSucceeds(deleteDoc(doc(db, 'protocols', 'pat@x.com')));
+  });
+
+  it('does NOT let a patient delete someone else\'s protocol doc', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    await seed('users', 'other@x.com', { role: 'patient' });
+    await seed('protocols', 'other@x.com', { items: [{ exerciseType: 'squat' }] });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(deleteDoc(doc(db, 'protocols', 'other@x.com')));
+  });
+
+  it('still does NOT let a patient write their own prescriptions', async () => {
+    await seed('users', 'pat@x.com', { role: 'patient' });
+    const db = as('uid-pat', 'pat@x.com');
+    await assertFails(setDoc(doc(db, 'protocols', 'pat@x.com'), {
+      items: [{ exerciseType: 'squat', sets: 99 }],
+    }));
   });
 });
