@@ -112,7 +112,18 @@
 
 /* overflow-x: hidden (not clip) so older iOS Safari, which ignores `clip`, still
    contains horizontal overflow. overscroll-behavior-x stops iOS rubber-banding. */
-html { overflow-x: hidden; overscroll-behavior-x: none; width: 100%; max-width: 100%; }
+/* overscroll-behavior-x was set but not -y, so vertical rubber-banding was left
+   on. In a WKWebView the area exposed by that bounce is the webview's own
+   background, not the CSS canvas — which is why overscrolling showed black
+   bands. Killing the bounce on both axes, and painting html explicitly so
+   anything that does get exposed is paper rather than void. */
+html {
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  width: 100%;
+  max-width: 100%;
+  background: var(--rd-paper, #F6F4EF);
+}
 
 /* ── Global focus & transitions ── */
 :focus-visible {
@@ -141,13 +152,20 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: 'Nunito', sans-serif;
+  /* In a WKWebView `vh` resolves against the full screen, not the webview —
+     which sits below the notch. `min-height: 100vh` therefore made the document
+     exactly the notch's height taller than its own viewport (measured: 852 in a
+     793 window), giving every screen 59px of dead scroll. Scrolling that slack
+     pushed the header off the top and exposed the webview behind the page.
+     dvh measures the actual viewport; the vh line stays as the fallback. */
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   max-width: 100%;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
-  overscroll-behavior-x: none;
+  overscroll-behavior: none;
 }
 
 
@@ -198,13 +216,13 @@ body {
 /* ── Auth screens ─────────────────────────────────────────────────────────── */
 #loginScreen, #signupScreen, #forgotScreen, #consentScreen, #connectScreen,
 #pendingScreen {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   flex-direction: column;
   background: var(--pt-bg);
 }
 
 #loginScreen {
-  height: 100vh;
+  height: 100vh; height: 100dvh;
   overflow: hidden;
 }
 
@@ -552,7 +570,7 @@ body {
 
 /* ── Admin panel ─────────────────────────────────────────────────────────── */
 #adminScreen {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--th-bg);
   align-items: center;
   padding-top: 48px;
@@ -663,7 +681,7 @@ body {
 
 /* ── Patient home ─────────────────────────────────────────────────────────── */
 .patient-scope #patientScreen {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--pt-bg);
 }
 
@@ -1159,7 +1177,7 @@ body {
 .pt-subscreen {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--pt-bg);
   padding-bottom: 70px;
 }
@@ -1208,7 +1226,7 @@ body {
 #cameraScreen {
   flex-direction: column;
   align-items: center;
-  height: 100vh;
+  height: 100vh; height: 100dvh;
   padding: var(--space-3);
   gap: var(--space-3);
   overflow: hidden;
@@ -1430,7 +1448,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* ── Therapist screen ─────────────────────────────────────────────────────── */
 #therapistScreen {
   flex-direction: row;
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--th-bg);
 }
 
@@ -1920,7 +1938,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .proto-range-ext { font-weight: 600; color: #16a34a; }
 .proto-require-note { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(0,94,184,0.15); }
 /* ── My Exercises ──────────────────────────────────────────────────── */
-#exercisesScreen { flex-direction: column; align-items: center; padding: var(--space-4); }
+#exercisesScreen { flex-direction: column; align-items: center; padding: 0; }
 .ex-container { width: 100%; max-width: 480px; }
 .ex-header { margin-bottom: var(--space-4); position: relative; }
 .ex-title { font-size: 1.3rem; font-weight: 700; color: var(--text); margin: 0; }
@@ -2119,7 +2137,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .modal-confirm:hover { background: #A51E2A; }
 
 /* ── Progress Screen ───────────────────────────────────────────────── */
-#progressScreen { flex-direction: column; align-items: stretch; padding: var(--space-4); padding-bottom: 80px; }
+/* These two screens hold a .rd-screen, which is itself full-height and carries
+   the safe-area padding plus the 84px of clearance for the bottom nav. The
+   padding here is left over from the pre-redesign dashboard CSS and wraps that
+   wrapper: min-height:100dvh (852) + 16 + 80 made the progress screen 948 tall
+   in an 852 viewport, i.e. a screen you could scroll a whole notch-and-nav
+   further than its own content. The inner rule owns the spacing now. */
+#progressScreen { flex-direction: column; align-items: stretch; padding: 0; }
 .prog-container { width: 100%; max-width: 480px; }
 .prog-header { margin-bottom: var(--space-4); position: relative; }
 .prog-title { font-size: 1.3rem; font-weight: 700; color: var(--text); margin: 0; }
@@ -2458,7 +2482,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 #mlTrainerScreen {
   flex-direction: column;
-  height: 100vh;
+  height: 100vh; height: 100dvh;
   overflow: hidden;
 }
 
@@ -3649,7 +3673,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* Therapist dashboard — mobile */
 .th-sidebar { flex-direction: row; width: 100%; height: auto; padding: 8px 10px; gap: 4px; justify-content: flex-start; flex-shrink: 0; }
 .th-sidebar-spacer { display: none; }
-#therapistScreen { flex-direction: column; height: 100vh; overflow: hidden; }
+#therapistScreen { flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
 .sidebar { width: 100%; border-right: none; border-bottom: none; padding: 0; flex: 1; overflow-y: auto; }
 .sidebar-top { padding: 16px 20px 12px; border-bottom: 1px solid var(--th-border); margin-bottom: 0; }
 .sidebar h2 { font-size: 1.2rem; }
@@ -3670,7 +3694,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .modal-box { width: calc(100% - 32px); }
 
 /* Calibration — mobile: stack columns */
-#mlTrainerScreen { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
+#mlTrainerScreen { height: auto; min-height: 100vh; min-height: 100dvh; overflow-y: auto; overflow-x: hidden; }
 .calib-main { flex-direction: column; overflow: visible; }
 .calib-right-col { overflow: visible; flex: none; }
 .calib-readout-panel { overflow-y: visible; flex: none; }
@@ -3719,7 +3743,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (min-width: 1024px) {
   /* Therapist dashboard — desktop: sidebar + main panel side by side */
   #therapistScreen { flex-direction: row; }
-  .th-sidebar { flex-direction: column; width: 60px; height: 100vh; padding: 14px 0; gap: 4px; justify-content: flex-start; }
+  .th-sidebar { flex-direction: column; width: 60px; height: 100vh; height: 100dvh; padding: 14px 0; gap: 4px; justify-content: flex-start; }
   .th-sidebar-spacer { display: block; flex: 1; }
   .sidebar { width: 260px; border-right: 1px solid var(--th-border); border-bottom: none; padding: 20px 14px; flex: none; }
   .sidebar-top { padding: 0; border-bottom: none; margin-bottom: 4px; }
@@ -3738,7 +3762,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .tp-mobile-back-btn { display: none; }
 
   /* Calibration — side by side */
-    #mlTrainerScreen { height: 100vh; overflow: hidden; }
+    #mlTrainerScreen { height: 100vh; height: 100dvh; overflow: hidden; }
   .calib-main { flex-direction: row; overflow: hidden; }
   .calib-right-col { overflow: auto; flex: 1; }
   .calib-readout-panel { overflow-y: auto; flex: 1; }
@@ -5310,7 +5334,7 @@ body:has(#manualCamScreen.active) {
 }
 
 /* ── My Exercises screen (exs-*) ────────────────────────────────────────── */
-#exercisesScreen { background: var(--bg); flex-direction: column; min-height: 100vh; align-items: stretch; }
+#exercisesScreen { background: var(--bg); flex-direction: column; min-height: 100vh; min-height: 100dvh; align-items: stretch; }
 .exs-container {
   max-width: var(--max-content); margin: 0 auto;
   padding: var(--space-8) var(--space-6); width: 100%;
@@ -6479,7 +6503,7 @@ body:has(#manualCamScreen.active) {
 .therapist-scope #therapistScreen {
   display: grid;
   grid-template-columns: 72px 320px 1fr;
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--tp-bg, var(--th-bg));
 }
 
@@ -7944,7 +7968,7 @@ body:has(#manualCamScreen.active) {
 .rd-rail-name { font-size: calc(14px * var(--font-scale)); font-weight: 700; color: #fff; }
 .rd-rail-signout { font-size: calc(12px * var(--font-scale)); color: rgba(255,255,255,0.6); }
 /* Patient list column */
-.rd-plist { width: 300px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--rd-card-border); height: 100vh; box-sizing: border-box; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; }
+.rd-plist { width: 300px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--rd-card-border); height: 100vh; height: 100dvh; box-sizing: border-box; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; }
 .rd-plist-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .rd-plist-title { font-size: calc(18px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
 .rd-plist-refresh {
@@ -8135,10 +8159,10 @@ body:has(#manualCamScreen.active) {
 .tut-overlay .tut-dot-active { background: var(--rd-teal); }
 
 /* Patient detail panel (clinical) */
-#therapistScreen .main-panel { flex: 1; background: var(--rd-canvas); overflow-y: auto; height: 100vh; box-sizing: border-box; }
+#therapistScreen .main-panel { flex: 1; background: var(--rd-canvas); overflow-y: auto; height: 100vh; height: 100dvh; box-sizing: border-box; }
 
 /* ═══ THERAPIST MESSAGES INBOX + THREAD (main panel) ═══ */
-.th-inbox { height: 100vh; display: flex; flex-direction: column; font-family: var(--rd-font); }
+.th-inbox { height: 100vh; height: 100dvh; display: flex; flex-direction: column; font-family: var(--rd-font); }
 .th-inbox-header { flex-shrink: 0; padding: 28px 32px 16px; border-bottom: 1px solid var(--rd-divider); }
 .th-inbox-title { font-size: calc(24px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); margin: 0; }
 .th-inbox-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 24px; }
@@ -8154,7 +8178,7 @@ body:has(#manualCamScreen.active) {
 .th-inbox-row.unread .th-inbox-name, .th-inbox-row.unread .th-inbox-preview { color: var(--rd-ink); font-weight: 700; }
 .th-inbox-badge { flex-shrink: 0; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--rd-teal); color: #fff; font-size: calc(12px * var(--font-scale)); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 /* Thread view */
-.th-thread { height: 100vh; display: flex; flex-direction: column; font-family: var(--rd-font); --accent: var(--rd-teal); }
+.th-thread { height: 100vh; height: 100dvh; display: flex; flex-direction: column; font-family: var(--rd-font); --accent: var(--rd-teal); }
 .th-thread-header { flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--rd-card-border); background: var(--rd-card); }
 .th-thread-back { background: none; border: none; color: var(--rd-ink); cursor: pointer; display: flex; padding: 4px; min-height: auto; }
 .th-thread-back:hover { color: var(--rd-teal); }

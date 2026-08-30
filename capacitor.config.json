@@ -3,10 +3,12 @@
   "appName": "Motus",
   "webDir": "dist",
   "ios": {
-    "contentInset": "always"
+    "contentInset": "never",
+    "backgroundColor": "#F6F4EF"
   },
   "server": {
     "hostname": "motusmedicine.com",
     "androidScheme": "https"
-  }
+  },
+  "backgroundColor": "#F6F4EF"
 }

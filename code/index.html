@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- viewport-fit=cover is REQUIRED for env(safe-area-inset-*) to be anything but
+       0 in WKWebView. Without it the ~15 safe-area rules in styles.css are dead
+       code, and the layout that was written to clear the notch and the home
+       indicator silently clears nothing. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Motus Medicine</title>
   <meta name="description" content="Motus Medicine — physical rehabilitation app connecting patients with therapists for guided exercise sessions and progress tracking." />
   <link rel="icon" type="image/svg+xml" href="/motus-mark.svg">
