@@ -8511,3 +8511,22 @@ body:has(#manualCamScreen.active) {
 .pd-exb-pain { font-variant-numeric: tabular-nums; }
 .pd-exb-pain.hurt { color: var(--danger); font-weight: 700; }
 .pd-exb-empty { padding: 12px 4px; font-size: 0.84rem; color: var(--rd-muted, var(--muted)); }
+
+/* Session history: recent days show, the rest sit behind a button. `hidden`
+   alone loses to any display rule inherited from .prog-days-list, so it is
+   pinned explicitly. */
+.sh-hidden-days[hidden] { display: none; }
+.sh-more-btn {
+  display: block;
+  width: 100%;
+  margin: 8px 0 4px;
+  padding: 10px 14px;
+  border: 1px dashed var(--th-border, #D8D2C7);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--th-muted, #6B7280);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sh-more-btn:hover { background: var(--th-surface-2, #F5F2EC); color: var(--th-text, #1F2937); }

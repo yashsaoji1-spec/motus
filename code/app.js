@@ -3409,11 +3409,17 @@ async function startSessionWithProtocol(protocol) {
     if (hoursSince !== null && hoursSince >= WELL_SPACED_HOURS) {
       // fall through and start
     } else {
+      // Report the real gap or none at all. A floor like Math.max(5, mins) prints
+      // "about 5 minutes ago" to someone who finished 40 seconds ago, which is
+      // simply false; under two minutes there is no useful number, so say "just now".
+      const minsSince = hoursSince === null ? null : Math.round(hoursSince * 60);
       const gap = hoursSince === null
         ? ''
-        : hoursSince < 1
-          ? ` Your last one was about ${Math.max(5, Math.round(hoursSince * 60))} minutes ago.`
-          : ` Your last one was about ${Math.round(hoursSince)} hour${Math.round(hoursSince) === 1 ? '' : 's'} ago.`;
+        : minsSince < 2
+          ? ' You finished your last one just now.'
+          : hoursSince < 1
+            ? ` Your last one was about ${minsSince} minutes ago.`
+            : ` Your last one was about ${Math.round(hoursSince)} hour${Math.round(hoursSince) === 1 ? '' : 's'} ago.`;
       const ok = await confirmModal(
         `That's ${roundsDone} of ${perDay} sessions done today.${gap} These work best a few hours apart — but if you feel you've had a good break already, go ahead and carry on.`,
         'Start anyway');
@@ -6109,9 +6115,14 @@ async function showRealPatient(patient) {
   const adhDeltaHtml = (!adhJustStarted && adhDeltaT !== 0) ? `<span class="pd-vital-delta" style="color:${adhDeltaT > 0 ? '#059669' : '#64748B'}">${adhDeltaT > 0 ? '+' : ''}${adhDeltaT}% vs last week</span>` : '';
   const adhBreakdownHtml = adhResultT.exercises.length > 0
     ? '<div class="pd-adh-breakdown">' + adhResultT.exercises.map(function(e) {
+        // expected === 0 means nothing was due yet (day-one grace). Rendering the
+        // raw fraction here prints "1/0" for a patient who trained ahead of pace;
+        // the per-exercise table already shows "Not due yet" for the same state.
         const detail = e.justStarted
           ? 'Just started'
-          : (e.actual + '/' + e.expected + (e.missed > 0 ? ' (' + e.missed + ' missed)' : ''));
+          : e.expected === 0
+            ? 'Not due yet'
+            : (e.actual + '/' + e.expected + (e.missed > 0 ? ' (' + e.missed + ' missed)' : ''));
         return '<div class="pd-adh-row"><span class="pd-adh-name">' + escapeHtml(e.name) + '</span><span class="pd-adh-detail">' + detail + '</span></div>';
       }).join('') + '</div>'
     : '';
@@ -6318,7 +6329,7 @@ function buildExerciseBreakdown(exercises, sessions) {
     </tr>`;
   }).join('');
   return `<table class="pd-exb">
-    <thead><tr><th>Exercise</th><th>Done</th><th>Adherence</th><th>Avg pain</th></tr></thead>
+    <thead><tr><th>Exercise</th><th>Sessions done</th><th>Adherence</th><th>Avg pain</th></tr></thead>
     <tbody>${rows}</tbody></table>`;
 }
 
@@ -6415,8 +6426,16 @@ function buildSessionHistory(sessions, patientName) {
   }
   const byDay = groupSessionsByDay(sessions);
   const days = Object.keys(byDay).sort((a, b) => new Date(b) - new Date(a));
+  // A patient with months of history pushed everything below this panel — the
+  // per-exercise breakdown was several screens down. Show the recent days and
+  // keep the rest one click away.
+  const HISTORY_VISIBLE_DAYS = 5;
   let html = '<div class="session-history-card"><h4>Session history</h4><div class="prog-days-list">';
-  days.forEach(day => {
+  days.forEach((day, dayIdx) => {
+    if (dayIdx === HISTORY_VISIBLE_DAYS) {
+      const hiddenCount = days.length - HISTORY_VISIBLE_DAYS;
+      html += `<button type="button" class="sh-more-btn" onclick="expandSessionHistory(this)">Show ${hiddenCount} earlier day${hiddenCount === 1 ? '' : 's'}</button><div class="sh-hidden-days" hidden>`;
+    }
     const daySessions = byDay[day];
     const dayDate = new Date(day);
     const dayLabel = dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -6511,8 +6530,16 @@ function buildSessionHistory(sessions, patientName) {
     });
     html += `</div></div>`;
   });
+  if (days.length > HISTORY_VISIBLE_DAYS) html += '</div>';
   html += '</div></div>';
   return html;
+}
+
+// Reveal the days hidden behind "Show N earlier days" and retire the button.
+function expandSessionHistory(btn) {
+  const hidden = btn.nextElementSibling;
+  if (hidden && hidden.classList.contains('sh-hidden-days')) hidden.hidden = false;
+  btn.remove();
 }
 
 function buildProtocolForm(patientEmail, protocols) {
@@ -8436,9 +8463,15 @@ function buildProgressByDay(sessions) {
   
   if (days.length === 0) return '';
   
+  // Same cap as the therapist panel: a long history buried everything below it.
+  const HISTORY_VISIBLE_DAYS = 5;
   let html = '<div class="prog-days-list">';
   
-  days.forEach(day => {
+  days.forEach((day, dayIdx) => {
+    if (dayIdx === HISTORY_VISIBLE_DAYS) {
+      const hiddenCount = days.length - HISTORY_VISIBLE_DAYS;
+      html += `<button type="button" class="sh-more-btn" onclick="expandSessionHistory(this)">Show ${hiddenCount} earlier day${hiddenCount === 1 ? '' : 's'}</button><div class="sh-hidden-days" hidden>`;
+    }
     const daySessions = byDay[day];
     const dayDate = new Date(day);
     const dayLabel = dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -8547,6 +8580,7 @@ function buildProgressByDay(sessions) {
     html += `</div></div>`;
   });
   
+  if (days.length > HISTORY_VISIBLE_DAYS) html += '</div>';
   html += '</div>';
   return html;
 }
@@ -10738,7 +10772,7 @@ Object.assign(window, {
   updatePainBar, siAdjustReps, siSelectPain, siToggleChip,
 
   // Progress screen
-  toggleProgDay, showSetNotes, closeSetNotesModal,
+  toggleProgDay, expandSessionHistory, showSetNotes, closeSetNotesModal,
 
   // Session history
   shLoadMore, toggleShExpand,
