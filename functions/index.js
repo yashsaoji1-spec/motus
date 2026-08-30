@@ -100,7 +100,17 @@ async function deleteTherapist(email) {
   for (const p of patients) {
     try { await db.collection('users').doc(p).update({ therapistEmail: FieldValue.delete() }); }
     catch (e) { console.warn('[delete] clear patient therapistEmail:', e.message); }
-    await deleteDocs([db.collection('clinicalNotes').doc(p)]); // therapist-authored notes
+    await deleteDocs([
+      db.collection('clinicalNotes').doc(p), // therapist-authored notes
+      // Deleting a therapist detaches their patients, which is a disconnect by
+      // another name — so it has to wipe prescriptions for the same reason the
+      // disconnect paths do. Left behind, this therapist's plan would follow
+      // each patient to whoever they join next, and show up in that clinician's
+      // panel as if they had written it.
+      // The patient's OWN records — protocols aside — stay: sessions and their
+      // history are theirs, and must survive their therapist leaving.
+      db.collection('protocols').doc(p),
+    ]);
   }
 
   await deleteDocs([
@@ -108,7 +118,12 @@ async function deleteTherapist(email) {
     db.collection('connections').doc(email),
     db.collection('therapistLibrary').doc(email),
   ]);
+  // therapistCodes is the old shared clinic-code collection, retired when
+  // per-patient invites landed. Cleaning only that one left every code this
+  // therapist had actually issued live: a patient could still redeem one and
+  // file a join request addressed to an account that no longer exists.
   await deleteByQuery(db.collection('therapistCodes').where('email', '==', email));
+  await deleteByQuery(db.collection('patientInvites').where('therapistEmail', '==', email));
   // Join requests addressed to this therapist. The patients who filed them stay,
   // but the request is dead — the therapist it was sent to no longer exists, and
   // nobody else is permitted to act on it.
