@@ -6109,14 +6109,31 @@ body:has(#manualCamScreen.active) {
   border-bottom: 1px solid var(--border);
 }
 .settings-field:last-child { border-bottom: none; }
-.settings-field label { font-size: var(--text-xs); color: var(--muted); font-weight: 500; }
+.settings-field label { font-size: calc(12px * var(--font-scale)); color: var(--muted); font-weight: 500; }
+/* Every control in a settings row renders as the same flat inline value. The
+   Profile rows used .rd-input/.rd-select, which are 56px boxed controls, so Name
+   and Language sat in big outlined boxes while Email and the seven About-You
+   dropdowns were flat — mixed chrome down one list. De-chrome them all here.
+   Sizes are font-scale'd so these rows actually respond to Settings > Text size;
+   var(--text-base) is a fixed rem and ignored it. */
 .settings-field .auth-input,
 .settings-field .auth-select,
+.settings-field .rd-input,
+.settings-field .rd-select,
 .settings-field input[disabled] {
   border: none; border-radius: 0; padding: 0; background: transparent;
-  font-size: var(--text-base); color: var(--text); font-family: inherit;
+  font-size: calc(16px * var(--font-scale)); color: var(--text); font-family: inherit;
+  height: auto; min-height: 0; box-shadow: none; width: 100%; box-sizing: border-box;
 }
 .settings-field input[disabled] { color: var(--muted); cursor: default; }
+/* The de-chrome rule above uses the `background` SHORTHAND, which resets
+   background-image to none — so a de-chromed select loses its chevron unless it
+   is re-declared here (this is why .auth-select re-adds one below). Use the same
+   chevron for both so every settings dropdown looks identical. */
+.settings-field .rd-select {
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 0 center; padding-right: 20px;
+}
 .settings-field .auth-select { background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0 center; }
 .settings-field input:focus,
 .settings-field select:focus { outline: none; }
@@ -7192,7 +7209,11 @@ body:has(#manualCamScreen.active) {
   --rd-teal-tint:  #E6F2F0;
   --rd-ink:    #1F2933;
   --rd-text2:  #5B6770;
-  --rd-muted:  #8A8578;
+  /* Was #8A8578, which failed WCAG AA: 3.35:1 on --rd-paper and 3.68:1 on
+     --rd-card, against the 4.5:1 body-text minimum. axe flagged it on the login
+     and consent screens — the first two screens anyone sees. Darkened along the
+     same warm-grey hue to 4.91:1 on paper / 5.39:1 on card. */
+  --rd-muted:  #6E6A60;
   /* Status */
   --rd-warn-text: #B45309;  --rd-warn-fill: #FDF3E3;  --rd-warn-border: #F2E2C4;
   --rd-danger:    #B4470C;  --rd-danger-fill: #FBEDE4; --rd-danger-border: #E3C1AE;
@@ -7352,7 +7373,7 @@ body:has(#manualCamScreen.active) {
   background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card);
   padding: 20px; margin-bottom: 18px;
 }
-.rd-consent-card h3 { font-family: var(--rd-font); font-weight: 700; font-size: calc(16px * var(--font-scale)); color: var(--rd-ink); margin: 0 0 14px; }
+.rd-consent-card h2 { font-family: var(--rd-font); font-weight: 700; font-size: calc(16px * var(--font-scale)); color: var(--rd-ink); margin: 0 0 14px; }
 .rd-consent-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .rd-consent-list li { display: flex; gap: 10px; font-family: var(--rd-font); font-size: calc(15px * var(--font-scale)); color: var(--rd-text2); line-height: 1.4; }
 .rd-consent-list svg { flex-shrink: 0; color: var(--rd-teal); margin-top: 1px; }
@@ -7454,13 +7475,20 @@ body:has(#manualCamScreen.active) {
 .rd-stat-big { font-size: calc(22px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); line-height: 1.15; }
 .rd-stat-big.teal { color: var(--rd-teal); }
 /* "Your Therapist" label sat flush against the card below it. */
-#ptTherapistHeading { margin-bottom: 8px; }
-.rd-th-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); }
+#ptTherapistHeading {
+  margin-bottom: 8px;
+  font-size: calc(13px * var(--font-scale)); font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--rd-text2);
+}
+/* avatar | name | Message. The name is the only flexible cell, so at larger
+   text scales it was the one that got crushed (wrapping "Sarah Chen" onto two
+   lines between the initials and the button). Let the button drop to its own
+   line instead of squeezing the name. */
+.rd-th-card { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; background: var(--rd-card); border: 1px solid var(--rd-card-border); border-radius: var(--rd-r-card); }
 .rd-th-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--rd-teal-tint); color: var(--rd-teal); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(15px * var(--font-scale)); flex-shrink: 0; }
-.rd-th-info { flex: 1; min-width: 0; }
+.rd-th-info { flex: 1 1 40%; min-width: 0; }
 .rd-th-name { font-size: calc(16px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
-.rd-th-sub { font-size: calc(13px * var(--font-scale)); color: var(--rd-text2); }
-.rd-th-msg { padding: 10px 18px; background: var(--rd-teal-tint); color: var(--rd-teal); border: none; border-radius: var(--rd-r-pill); font-family: var(--rd-font); font-weight: 700; font-size: calc(15px * var(--font-scale)); cursor: pointer; min-height: 44px; flex-shrink: 0; }
+.rd-th-msg { margin-left: auto; padding: 10px 18px; background: var(--rd-teal-tint); color: var(--rd-teal); border: none; border-radius: var(--rd-r-pill); font-family: var(--rd-font); font-weight: 700; font-size: calc(15px * var(--font-scale)); cursor: pointer; min-height: 44px; flex-shrink: 0; }
 
 /* ── Patient bottom nav (shared) — retinted to the new system ─────────────── */
 #patientBottomNav.pt-bottom-nav {
@@ -7630,8 +7658,17 @@ body:has(#manualCamScreen.active) {
 .settings-screen .settings-field:last-child { margin-bottom: 0; }
 .settings-screen .settings-field label { display: block; font-family: var(--rd-font); font-size: calc(14px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); margin-bottom: 6px; }
 .settings-screen .settings-field .rd-input, .settings-screen .settings-field .rd-select { margin: 0; }
-.rd-seg { display: flex; background: var(--rd-divider); border-radius: 12px; padding: 4px; gap: 4px; }
-.rd-seg-btn { flex: 1; min-height: 44px; border: none; background: none; border-radius: 9px; font-family: var(--rd-font); font-weight: 700; font-size: calc(15px * var(--font-scale)); color: var(--rd-text2); cursor: pointer; }
+/* Three labels across a phone. Flex items don't shrink below their content
+   width by default, so at Text size: Largest ("Standard | Large | Largest")
+   overflowed the pill and spilled out of the card — on the very control you use
+   to change text size. Wrap to a column when the labels stop fitting. */
+.rd-seg { display: flex; flex-wrap: wrap; background: var(--rd-divider); border-radius: 12px; padding: 4px; gap: 4px; }
+.rd-seg-btn { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 6px 8px; border: none; background: none; border-radius: 9px; font-family: var(--rd-font); font-weight: 700; font-size: calc(15px * var(--font-scale)); color: var(--rd-text2); cursor: pointer; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  /* Below this the three labels cannot sit side by side at the larger scales. */
+  [data-text-size="largest"] .rd-seg { flex-direction: column; }
+  [data-text-size="largest"] .rd-seg-btn { width: 100%; }
+}
 .rd-seg-btn.active { background: var(--rd-card); color: var(--rd-teal); box-shadow: 0 1px 3px rgba(31,41,51,0.1); }
 /* Account/link rows + save footer within settings */
 .settings-screen .settings-row, .settings-screen .settings-account-btn { font-family: var(--rd-font); color: var(--rd-ink); }
@@ -7740,24 +7777,39 @@ body:has(#manualCamScreen.active) {
 .rd-prog-banner-eyebrow { font-size: calc(14px * var(--font-scale)); color: rgba(255,255,255,0.85); margin-bottom: 4px; }
 .rd-prog-banner-msg { font-size: calc(19px * var(--font-scale)); font-weight: 700; color: #fff; line-height: 1.3; }
 .rd-prog-card { padding: 18px; margin-bottom: 14px; }
-.rd-prog-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.rd-prog-card-title { font-size: calc(16px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); }
+/* Title block and trend pill are siblings in a flex row. Without a gap and a
+   shrinkable title they collide once --font-scale grows (Text size: Large /
+   Largest), which is where "Pain after exercise" ran into "Pain is going down". */
+.rd-prog-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.rd-prog-card-title { font-size: calc(16px * var(--font-scale)); font-weight: 700; color: var(--rd-ink); min-width: 0; flex: 1; }
 .rd-prog-card-sub { display: block; font-size: calc(12px * var(--font-scale)); font-weight: 400; color: var(--rd-muted); margin-top: 2px; }
-.rd-prog-trend { font-size: calc(14px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); }
+.rd-prog-trend { font-size: calc(14px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); flex-shrink: 0; max-width: 45%; text-align: right; }
 .rd-prog-trend.teal { color: var(--rd-teal); }
 .rd-prog-dots { display: flex; justify-content: space-between; gap: 4px; margin-top: 12px; }
-.rd-prog-dot-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.rd-prog-dot-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .rd-prog-dot { width: 34px; height: 34px; border-radius: 50%; background: var(--rd-divider); display: flex; align-items: center; justify-content: center; }
 .rd-prog-dot.done { background: var(--rd-teal); }
 .rd-prog-dot.today { background: transparent; border: 2px dashed var(--rd-input-border); }
-.rd-prog-dot-lbl { font-size: calc(12px * var(--font-scale)); color: var(--rd-text2); }
+/* Seven columns across a phone leaves ~42px each, so a single word like "Today"
+   cannot both grow with --font-scale and stay whole — unconstrained it overflowed,
+   and breaking anywhere shredded it to "Tod/ay". These labels are secondary (the
+   dots carry the meaning), so cap their growth and keep the words intact. */
+.rd-prog-dot-lbl { font-size: calc(12px * min(var(--font-scale), 1.15)); color: var(--rd-text2); text-align: center; max-width: 100%; white-space: nowrap; line-height: 1.2; }
 .rd-prog-dot-lbl.today { font-weight: 700; color: var(--rd-ink); }
-.rd-prog-bars { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; height: 112px; }
+/* Keep a DEFINITE height: .rd-prog-bar-col is height:100% and .rd-prog-bar-track
+   is flex:1, so the bars share one baseline only while this resolves. Switching
+   it to min-height collapses that chain. Grow it with --font-scale instead, so
+   the scaled value/label rows still get their room. */
+.rd-prog-bars { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; height: calc(112px + (var(--font-scale) - 1) * 46px); }
 .rd-prog-bar-val { font-size: calc(12px * var(--font-scale)); font-weight: 700; color: var(--rd-text2); margin-bottom: 4px; font-variant-numeric: tabular-nums; min-height: 1em; }
-.rd-prog-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.rd-prog-bar-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
 .rd-prog-bar-track { flex: 1; display: flex; align-items: flex-end; width: 100%; }
 .rd-prog-bar { width: 100%; border-radius: 8px; }
-.rd-prog-bar-lbl { font-size: calc(12px * var(--font-scale)); color: var(--rd-text2); margin-top: 8px; }
+/* Must stay ONE line. The label sits below the track in a flex column, so a
+   label that wraps to two lines shortens its own track and lifts that bar off
+   the shared baseline — "Last wk"/"This wk" floated above the other three,
+   which misreads the chart. Cap the growth so every label fits on one line. */
+.rd-prog-bar-lbl { font-size: calc(12px * min(var(--font-scale), 1.15)); color: var(--rd-text2); margin-top: 8px; text-align: center; max-width: 100%; white-space: nowrap; line-height: 1.2; }
 .rd-prog-bar-lbl.now { font-weight: 700; color: var(--rd-ink); }
 .rd-prog-summary { font-size: calc(15px * var(--font-scale)); color: var(--rd-text2); line-height: 1.5; margin-top: 16px; }
 .rd-prog-summary b { color: var(--rd-ink); font-weight: 700; }
