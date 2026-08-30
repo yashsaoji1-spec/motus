@@ -4563,7 +4563,7 @@ async function assignProtocol() {
   let demoVideoUrl = _demoExistingVideoUrl || null;
   if (_demoBlob) {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading demo...'; }
-    { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
+    { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.${videoExt(_demoBlob)}`); demoVideoUrl = up ? up.url : null; }
     if (demoVideoUrl) {
       _demoThumbnailUrl = _getThumbnailUrl(demoVideoUrl);
     } else {
@@ -5924,7 +5924,7 @@ async function bulkAssignProtocol() {
     let demoVideoUrl = null;
     if (_demoBlob) {
       if (submitBtn) submitBtn.textContent = 'Uploading demo...';
-      { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.webm`); demoVideoUrl = up ? up.url : null; }
+      { const up = await uploadVideoToStorage(_demoBlob, `demos/${currentUser.email}/${Date.now()}.${videoExt(_demoBlob)}`); demoVideoUrl = up ? up.url : null; }
       if (submitBtn) submitBtn.textContent = 'Assigning...';
     }
 
@@ -7400,7 +7400,7 @@ async function uploadVideo(blob, docId, collection = 'sessions', tier = 'session
   if (!blob || blob.size === 0 || !docId) return;
   const tierConfig = VIDEO_TIERS[tier] || VIDEO_TIERS.session;
   try {
-    const up = await uploadVideoToStorage(blob, `${collection}/${currentUser.email}/${docId}.webm`);
+    const up = await uploadVideoToStorage(blob, `${collection}/${currentUser.email}/${docId}.${videoExt(blob)}`);
     if (up) {
       const update = { videoUrl: up.url, videoStoragePath: up.storagePath };
       if (tierConfig.expireDays !== null) {
@@ -7454,7 +7454,9 @@ function closeVideoModal() {
 function downloadSessionVideo(url, date, patientName) {
   const safeName = (patientName || 'patient').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '');
   const dateStr  = date ? new Date(date).toISOString().slice(0, 10) : 'unknown';
-  const ext      = url.includes('.mp4') ? 'mp4' : 'webm';
+  // Legacy objects are all .webm and still resolve as such; anything recorded on
+  // iOS since these paths adopted videoExt() carries its real extension.
+  const ext      = (url.match(/\.(mp4|webm|mov|m4v)(?:[?&]|$)/i) || [, 'webm'])[1].toLowerCase();
   const filename = `motus-session-${safeName}-${dateStr}.${ext}`;
   fetch(url)
     .then(r => r.blob())
